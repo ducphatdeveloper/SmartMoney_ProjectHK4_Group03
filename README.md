@@ -1,0 +1,2 @@
+# SmartMoney_ProjectHK4_Group03
+SmartMoney: Hệ thống quản lý tài chính cá nhân AI. 💰 Thu chi, ví &amp; sổ tiết kiệm, ngân sách, sổ nợ, sự kiện, hóa đơn &amp; giao dịch định kỳ, đa tiền tệ. 🤖 Trợ lý AI (Chat, giọng nói, OCR), báo cáo &amp; dự báo thông minh. 🔒 Bảo mật xác thực phân quyền, đồng bộ Web/Mobile. 🛠 Admin Dashboard: Quản trị người dùng, tài khoản &amp; giám sát hệ thống toàn diện.
