@@ -1,0 +1,17 @@
+# --- Frontend ---
+node_modules/
+build/
+dist/
+.env
+.eslintcache
+
+# --- Backend ---
+target/
+out/
+*.class
+.idea/
+*.iml
+
+# --- OS ---
+.DS_Store
+Thumbs.db
