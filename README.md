@@ -21,3 +21,5 @@
 10. Bảo mật & Phân quyền: Đăng ký, đăng nhập, xác thực bằng JWT/OTP/Email. Phân quyền người dùng (User) và (Admin). Đồng bộ dữ liệu đa nền tảng (Web/Mobile).
 
 11. Admin Dashboard: Tra cứu người dùng, kiểm soát quyền truy cập (khóa/mở) và xem biểu đồ phân tích các chỉ số vận hành hệ thống.
+
+# Dự án sử dụng Java JDK 21 - v21.0.7, Spring Boot 3.5.10, JWT 0.11.5, IDE IntelliJ IDEA 2025.3
