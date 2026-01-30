@@ -37,6 +37,10 @@ dependencies:
   fl_chart: ^0.66.2
   intl: ^0.20.2
 
+  # Thêm mới
+  http: ^1.2.0       # Để gọi API
+  provider: ^6.1.1   # Để quản lý state
+
 
 dev_dependencies:
   flutter_test:
