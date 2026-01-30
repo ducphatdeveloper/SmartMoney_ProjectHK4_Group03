@@ -3,14 +3,20 @@ package fpt.aptech.server.entity;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
-import lombok.Data;
+import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 import java.time.LocalDate;
 
+/**
+ * Bảng sự kiện.
+ * Dùng để nhóm các giao dịch vào một sự kiện cụ thể (VD: "Du lịch Đà Lạt").
+ */
 @Entity
 @Table(name = "tEvents")
-@Data
+@Getter
+@Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
@@ -20,12 +26,12 @@ public class Event {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer id;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "acc_id", nullable = false)
     private Account account;
 
-    @ManyToOne
-    @JoinColumn(name = "currency", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "currency", referencedColumnName = "currency_code", nullable = false)
     private Currency currency;
 
     @Column(name = "event_name", nullable = false, length = 200)
