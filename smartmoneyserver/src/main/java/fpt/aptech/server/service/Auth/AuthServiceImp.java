@@ -76,6 +76,7 @@ public class AuthServiceImp implements AuthService {
                 .accEmail(userInfo.getEmail())
                 .avatarUrl(userInfo.getAvatarUrl())
                 .currency(userInfo.getCurrencyCode())
+                .roleId(userInfo.getRoleId()) // <--- THÊM DÒNG NÀY
                 .roleCode(userInfo.getRoleCode())
                 .roleName(userInfo.getRoleName())
                 .permissions(userInfo.getPermissions())
@@ -146,6 +147,7 @@ public class AuthServiceImp implements AuthService {
         userInfo.setAvatarUrl(account.getAvatarUrl());
 
         if (account.getRole() != null) {
+            userInfo.setRoleId(account.getRole().getId()); // <--- THÊM DÒNG NÀY vì trang login bên react của Nam gọi if (serverData.roleId === 1)
             userInfo.setRoleName(account.getRole().getRoleName());
             userInfo.setRoleCode(account.getRole().getRoleCode()); //them role code
             if (account.getRole().getPermissions() != null) {

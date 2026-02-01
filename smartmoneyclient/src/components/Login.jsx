@@ -22,16 +22,17 @@ const Login = () => {
                 localStorage.setItem('accessToken', serverData.accessToken);
 
                 // Cập nhật cách lưu userData 💾
-                // Vì server trả về roleId là "Quản trị viên", ta sẽ dùng chính nó để kiểm tra
+                // Vì server trả về roleId là "Quản trị viên" = 1, ta sẽ dùng chính nó để kiểm tra
                 const userData = {
                     userId: serverData.userId,
                     accEmail: serverData.accEmail,
-                    roleName: serverData.roleId, // Lưu lại giá trị "Quản trị viên"
+                    roleName: serverData.roleName, // Lưu lại giá trị tên role
+                    roleId: serverData.roleId, // Lưu lại giá trị id là khóa chính của role
                 };
                 localStorage.setItem('user', JSON.stringify(userData));
-
+                console.log("Role ID hiện tại:", serverData.roleId)
                 // Kiểm tra điều kiện điều hướng ngay tại đây
-                if (serverData.roleId === "Quản trị viên") {
+                if (serverData.roleId === 1) {
                     navigate('/admin');
                 } else {
                     navigate('/dashboard');

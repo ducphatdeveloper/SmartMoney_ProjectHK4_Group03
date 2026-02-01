@@ -18,6 +18,8 @@ public class AuthResponse {
     private String currency;
 
     // Role & Permissions
+    @JsonProperty("roleId")
+    private Integer roleId; // <--- THÊM DÒNG NÀY
     @JsonProperty("roleCode")
     private String roleCode;
     @JsonProperty("roleName")
