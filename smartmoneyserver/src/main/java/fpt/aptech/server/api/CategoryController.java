@@ -4,6 +4,7 @@ import fpt.aptech.server.dto.category.CategoryResponse;
 import fpt.aptech.server.service.category.CategoryService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -18,6 +19,7 @@ public class CategoryController {
     private CategoryService categoryService;
 
     @GetMapping
+    //@PreAuthorize("hasAuthority('USER_STANDARD_MANAGE')")
     public ResponseEntity<List<CategoryResponse>> getUserCategories() {
         // TODO: Sau này sẽ lấy ID từ Token của user đang đăng nhập (SecurityContext)
         // Hiện tại hardcode ID = 2 (User mẫu có dữ liệu trong DB) để test chức năng View

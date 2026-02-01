@@ -3,11 +3,8 @@ import 'package:http/http.dart' as http;
 
 // Lớp helper trung tâm để xử lý logic gọi API và bắt lỗi.
 class ApiHandler {
-  // Hàm xử lý chung, bao bọc toàn bộ logic try-catch và kiểm tra status code.
-  // - `request`: Hành động gọi API (ví dụ: http.get(...)).
-  // - `onSuccess`: Hàm để biến đổi dữ liệu JSON thành đối tượng Dart.
-  // - `activityName`: Tên của hành động để ghi log cho dễ hiểu.
-  static Future<T> handleApiCall<T>({
+  // Hàm private xử lý logic chung, chỉ dùng nội bộ trong class này.
+  static Future<T> _handleApiCall<T>({
     required Future<http.Response> request,
     required T Function(dynamic jsonData) onSuccess,
     required String activityName,
@@ -21,14 +18,29 @@ class ApiHandler {
         final jsonData = json.decode(utf8.decode(response.bodyBytes));
         return onSuccess(jsonData);
       } else {
-        // Ném lỗi server để khối catch bên dưới xử lý.
         throw 'Lỗi Server: ${response.statusCode}';
       }
     } catch (e) {
-      // Bất kỳ lỗi nào (kết nối, server, parse...) đều được xử lý tại đây.
       print("❌ Đã có lỗi xảy ra ($activityName): $e");
-      // Ném ra một thông báo lỗi duy nhất, thân thiện cho UI hiển thị.
       throw 'Không thể hoàn thành "$activityName". Vui lòng thử lại.';
     }
+  }
+
+  // ======================== PHIÊN BẢN NÂNG CẤP ========================
+  // Hàm mới, chuyên để fetch một danh sách.
+  // Nó sẽ tự động parse JSON thành List và map qua từng phần tử.
+  static Future<List<T>> fetchList<T>({
+    required Future<http.Response> request,
+    required T Function(Map<String, dynamic> itemJson) fromJson, // Chỉ cần truyền hàm fromJson
+    required String activityName,
+  }) {
+    return _handleApiCall<List<T>>(
+      request: request,
+      activityName: activityName,
+      onSuccess: (jsonData) {
+        final List<dynamic> list = jsonData;
+        return list.map((item) => fromJson(item as Map<String, dynamic>)).toList();
+      },
+    );
   }
 }

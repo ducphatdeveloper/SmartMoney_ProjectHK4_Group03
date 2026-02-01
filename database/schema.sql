@@ -183,7 +183,7 @@ CREATE TABLE tPermissions(
 	id INT PRIMARY KEY IDENTITY(1,1),
 
     -- DATA COLUMNS
-	per_code VARCHAR(50) UNIQUE NOT NULL,   -- Mã quyền động từ (VD: "CREATE_BUDGET", "VIEW_REPORT")
+	per_code VARCHAR(50) UNIQUE NOT NULL,   -- Mã quyền động từ (VD: "USER_STANDARD_MANAGE", "ADMIN_SYSTEM_ALL")
 	per_name NVARCHAR(100) UNIQUE NOT NULL, -- Tên hiển thị
 	module_group NVARCHAR(50) NOT NULL      -- Nhóm module (USER_CORE, ADMIN_CORE)
 );
@@ -194,8 +194,8 @@ GO
 
 -- DỮ LIỆU MẪU: Quyền hệ thống
 INSERT INTO tPermissions (per_code, per_name, module_group) VALUES 
-('USER_STANDARD_MANAGE', N'Toàn quyền quản lý tài chính cá nhân cơ bản', 'USER_CORE'),
-('ADMIN_SYSTEM_ALL',     N'Toàn quyền quản trị hệ thống và người dùng', 'ADMIN_CORE');
+('ADMIN_SYSTEM_ALL',     N'Toàn quyền quản trị hệ thống và người dùng', 'ADMIN_CORE'),
+('USER_STANDARD_MANAGE', N'Toàn quyền quản lý tài chính cá nhân cơ bản', 'USER_CORE');
 GO
 
 -- ======================================================================
@@ -240,8 +240,8 @@ CREATE INDEX idx_roleper_role ON tRolePermissions(role_id) INCLUDE (per_id);
 GO
 
 INSERT INTO tRolePermissions (role_id, per_id) VALUES 
-(2, 1),  -- User có quyền quản lý tài chính cá nhân
-(1, 2);  -- Admin có quyền toàn quyền hệ thống
+(1, 1),  -- Admin có quyền toàn quyền hệ thống
+(2, 2);  -- User có quyền quản lý tài chính cá nhân
 GO
 
 -- ======================================================================

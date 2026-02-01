@@ -36,9 +36,22 @@ public class SecurityConfig {
 
                 // 3. Phân quyền truy cập các Endpoint
                 .authorizeHttpRequests(auth -> auth
+                        // Public API
                         .requestMatchers("/api/auth/**", "/api/test/**", "/error").permitAll()
-                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
-                        .requestMatchers("/api/user/**").hasRole("USER")
+
+                        // Admin API -> Yêu cầu quyền ADMIN_SYSTEM_ALL (trong bảng tPermissions)
+                        .requestMatchers("/api/admin/**").hasAuthority("ADMIN_SYSTEM_ALL")
+
+                        // User API -> Yêu cầu quyền USER_STANDARD_MANAGE (trong bảng tPermissions)
+                        .requestMatchers("/api/user/**").hasAuthority("USER_STANDARD_MANAGE")
+
+                        // =================================================================
+                        // CÔNG TẮC TEST: Bỏ comment dòng dưới để mở tất cả API (Không cần Token)
+                        //.requestMatchers("/api/**").permitAll()
+                        // =================================================================
+
+                        // Các API còn lại -> Chỉ cần ĐÃ ĐĂNG NHẬP là được vào
+                        // (Quyền cụ thể ADMIN hay USER sẽ do @PreAuthorize ở Controller check)
                         .anyRequest().authenticated()
                 )
 
