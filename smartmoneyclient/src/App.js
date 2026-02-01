@@ -7,45 +7,42 @@ import Login from './components/Login';
 import Register from './components/Register';
 import AdminDashboard from './components/AdminDashboard';
 
-// Thành phần kiểm tra quyền Admin 🛡️
+// Thành phần bảo vệ Route cho Admin
 const AdminRoute = ({ children }) => {
-  const user = JSON.parse(localStorage.getItem('user'));
-  const token = localStorage.getItem('accessToken');
+    const user = JSON.parse(localStorage.getItem('user'));
+    const token = localStorage.getItem('accessToken');
 
-  // Kiểm tra nếu có token và role là ADMIN
-  if (token && user?.role === 'ADMIN') {
-    return children;
-  }
+    const isAdmin = token && user?.roleName === "Quản trị viên";
 
-  // Nếu không phải admin, đẩy về trang login
-  return <Navigate to="/login" />;
+
+    if (isAdmin) return children;
+    return <Navigate to="/login" replace />;
 };
 
 function App() {
-  return (
-      <Router>
-        <div className="App">
-          <Routes>
-            {/* Các route công khai 🌍 */}
-            <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} />
+    return (
+        <Router>
+            <div className="App">
+                <Routes>
+                    <Route path="/login" element={<Login />} />
+                    <Route path="/register" element={<Register />} />
 
-            {/* Route bảo vệ dành cho Admin 🔐 */}
-            <Route
-                path="/admin"
-                element={
-                  <AdminRoute>
-                    <AdminDashboard />
-                  </AdminRoute>
-                }
-            />
+                    {/* Bảo vệ khu vực Admin 🔐 */}
+                    <Route
+                        path="/admin/*"
+                        element={
+                            <AdminRoute>
+                                <AdminDashboard />
+                            </AdminRoute>
+                        }
+                    />
 
-            {/* Điều hướng mặc định khi vào trang chủ */}
-            <Route path="/" element={<Navigate to="/login" />} />
-          </Routes>
-        </div>
-      </Router>
-  );
+                    <Route path="/" element={<Navigate to="/login" />} />
+                    <Route path="*" element={<Navigate to="/login" />} />
+                </Routes>
+            </div>
+        </Router>
+    );
 }
 
 export default App;

@@ -1,17 +1,79 @@
-# --- Frontend ---
-node_modules/
-build/
-dist/
-.env
-.eslintcache
-
-# --- Backend ---
-target/
-out/
-*.class
-.idea/
-*.iml
-
-# --- OS ---
+# ========================
+# 1. GLOBAL & OS (Hệ điều hành)
+# ========================
 .DS_Store
 Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.log
+*.tmp
+
+# ========================
+# 2. IDEs (Cấu hình máy cá nhân)
+# ========================
+# IntelliJ IDEA
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+
+# VS Code
+.vscode/
+*.code-workspace
+
+# Eclipse / STS
+.classpath
+.project
+.settings/
+
+# ========================
+# 3. FRONTEND (React - smartmoneyclient)
+# ========================
+node_modules/
+dist/
+.env
+.env.local
+.env.*.local
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+# Chặn thư mục coverage khi test
+coverage/
+
+# ========================
+# 4. BACKEND (Spring Boot - smartmoneyserver)
+# ========================
+target/
+HELP.md
+!.mvn/wrapper/maven-wrapper.jar
+# Chặn file log của server
+logs/
+
+# ========================
+# 5. MOBILE (Flutter - APP MOBILE)
+# ========================
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+
+# Chặn file cấu hình local của Android (Chứa đường dẫn SDK - Quan trọng)
+**/android/local.properties
+**/android/.gradle
+
+# Chặn file rác khi build Desktop (Windows/Mac/Linux)
+**/windows/flutter/ephemeral/
+**/linux/flutter/ephemeral/
+**/macos/Flutter/ephemeral/
+
+# Chặn file sinh ra của iOS
+**/ios/Flutter/Generated.xcconfig
+**/ios/Flutter/flutter_export_environment.sh
+
+# ========================
+# 6. SHARED BUILD OUTPUT
+# ========================
+# Cả React và Flutter đều đẻ ra thư mục build, chặn chung ở đây
+build/

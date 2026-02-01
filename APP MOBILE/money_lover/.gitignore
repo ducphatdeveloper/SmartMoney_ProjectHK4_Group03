@@ -1,45 +1,66 @@
-# Miscellaneous
+# --- Miscellaneous & OS (File rác hệ thống) ---
 *.class
 *.log
 *.pyc
 *.swp
 .DS_Store
 .atom/
-.build/
 .buildlog/
 .history
 .svn/
-.swiftpm/
 migrate_working_dir/
+Thumbs.db
+Desktop.ini
 
-# IntelliJ related
+# --- IntelliJ / Android Studio (Cấu hình máy cá nhân) ---
 *.iml
 *.ipr
 *.iws
 .idea/
+out/ 
+# ^ Quan trọng: Đã thêm 'out/' vì thấy có trong ảnh của bạn
 
-# The .vscode folder contains launch configuration and tasks you configure in
-# VS Code which you may wish to be included in version control, so this line
-# is commented out by default.
-#.vscode/
+# --- VS Code (Chặn config riêng của từng người) ---
+.vscode/
 
-# Flutter/Dart/Pub related
+# --- Flutter/Dart/Pub (Thư viện và file build) ---
 **/doc/api/
-**/ios/Flutter/.last_build_id
 .dart_tool/
 .flutter-plugins
 .flutter-plugins-dependencies
 .pub-cache/
 .pub/
-/build/
+build/
 
-# Symbolication related
+# --- Android (Quan trọng: Chặn file chứa đường dẫn SDK) ---
+**/android/local.properties
+**/android/.gradle
+**/android/app/build
+**/android/captures
+**/android/gradlew
+**/android/gradlew.bat
+**/android/gradle/wrapper/gradle-wrapper.jar
+
+# --- iOS (File sinh ra khi chạy máy ảo) ---
+**/ios/Flutter/Generated.xcconfig
+**/ios/Flutter/flutter_export_environment.sh
+**/ios/Flutter/app.flx
+**/ios/Flutter/app.zip
+**/ios/ServiceDefinitions.json
+**/ios/Runner/ks_debug.xcconfig
+
+# --- Web (File rác khi build web) ---
+lib/generated_plugin_registrant.dart
+
+# --- Windows (Cực quan trọng để không lỗi khi merge code) ---
+windows/flutter/ephemeral/
+
+# --- Linux ---
+linux/flutter/ephemeral/
+
+# --- macOS ---
+macos/Flutter/ephemeral/
+
+# --- Obfuscation & Symbols ---
 app.*.symbols
-
-# Obfuscation related
 app.*.map.json
-
-# Android Studio will place build artifacts here
-/android/app/debug
-/android/app/profile
-/android/app/release

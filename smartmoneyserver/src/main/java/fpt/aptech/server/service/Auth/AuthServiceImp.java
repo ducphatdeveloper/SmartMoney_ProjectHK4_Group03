@@ -147,6 +147,7 @@ public class AuthServiceImp implements AuthService {
 
         if (account.getRole() != null) {
             userInfo.setRoleName(account.getRole().getRoleName());
+            userInfo.setRoleCode(account.getRole().getRoleCode()); //them role code
             if (account.getRole().getPermissions() != null) {
                 Set<String> perCodes = account.getRole().getPermissions().stream()
                         .map(Permission::getPerCode)
