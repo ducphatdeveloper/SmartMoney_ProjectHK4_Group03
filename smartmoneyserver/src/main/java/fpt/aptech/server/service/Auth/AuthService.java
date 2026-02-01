@@ -1,25 +1,20 @@
 package fpt.aptech.server.service.Auth;
 
+import fpt.aptech.server.dto.request.LoginRequest;
 import fpt.aptech.server.dto.request.RegisterRequest;
+import fpt.aptech.server.dto.response.AuthResponse;
 import fpt.aptech.server.dto.UserInfoDTO;
 import fpt.aptech.server.entity.Account;
 
 public interface AuthService {
-    // Trả về Account nếu thông tin đăng nhập đúng
-    Account login(String email, String password);
+    // Phương thức xác thực tập trung "tất cả trong một" 🚀
+    AuthResponse authenticate(LoginRequest loginRequest, String ipAddress);
 
-    // Tạo và lưu Refresh Token cho thiết bị mới
-    String generateAndSaveRefreshToken(Account account, String deviceToken, String deviceType);
-    
-    // Tạo Access Token JWT
+    // Các phương thức bổ trợ
+    Account login(String username, String password);
+    String generateAndSaveRefreshToken(Account account, String deviceToken, String deviceType, String deviceName, String ipAddress, Boolean loggedIn);
     String generateAccessToken(Account account);
-    
-    // Chuyển đổi Account thành UserInfoDTO
     UserInfoDTO convertToUserInfoDTO(Account account);
-    
-    // Đăng ký tài khoản mới
     Account register(RegisterRequest registerRequest);
-    
-    // đăng xuất
     void logout(String deviceToken);
 }
