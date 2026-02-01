@@ -13,8 +13,10 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 
 @Entity
 @Table(name = "tAccounts")
@@ -70,7 +72,20 @@ public class Account implements UserDetails {
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
-        return Collections.singletonList(new SimpleGrantedAuthority("ROLE_" + role.getRoleName()));
+        List<GrantedAuthority> authorities = new ArrayList<>();
+
+        // 1. Nhét Role vào (VD: ROLE_USER)
+        authorities.add(new SimpleGrantedAuthority(role.getRoleCode()));
+
+        // 2. Nhét Permission vào (VD: USER_STANDARD_MANAGE, ADMIN_SYSTEM_ALL)
+        //Để sử dụng được @PreAuthorize("hasAuthority('USER_STANDARD_MANAGE hoặc ADMIN_SYSTEM_ALL')")trong controller
+        if (role.getPermissions() != null) {
+            for (Permission p : role.getPermissions()) {
+                authorities.add(new SimpleGrantedAuthority(p.getPerCode()));
+            }
+        }
+
+        return authorities;
     }
 
     @Override

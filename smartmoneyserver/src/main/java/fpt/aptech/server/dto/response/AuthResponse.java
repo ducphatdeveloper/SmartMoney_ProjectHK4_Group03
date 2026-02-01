@@ -20,7 +20,7 @@ public class AuthResponse {
     // Role & Permissions
     @JsonProperty("roleCode")
     private String roleCode;
-    @JsonProperty("roleId")
+    @JsonProperty("roleName")
     private String roleName;
     private Set<String> permissions;
 
