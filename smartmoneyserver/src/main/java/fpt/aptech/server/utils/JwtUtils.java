@@ -1,44 +1,97 @@
 package fpt.aptech.server.utils;
 
+import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
-import org.springframework.stereotype.Component;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.stereotype.Service;
 
 import javax.crypto.SecretKey;
-import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
 import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.function.Function;
 
-@Component
+@Service
 public class JwtUtils {
-    private final String secret="AIeyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9";
-    public String generateToken(String username) {
-        return Jwts.builder().setSubject(username).setIssuedAt(new Date())
-                .setExpiration(new Date(System.currentTimeMillis()+1000*60*60*10))
-                .signWith(secretKey(secret)).compact();
-    }
-    private SecretKey secretKey(String secret) {
-        var bytes=secret.getBytes(StandardCharsets.UTF_8);
-        try {
-            var key= Keys.hmacShaKeyFor(bytes);
-            return  key;
-        }catch (Exception e){
-            return Keys.hmacShaKeyFor(Arrays.copyOf(bytes,64));
-        }
+
+    // Lấy secret key từ cấu hình để bảo mật hơn
+    @Value("${jwt.secret:AIeyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9YmFzZTY0ZW5jb2RlZA==}")
+    private String SECRET_KEY;
+
+    private static final long ACCESS_TOKEN_EXP = 1000 * 60 * 60; // 1 giờ
+    private static final long REFRESH_TOKEN_EXP = 1000 * 60 * 60 * 24; // 24 giờ
+
+    // 1. Tạo Access Token kèm theo Roles và UserId
+    public String generateAccessToken(UserDetails userDetails, Integer userId) {
+        Map<String, Object> claims = new HashMap<>();
+        claims.put("userId", userId);
+        claims.put("tokenType", "ACCESS");
+
+        // Lưu danh sách quyền (Roles) vào token
+        var authorities = userDetails.getAuthorities().stream()
+                .map(GrantedAuthority::getAuthority)
+                .toList();
+        claims.put("authorities", authorities);
+
+        return buildToken(claims, userDetails.getUsername(), ACCESS_TOKEN_EXP);
     }
 
+    // 2. Tạo Refresh Token để gia hạn phiên đăng nhập
+    public String generateRefreshToken(UserDetails userDetails, Integer userId) {
+        Map<String, Object> claims = new HashMap<>();
+        claims.put("userId", userId);
+        claims.put("tokenType", "REFRESH");
+        return buildToken(claims, userDetails.getUsername(), REFRESH_TOKEN_EXP);
+    }
+
+    private String buildToken(Map<String, Object> extraClaims, String subject, long expiration) {
+        return Jwts.builder()
+                .setClaims(extraClaims)
+                .setSubject(subject)
+                .setIssuedAt(new Date(System.currentTimeMillis()))
+                .setExpiration(new Date(System.currentTimeMillis() + expiration))
+                .signWith(getSigningKey(), io.jsonwebtoken.SignatureAlgorithm.HS256) // Đổi SIG thành SignatureAlgorithm
+                .compact();
+    }
+
+    // 3. Các hàm giải mã (Extraction)
     public String extractUsername(String token) {
-        return Jwts.parser().setSigningKey(secretKey(secret))
-                .parseClaimsJws(token).getBody().getSubject();
+        return extractClaim(token, Claims::getSubject);
     }
-    public Date extractExpiration(String token) {
-        return Jwts.parser().setSigningKey(secretKey(secret))
-                .parseClaimsJws(token).getBody().getExpiration();
+
+    public Integer extractUserId(String token) {
+        return extractClaim(token, claims -> claims.get("userId", Integer.class));
     }
-    public boolean isTokenExpire(String token) {
-        return extractExpiration(token).before(new Date());
+
+    public <T> T extractClaim(String token, Function<Claims, T> claimsResolver) {
+        final Claims claims = extractAllClaims(token);
+        return claimsResolver.apply(claims);
     }
-    public boolean validateToken(String token, String username) {
-        return (username.equals(extractUsername(token)) && !isTokenExpire(token));
+
+    private Claims extractAllClaims(String token) {
+        return Jwts.parserBuilder()
+                .setSigningKey(getSigningKey())
+                .build()
+                .parseClaimsJws(token)
+                .getBody();
+    }
+
+    // 4. Kiểm tra tính hợp lệ
+    public boolean isTokenValid(String token, UserDetails userDetails) {
+        final String username = extractUsername(token);
+        return (username.equals(userDetails.getUsername())) && !isTokenExpired(token);
+    }
+
+    private boolean isTokenExpired(String token) {
+        return extractClaim(token, Claims::getExpiration).before(new Date());
+    }
+
+    private SecretKey getSigningKey() {
+        byte[] keyBytes = Decoders.BASE64.decode(SECRET_KEY);
+        return Keys.hmacShaKeyFor(keyBytes);
     }
 }

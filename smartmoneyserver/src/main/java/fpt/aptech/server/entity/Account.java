@@ -8,13 +8,14 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.userdetails.UserDetails;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
+import java.util.Collections;
 
-/**
- * Bảng tài khoản người dùng.
- * Lưu trữ thông tin đăng nhập và thông tin cơ bản của người dùng.
- */
 @Entity
 @Table(name = "tAccounts")
 @Getter
@@ -22,7 +23,7 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class Account {
+public class Account implements UserDetails {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -66,4 +67,39 @@ public class Account {
     @UpdateTimestamp
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
+
+    @Override
+    public Collection<? extends GrantedAuthority> getAuthorities() {
+        return Collections.singletonList(new SimpleGrantedAuthority("ROLE_" + role.getRoleName()));
+    }
+
+    @Override
+    public String getPassword() {
+        return hashPassword;
+    }
+
+    @Override
+    public String getUsername() {
+        return accEmail;
+    }
+
+    @Override
+    public boolean isAccountNonExpired() {
+        return true;
+    }
+
+    @Override
+    public boolean isAccountNonLocked() {
+        return !locked;
+    }
+
+    @Override
+    public boolean isCredentialsNonExpired() {
+        return true;
+    }
+
+    @Override
+    public boolean isEnabled() {
+        return true;
+    }
 }
