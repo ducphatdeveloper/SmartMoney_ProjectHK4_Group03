@@ -3,21 +3,15 @@ package fpt.aptech.server.entity;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
-import lombok.Getter;
+import lombok.Data;
 import lombok.NoArgsConstructor;
-import lombok.Setter;
 import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.LocalDateTime;
 
-/**
- * Bảng thông báo.
- * Gửi các thông báo về giao dịch, ngân sách, nhắc nhở... đến người dùng.
- */
 @Entity
 @Table(name = "tNotifications")
-@Getter
-@Setter
+@Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
@@ -27,15 +21,13 @@ public class Notification {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer id;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne
     @JoinColumn(name = "acc_id", nullable = false)
     private Account account;
 
-    // Loại thông báo, xem chú thích trong file SQL để biết chi tiết.
     @Column(name = "notify_type", nullable = false)
-    private Integer notifyType;
+    private Integer notifyType; // 1: TRANSACTION | 2: SAVING | 3: BUDGET | 4: SYSTEM | 5: CHAT_AI | 6: WALLETS | 7: EVENTS | 8: DEBT_LOAN | 9: REMINDER
 
-    // ID của đối tượng liên quan (VD: ID của transaction, budget...).
     @Column(name = "related_id")
     private Long relatedId;
 
@@ -45,15 +37,12 @@ public class Notification {
     @Column(name = "content", nullable = false, length = 500)
     private String content;
 
-    // Thời gian dự kiến gửi thông báo.
     @Column(name = "scheduled_time")
     private LocalDateTime scheduledTime = LocalDateTime.now();
 
-    // Trạng thái đã gửi push notification.
     @Column(name = "notify_sent")
     private Boolean notifySent = false;
 
-    // Trạng thái người dùng đã đọc.
     @Column(name = "notify_read")
     private Boolean notifyRead = false;
 

@@ -2,14 +2,16 @@ package fpt.aptech.server.api;
 
 import fpt.aptech.server.dto.request.LoginRequest;
 import fpt.aptech.server.dto.request.RegisterRequest;
+import fpt.aptech.server.dto.response.ApiResponse;
 import fpt.aptech.server.dto.response.AuthResponse;
 import fpt.aptech.server.dto.UserInfoDTO;
 import fpt.aptech.server.entity.Account;
 import fpt.aptech.server.service.Auth.AuthService;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -20,37 +22,34 @@ public class AuthController {
     private AuthService authService;
 
     @PostMapping("/login")
-    @Transactional(readOnly = true) // THÊM DÒNG NÀY: Giữ session mở để load dữ liệu Role
-    public ResponseEntity<AuthResponse> login(@RequestBody LoginRequest loginRequest) {
-        // 1. Xác thực thông tin đăng nhập
-        Account account = authService.login(loginRequest.getEmail(), loginRequest.getPassword());
+    public ResponseEntity<ApiResponse<AuthResponse>> login(
+            @Valid @RequestBody LoginRequest loginRequest,
+            HttpServletRequest request) {
 
-        // 2. Tạo tokens
-        String refreshToken = authService.generateAndSaveRefreshToken(
-                account,
-                loginRequest.getDeviceToken(),
-                loginRequest.getDeviceType()
-        );
-        String accessToken = authService.generateAccessToken(account);
+        // 1. Lấy thông tin bổ sung từ request
+        String ipAddress = request.getRemoteAddr();
 
-        // 3. Chuyển đổi sang DTO (Lúc này Hibernate sẽ load được Role mà không bị lỗi)
-        UserInfoDTO userInfo = authService.convertToUserInfoDTO(account);
-        return ResponseEntity.ok(new AuthResponse(accessToken, refreshToken, userInfo));
+        // 2. Gọi Service xử lý nghiệp vụ xác thực tập trung
+        AuthResponse authResponse = authService.authenticate(loginRequest, ipAddress);
+
+        // 3. Trả về kết quả chuẩn hóa qua ApiResponse
+        return ResponseEntity.ok(ApiResponse.success(authResponse, "Đăng nhập thành công"));
     }
 
     @PostMapping("/register")
-    public ResponseEntity<UserInfoDTO> register(@RequestBody RegisterRequest registerRequest) {
-        // 1. Xử lý đăng ký (kiểm tra trùng lặp, mã hóa mật khẩu, lưu DB)
-        Account account = authService.register(registerRequest);
+    public ResponseEntity<ApiResponse<UserInfoDTO>> register(
+            @Valid @RequestBody RegisterRequest registerRequest) {
 
-        // 2. Chỉ trả về thông tin cần thiết (không trả về mật khẩu)
+        Account account = authService.register(registerRequest);
         UserInfoDTO userInfo = authService.convertToUserInfoDTO(account);
-        return ResponseEntity.status(HttpStatus.CREATED).body(userInfo);
+
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.success(userInfo, "Đăng ký tài khoản thành công"));
     }
 
     @PostMapping("/logout")
-    public ResponseEntity<String> logout(@RequestParam String deviceToken) {
+    public ResponseEntity<ApiResponse<Void>> logout(@RequestParam String deviceToken) {
         authService.logout(deviceToken);
-        return ResponseEntity.ok("Đăng xuất thành công");
+        return ResponseEntity.ok(ApiResponse.success(null, "Đăng xuất thành công"));
     }
 }
