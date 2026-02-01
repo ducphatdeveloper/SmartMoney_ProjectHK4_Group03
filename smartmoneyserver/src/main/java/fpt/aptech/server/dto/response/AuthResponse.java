@@ -1,15 +1,36 @@
 package fpt.aptech.server.dto.response;
 
-import fpt.aptech.server.dto.UserInfoDTO;
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import lombok.*;
+import java.time.LocalDateTime;
+import java.util.Set;
 
-@Data // Tự động tạo Getter, Setter, toString... 🛠️
-@AllArgsConstructor // Tạo Constructor với tất cả tham số
-@NoArgsConstructor  // Tạo Constructor mặc định không tham số
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class AuthResponse {
+
+    private Integer userId;
+    private String accPhone;
+    private String accEmail;
+    private String avatarUrl;
+    private String currency;
+
+    // Role & Permissions
+    @JsonProperty("roleCode")
+    private String roleCode;
+    @JsonProperty("roleId")
+    private String roleName;
+    private Set<String> permissions;
+
+    // JWT Tokens
     private String accessToken;
     private String refreshToken;
-    private UserInfoDTO userInfo;
+    private Long accessTokenExpiry;  // milliseconds
+    private Long refreshTokenExpiry; // milliseconds
+
+    private LocalDateTime loginAt;
+
+    private String message;
 }

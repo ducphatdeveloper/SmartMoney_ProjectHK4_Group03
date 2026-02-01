@@ -1,50 +1,99 @@
 package fpt.aptech.server.service.Auth;
 
+import fpt.aptech.server.dto.request.LoginRequest;
 import fpt.aptech.server.dto.request.RegisterRequest;
 import fpt.aptech.server.dto.UserInfoDTO;
-import fpt.aptech.server.entity.Account;
-import fpt.aptech.server.entity.Permission;
-import fpt.aptech.server.entity.Role;
-import fpt.aptech.server.entity.UserDevice;
+import fpt.aptech.server.dto.response.AuthResponse;
+import fpt.aptech.server.entity.*;
 import fpt.aptech.server.repos.AccountRepository;
+import fpt.aptech.server.repos.CurrencyRepository;
+import fpt.aptech.server.repos.RoleRepository;
 import fpt.aptech.server.repos.UserDeviceRepository;
 import fpt.aptech.server.utils.JwtUtils;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
+
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Instant;
 import java.time.LocalDateTime;
-import java.time.temporal.ChronoUnit;
 import java.util.Set;
-import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
-public class AuthServiceImp implements AuthService{
+public class AuthServiceImp implements AuthService {
+
     @Autowired
     private AccountRepository accountRepository;
+
     @Autowired
     private UserDeviceRepository userDeviceRepository;
+
+    @Autowired
+    private RoleRepository roleRepository;
+
     @Autowired
     private JwtUtils jwtUtils;
+
     @Autowired
-    private BCryptPasswordEncoder passwordEncoder;
+    private PasswordEncoder passwordEncoder;
+
+    @Autowired
+    private UserDetailsService userDetailsService;
+
+    @Autowired
+    private CurrencyRepository currencyRepository;
+
+    @Override
+    public AuthResponse authenticate(LoginRequest loginRequest, String ipAddress) {
+        // 1. Xác thực tài khoản
+        Account account = login(loginRequest.getUsername(), loginRequest.getPassword());
+
+        // 2. Tạo Access Token
+        String accessToken = generateAccessToken(account);
+
+        // 3. Tạo/Cập nhật Refresh Token và thiết bị
+        String refreshToken = generateAndSaveRefreshToken(
+                account,
+                loginRequest.getDeviceToken(),
+                loginRequest.getDeviceType(),
+                loginRequest.getDeviceName() != null ? loginRequest.getDeviceName() : "Unknown Device",
+                ipAddress,
+                true
+        );
+
+        // 4. Chuyển đổi thông tin người dùng sang DTO
+        UserInfoDTO userInfo = convertToUserInfoDTO(account);
+
+        // 5. Đóng gói vào AuthResponse 📦
+        return AuthResponse.builder()
+                .accessToken(accessToken)
+                .refreshToken(refreshToken)
+                .userId(userInfo.getId())
+                .accPhone(userInfo.getPhone())
+                .accEmail(userInfo.getEmail())
+                .avatarUrl(userInfo.getAvatarUrl())
+                .currency(userInfo.getCurrencyCode())
+                .roleCode(userInfo.getRoleCode())
+                .roleName(userInfo.getRoleName())
+                .permissions(userInfo.getPermissions())
+                .loginAt(LocalDateTime.now())
+                .build();
+    }
 
     @Override
     @Transactional(readOnly = true)
-    public Account login(String email, String password) {
-        // 1. Tìm tài khoản theo email
-        Account account = accountRepository.findByAccEmail(email)
-                .orElseThrow(() -> new RuntimeException("Email không tồn tại"));
+    public Account login(String username, String password) {
+        // Tìm tài khoản bằng username (có thể là email hoặc phone)
+        Account account = accountRepository.findByUsernameOrEmail(username)
+                .orElseThrow(() -> new RuntimeException("Tài khoản không tồn tại"));
 
-        // 2. Kiểm tra tài khoản có bị khóa không
         if (account.getLocked()) {
             throw new RuntimeException("Tài khoản hiện đang bị khóa");
         }
 
-        // 3. So sánh mật khẩu thuần với bản hash trong DB
         if (!passwordEncoder.matches(password, account.getHashPassword())) {
             throw new RuntimeException("Mật khẩu không chính xác");
         }
@@ -54,23 +103,27 @@ public class AuthServiceImp implements AuthService{
 
     @Override
     @Transactional
-    public String generateAndSaveRefreshToken(Account account, String deviceToken, String deviceType) {
-        // 1. Tạo Refresh Token
-        String refreshToken = UUID.randomUUID().toString();
+    public String generateAndSaveRefreshToken(Account account, String deviceToken, String deviceType, String deviceName, String ipAddress, Boolean loggedIn) {
+        // 1. Tạo Refresh Token (Sử dụng JWT để đồng bộ với logic bảo mật mới)
+        UserDetails userDetails = userDetailsService.loadUserByUsername(account.getAccEmail());
+        String refreshToken = jwtUtils.generateRefreshToken(userDetails, account.getId());
 
-        // 2. Tìm thiết bị cũ hoặc tạo mới
+        // 2. Tìm thiết bị cũ hoặc tạo mới dựa trên deviceToken
         UserDevice device = userDeviceRepository.findByDeviceToken(deviceToken)
                 .orElse(new UserDevice());
 
-        // 3. Cập nhật thông tin thiết bị
+        // 3. Cập nhật thông tin chi tiết dựa trên thực thể UserDevice mới
         device.setAccount(account);
         device.setDeviceToken(deviceToken);
-        device.setDeviceType(deviceType);
         device.setRefreshToken(refreshToken);
-        device.setLoggedIn(true);
-        device.setRefreshTokenExpiredAt(LocalDateTime.now().plusDays(7));
-        // FIX LỖI TẠI ĐÂY: Gán giá trị cho lastActive để không bị null
+        device.setDeviceType(deviceType);
+        device.setDeviceName(deviceName);
+        device.setIpAddress(ipAddress);
+        device.setLoggedIn(loggedIn != null ? loggedIn : true);
         device.setLastActive(LocalDateTime.now());
+
+        // Thiết lập thời gian hết hạn cho Token (ví dụ: 7 ngày)
+        device.setRefreshTokenExpiredAt(LocalDateTime.now().plusDays(7));
 
         userDeviceRepository.save(device);
 
@@ -79,78 +132,78 @@ public class AuthServiceImp implements AuthService{
 
     @Override
     public String generateAccessToken(Account account) {
-        // Sử dụng email của account làm Subject cho JWT
-        // vì email là duy nhất trong hệ thống của bạn
-        return jwtUtils.generateToken(account.getAccEmail());
+        UserDetails userDetails = userDetailsService.loadUserByUsername(account.getAccEmail());
+        return jwtUtils.generateAccessToken(userDetails, account.getId());
     }
+
     @Override
     @Transactional(readOnly = true)
     public UserInfoDTO convertToUserInfoDTO(Account account) {
         UserInfoDTO userInfo = new UserInfoDTO();
-
-        // 1. Gán thông tin cá nhân
         userInfo.setId(account.getId());
         userInfo.setEmail(account.getAccEmail());
         userInfo.setPhone(account.getAccPhone());
         userInfo.setAvatarUrl(account.getAvatarUrl());
 
-        // 2. Lấy tên Role
         if (account.getRole() != null) {
-            userInfo.setRoleName(account.getRole().getRoleName()); // Truy cập lần 1 vào Role
+            userInfo.setRoleName(account.getRole().getRoleName());
             if (account.getRole().getPermissions() != null) {
-                Set<String> perCodes = account.getRole().getPermissions().stream() // Truy cập lần 2 vào danh sách Permissions
+                Set<String> perCodes = account.getRole().getPermissions().stream()
                         .map(Permission::getPerCode)
                         .collect(Collectors.toSet());
                 userInfo.setPermissions(perCodes);
-            } else {
-                // Nếu null, trả về một tập hợp rỗng thay vì để lỗi
-                userInfo.setPermissions(java.util.Collections.emptySet());
             }
         }
-
         return userInfo;
     }
 
-    @Autowired
-    private fpt.aptech.server.repos.RoleRepository roleRepository; // Nhớ tạo Interface này nếu chưa có
-
     @Override
-    public Account register(RegisterRequest registerRequest) {
-        // 1. Kiểm tra email
-        if (accountRepository.existsByAccEmail(registerRequest.getEmail())) {
-            throw new RuntimeException("Email này đã được sử dụng");
+    @Transactional
+    public Account register(RegisterRequest request) {
+        if (request.getAccEmail() != null && accountRepository.existsByAccEmail(request.getAccEmail())) {
+            throw new IllegalArgumentException("Email đã được sử dụng");
         }
+        if (request.getAccPhone() != null && accountRepository.existsByAccPhone(request.getAccPhone())) {
+            throw new IllegalArgumentException("Số điện thoại đã được sử dụng");
+        }
+        Role userRole = roleRepository.findByRoleCode("ROLE_USER")
+                .orElseThrow(() -> new RuntimeException("Role USER không tồn tại trong hệ thống"));
 
-        // 2. Lấy Role mặc định (ID = 2 là ROLE_USER) từ DB
-        // Việc này giúp đối tượng Role có đầy đủ data (Name, Permissions...)
-        Role userRole = roleRepository.findById(2)
-                .orElseThrow(() -> new RuntimeException("Lỗi hệ thống: Role USER không tồn tại"));
+        // 3. Lấy Currency mặc định (VND)
+        Currency defaultCurrency = currencyRepository.findById("VND")
+                .orElseThrow(() -> new RuntimeException("Currency VND không tồn tại"));
 
-        // 3. Khởi tạo Account bằng Constructor rỗng và dùng Setter (An toàn nhất)
-        Account account = new Account();
-        account.setRole(userRole);
-        account.setAccEmail(registerRequest.getEmail());
-        account.setHashPassword(passwordEncoder.encode(registerRequest.getPassword()));
-        account.setAccPhone(registerRequest.getPhone());
-        account.setLocked(false); // Mặc định không khóa
-        account.setCreatedAt(LocalDateTime.now());
-        account.setUpdatedAt(LocalDateTime.now());
+        // 4. Tạo Account mới
+        Account account = Account.builder()
+                .accPhone(request.getAccPhone())
+                .accEmail(request.getAccEmail())
+                .hashPassword(passwordEncoder.encode(request.getPassword()))
+                .role(userRole)
+                .currency(defaultCurrency)
+                .locked(false)
+                .createdAt(LocalDateTime.now())
+                .updatedAt(LocalDateTime.now())
+                .build();
 
-        // 4. Lưu và trả về
         return accountRepository.save(account);
     }
 
     @Override
+    @Transactional
     public void logout(String deviceToken) {
-        // 1. Tìm thiết bị theo deviceToken
+        // 1. Tìm thiết bị dựa trên Token duy nhất của thiết bị đó
         userDeviceRepository.findByDeviceToken(deviceToken).ifPresent(device -> {
-            // 2. Cập nhật trạng thái không còn đăng nhập
+
+            // 2. Cập nhật trạng thái đăng nhập về false
             device.setLoggedIn(false);
 
-            // 3. Xóa Refresh Token để vô hiệu hóa phiên làm việc 🔑
+            // 3. Vô hiệu hóa Refresh Token bằng cách gán null
             device.setRefreshToken(null);
 
-            // 4. Lưu lại thay đổi vào database
+            // 4. Cập nhật thời điểm hoạt động cuối cùng
+            device.setLastActive(LocalDateTime.now());
+
+            // 5. Lưu thay đổi xuống Database
             userDeviceRepository.save(device);
         });
     }
