@@ -45,10 +45,12 @@ public class Receipt {
     // Dữ liệu đã được xử lý và chuẩn hóa (dưới dạng JSON).
     @Lob
     @Column(name = "processed_data")
+    @Builder.Default
     private String processedData = "{}";
 
     // Trạng thái xử lý: "pending" | "processed" | "error"
     @Column(name = "receipt_status", nullable = false, length = 20)
+    @Builder.Default
     private String receiptStatus = "pending";
 
     @CreationTimestamp

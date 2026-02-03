@@ -34,14 +34,17 @@ public class Event {
     private String eventName;
 
     @Column(name = "event_icon_url", length = 2048)
+    @Builder.Default
     private String eventIconUrl = "icon_event_default.svg";
 
     @Column(name = "begin_date")
+    @Builder.Default
     private LocalDate beginDate = LocalDate.now();
 
     @Column(name = "end_date", nullable = false)
     private LocalDate endDate;
 
     @Column(name = "finished")
+    @Builder.Default
     private Boolean finished = false;
 }

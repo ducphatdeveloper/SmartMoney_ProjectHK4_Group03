@@ -43,14 +43,17 @@ public class Notification {
 
     // Thời gian dự kiến gửi thông báo.
     @Column(name = "scheduled_time")
+    @Builder.Default
     private LocalDateTime scheduledTime = LocalDateTime.now();
 
     // Trạng thái đã gửi push notification.
     @Column(name = "notify_sent")
+    @Builder.Default
     private Boolean notifySent = false;
 
     // Trạng thái người dùng đã đọc.
     @Column(name = "notify_read")
+    @Builder.Default
     private Boolean notifyRead = false;
 
     @CreationTimestamp

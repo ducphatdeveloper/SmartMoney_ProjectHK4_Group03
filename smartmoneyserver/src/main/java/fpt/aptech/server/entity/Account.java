@@ -58,6 +58,7 @@ public class Account implements UserDetails {
 
     // Trạng thái khóa tài khoản. true = bị khóa.
     @Column(name = "locked", nullable = false)
+    @Builder.Default
     private Boolean locked = false;
 
     // Tự động gán ngày giờ tạo, không thể cập nhật.
