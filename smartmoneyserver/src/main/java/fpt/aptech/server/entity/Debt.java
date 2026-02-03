@@ -49,6 +49,7 @@ public class Debt {
 
     // Trạng thái hoàn thành.
     @Column(name = "finished", nullable = false)
+    @Builder.Default
     private Boolean finished = false;
 
     @CreationTimestamp

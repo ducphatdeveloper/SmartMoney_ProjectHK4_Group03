@@ -38,14 +38,17 @@ public class Wallet {
 
     // Số dư hiện tại.
     @Column(name = "balance", precision = 18, scale = 2)
+    @Builder.Default
     private BigDecimal balance = BigDecimal.ZERO;
 
     // Bật/tắt thông báo cho ví này.
     @Column(name = "notified", nullable = false)
+    @Builder.Default
     private Boolean notified = true;
 
     // Có tính vào báo cáo tổng quan hay không.
     @Column(name = "reportable", nullable = false)
+    @Builder.Default
     private Boolean reportable = true;
 
     // Hình ảnh của ví (nếu có).
