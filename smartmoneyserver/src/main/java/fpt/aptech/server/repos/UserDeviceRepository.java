@@ -9,14 +9,12 @@ import java.util.Optional;
 
 @Repository
 public interface UserDeviceRepository extends JpaRepository<UserDevice, Integer> {
-    // Tìm thiết bị theo Token (để validate hoặc logout)
+    // Tìm thiết bị theo token
     Optional<UserDevice> findByDeviceToken(String deviceToken);
 
-    // Lấy danh sách thiết bị đang đăng nhập của một Account
-    List<UserDevice> findAllByAccount_IdAndLoggedInTrue(Integer accId);
+    // Tìm tất cả thiết bị đang đăng nhập (loggedIn = true) của một tài khoản
+    List<UserDevice> findAllByAccount_IdAndLoggedInTrue(Integer accountId);
 
-    // Tìm thiết bị theo Refresh Token để cấp lại Access Token mới
-    Optional<UserDevice> findByRefreshToken(String refreshToken);
-
+    // Đếm tổng số thiết bị đang hoạt động trên toàn hệ thống
     long countByLoggedInTrue();
 }

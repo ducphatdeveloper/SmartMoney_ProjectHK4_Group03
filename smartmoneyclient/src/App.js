@@ -1,7 +1,6 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import 'bootstrap/dist/css/bootstrap.min.css';
-import 'bootstrap-icons/font/bootstrap-icons.css';
 
 import Login from './components/Login';
 import Register from './components/Register';
@@ -12,7 +11,8 @@ const AdminRoute = ({ children }) => {
     const user = JSON.parse(localStorage.getItem('user'));
     const token = localStorage.getItem('accessToken');
 
-    const isAdmin = token && user?.roleName === "Quản trị viên";
+    const authorizedRoles = ["Quản trị viên", "ROLE_ADMIN", "ADMIN_SYSTEM_ALL"];
+    const isAdmin = token && authorizedRoles.includes(user?.roleName);
 
 
     if (isAdmin) return children;
