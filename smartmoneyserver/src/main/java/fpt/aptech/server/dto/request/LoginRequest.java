@@ -2,11 +2,7 @@ package fpt.aptech.server.dto.request;
 
 import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
-import lombok.Getter;
-import lombok.Setter;
 
-@Setter
-@Getter
 @Data
 public class LoginRequest {
     @NotBlank(message = "Tên đăng nhập không được để trống")

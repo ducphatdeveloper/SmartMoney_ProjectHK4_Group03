@@ -5,9 +5,8 @@ import lombok.Data;
 
 @Data
 public class RegisterRequest {
-    // Thêm bọc ngoặc và dấu hỏi chấm ở cuối để cho phép để trống
-    @Pattern(regexp = "^0\\d{9,10}$", message = "Số điện thoại phải bắt đầu bằng 0 và có 10 hoặc 11 chữ số"
-    )
+    // Regex: ^( ... )?$ cho phép chuỗi rỗng hoặc đúng định dạng số điện thoại
+    @Pattern(regexp = "^(0\\d{9,10})?$", message = "Số điện thoại phải bắt đầu bằng 0 và có 10 hoặc 11 chữ số")
     private String accPhone;
 
 

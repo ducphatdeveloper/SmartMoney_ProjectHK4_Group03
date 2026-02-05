@@ -8,6 +8,15 @@ const api = axios.create({
     },
 });
 
+// Thêm interceptor để tự động gắn token vào header (Bắt buộc cho @PreAuthorize)
+api.interceptors.request.use((config) => {
+    const token = localStorage.getItem('accessToken');
+    if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+}, (error) => Promise.reject(error));
+
 // 2. Các hàm gọi API
 export const authApi = {
     // axios tự động chuyển object thành JSON
@@ -30,4 +39,13 @@ export const permissionApi = {
 
     // Lấy quyền theo nhóm 📋
     getByGroup: (groupName) => api.get(`/permissions/group/${groupName}`),
+};
+
+export const adminApi = {
+    // Quản lý người dùng (Admin) 👮
+    // Params: search (string), locked (boolean), page (int), size (int), sort (string)
+    getUsers: (params) => api.get('/admin/users', { params }),
+    lockUser: (id) => api.put(`/admin/users/${id}/lock`),
+    unlockUser: (id) => api.put(`/admin/users/${id}/unlock`),
+    getStats: () => api.get('/admin/stats'),
 };
