@@ -21,13 +21,21 @@ public class AuthController {
     @Autowired
     private AuthService authService;
 
+
     @PostMapping("/login")
     public ResponseEntity<ApiResponse<AuthResponse>> login(
             @Valid @RequestBody LoginRequest loginRequest,
             HttpServletRequest request) {
 
         // 1. Lấy thông tin bổ sung từ request
-        String ipAddress = request.getRemoteAddr();
+        String ipAddress = request.getHeader("X-Forwarded-For");
+        if (ipAddress == null || ipAddress.isEmpty() || "unknown".equalsIgnoreCase(ipAddress)) {
+            ipAddress = request.getRemoteAddr();
+        }
+        // Nếu có nhiều IP (do qua nhiều proxy), lấy cái đầu tiên
+        if (ipAddress != null && ipAddress.contains(",")) {
+            ipAddress = ipAddress.split(",")[0].trim();
+        }
 
         // 2. Gọi Service xử lý nghiệp vụ xác thực tập trung
         AuthResponse authResponse = authService.authenticate(loginRequest, ipAddress);

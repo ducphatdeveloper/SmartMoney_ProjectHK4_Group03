@@ -5,10 +5,9 @@ import fpt.aptech.server.dto.request.RegisterRequest;
 import fpt.aptech.server.dto.UserInfoDTO;
 import fpt.aptech.server.dto.response.AuthResponse;
 import fpt.aptech.server.entity.*;
-import fpt.aptech.server.repos.AccountRepository;
-import fpt.aptech.server.repos.CurrencyRepository;
-import fpt.aptech.server.repos.RoleRepository;
-import fpt.aptech.server.repos.UserDeviceRepository;
+import fpt.aptech.server.repos.*;
+import fpt.aptech.server.service.Notification.NotificationService;
+import fpt.aptech.server.service.UserDevice.UserDeviceService;
 import fpt.aptech.server.utils.JwtUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -19,6 +18,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -33,6 +33,12 @@ public class AuthServiceImp implements AuthService {
 
     @Autowired
     private RoleRepository roleRepository;
+
+    @Autowired
+    private NotificationService notificationService;
+
+    @Autowired
+    private UserDeviceService userDeviceService;
 
     @Autowired
     private JwtUtils jwtUtils;
@@ -54,15 +60,22 @@ public class AuthServiceImp implements AuthService {
         // 2. Tạo Access Token
         String accessToken = generateAccessToken(account);
 
-        // 3. Tạo/Cập nhật Refresh Token và thiết bị
-        String refreshToken = generateAndSaveRefreshToken(
+        // 3. Tạo/Cập nhật Refresh Token và thiết bị thông qua UserDeviceService
+        UserDevice device = userDeviceService.registerDevice(
                 account,
                 loginRequest.getDeviceToken(),
                 loginRequest.getDeviceType(),
                 loginRequest.getDeviceName() != null ? loginRequest.getDeviceName() : "Unknown Device",
-                ipAddress,
-                true
+                ipAddress
         );
+        
+        // Tạo Refresh Token (Sử dụng JWT)
+        UserDetails userDetails = userDetailsService.loadUserByUsername(account.getAccEmail());
+        String refreshToken = jwtUtils.generateRefreshToken(userDetails, account.getId());
+        
+        // Cập nhật Refresh Token vào thiết bị
+        device.setRefreshToken(refreshToken);
+        userDeviceRepository.save(device);
 
         // 4. Chuyển đổi thông tin người dùng sang DTO
         UserInfoDTO userInfo = convertToUserInfoDTO(account);
@@ -105,29 +118,18 @@ public class AuthServiceImp implements AuthService {
     @Override
     @Transactional
     public String generateAndSaveRefreshToken(Account account, String deviceToken, String deviceType, String deviceName, String ipAddress, Boolean loggedIn) {
-        // 1. Tạo Refresh Token (Sử dụng JWT để đồng bộ với logic bảo mật mới)
+        // Phương thức này hiện tại được thay thế bởi logic trong authenticate sử dụng UserDeviceService
+        // Tuy nhiên vẫn giữ lại nếu có nơi khác gọi, hoặc có thể xóa đi nếu không dùng.
+        // Để đảm bảo tính nhất quán, ta sẽ gọi lại UserDeviceService ở đây.
+        
+        UserDevice device = userDeviceService.registerDevice(account, deviceToken, deviceType, deviceName, ipAddress);
+        
         UserDetails userDetails = userDetailsService.loadUserByUsername(account.getAccEmail());
         String refreshToken = jwtUtils.generateRefreshToken(userDetails, account.getId());
-
-        // 2. Tìm thiết bị cũ hoặc tạo mới dựa trên deviceToken
-        UserDevice device = userDeviceRepository.findByDeviceToken(deviceToken)
-                .orElse(new UserDevice());
-
-        // 3. Cập nhật thông tin chi tiết dựa trên thực thể UserDevice mới
-        device.setAccount(account);
-        device.setDeviceToken(deviceToken);
+        
         device.setRefreshToken(refreshToken);
-        device.setDeviceType(deviceType);
-        device.setDeviceName(deviceName);
-        device.setIpAddress(ipAddress);
-        device.setLoggedIn(loggedIn != null ? loggedIn : true);
-        device.setLastActive(LocalDateTime.now());
-
-        // Thiết lập thời gian hết hạn cho Token (ví dụ: 7 ngày)
-        device.setRefreshTokenExpiredAt(LocalDateTime.now().plusDays(7));
-
         userDeviceRepository.save(device);
-
+        
         return refreshToken;
     }
 
@@ -145,6 +147,11 @@ public class AuthServiceImp implements AuthService {
         userInfo.setEmail(account.getAccEmail());
         userInfo.setPhone(account.getAccPhone());
         userInfo.setAvatarUrl(account.getAvatarUrl());
+        userInfo.setIsLocked(account.getLocked());
+
+        if (account.getCurrency() != null) {
+            userInfo.setCurrencyCode(account.getCurrency().getCurrencyCode());
+        }
 
         if (account.getRole() != null) {
             userInfo.setRoleId(account.getRole().getId()); // <--- THÊM DÒNG NÀY vì trang login bên react của Nam gọi if (serverData.roleId === 1)
@@ -188,26 +195,36 @@ public class AuthServiceImp implements AuthService {
                 .updatedAt(LocalDateTime.now())
                 .build();
 
-        return accountRepository.save(account);
+        Account savedAccount = accountRepository.save(account);
+
+        // 5. Gửi thông báo cho Admin
+        notifyAdminsAboutNewUser(savedAccount);
+
+        return savedAccount;
+    }
+
+    private void notifyAdminsAboutNewUser(Account newUser) {
+        // Tìm tất cả tài khoản có role là ADMIN
+        List<Account> admins = accountRepository.findByRole_RoleCode("ROLE_ADMIN");
+
+        String userName = newUser.getAccEmail() != null ? newUser.getAccEmail() : newUser.getAccPhone();
+        String message = "Người dùng mới " + userName + " vừa đăng ký tài khoản.";
+
+        for (Account admin : admins) {
+            notificationService.createNotification(
+                    admin,
+                    "Người dùng mới đăng ký",
+                    message,
+                    4, // 4: SYSTEM
+                    Long.valueOf(newUser.getId())
+            );
+        }
     }
 
     @Override
     @Transactional
     public void logout(String deviceToken) {
-        // 1. Tìm thiết bị dựa trên Token duy nhất của thiết bị đó
-        userDeviceRepository.findByDeviceToken(deviceToken).ifPresent(device -> {
-
-            // 2. Cập nhật trạng thái đăng nhập về false
-            device.setLoggedIn(false);
-
-            // 3. Vô hiệu hóa Refresh Token bằng cách gán null
-            device.setRefreshToken(null);
-
-            // 4. Cập nhật thời điểm hoạt động cuối cùng
-            device.setLastActive(LocalDateTime.now());
-
-            // 5. Lưu thay đổi xuống Database
-            userDeviceRepository.save(device);
-        });
+        // Sử dụng UserDeviceService để logout
+        userDeviceService.logoutDevice(deviceToken);
     }
 }

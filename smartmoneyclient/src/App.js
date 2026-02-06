@@ -5,6 +5,7 @@ import 'bootstrap/dist/css/bootstrap.min.css';
 import Login from './components/Login';
 import Register from './components/Register';
 import AdminDashboard from './components/AdminDashboard';
+import DashBoard from  './components/Dashboard';
 
 // Thành phần bảo vệ Route cho Admin
 const AdminRoute = ({ children }) => {
@@ -26,6 +27,8 @@ function App() {
                 <Routes>
                     <Route path="/login" element={<Login />} />
                     <Route path="/register" element={<Register />} />
+                    <Route path="/dashboard" element={<DashBoard />} />
+
 
                     {/* Bảo vệ khu vực Admin 🔐 */}
                     <Route
