@@ -27,4 +27,18 @@ public class NotificationController {
         notificationService.markAsSent(id);
         return ResponseEntity.ok().build();
     }
+
+    // Đánh dấu một thông báo đã đọc
+    @PutMapping("/{id}/read")
+    public ResponseEntity<Void> markAsRead(@PathVariable Integer id) {
+        notificationService.markAsRead(id);
+        return ResponseEntity.ok().build();
+    }
+
+    // Đánh dấu tất cả thông báo là đã đọc
+    @PutMapping("/user/{accId}/read-all")
+    public ResponseEntity<Void> markAllAsRead(@PathVariable Integer accId) {
+        notificationService.markAllAsRead(accId);
+        return ResponseEntity.ok().build();
+    }
 }

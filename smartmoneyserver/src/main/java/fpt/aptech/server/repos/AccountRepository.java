@@ -25,6 +25,8 @@ public interface AccountRepository extends JpaRepository<Account, Integer>, JpaS
     // Kiểm tra phone đã tồn tại
     boolean existsByAccPhone(String accPhone);
 
+    // Tìm danh sách tài khoản theo Role Code (VD: Lấy tất cả Admin)
+    List<Account> findByRole_RoleCode(String roleCode);
 
     @Query("SELECT new map(MONTH(a.createdAt) as month, YEAR(a.createdAt) as year, COUNT(a) as count) " +
             "FROM Account a " +

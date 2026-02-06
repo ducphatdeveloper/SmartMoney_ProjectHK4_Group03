@@ -78,8 +78,10 @@ const Login = () => {
     return (
         <div className="container d-flex justify-content-center align-items-center vh-100">
             <div className="card shadow-lg p-4 border-0" style={{ width: '400px', borderRadius: '1rem' }}>
-                <h3 className="text-center fw-bold mb-4">Smart Money 💰</h3>
-                
+                <span className="navbar-brand fw-bold text-center">
+                    <i className="bi bi-wallet2 me-2"></i>SmartMoney
+                </span>
+
                 {/* Hiển thị lỗi chung từ server */}
                 {generalError && <div className="alert alert-danger py-2 small text-center">{generalError}</div>}
 
