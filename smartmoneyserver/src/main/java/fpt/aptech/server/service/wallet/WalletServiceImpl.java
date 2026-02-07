@@ -4,24 +4,21 @@ import fpt.aptech.server.dto.savinggoals.reponse.SavingGoalResponse;
 import fpt.aptech.server.dto.savinggoals.request.CreateSavingGoalRequest;
 import fpt.aptech.server.dto.savinggoals.request.UpdateSavingGoalRequest;
 
-import fpt.aptech.server.dto.wallet.reponse.TotalWalletItemResponse;
-import fpt.aptech.server.dto.wallet.reponse.TotalWalletResponse;
 import fpt.aptech.server.dto.wallet.reponse.WalletResponse;
 import fpt.aptech.server.dto.wallet.request.CreateBasicWalletRequest;
 import fpt.aptech.server.dto.wallet.request.UpdateBasicWalletRequest;
-import fpt.aptech.server.entity.Account;
-import fpt.aptech.server.entity.Currency;
-import fpt.aptech.server.entity.Savinggoals.SavingGoal;
-import fpt.aptech.server.entity.Wallet;
+import fpt.aptech.server.entity.*;
 import fpt.aptech.server.repos.AccountRepository;
-import fpt.aptech.server.repos.Currency.CurrencyRepository;
-import fpt.aptech.server.repos.savinggoals.SavingGoalRepository;
-import fpt.aptech.server.repos.wallet.WalletRepository;
+import fpt.aptech.server.repos.CurrencyRepository;
+import fpt.aptech.server.repos.TransactionRepository;
+import fpt.aptech.server.repos.SavingGoalRepository;
+import fpt.aptech.server.repos.WalletRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
@@ -30,9 +27,10 @@ import java.util.List;
 public class WalletServiceImpl implements WalletServices {
 
     private final WalletRepository walletRepo;
-    private final SavingGoalRepository savingRepo;
     private final AccountRepository accountRepo;
     private final CurrencyRepository currencyRepo;
+    private final TransactionRepository transactionRepo;
+
 
     // ================== BASIC WALLET ==================
 
@@ -45,20 +43,41 @@ public class WalletServiceImpl implements WalletServices {
         Currency currency = currencyRepo.findById(req.getCurrencyCode())
                 .orElseThrow(() -> new RuntimeException("Currency not found"));
 
+        BigDecimal initBalance =
+                req.getBalance() != null ? req.getBalance() : BigDecimal.ZERO;
+
         Wallet wallet = Wallet.builder()
                 .account(account)
                 .currency(currency)
                 .walletName(req.getWalletName())
-                .balance(req.getBalance() != null ? req.getBalance() : BigDecimal.ZERO)
+                .balance(initBalance)
                 .notified(req.getNotified() != null ? req.getNotified() : true)
                 .reportable(req.getReportable() != null ? req.getReportable() : true)
                 .goalImageUrl(req.getGoalImageUrl())
                 .build();
 
-        Wallet saved = walletRepo.save(wallet);
+        Wallet savedWallet = walletRepo.save(wallet);
 
-        return mapWallet(saved);
+        // ================= INIT TRANSACTION =================
+        if (initBalance.compareTo(BigDecimal.ZERO) > 0) {
+
+            Transaction initTransaction = Transaction.builder()
+                    .account(account)
+                    .wallet(savedWallet)
+                    .amount(initBalance)
+                    .note("Initial balance")
+                    .reportable(false)     // ❗ không tính báo cáo
+                    .sourceType(1)         // system/manual
+                    .transDate(LocalDateTime.now())
+                    .deleted(false)
+                    .build();
+
+            transactionRepo.save(initTransaction);
+        }
+
+        return mapWallet(savedWallet);
     }
+
 
     @Override
     public WalletResponse updateBasicWallet(Integer id, UpdateBasicWalletRequest req) {
@@ -84,70 +103,23 @@ public class WalletServiceImpl implements WalletServices {
 
     @Override
     public void deleteBasicWallet(Integer id) {
-        walletRepo.deleteById(id);
+
+        Wallet wallet = walletRepo.findById(id)
+                .orElseThrow(() -> new RuntimeException("Wallet not found"));
+
+        if (wallet.getBalance().compareTo(BigDecimal.ZERO) != 0) {
+            throw new RuntimeException("Cannot delete wallet with balance");
+        }
+
+        walletRepo.delete(wallet);
     }
 
-    // ================== SAVING GOAL ==================
-
-    @Override
-    public SavingGoalResponse createSavingGoal(CreateSavingGoalRequest req) {
-
-        Account account = accountRepo.findById(req.getAccId())
-                .orElseThrow(() -> new RuntimeException("Account not found"));
-
-        Currency currency = currencyRepo.findById(req.getCurrencyCode())
-                .orElseThrow(() -> new RuntimeException("Currency not found"));
-
-        SavingGoal goal = SavingGoal.builder()
-                .account(account)
-                .currency(currency)
-                .goalName(req.getGoalName())
-                .targetAmount(req.getTargetAmount())
-                .currentAmount(BigDecimal.ZERO)
-                .endDate(req.getEndDate())
-                .goalImageUrl(req.getGoalImageUrl())
-                .goalStatus(1)
-                .finished(false)
-                .notified(true)
-                .reportable(true)
-                .build();
-
-        return mapSavingGoal(savingRepo.save(goal));
-    }
-
-    @Override
-    public SavingGoalResponse updateSavingGoal(Integer id, UpdateSavingGoalRequest req) {
-
-        SavingGoal goal = savingRepo.findById(id)
-                .orElseThrow(() -> new RuntimeException("Saving goal not found"));
-
-        if (req.getGoalName() != null)
-            goal.setGoalName(req.getGoalName());
-
-        if (req.getTargetAmount() != null)
-            goal.setTargetAmount(req.getTargetAmount());
-
-        if (req.getEndDate() != null)
-            goal.setEndDate(req.getEndDate());
-
-        if (req.getNotified() != null)
-            goal.setNotified(req.getNotified());
-
-        if (req.getReportable() != null)
-            goal.setReportable(req.getReportable());
-
-        if (req.getGoalImageUrl() != null)
-            goal.setGoalImageUrl(req.getGoalImageUrl());
 
 
 
-        return mapSavingGoal(savingRepo.save(goal));
-    }
 
-    @Override
-    public void deleteSavingGoal(Integer id) {
-        savingRepo.deleteById(id);
-    }
+
+
 
     public List<WalletResponse> getWalletsByAccount(Integer accId) {
         return walletRepo.findByAccount_Id(accId)
@@ -156,15 +128,11 @@ public class WalletServiceImpl implements WalletServices {
                 .toList();
     }
 
-    @Override
-    public List<SavingGoalResponse> getSavingGoalsByAccount(Integer accId) {
-        return List.of();
-    }
 
     // =================List Basic Wallet
     @Override
     public List<WalletResponse> getBasicWallets(Integer accId) {
-        return walletRepo.findByAccount_Id(accId)
+        return walletRepo.findByAccount_IdAndReportableTrue(accId)
                 .stream()
                 .map(this::mapWallet)
                 .toList();
@@ -172,53 +140,53 @@ public class WalletServiceImpl implements WalletServices {
 
 
     // ================= Total Runtime ==============
-    @Override
-    public TotalWalletResponse getTotalWallet(Integer accId) {
-
-        // 1. Check account
-        accountRepo.findById(accId)
-                .orElseThrow(() -> new RuntimeException("Account not found"));
-
-        // 2. Lấy các ví được tính vào tổng
-        var wallets = walletRepo.findByAccount_IdAndReportableTrue(accId);
-
-        if (wallets.isEmpty()) {
-            return TotalWalletResponse.builder()
-                    .accId(accId)
-                    .walletName("Ví tổng")
-                    .totalBalance(BigDecimal.ZERO)
-                    .currencyCode(null)
-                    .wallets(List.of())
-                    .build();
-        }
-
-        // 3. Giả sử 1 acc chỉ dùng 1 currency chính (Money Lover)
-        final String currencyCode =
-                wallets.get(0).getCurrency().getCurrencyCode();
-
-        // 4. Map danh sách ví con
-        var walletItems = wallets.stream()
-                .map(w -> TotalWalletItemResponse.builder()
-                        .walletName(w.getWalletName())
-                        .balance(w.getBalance())
-                        .currencyCode(currencyCode)
-                        .build())
-                .toList();
-
-        // 5. Tính tổng
-        BigDecimal total = wallets.stream()
-                .map(Wallet::getBalance)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-        // 6. Response
-        return TotalWalletResponse.builder()
-                .accId(accId)
-                .walletName("Ví tổng")
-                .currencyCode(currencyCode)
-                .totalBalance(total)
-                .wallets(walletItems)
-                .build();
-    }
+//    @Override
+//    public TotalWalletResponse getTotalWallet(Integer accId) {
+//
+//        // 1. Check account
+//        accountRepo.findById(accId)
+//                .orElseThrow(() -> new RuntimeException("Account not found"));
+//
+//        // 2. Lấy các ví được tính vào tổng
+//        var wallets = walletRepo.findByAccount_IdAndReportableTrue(accId);
+//
+//        if (wallets.isEmpty()) {
+//            return TotalWalletResponse.builder()
+//                    .accId(accId)
+//                    .walletName("Ví tổng")
+//                    .totalBalance(BigDecimal.ZERO)
+//                    .currencyCode(null)
+//                    .wallets(List.of())
+//                    .build();
+//        }
+//
+//        // 3. Giả sử 1 acc chỉ dùng 1 currency chính (Money Lover)
+//        final String currencyCode =
+//                wallets.get(0).getCurrency().getCurrencyCode();
+//
+//        // 4. Map danh sách ví con
+//        var walletItems = wallets.stream()
+//                .map(w -> TotalWalletItemResponse.builder()
+//                        .walletName(w.getWalletName())
+//                        .balance(w.getBalance())
+//                        .currencyCode(currencyCode)
+//                        .build())
+//                .toList();
+//
+//        // 5. Tính tổng
+//        BigDecimal total = wallets.stream()
+//                .map(Wallet::getBalance)
+//                .reduce(BigDecimal.ZERO, BigDecimal::add);
+//
+//        // 6. Response
+//        return TotalWalletResponse.builder()
+//                .accId(accId)
+//                .walletName("Ví tổng")
+//                .currencyCode(currencyCode)
+//                .totalBalance(total)
+//                .wallets(walletItems)
+//                .build();
+//    }
 
 
 
@@ -237,19 +205,5 @@ public class WalletServiceImpl implements WalletServices {
                 .build();
     }
 
-    private SavingGoalResponse mapSavingGoal(SavingGoal g) {
-        return SavingGoalResponse.builder()
-                .id(g.getId())
-                .goalName(g.getGoalName())
-                .targetAmount(g.getTargetAmount())
-                .currentAmount(g.getCurrentAmount())
-                .endDate(g.getEndDate())
-                .goalStatus(g.getGoalStatus())
-                .notified(g.getNotified())
-                .reportable(g.getReportable())
-                .finished(g.getFinished())
-                .currencyCode(g.getCurrency().getCurrencyCode())
-                .imageUrl(g.getGoalImageUrl())
-                .build();
-    }
+
 }
