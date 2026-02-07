@@ -2,6 +2,7 @@ package fpt.aptech.server.repos;
 
 import fpt.aptech.server.entity.Account;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
@@ -10,7 +11,7 @@ import java.util.Map;
 import java.util.Optional;
 
 @Repository
-public interface AccountRepository extends JpaRepository<Account, Integer> {
+public interface AccountRepository extends JpaRepository<Account, Integer>, JpaSpecificationExecutor<Account> {
     // Tìm tài khoản bằng Email (phục vụ Login/JWT)
     Optional<Account> findByAccEmail(String email);
     // Tìm tài khoản bằng Số điện thoại
@@ -24,6 +25,8 @@ public interface AccountRepository extends JpaRepository<Account, Integer> {
     // Kiểm tra phone đã tồn tại
     boolean existsByAccPhone(String accPhone);
 
+    // Tìm danh sách tài khoản theo Role Code (VD: Lấy tất cả Admin)
+    List<Account> findByRole_RoleCode(String roleCode);
 
     @Query("SELECT new map(MONTH(a.createdAt) as month, YEAR(a.createdAt) as year, COUNT(a) as count) " +
             "FROM Account a " +
