@@ -1,7 +1,14 @@
-package fpt.aptech.server.entity;
+package fpt.aptech.server.entity.Savinggoals;
 
+import fpt.aptech.server.entity.Account;
+import fpt.aptech.server.entity.Category;
+import fpt.aptech.server.entity.Currency;
 import jakarta.persistence.*;
-import lombok.*;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -40,14 +47,12 @@ public class SavingGoal {
 
     // Số tiền đã tiết kiệm được.
     @Column(name = "current_amount", precision = 18, scale = 2)
-    @Builder.Default
     private BigDecimal currentAmount = BigDecimal.ZERO;
 
     @Column(name = "goal_image_url", length = 2048)
     private String goalImageUrl;
 
     @Column(name = "begin_date")
-    @Builder.Default
     private LocalDate beginDate = LocalDate.now();
 
     @Column(name = "end_date", nullable = false)
@@ -55,19 +60,20 @@ public class SavingGoal {
 
     // 1: Active | 2: Completed | 3: Cancelled
     @Column(name = "goal_status", nullable = false)
-    @Builder.Default
     private Integer goalStatus = 1;
 
     @Column(name = "notified", nullable = false)
-    @Builder.Default
     private Boolean notified = true;
 
     @Column(name = "reportable", nullable = false)
-    @Builder.Default
     private Boolean reportable = true;
 
     // true nếu mục tiêu đã kết thúc (hoàn thành, hủy, hoặc quá hạn).
     @Column(name = "finished")
-    @Builder.Default
     private Boolean finished = false;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "category_id", nullable = false)
+    private Category category;
+
 }

@@ -61,6 +61,7 @@ public class PlannedTransaction {
 
     // Khoảng cách lặp (VD: mỗi 2 tuần)
     @Column(name = "repeat_interval", nullable = false)
+    @Builder.Default
     private Integer repeatInterval = 1;
 
     // Giá trị ngày lặp (VD: bitmask cho ngày trong tuần)
@@ -84,6 +85,7 @@ public class PlannedTransaction {
 
     // true: đang chạy, false: tạm dừng.
     @Column(name = "active", nullable = false)
+    @Builder.Default
     private Boolean active = true;
 
     @CreationTimestamp

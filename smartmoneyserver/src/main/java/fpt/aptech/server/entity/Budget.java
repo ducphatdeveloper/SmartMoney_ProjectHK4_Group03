@@ -38,6 +38,7 @@ public class Budget {
     private BigDecimal amount;
 
     @Column(name = "begin_date", nullable = false)
+    @Builder.Default
     private LocalDate beginDate = LocalDate.now();
 
     @Column(name = "end_date", nullable = false)
@@ -45,10 +46,12 @@ public class Budget {
 
     // true: áp dụng cho tất cả danh mục chi. false: áp dụng cho danh sách `categories`.
     @Column(name = "all_categories")
+    @Builder.Default
     private Boolean allCategories = false;
 
     // true: tự động gia hạn ngân sách cho chu kỳ tiếp theo.
     @Column(name = "repeating")
+    @Builder.Default
     private Boolean repeating = false;
 
     // Danh sách các danh mục được áp dụng ngân sách này.

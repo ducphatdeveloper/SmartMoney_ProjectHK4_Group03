@@ -28,67 +28,104 @@
     </scm>
     <properties>
         <java.version>21</java.version>
+        <!-- MapStruct: Thư viện giúp chuyển đổi giữa DTO và Entity một cách tự động và hiệu quả -->
+        <mapstruct.version>1.5.5.Final</mapstruct.version>
+        <!-- Lombok-MapStruct Binding: Giúp MapStruct làm việc được với các code mà Lombok tự động sinh ra -->
+        <lombok-mapstruct-binding.version>0.2.0</lombok-mapstruct-binding.version>
+        <!-- JJWT: Thư viện để tạo và xác thực JWT token (phiên bản 0.12.x có API khác với 0.11.x) -->
+        <jjwt.version>0.12.6</jjwt.version>
+        <!-- AssertJ: Thư viện hỗ trợ viết unit test (nâng cấp để vá lỗi bảo mật) -->
+        <assertj.version>3.27.6</assertj.version>
+        <!-- Lombok: Để Spring Boot 3.5.10 tự động quản lý version (hiện tại là 1.18.42) -->
     </properties>
     <dependencies>
+        <!-- Spring Data JPA: Giúp làm việc với cơ sở dữ liệu dễ dàng hơn -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-jpa</artifactId>
         </dependency>
+        <!-- Spring Security: Xử lý bảo mật, đăng nhập, phân quyền người dùng -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-security</artifactId>
         </dependency>
+        <!-- Validation: Kiểm tra dữ liệu đầu vào (ví dụ: @NotNull, @Size, @Email...) -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-validation</artifactId>
         </dependency>
+        <!-- Spring Web: Tạo REST API để giao tiếp với frontend -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
         </dependency>
 
+        <!-- DevTools: Tự động khởi động lại server khi có thay đổi code (chỉ dùng khi develop) -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-devtools</artifactId>
             <scope>runtime</scope>
             <optional>true</optional>
         </dependency>
+        <!-- SQL Server Driver: Kết nối với cơ sở dữ liệu Microsoft SQL Server -->
         <dependency>
             <groupId>com.microsoft.sqlserver</groupId>
             <artifactId>mssql-jdbc</artifactId>
             <scope>runtime</scope>
         </dependency>
+        <!-- Lombok: Giảm code boilerplate (tự động tạo getter/setter, constructor...)
+             Version 1.18.42 do Spring Boot 3.5.10 quản lý -->
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
             <optional>true</optional>
         </dependency>
+        <!-- MapStruct: Thư viện chính để mapping DTO <-> Entity -->
+        <dependency>
+            <groupId>org.mapstruct</groupId>
+            <artifactId>mapstruct</artifactId>
+            <version>${mapstruct.version}</version>
+        </dependency>
+
+        <!-- Spring Boot Test: Bộ thư viện để viết test cases -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
+        <!-- AssertJ: Thư viện giúp viết assertion trong test dễ đọc hơn
+             (Ghi đè version để vá lỗi bảo mật CVE) -->
+        <dependency>
+            <groupId>org.assertj</groupId>
+            <artifactId>assertj-core</artifactId>
+            <version>${assertj.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <!-- Spring Security Test: Hỗ trợ test các chức năng liên quan đến Security -->
         <dependency>
             <groupId>org.springframework.security</groupId>
             <artifactId>spring-security-test</artifactId>
             <scope>test</scope>
         </dependency>
-        <!-- JWT -->
+
+        <!-- JJWT API: Interface chính để làm việc với JWT -->
         <dependency>
             <groupId>io.jsonwebtoken</groupId>
             <artifactId>jjwt-api</artifactId>
-            <version>0.11.5</version>
+            <version>${jjwt.version}</version>
         </dependency>
+        <!-- JJWT Implementation: Phần code thực thi của JJWT (chỉ cần khi chạy ứng dụng) -->
         <dependency>
             <groupId>io.jsonwebtoken</groupId>
             <artifactId>jjwt-impl</artifactId>
-            <version>0.11.5</version>
+            <version>${jjwt.version}</version>
             <scope>runtime</scope>
         </dependency>
+        <!-- JJWT Jackson: Giúp JJWT làm việc với JSON (chỉ cần khi chạy ứng dụng) -->
         <dependency>
             <groupId>io.jsonwebtoken</groupId>
             <artifactId>jjwt-jackson</artifactId>
-            <version>0.11.5</version>
+            <version>${jjwt.version}</version>
             <scope>runtime</scope>
         </dependency>
     </dependencies>
@@ -99,10 +136,26 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
                 <configuration>
+                    <!-- Cấu hình các annotation processor cần chạy khi compile -->
                     <annotationProcessorPaths>
+                        <!-- MapStruct Processor: Tự động sinh code mapping -->
+                        <path>
+                            <groupId>org.mapstruct</groupId>
+                            <artifactId>mapstruct-processor</artifactId>
+                            <version>${mapstruct.version}</version>
+                        </path>
+                        <!-- Lombok Processor: Tự động sinh getter/setter/constructor...
+                             Dùng biến ${lombok.version} để đồng bộ với version mà Spring Boot quản lý -->
                         <path>
                             <groupId>org.projectlombok</groupId>
                             <artifactId>lombok</artifactId>
+                            <version>${lombok.version}</version>
+                        </path>
+                        <!-- Lombok-MapStruct Binding: Giúp 2 processor trên hiểu nhau và hoạt động cùng nhau -->
+                        <path>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok-mapstruct-binding</artifactId>
+                            <version>${lombok-mapstruct-binding.version}</version>
                         </path>
                     </annotationProcessorPaths>
                 </configuration>
@@ -111,6 +164,7 @@
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
                 <configuration>
+                    <!-- Loại bỏ Lombok khỏi file JAR cuối cùng vì chỉ cần khi compile -->
                     <excludes>
                         <exclude>
                             <groupId>org.projectlombok</groupId>

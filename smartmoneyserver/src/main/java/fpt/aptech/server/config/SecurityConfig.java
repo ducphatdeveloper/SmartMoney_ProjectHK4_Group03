@@ -1,6 +1,8 @@
 package fpt.aptech.server.config;
 
 import fpt.aptech.server.filter.JwtAuthenticationFilter;
+import fpt.aptech.server.security.exception.CustomAccessDeniedHandler;
+import fpt.aptech.server.security.exception.CustomAuthenticationEntryPoint;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -24,6 +26,10 @@ public class SecurityConfig {
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final CorsConfigurationSource corsConfigurationSource;
     private final AuthenticationProvider authenticationProvider;
+
+    // Inject 2 bộ xử lý lỗi tùy chỉnh
+    private final CustomAccessDeniedHandler accessDeniedHandler;
+    private final CustomAuthenticationEntryPoint authenticationEntryPoint;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -55,15 +61,21 @@ public class SecurityConfig {
                         .anyRequest().authenticated()
                 )
 
-                // 4. Cấu hình Session là Stateless (không lưu session trên server)
+                // 4. Cấu hình xử lý lỗi (Exception Handling) - MỚI THÊM
+                .exceptionHandling(exception -> exception
+                        .accessDeniedHandler(accessDeniedHandler)           // Xử lý 403
+                        .authenticationEntryPoint(authenticationEntryPoint) // Xử lý 401
+                )
+
+                // 5. Cấu hình Session là Stateless (không lưu session trên server)
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
                 )
 
-                // 5. Thiết lập Provider xác thực đã được định nghĩa ở ApplicationConfig
+                // 6. Thiết lập Provider xác thực đã được định nghĩa ở ApplicationConfig
                 .authenticationProvider(authenticationProvider)
 
-                // 6. Thêm Filter kiểm tra JWT trước Filter xác thực mặc định
+                // 7. Thêm Filter kiểm tra JWT trước Filter xác thực mặc định
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();

@@ -62,14 +62,17 @@ public class Transaction {
     private String note;
 
     @Column(name = "reportable", nullable = false)
+    @Builder.Default
     private Boolean reportable = true;
 
     // Nguồn tạo giao dịch: 1: manual, 2: chat, 3: voice, 4: receipt
     @Column(name = "source_type", nullable = false)
+    @Builder.Default
     private Integer sourceType = 1;
 
     // Ngày giao dịch thực tế.
     @Column(name = "trans_date", nullable = false)
+    @Builder.Default
     private LocalDateTime transDate = LocalDateTime.now();
 
     @CreationTimestamp
@@ -78,5 +81,6 @@ public class Transaction {
 
     // Cờ xóa mềm (soft delete).
     @Column(name = "deleted", nullable = false)
+    @Builder.Default
     private Boolean deleted = false;
 }
