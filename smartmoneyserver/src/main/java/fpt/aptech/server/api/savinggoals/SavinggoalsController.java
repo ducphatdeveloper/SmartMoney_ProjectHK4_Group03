@@ -16,20 +16,26 @@ public class SavinggoalsController {
 
     private final SavinggoalsServices savinggoalsServices;
 
-    // ================= CREATE SAVING GOAL =================
+    // ================= CREATE SAVING GOAL =================(tạo ví )
     @PostMapping
     public SavingGoalResponse createSavingGoal(
-            @Valid @RequestBody CreateSavingGoalRequest request
-    ) {
+            @Valid @RequestBody CreateSavingGoalRequest request) {
         return savinggoalsServices.createSavingGoal(request);
     }
 
-    // ================= UPDATE SAVING GOAL =================
+    // ================= UPDATE THÔNG TIN =================
     @PutMapping("/{goalId}")
     public SavingGoalResponse updateSavingGoal(
             @PathVariable Integer goalId,
-            @RequestBody UpdateSavingGoalRequest request
-    ) {
+            @RequestBody UpdateSavingGoalRequest request) {
+        return savinggoalsServices.updateSavingGoal(goalId, request);
+    }
+
+    // ============== Nạp tiền vao ví tiết kiệm ===========//
+    @PostMapping("/{goalId}/deposit")
+    public SavingGoalResponse deposit(
+            @PathVariable Integer goalId,
+            @RequestBody UpdateSavingGoalRequest request) {
         return savinggoalsServices.updateSavingGoal(goalId, request);
     }
 
@@ -37,36 +43,15 @@ public class SavinggoalsController {
     @DeleteMapping("/{goalId}")
     public void deleteSavingGoal(
             @PathVariable Integer goalId,
-            @RequestParam Integer accId
-    ) {
+            @RequestParam Integer accId) {
         savinggoalsServices.deleteSavingGoal(goalId, accId);
     }
 
     // ================= GET BY ACCOUNT =================
     @GetMapping("/account/{accId}")
     public List<SavingGoalResponse> getByAccount(
-            @PathVariable Integer accId
-    ) {
+            @PathVariable Integer accId) {
         return savinggoalsServices.getSavingGoalsByAccount(accId);
     }
 
-    // ================= ADD MEMBER =================
-    @PostMapping("/account/{goalId}/members")
-    public void addMember(
-            @PathVariable Integer goalId,
-            @RequestParam Integer ownerId,
-            @RequestBody AddSavingMemberRequest request
-    ) {
-        savinggoalsServices.addMember(goalId, ownerId, request);
-
-    }
-
-    // ================= DEPOSIT =================
-    @PostMapping("/{goalId}/deposit")
-    public SavingGoalResponse deposit(
-            @PathVariable Integer goalId,
-            @RequestBody DepositSavingRequest request
-    ) {
-        return savinggoalsServices.deposit(goalId, request);
-    }
 }
