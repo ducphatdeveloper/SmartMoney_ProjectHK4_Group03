@@ -6,13 +6,11 @@ import fpt.aptech.server.entity.Account;
 import fpt.aptech.server.entity.Category;
 import fpt.aptech.server.entity.Currency;
 
-import fpt.aptech.server.entity.Savinggoals.SavingGoal;
-import fpt.aptech.server.entity.Savinggoals.SavingGoalMember;
-import fpt.aptech.server.entity.Savinggoals.SavingGoalTransaction;
+import fpt.aptech.server.entity.SavingGoal;
 import fpt.aptech.server.repos.AccountRepository;
 import fpt.aptech.server.repos.CategoryRepository;
-import fpt.aptech.server.repos.Currency.CurrencyRepository;
-import fpt.aptech.server.repos.savinggoals.*;
+import fpt.aptech.server.repos.CurrencyRepository;
+import fpt.aptech.server.repos.SavingGoalRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -30,8 +28,6 @@ public class SavinggoalsImpl implements SavinggoalsServices {
 
     // ===== REPOSITORIES =====
     private final SavingGoalRepository savingGoalRepo;
-    private final SavingGoalMemberRepository memberRepo;
-    private final SavingGoalTransactionRepository transactionRepo;
     private final CategoryRepository categoryRepo;
     private final AccountRepository accountRepo;
     private final CurrencyRepository currencyRepo;
@@ -66,15 +62,6 @@ public class SavinggoalsImpl implements SavinggoalsServices {
 
         SavingGoal savedGoal = savingGoalRepo.save(goal);
 
-        // Auto add OWNER
-        memberRepo.save(
-                SavingGoalMember.builder()
-                        .savingGoal(savedGoal)
-                        .account(account)
-                        .role("OWNER")
-                        .build()
-        );
-
         return mapSavingGoal(savedGoal);
     }
 
@@ -86,6 +73,11 @@ public class SavinggoalsImpl implements SavinggoalsServices {
         SavingGoal goal = savingGoalRepo.findById(id)
                 .orElseThrow(() -> new RuntimeException("Saving goal not found"));
 
+        if (!goal.getAccount().getId().equals(req.getAccId())) {
+            throw new RuntimeException("No permission");
+        }
+
+        // ===== UPDATE INFO MODE =====
         if (req.getGoalName() != null) goal.setGoalName(req.getGoalName());
         if (req.getTargetAmount() != null) goal.setTargetAmount(req.getTargetAmount());
         if (req.getEndDate() != null) goal.setEndDate(req.getEndDate());
@@ -93,108 +85,87 @@ public class SavinggoalsImpl implements SavinggoalsServices {
         if (req.getNotified() != null) goal.setNotified(req.getNotified());
         if (req.getReportable() != null) goal.setReportable(req.getReportable());
 
+        if (req.getCategoryId() != null) {
+            Category category = categoryRepo.findById(req.getCategoryId())
+                    .orElseThrow(() -> new RuntimeException("Category not found"));
+            goal.setCategory(category);
+        }
+
+        if (req.getCurrencyCode() != null) {
+            Currency currency = currencyRepo.findById(req.getCurrencyCode())
+                    .orElseThrow(() -> new RuntimeException("Currency not found"));
+            goal.setCurrency(currency);
+        }
+
+        // ===== DEPOSIT MODE =====
+        if (req.getAmount() != null) {
+
+            if (goal.getFinished()) {
+                throw new RuntimeException("Saving goal already finished");
+            }
+
+            BigDecimal newAmount = goal.getCurrentAmount().add(req.getAmount());
+            goal.setCurrentAmount(newAmount);
+
+            if (newAmount.compareTo(goal.getTargetAmount()) >= 0) {
+                goal.setGoalStatus(2); // COMPLETED
+                goal.setFinished(true);
+            }
+        }
+
+        // ===== AUTO EXPIRE =====
+        if (!goal.getFinished() && LocalDate.now().isAfter(goal.getEndDate())) {
+            goal.setFinished(true);
+            goal.setGoalStatus(3); // CANCELLED
+        }
+
         return mapSavingGoal(savingGoalRepo.save(goal));
     }
 
-    // ================= DELETE SAVING GOAL =================
+
 
     @Override
-    public void deleteSavingGoal(Integer goalId, Integer accId) {
+    public void deleteSavingGoal(Integer id, Integer accId) {
 
-        SavingGoalMember member =
-                memberRepo.findBySavingGoal_IdAndAccount_Id(goalId, accId);
+        SavingGoal goal = savingGoalRepo.findById(id)
+                .orElseThrow(() -> new RuntimeException("Saving goal not found"));
 
-        if (member == null || !"OWNER".equals(member.getRole())) {
-            throw new RuntimeException("Only OWNER can delete saving goal");
+        if (!goal.getAccount().getId().equals(accId)) {
+            throw new RuntimeException("No permission to delete this saving goal");
         }
 
-        savingGoalRepo.deleteById(goalId);
+        goal.setGoalStatus(3); // CANCELLED
+        goal.setFinished(true);
+
+        savingGoalRepo.save(goal);
     }
 
-    // ================= LIST BY ACCOUNT =================
 
     @Override
     public List<SavingGoalResponse> getSavingGoalsByAccount(Integer accId) {
-
-        return memberRepo.findByAccount_Id(accId)
+        return savingGoalRepo.findByAccount_Id(accId)
                 .stream()
-                .map(SavingGoalMember::getSavingGoal)
                 .map(this::mapSavingGoal)
                 .collect(Collectors.toList());
     }
 
-    // ================= ADD MEMBER =================
 
-    @Override
-    public void addMember(Integer goalId, Integer ownerId, AddSavingMemberRequest req) {
+    // ================= DELETE SAVING GOAL =================
 
-        SavingGoalMember owner =
-                memberRepo.findBySavingGoal_IdAndAccount_Id(goalId, ownerId);
 
-        if (owner == null || !"OWNER".equals(owner.getRole())) {
-            throw new RuntimeException("Only OWNER can add member");
-        }
 
-        if (memberRepo.existsBySavingGoal_IdAndAccount_Id(goalId, req.getAccId())) {
-            throw new RuntimeException("User already joined");
-        }
+    // ================= LIST BY ACCOUNT =================
 
-        Account acc = accountRepo.findById(req.getAccId())
-                .orElseThrow(() -> new RuntimeException("Account not found"));
-
-        memberRepo.save(
-                SavingGoalMember.builder()
-                        .savingGoal(owner.getSavingGoal())
-                        .account(acc)
-                        .role(req.getRole())
-                        .build()
-        );
-    }
-
-    // ================= DEPOSIT MONEY =================
-
-    @Override
-    public SavingGoalResponse deposit(Integer goalId, DepositSavingRequest req) {
-
-        SavingGoalMember member =
-                memberRepo.findBySavingGoal_IdAndAccount_Id(goalId, req.getAccId());
-
-        if (member == null) {
-            throw new RuntimeException("Not a member of this saving goal");
-        }
-
-        SavingGoal goal = member.getSavingGoal();
-
-        // Update current amount
-        goal.setCurrentAmount(
-                goal.getCurrentAmount().add(req.getAmount())
-        );
-
-        // Check completed
-        if (goal.getCurrentAmount().compareTo(goal.getTargetAmount()) >= 0) {
-            goal.setGoalStatus(2); // COMPLETED
-            goal.setFinished(true);
-        }
-
-        // ✅ SAVE TRANSACTION (ĐÚNG REPO – FIX LỖI CỦA BẠN)
-        SavingGoalTransaction transaction = SavingGoalTransaction.builder()
-                .savingGoal(goal)
-                .account(member.getAccount())
-                .amount(req.getAmount())
-                .createdAt(LocalDateTime.now())
-                .build();
-
-        transactionRepo.save(transaction);
-
-        // Save updated goal
-        savingGoalRepo.save(goal);
-
-        return mapSavingGoal(goal);
-    }
 
     // ================= MAPPER =================
 
-    private SavingGoalResponse mapSavingGoal(SavingGoal g) {
+    private SavingGoalResponse mapSavingGoal(SavingGoal g)
+    {
+        boolean finished = g.getFinished();
+
+        if (!finished && LocalDate.now().isAfter(g.getEndDate())) {
+            finished = true;
+        }
         return SavingGoalResponse.builder()
                 .id(g.getId())
                 .goalName(g.getGoalName())
