@@ -46,11 +46,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<ApiResponse<Void>> handleDataIntegrityViolationException(
             DataIntegrityViolationException ex) {
-
+        
         String message = "Dữ liệu không hợp lệ hoặc đã tồn tại.";
 
         if (ex.getMessage() != null && ex.getMessage().contains("Duplicate entry")) {
-            message = "Dữ liệu này đã tồn tại.";
+             message = "Dữ liệu này đã tồn tại.";
         } else if (ex.getMessage() != null && ex.getMessage().contains("foreign key constraint")) {
             message = "Dữ liệu liên quan không tồn tại.";
         }

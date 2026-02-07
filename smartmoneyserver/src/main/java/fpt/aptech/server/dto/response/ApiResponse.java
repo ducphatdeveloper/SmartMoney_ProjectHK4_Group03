@@ -30,13 +30,25 @@ public class ApiResponse<T> {
     private LocalDateTime timestamp;
 
     /**
-     * Phản hồi thành công CÓ kèm theo dữ liệu.
-     * Thường dùng cho các hàm Get hoặc Post trả về thông tin đối tượng.
+     * Phản hồi thành công CÓ kèm theo dữ liệu và thông báo.
      */
     public static <T> ApiResponse<T> success(T data, String message) {
         return ApiResponse.<T>builder()
                 .success(true)
                 .message(message)
+                .data(data)
+                .timestamp(LocalDateTime.now())
+                .build();
+    }
+
+    /**
+     * Phản hồi thành công CÓ kèm theo dữ liệu (Message mặc định là "Thành công").
+     * Dùng cho các hàm Get dữ liệu đơn giản.
+     */
+    public static <T> ApiResponse<T> success(T data) {
+        return ApiResponse.<T>builder()
+                .success(true)
+                .message("Thành công")
                 .data(data)
                 .timestamp(LocalDateTime.now())
                 .build();

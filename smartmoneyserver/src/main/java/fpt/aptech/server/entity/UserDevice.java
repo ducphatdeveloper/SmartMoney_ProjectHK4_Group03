@@ -52,9 +52,11 @@ public class UserDevice {
 
     // Trạng thái đăng nhập. false nếu người dùng đã chủ động logout.
     @Column(name = "logged_in", nullable = false)
+    @Builder.Default
     private Boolean loggedIn = true;
 
     // Thời gian hoạt động cuối cùng, dùng để xác định trạng thái "online".
     @Column(name = "last_active", nullable = false)
+    @Builder.Default
     private LocalDateTime lastActive = LocalDateTime.now();
 }

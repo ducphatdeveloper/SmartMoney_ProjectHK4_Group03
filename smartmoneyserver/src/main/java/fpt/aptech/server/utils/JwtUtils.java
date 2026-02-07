@@ -50,11 +50,11 @@ public class JwtUtils {
 
     private String buildToken(Map<String, Object> extraClaims, String subject, long expiration) {
         return Jwts.builder()
-                .setClaims(extraClaims)
-                .setSubject(subject)
-                .setIssuedAt(new Date(System.currentTimeMillis()))
-                .setExpiration(new Date(System.currentTimeMillis() + expiration))
-                .signWith(getSigningKey(), io.jsonwebtoken.SignatureAlgorithm.HS256) // Đổi SIG thành SignatureAlgorithm
+                .claims(extraClaims) // Thay setClaims bằng claims (bản 0.12.x)
+                .subject(subject)    // Thay setSubject bằng subject
+                .issuedAt(new Date(System.currentTimeMillis())) // Thay setIssuedAt bằng issuedAt
+                .expiration(new Date(System.currentTimeMillis() + expiration)) // Thay setExpiration bằng expiration
+                .signWith(getSigningKey(), Jwts.SIG.HS256) // Cập nhật cách ký (SIG.HS256)
                 .compact();
     }
 
@@ -73,11 +73,11 @@ public class JwtUtils {
     }
 
     private Claims extractAllClaims(String token) {
-        return Jwts.parserBuilder()
-                .setSigningKey(getSigningKey())
+        return Jwts.parser() // Thay parserBuilder() bằng parser()
+                .verifyWith(getSigningKey()) // Thay setSigningKey() bằng verifyWith()
                 .build()
-                .parseClaimsJws(token)
-                .getBody();
+                .parseSignedClaims(token) // Thay parseClaimsJws() bằng parseSignedClaims()
+                .getPayload(); // Thay getBody() bằng getPayload()
     }
 
     // 4. Kiểm tra tính hợp lệ
