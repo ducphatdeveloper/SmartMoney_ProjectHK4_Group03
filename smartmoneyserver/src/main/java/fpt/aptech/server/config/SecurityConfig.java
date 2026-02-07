@@ -18,7 +18,7 @@ import org.springframework.web.cors.CorsConfigurationSource;
 
 @Configuration
 @EnableWebSecurity
-@EnableMethodSecurity
+@EnableMethodSecurity // Kích hoạt @PreAuthorize
 @RequiredArgsConstructor
 public class SecurityConfig {
 
