@@ -1,15 +1,12 @@
 package fpt.aptech.server.service.wallet;
 
-import fpt.aptech.server.dto.savinggoals.request.CreateSavingGoalRequest;
-import fpt.aptech.server.dto.savinggoals.request.UpdateSavingGoalRequest;
-import fpt.aptech.server.dto.savinggoals.reponse.SavingGoalResponse;
 import fpt.aptech.server.dto.wallet.reponse.WalletResponse;
 import fpt.aptech.server.dto.wallet.request.CreateBasicWalletRequest;
 import fpt.aptech.server.dto.wallet.request.UpdateBasicWalletRequest;
 
 import java.util.List;
 
-public interface WalletServices {
+public interface WalletService {
 
     // ================== BASIC WALLET ==================
 
