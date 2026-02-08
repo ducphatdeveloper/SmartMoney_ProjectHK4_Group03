@@ -24,6 +24,6 @@ public interface WalletService {
 
 //    TotalWalletResponse getTotalWallet(Integer accId, String currencyCode);
 
-    // ================= Total Runtime ==============
+    // ================= Total Runtime =============
 
 }
