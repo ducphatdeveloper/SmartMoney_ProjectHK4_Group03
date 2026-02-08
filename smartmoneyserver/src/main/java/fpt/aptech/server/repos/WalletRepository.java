@@ -1,10 +1,12 @@
-package fpt.aptech.server.repos;
+package fpt.aptech.server.repos.wallet;
 
 import fpt.aptech.server.entity.Wallet;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
 
 import java.util.List;
 
+@Repository
 public interface WalletRepository extends JpaRepository<Wallet, Integer> {
     List<Wallet> findByAccount_Id(Integer accId);
 
