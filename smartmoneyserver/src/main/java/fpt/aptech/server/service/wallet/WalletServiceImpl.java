@@ -1,35 +1,32 @@
 package fpt.aptech.server.service.wallet;
 
-import fpt.aptech.server.dto.savinggoals.reponse.SavingGoalResponse;
-import fpt.aptech.server.dto.savinggoals.request.CreateSavingGoalRequest;
-import fpt.aptech.server.dto.savinggoals.request.UpdateSavingGoalRequest;
+
 
 import fpt.aptech.server.dto.wallet.reponse.WalletResponse;
 import fpt.aptech.server.dto.wallet.request.CreateBasicWalletRequest;
 import fpt.aptech.server.dto.wallet.request.UpdateBasicWalletRequest;
-import fpt.aptech.server.entity.*;
+import fpt.aptech.server.entity.Wallet;
+import fpt.aptech.server.entity.Account;
+import fpt.aptech.server.entity.Currency;
 import fpt.aptech.server.repos.AccountRepository;
-import fpt.aptech.server.repos.CurrencyRepository;
-import fpt.aptech.server.repos.TransactionRepository;
-import fpt.aptech.server.repos.SavingGoalRepository;
-import fpt.aptech.server.repos.WalletRepository;
+import fpt.aptech.server.repos.Currency.CurrencyRepository;
+import fpt.aptech.server.repos.wallet.WalletRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
 @RequiredArgsConstructor
 @Transactional
-public class WalletServiceImpl implements WalletServices {
+public class WalletServiceImpl implements WalletService {
 
     private final WalletRepository walletRepo;
     private final AccountRepository accountRepo;
     private final CurrencyRepository currencyRepo;
-    private final TransactionRepository transactionRepo;
+//    private final TransactionRepository transactionRepo;
 
 
     // ================== BASIC WALLET ==================
@@ -59,21 +56,21 @@ public class WalletServiceImpl implements WalletServices {
         Wallet savedWallet = walletRepo.save(wallet);
 
         // ================= INIT TRANSACTION =================
-        if (initBalance.compareTo(BigDecimal.ZERO) > 0) {
-
-            Transaction initTransaction = Transaction.builder()
-                    .account(account)
-                    .wallet(savedWallet)
-                    .amount(initBalance)
-                    .note("Initial balance")
-                    .reportable(false)     // ❗ không tính báo cáo
-                    .sourceType(1)         // system/manual
-                    .transDate(LocalDateTime.now())
-                    .deleted(false)
-                    .build();
-
-            transactionRepo.save(initTransaction);
-        }
+//        if (initBalance.compareTo(BigDecimal.ZERO) > 0) {
+//
+//            Transaction initTransaction = Transaction.builder()
+//                    .account(account)
+//                    .wallet(savedWallet)
+//                    .amount(initBalance)
+//                    .note("Initial balance")
+//                    .reportable(false)     // ❗ không tính báo cáo
+//                    .sourceType(1)         // system/manual
+//                    .transDate(LocalDateTime.now())
+//                    .deleted(false)
+//                    .build();
+//
+//            transactionRepo.save(initTransaction);
+//        }
 
         return mapWallet(savedWallet);
     }
