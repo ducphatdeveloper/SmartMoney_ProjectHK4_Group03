@@ -1,14 +1,14 @@
 package fpt.aptech.server.service.savinggoal;
 
-import fpt.aptech.server.dto.savinggoals.reponse.SavingGoalResponse;
-import fpt.aptech.server.dto.savinggoals.request.*;
+import fpt.aptech.server.dto.savinggoal.reponse.SavingGoalResponse;
+import fpt.aptech.server.dto.savinggoal.request.*;
 import fpt.aptech.server.entity.Account;
 import fpt.aptech.server.entity.Currency;
 
 import fpt.aptech.server.entity.SavingGoal;
 import fpt.aptech.server.repos.AccountRepository;
-import fpt.aptech.server.repos.Currency.CurrencyRepository;
-import fpt.aptech.server.repos.savinggoal.*;
+import fpt.aptech.server.repos.CurrencyRepository;
+import fpt.aptech.server.repos.SavingGoalRepository;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -21,7 +21,7 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 @Transactional
-public class SavingGoalImpl implements SavingGoalsService {
+public class SavingGoalImpl implements SavingGoalService {
 
     // ===== REPOSITORIES =====
     private final SavingGoalRepository savingGoalRepo;

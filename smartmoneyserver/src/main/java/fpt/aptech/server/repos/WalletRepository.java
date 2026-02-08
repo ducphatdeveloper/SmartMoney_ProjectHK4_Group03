@@ -1,4 +1,4 @@
-package fpt.aptech.server.repos.wallet;
+package fpt.aptech.server.repos;
 
 import fpt.aptech.server.entity.Wallet;
 import org.springframework.data.jpa.repository.JpaRepository;

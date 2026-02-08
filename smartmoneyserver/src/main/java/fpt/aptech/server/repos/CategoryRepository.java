@@ -12,28 +12,63 @@ import java.util.Optional;
 @Repository
 public interface CategoryRepository extends JpaRepository<Category, Integer> {
 
-    /**
-     * Lấy tất cả danh mục của HỆ THỐNG (acc_id IS NULL) và
-     * tất cả danh mục của một người dùng cụ thể (acc_id = ?).
-     * Đây là phương thức cốt lõi cho chức năng "View".
-     */
-    @Query("SELECT c FROM Category c WHERE c.account.id IS NULL OR c.account.id = :accountId")
-    List<Category> findSystemAndUserCategoriesByAccount_Id(@Param("accountId") Integer accountId);
+    // =================================================================================
+    // CÁC HÀM CHO 3 TAB CHÍNH (API: /api/categories?group=...)
+    // =================================================================================
 
-    /**
-     * Tìm một danh mục theo ID và đảm bảo nó thuộc quyền sở hữu của người dùng.
-     * Rất quan trọng cho việc Update và Delete để tránh sửa/xóa dữ liệu của người khác.
-     */
-    Optional<Category> findByIdAndAccount_Id(Integer categoryId, Integer accountId);
+    /// [VIEW] Lấy danh sách cho tab "KHOẢN CHI" (loại trừ các mục nợ), sắp xếp theo cha-con.
+    @Query("SELECT c FROM Category c LEFT JOIN c.parent p WHERE (c.account.id IS NULL OR c.account.id = :accountId) AND c.ctgType = false AND c.ctgName NOT IN :excludedNames " +
+           "ORDER BY COALESCE(p.ctgName, c.ctgName) ASC, (CASE WHEN c.parent IS NULL THEN 0 ELSE 1 END) ASC, c.ctgName ASC")
+    List<Category> findAllExpenseCategories(@Param("accountId") Integer accountId, @Param("excludedNames") List<String> excludedNames);
 
-    /**
-     * Kiểm tra xem một danh mục con có tồn tại với cùng tên, cùng cha, và cùng người sở hữu không.
-     * Dùng để ngăn tạo trùng lặp.
-     */
-    boolean existsByParent_IdAndCtgNameAndAccount_Id(Integer parentId, String ctgName, Integer accountId);
+    /// [VIEW] Lấy danh sách cho tab "KHOẢN THU" (loại trừ các mục nợ), sắp xếp theo cha-con.
+    @Query("SELECT c FROM Category c LEFT JOIN c.parent p WHERE (c.account.id IS NULL OR c.account.id = :accountId) AND c.ctgType = true AND c.ctgName NOT IN :excludedNames " +
+           "ORDER BY COALESCE(p.ctgName, c.ctgName) ASC, (CASE WHEN c.parent IS NULL THEN 0 ELSE 1 END) ASC, c.ctgName ASC")
+    List<Category> findAllIncomeCategories(@Param("accountId") Integer accountId, @Param("excludedNames") List<String> excludedNames);
 
-    /**
-     * Tương tự như trên nhưng cho danh mục cha (không có parent_id).
-     */
-    boolean existsByParent_IdIsNullAndCtgNameAndAccount_Id(String ctgName, Integer accountId);
+    /// [VIEW] Lấy danh sách cho tab "ĐI VAY / CHO VAY", sắp xếp theo tên (tab này không có cha-con).
+    @Query("SELECT c FROM Category c WHERE c.account.id IS NULL AND c.ctgName IN :debtNames ORDER BY c.ctgName ASC")
+    List<Category> findDebtAndLoanCategories(@Param("debtNames") List<String> debtNames);
+
+
+    // =================================================================================
+    // CÁC HÀM CHO CHỨC NĂNG "CHỌN NHÓM CHA" (API: /api/categories/parents?type=...)
+    // =================================================================================
+
+    /// [VIEW] Lấy danh sách cha cho KHOẢN THU (chỉ lấy 'Lương' và phải là danh mục gốc).
+    @Query("SELECT c FROM Category c WHERE (c.account.id IS NULL OR c.account.id = :accountId) AND c.ctgType = true AND c.ctgName = :incomeName AND c.parent IS NULL")
+    List<Category> findIncomeParents(@Param("accountId") Integer accountId, @Param("incomeName") String incomeName);
+
+    /// [VIEW] Lấy danh sách cha cho KHOẢN CHI (loại trừ một số danh mục và phải là danh mục gốc).
+    @Query("SELECT c FROM Category c WHERE (c.account.id IS NULL OR c.account.id = :accountId) AND c.ctgType = false AND c.ctgName NOT IN :excludedNames AND c.parent IS NULL")
+    List<Category> findExpenseParents(@Param("accountId") Integer accountId, @Param("excludedNames") List<String> excludedNames);
+
+
+    // =================================================================================
+    // CÁC HÀM KIỂM TRA (VALIDATE) TRƯỚC KHI TẠO/SỬA
+    // =================================================================================
+
+    /// [CREATE/UPDATE] Kiểm tra xem User này đã có danh mục GỐC nào trùng tên chưa.
+    boolean existsByCtgNameAndAccount_IdAndParentIsNull(String ctgName, Integer accountId);
+
+    /// [CREATE/UPDATE] Kiểm tra xem User này đã có danh mục CON nào trùng tên TRONG CÙNG MỘT CHA chưa.
+    boolean existsByCtgNameAndParent_IdAndAccount_Id(String ctgName, Integer parentId, Integer accountId);
+
+    /// [CREATE] Kiểm tra xem một danh mục GỐC của HỆ THỐNG có tồn tại theo tên không.
+    boolean existsByCtgNameAndAccountIsNullAndParentIsNull(String ctgName);
+    
+    // =================================================================================
+    // HÀM TÌM KIẾM TOÀN CỤC (API: /api/categories/search?name=...)
+    // =================================================================================
+    
+    /// [SEARCH] Tìm tất cả danh mục (hệ thống + người dùng) theo tên (không phân biệt hoa/thường).
+    @Query("SELECT c FROM Category c LEFT JOIN c.parent p WHERE (c.account.id IS NULL OR c.account.id = :accountId) AND LOWER(c.ctgName) LIKE LOWER(:searchTerm) " +
+           "ORDER BY COALESCE(p.ctgName, c.ctgName) ASC, (CASE WHEN c.parent IS NULL THEN 0 ELSE 1 END) ASC, c.ctgName ASC")
+    List<Category> searchAllUserAndSystemCategories(@Param("accountId") Integer accountId, @Param("searchTerm") String searchTerm);
+
+    /// [VIEW] Lấy tất cả danh mục (hệ thống + người dùng) khi không có từ khóa tìm kiếm.
+    @Query("SELECT c FROM Category c LEFT JOIN c.parent p WHERE (c.account.id IS NULL OR c.account.id = :accountId) " +
+           "ORDER BY COALESCE(p.ctgName, c.ctgName) ASC, (CASE WHEN c.parent IS NULL THEN 0 ELSE 1 END) ASC, c.ctgName ASC")
+    List<Category> findAllSystemAndUserCategories(@Param("accountId") Integer accountId);
+
 }

@@ -1,5 +1,6 @@
 package fpt.aptech.server.mapper.category;
 
+import fpt.aptech.server.dto.category.CategoryRequest;
 import fpt.aptech.server.dto.category.CategoryResponse;
 import fpt.aptech.server.entity.Category;
 import org.mapstruct.Mapper;
@@ -10,10 +11,18 @@ import java.util.List;
 @Mapper(componentModel = "spring")
 public interface CategoryMapper {
 
-    // Map trường 'parent.id' từ Entity sang 'parentId' của DTO
+    // Ánh xạ parent.id sang parentId.
+    // MapStruct tự động ánh xạ vì có cùng tên và kiểu.
     @Mapping(source = "parent.id", target = "parentId")
     CategoryResponse toDto(Category category);
 
-    // Map danh sách
+    // MapStruct sẽ tự động áp dụng toDto cho từng phần tử trong list.
     List<CategoryResponse> toDtoList(List<Category> categories);
+
+    // Khi chuyển từ Request -> Entity, bỏ qua các trường không có trong Request.
+    @Mapping(target = "id", ignore = true)
+    @Mapping(target = "account", ignore = true)
+    @Mapping(target = "children", ignore = true)
+    @Mapping(target = "parent", ignore = true)
+    Category toEntity(CategoryRequest request);
 }
