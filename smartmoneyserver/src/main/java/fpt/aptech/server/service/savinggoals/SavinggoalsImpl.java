@@ -1,34 +1,30 @@
-package fpt.aptech.server.service.savinggoals;
+package fpt.aptech.server.service.savinggoal;
 
 import fpt.aptech.server.dto.savinggoals.reponse.SavingGoalResponse;
 import fpt.aptech.server.dto.savinggoals.request.*;
 import fpt.aptech.server.entity.Account;
-import fpt.aptech.server.entity.Category;
 import fpt.aptech.server.entity.Currency;
 
 import fpt.aptech.server.entity.SavingGoal;
 import fpt.aptech.server.repos.AccountRepository;
-import fpt.aptech.server.repos.CategoryRepository;
-import fpt.aptech.server.repos.CurrencyRepository;
-import fpt.aptech.server.repos.SavingGoalRepository;
+import fpt.aptech.server.repos.Currency.CurrencyRepository;
+import fpt.aptech.server.repos.savinggoal.*;
 import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
 @Transactional
-public class SavinggoalsImpl implements SavinggoalsServices {
+public class SavingGoalImpl implements SavingGoalsService {
 
     // ===== REPOSITORIES =====
     private final SavingGoalRepository savingGoalRepo;
-    private final CategoryRepository categoryRepo;
     private final AccountRepository accountRepo;
     private final CurrencyRepository currencyRepo;
 
@@ -42,12 +38,9 @@ public class SavinggoalsImpl implements SavinggoalsServices {
 
         Currency currency = currencyRepo.findById(req.getCurrencyCode())
                 .orElseThrow(() -> new RuntimeException("Currency not found"));
-        Category category = categoryRepo.findById(req.getCategoryId())
-                .orElseThrow(() -> new RuntimeException("Category not found"));
         SavingGoal goal = SavingGoal.builder()
                 .account(account)
                 .currency(currency)
-                .category(category)
                 .goalName(req.getGoalName())
                 .targetAmount(req.getTargetAmount())
                 .currentAmount(BigDecimal.ZERO)
@@ -85,11 +78,6 @@ public class SavinggoalsImpl implements SavinggoalsServices {
         if (req.getNotified() != null) goal.setNotified(req.getNotified());
         if (req.getReportable() != null) goal.setReportable(req.getReportable());
 
-        if (req.getCategoryId() != null) {
-            Category category = categoryRepo.findById(req.getCategoryId())
-                    .orElseThrow(() -> new RuntimeException("Category not found"));
-            goal.setCategory(category);
-        }
 
         if (req.getCurrencyCode() != null) {
             Currency currency = currencyRepo.findById(req.getCurrencyCode())
@@ -178,10 +166,7 @@ public class SavinggoalsImpl implements SavinggoalsServices {
                 .finished(g.getFinished())
                 .currencyCode(g.getCurrency().getCurrencyCode())
                 .imageUrl(g.getGoalImageUrl())
-                // category (THEO ENTITY THẬT)
-                .categoryId(g.getCategory().getId())
-                .categoryName(g.getCategory().getCtgName())
-                .categoryIconUrl(g.getCategory().getCtgIconUrl())
+
                 .build();
     }
 }
