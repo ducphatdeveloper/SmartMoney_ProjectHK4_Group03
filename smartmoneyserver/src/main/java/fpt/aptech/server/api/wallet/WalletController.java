@@ -3,7 +3,7 @@
     import fpt.aptech.server.dto.wallet.reponse.WalletResponse;
     import fpt.aptech.server.dto.wallet.request.CreateBasicWalletRequest;
     import fpt.aptech.server.dto.wallet.request.UpdateBasicWalletRequest;
-    import fpt.aptech.server.service.wallet.WalletServices;
+    import fpt.aptech.server.service.wallet.WalletService;
     import jakarta.validation.Valid;
     import lombok.RequiredArgsConstructor;
     import org.springframework.web.bind.annotation.*;
@@ -15,7 +15,7 @@
     @RequiredArgsConstructor
     public class WalletController {
 
-        private final WalletServices walletService;
+        private final WalletService walletService;
 
         // ================== BASIC WALLET ==================
 

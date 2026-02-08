@@ -1,4 +1,4 @@
-package fpt.aptech.server.dto.savinggoals.reponse;
+package fpt.aptech.server.dto.savinggoal.reponse;
 
 import lombok.Builder;
 import lombok.Getter;

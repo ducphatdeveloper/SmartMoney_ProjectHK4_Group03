@@ -1,12 +1,12 @@
-package fpt.aptech.server.service.savinggoals;
+package fpt.aptech.server.service.savinggoal;
 
-import fpt.aptech.server.dto.savinggoals.reponse.SavingGoalResponse;
-import fpt.aptech.server.dto.savinggoals.request.CreateSavingGoalRequest;
-import fpt.aptech.server.dto.savinggoals.request.UpdateSavingGoalRequest;
+import fpt.aptech.server.dto.savinggoal.reponse.SavingGoalResponse;
+import fpt.aptech.server.dto.savinggoal.request.CreateSavingGoalRequest;
+import fpt.aptech.server.dto.savinggoal.request.UpdateSavingGoalRequest;
 
 import java.util.List;
 
-public interface SavinggoalsServices {
+public interface SavingGoalService {
     // ================== SAVING GOAL ==================
 
     SavingGoalResponse createSavingGoal(CreateSavingGoalRequest request);

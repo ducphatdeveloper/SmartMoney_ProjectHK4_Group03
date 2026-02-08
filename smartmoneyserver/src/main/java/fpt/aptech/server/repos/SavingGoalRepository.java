@@ -1,4 +1,4 @@
-package fpt.aptech.server.repos.savinggoal;
+package fpt.aptech.server.repos;
 
 import fpt.aptech.server.entity.SavingGoal;
 import org.springframework.data.jpa.repository.JpaRepository;
