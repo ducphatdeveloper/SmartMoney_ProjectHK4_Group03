@@ -1,4 +1,4 @@
-package fpt.aptech.server.dto.wallet.reponse;
+package fpt.aptech.server.dto.wallet;
 
 
 import lombok.Builder;
