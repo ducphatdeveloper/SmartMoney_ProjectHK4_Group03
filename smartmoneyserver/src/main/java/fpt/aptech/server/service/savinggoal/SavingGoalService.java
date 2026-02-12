@@ -1,23 +1,29 @@
 package fpt.aptech.server.service.savinggoal;
 
-import fpt.aptech.server.dto.savinggoal.reponse.SavingGoalResponse;
-import fpt.aptech.server.dto.savinggoal.request.CreateSavingGoalRequest;
-import fpt.aptech.server.dto.savinggoal.request.UpdateSavingGoalRequest;
+import fpt.aptech.server.dto.savinggoal.SavingGoalRequest;
+import fpt.aptech.server.dto.savinggoal.SavingGoalResponse;
 
+
+import java.math.BigDecimal;
 import java.util.List;
 
 public interface SavingGoalService {
     // ================== SAVING GOAL ==================
 
-    SavingGoalResponse createSavingGoal(CreateSavingGoalRequest request);
+    SavingGoalResponse createSavingGoal(SavingGoalRequest request, Integer userId);
 
-    SavingGoalResponse updateSavingGoal(Integer id, UpdateSavingGoalRequest request);
+    SavingGoalResponse updateSavingGoalInfo(Integer id, SavingGoalRequest request, Integer userId);
+
+    SavingGoalResponse depositToSavingGoal(Integer id, BigDecimal amount, Integer userId);
+
+    // ================= CREATE =================
+
+    void deleteSavingGoal(Integer id, Integer userId);
+
+    List<SavingGoalResponse> getSavingGoalsByAccount(Integer userId, String search);
+
+    SavingGoalResponse getSavingGoalDetail(Integer id, Integer userId);
 
 
-
-
-    void deleteSavingGoal(Integer id, Integer accId);
-
-    List<SavingGoalResponse> getSavingGoalsByAccount(Integer accId);
 
 }
