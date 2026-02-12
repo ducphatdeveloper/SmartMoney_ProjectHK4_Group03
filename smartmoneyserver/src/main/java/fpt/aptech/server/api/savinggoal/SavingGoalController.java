@@ -1,25 +1,20 @@
 package fpt.aptech.server.api.savinggoal;
 
-import fpt.aptech.server.dto.savinggoal.reponse.SavingGoalResponse;
-import fpt.aptech.server.dto.savinggoal.request.CreateSavingGoalRequest;
-import fpt.aptech.server.dto.savinggoal.request.UpdateSavingGoalRequest;
+import fpt.aptech.server.dto.response.ApiResponse;
+import fpt.aptech.server.dto.savinggoal.SavingGoalRequest;
+import fpt.aptech.server.dto.savinggoal.SavingGoalResponse;
+import fpt.aptech.server.entity.Account;
 import fpt.aptech.server.service.savinggoal.SavingGoalService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.DeleteMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.*;
 
-
-
+import java.math.BigDecimal;
 import java.util.List;
-
 @RestController
 @RequestMapping("/api/saving-goals")
 @RequiredArgsConstructor
@@ -27,48 +22,75 @@ public class SavingGoalController {
 
     private final SavingGoalService savingGoalService;
 
-    // ================= CREATE SAVING GOAL =================(tạo ví )
-    @PostMapping
-    public SavingGoalResponse createSavingGoal(
-            @Valid @RequestBody CreateSavingGoalRequest request
-    ) {
-        return savingGoalService.createSavingGoal(request);
+    // CREATE
+    @PostMapping("/create")
+    @PreAuthorize("hasAuthority('USER_STANDARD_MANAGE')")
+    public ResponseEntity<ApiResponse<SavingGoalResponse>> create(
+            @Valid @RequestBody SavingGoalRequest request,
+            @AuthenticationPrincipal Account currentUser) {
+
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(ApiResponse.success(
+                        savingGoalService.createSavingGoal(request, currentUser.getId()),
+                        "Tạo mục tiêu thành công"));
     }
 
-    // ================= UPDATE THÔNG TIN  =================
-    @PutMapping("/{goalId}")
-    public SavingGoalResponse updateSavingGoal(
-            @PathVariable Integer goalId,
-            @RequestBody UpdateSavingGoalRequest request
-    ) {
-        return savingGoalService.updateSavingGoal(goalId, request);
+    // UPDATE INFO
+    @PutMapping("/{id}")
+    @PreAuthorize("hasAuthority('USER_STANDARD_MANAGE')")
+    public ResponseEntity<ApiResponse<SavingGoalResponse>> updateInfo(
+            @PathVariable Integer id,
+            @Valid @RequestBody SavingGoalRequest request,
+            @AuthenticationPrincipal Account currentUser) {
+
+        return ResponseEntity.ok(ApiResponse.success(
+                savingGoalService.updateSavingGoalInfo(id, request, currentUser.getId()),
+                "Cập nhật thành công"));
     }
 
-    // ============== Nạp tiền vao ví tiết kiệm ===========//
-    @PostMapping("/{goalId}/deposit")
-    public SavingGoalResponse deposit(
-            @PathVariable Integer goalId,
-            @RequestBody UpdateSavingGoalRequest request
-    ) {
-        return savingGoalService.updateSavingGoal(goalId, request);
+    // DEPOSIT
+    @PostMapping("/{id}/deposit")
+    @PreAuthorize("hasAuthority('USER_STANDARD_MANAGE')")
+    public ResponseEntity<ApiResponse<SavingGoalResponse>> deposit(
+            @PathVariable Integer id,
+            @RequestParam BigDecimal amount,
+            @AuthenticationPrincipal Account currentUser) {
+
+        return ResponseEntity.ok(ApiResponse.success(
+                savingGoalService.depositToSavingGoal(id, amount, currentUser.getId()),
+                "Nạp tiền thành công"));
     }
 
+    // DELETE
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasAuthority('USER_STANDARD_MANAGE')")
+    public ResponseEntity<ApiResponse<Void>> delete(
+            @PathVariable Integer id,
+            @AuthenticationPrincipal Account currentUser) {
 
-    // ================= DELETE SAVING GOAL =================
-    @DeleteMapping("/{goalId}")
-    public void deleteSavingGoal(
-            @PathVariable Integer goalId,
-            @RequestParam Integer accId
-    ) {
-        savingGoalService.deleteSavingGoal(goalId, accId);
+        savingGoalService.deleteSavingGoal(id, currentUser.getId());
+        return ResponseEntity.ok(ApiResponse.success("Hủy mục tiêu thành công"));
     }
 
-    // ================= GET BY ACCOUNT =================
-    @GetMapping("/account/{accId}")
-    public List<SavingGoalResponse> getByAccount(
-            @PathVariable Integer accId
-    ) {
-        return savingGoalService.getSavingGoalsByAccount(accId);
+    // GET ALL
+    @GetMapping("/getAll")
+    @PreAuthorize("hasAuthority('USER_STANDARD_MANAGE')")
+    public ResponseEntity<ApiResponse<List<SavingGoalResponse>>> getAll(
+            @RequestParam(required = false) String search,
+            @AuthenticationPrincipal Account currentUser) {
+
+        return ResponseEntity.ok(ApiResponse.success(
+                savingGoalService.getSavingGoalsByAccount(currentUser.getId(), search)));
     }
 
+    // DETAIL
+    @GetMapping("/getDetail/{id}")
+    @PreAuthorize("hasAuthority('USER_STANDARD_MANAGE')")
+    public ResponseEntity<ApiResponse<SavingGoalResponse>> getDetail(
+            @PathVariable Integer id,
+            @AuthenticationPrincipal Account currentUser) {
+
+        return ResponseEntity.ok(ApiResponse.success(
+                savingGoalService.getSavingGoalDetail(id, currentUser.getId())));
+    }
 }
