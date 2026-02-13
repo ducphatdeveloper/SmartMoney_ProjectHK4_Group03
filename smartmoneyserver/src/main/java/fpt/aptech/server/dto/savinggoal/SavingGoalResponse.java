@@ -1,4 +1,4 @@
-package fpt.aptech.server.dto.savinggoal.reponse;
+package fpt.aptech.server.dto.savinggoal;
 
 import lombok.Builder;
 import lombok.Getter;
@@ -22,9 +22,6 @@ public class SavingGoalResponse {
     private String currencyCode;
     private String imageUrl;
 
-
-    // category (flatten – không trả entity)
-    private Integer categoryId;
-    private String categoryName;
-    private String categoryIconUrl;
+    // Thêm progress %
+    private Double progressPercent;
 }
