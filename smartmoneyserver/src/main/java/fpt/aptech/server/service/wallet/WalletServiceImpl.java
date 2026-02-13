@@ -1,206 +1,171 @@
 package fpt.aptech.server.service.wallet;
 
-
-
-import fpt.aptech.server.dto.wallet.reponse.WalletResponse;
-import fpt.aptech.server.dto.wallet.request.CreateBasicWalletRequest;
-import fpt.aptech.server.dto.wallet.request.UpdateBasicWalletRequest;
-import fpt.aptech.server.entity.Wallet;
+import fpt.aptech.server.dto.wallet.WalletResponse;
+import fpt.aptech.server.dto.wallet.WalletRequest;
 import fpt.aptech.server.entity.Account;
 import fpt.aptech.server.entity.Currency;
+import fpt.aptech.server.entity.Wallet;
+
 import fpt.aptech.server.repos.AccountRepository;
 import fpt.aptech.server.repos.CurrencyRepository;
 import fpt.aptech.server.repos.WalletRepository;
-import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.util.List;
 
+
 @Service
 @RequiredArgsConstructor
-@Transactional
 public class WalletServiceImpl implements WalletService {
 
-    private final WalletRepository walletRepo;
-    private final AccountRepository accountRepo;
-    private final CurrencyRepository currencyRepo;
-//    private final TransactionRepository transactionRepo;
+    private final WalletRepository walletRepository;
+    private final AccountRepository accountRepository;
+    private final CurrencyRepository currencyRepository;
 
-
-    // ================== BASIC WALLET ==================
+    // ================= CREATE =================
 
     @Override
-    public WalletResponse createBasicWallet(CreateBasicWalletRequest req) {
+    public WalletResponse createWallet(Integer accountId, WalletRequest request) {
 
-        Account account = accountRepo.findById(req.getAccId())
+        if (request.getWalletName() == null || request.getWalletName().isBlank()) {
+            throw new RuntimeException("Wallet name is required");
+        }
+
+        if (request.getCurrencyCode() == null || request.getCurrencyCode().isBlank()) {
+            throw new RuntimeException("Currency code is required");
+        }
+
+        Account account = accountRepository.findById(accountId)
                 .orElseThrow(() -> new RuntimeException("Account not found"));
 
-        Currency currency = currencyRepo.findById(req.getCurrencyCode())
+        Currency currency = currencyRepository.findById(request.getCurrencyCode())
                 .orElseThrow(() -> new RuntimeException("Currency not found"));
 
-        BigDecimal initBalance =
-                req.getBalance() != null ? req.getBalance() : BigDecimal.ZERO;
+        Wallet wallet = new Wallet();
+        wallet.setAccount(account);
+        wallet.setCurrency(currency);
+        wallet.setWalletName(request.getWalletName());
+        wallet.setBalance(request.getBalance() != null ? request.getBalance() : BigDecimal.ZERO);
+        wallet.setNotified(request.getNotified() != null ? request.getNotified() : true);
+        wallet.setReportable(request.getReportable() != null ? request.getReportable() : true);
+        wallet.setGoalImageUrl(request.getGoalImageUrl());
 
-        Wallet wallet = Wallet.builder()
-                .account(account)
-                .currency(currency)
-                .walletName(req.getWalletName())
-                .balance(initBalance)
-                .notified(req.getNotified() != null ? req.getNotified() : true)
-                .reportable(req.getReportable() != null ? req.getReportable() : true)
-                .goalImageUrl(req.getGoalImageUrl())
-                .build();
+        walletRepository.save(wallet);
 
-        Wallet savedWallet = walletRepo.save(wallet);
-
-        // ================= INIT TRANSACTION =================
-//        if (initBalance.compareTo(BigDecimal.ZERO) > 0) {
-//
-//            Transaction initTransaction = Transaction.builder()
-//                    .account(account)
-//                    .wallet(savedWallet)
-//                    .amount(initBalance)
-//                    .note("Initial balance")
-//                    .reportable(false)     // ❗ không tính báo cáo
-//                    .sourceType(1)         // system/manual
-//                    .transDate(LocalDateTime.now())
-//                    .deleted(false)
-//                    .build();
-//
-//            transactionRepo.save(initTransaction);
-//        }
-
-        return mapWallet(savedWallet);
+        return mapToResponse(wallet);
     }
 
+    // ================= UPDATE =================
 
     @Override
-    public WalletResponse updateBasicWallet(Integer id, UpdateBasicWalletRequest req) {
+    public WalletResponse updateWallet(Integer accountId, Integer walletId, WalletRequest request) {
 
-        Wallet wallet = walletRepo.findById(id)
+        Wallet wallet = walletRepository.findById(walletId)
                 .orElseThrow(() -> new RuntimeException("Wallet not found"));
 
-        if (req.getWalletName() != null)
-            wallet.setWalletName(req.getWalletName());
+        // 🔐 CHECK QUYỀN
+        if (!wallet.getAccount().getId().equals(accountId)) {
+            throw new RuntimeException("You do not have permission");
+        }
 
-        if (req.getNotified() != null)
-            wallet.setNotified(req.getNotified());
+        if (request.getWalletName() != null) {
+            wallet.setWalletName(request.getWalletName());
+        }
 
-        if (req.getReportable() != null)
-            wallet.setReportable(req.getReportable());
+        if (request.getBalance() != null) {
+            wallet.setBalance(request.getBalance());
+        }
 
-        if (req.getGoalImageUrl() != null)
-            wallet.setGoalImageUrl(req.getGoalImageUrl());
+        if (request.getNotified() != null) {
+            wallet.setNotified(request.getNotified());
+        }
 
+        if (request.getReportable() != null) {
+            wallet.setReportable(request.getReportable());
+        }
 
-        return mapWallet(walletRepo.save(wallet));
+        if (request.getGoalImageUrl() != null) {
+            wallet.setGoalImageUrl(request.getGoalImageUrl());
+        }
+
+        if (request.getCurrencyCode() != null) {
+            Currency currency = currencyRepository.findById(request.getCurrencyCode())
+                    .orElseThrow(() -> new RuntimeException("Currency not found"));
+            wallet.setCurrency(currency);
+        }
+
+        walletRepository.save(wallet);
+
+        return mapToResponse(wallet);
     }
 
-    @Override
-    public void deleteBasicWallet(Integer id) {
+    // ================= DELETE =================
 
-        Wallet wallet = walletRepo.findById(id)
+    @Override
+    public void deleteWallet(Integer accountId, Integer walletId) {
+
+        Wallet wallet = walletRepository.findById(walletId)
                 .orElseThrow(() -> new RuntimeException("Wallet not found"));
+
+        if (!wallet.getAccount().getId().equals(accountId)) {
+            throw new RuntimeException("You do not have permission");
+        }
 
         if (wallet.getBalance().compareTo(BigDecimal.ZERO) != 0) {
             throw new RuntimeException("Cannot delete wallet with balance");
         }
 
-        walletRepo.delete(wallet);
+        walletRepository.delete(wallet);
     }
 
+    // ================= GET BY ID =================
 
-
-
-
-
-
-
-    public List<WalletResponse> getWalletsByAccount(Integer accId) {
-        return walletRepo.findByAccount_Id(accId)
-                .stream()
-                .map(this::mapWallet)
-                .toList();
-    }
-
-
-    // =================List Basic Wallet
     @Override
-    public List<WalletResponse> getBasicWallets(Integer accId) {
-        return walletRepo.findByAccount_IdAndReportableTrue(accId)
-                .stream()
-                .map(this::mapWallet)
+    public WalletResponse getWalletById(Integer accountId, Integer walletId) {
+
+        Wallet wallet = walletRepository.findById(walletId)
+                .orElseThrow(() -> new RuntimeException("Wallet not found"));
+
+        if (!wallet.getAccount().getId().equals(accountId)) {
+            throw new RuntimeException("You do not have permission");
+        }
+
+        return mapToResponse(wallet);
+    }
+
+    // ================= GET ALL =================
+
+    @Override
+    public List<WalletResponse> getAllWallets(Integer accountId, String search) {
+
+        List<Wallet> wallets;
+
+        if (search != null && !search.isBlank()) {
+            wallets = walletRepository
+                    .findByAccountIdAndWalletNameContainingIgnoreCase(accountId, search);
+        } else {
+            wallets = walletRepository.findByAccountId(accountId);
+        }
+
+        return wallets.stream()
+                .map(this::mapToResponse)
                 .toList();
     }
 
 
-    // ================= Total Runtime ==============
-//    @Override
-//    public TotalWalletResponse getTotalWallet(Integer accId) {
-//
-//        // 1. Check account
-//        accountRepo.findById(accId)
-//                .orElseThrow(() -> new RuntimeException("Account not found"));
-//
-//        // 2. Lấy các ví được tính vào tổng
-//        var wallets = walletRepo.findByAccount_IdAndReportableTrue(accId);
-//
-//        if (wallets.isEmpty()) {
-//            return TotalWalletResponse.builder()
-//                    .accId(accId)
-//                    .walletName("Ví tổng")
-//                    .totalBalance(BigDecimal.ZERO)
-//                    .currencyCode(null)
-//                    .wallets(List.of())
-//                    .build();
-//        }
-//
-//        // 3. Giả sử 1 acc chỉ dùng 1 currency chính (Money Lover)
-//        final String currencyCode =
-//                wallets.get(0).getCurrency().getCurrencyCode();
-//
-//        // 4. Map danh sách ví con
-//        var walletItems = wallets.stream()
-//                .map(w -> TotalWalletItemResponse.builder()
-//                        .walletName(w.getWalletName())
-//                        .balance(w.getBalance())
-//                        .currencyCode(currencyCode)
-//                        .build())
-//                .toList();
-//
-//        // 5. Tính tổng
-//        BigDecimal total = wallets.stream()
-//                .map(Wallet::getBalance)
-//                .reduce(BigDecimal.ZERO, BigDecimal::add);
-//
-//        // 6. Response
-//        return TotalWalletResponse.builder()
-//                .accId(accId)
-//                .walletName("Ví tổng")
-//                .currencyCode(currencyCode)
-//                .totalBalance(total)
-//                .wallets(walletItems)
-//                .build();
-//    }
+    // ================= MAP =================
 
-
-
-
-    // ================== MAPPER ==================
-
-    private WalletResponse mapWallet(Wallet w) {
+    private WalletResponse mapToResponse(Wallet wallet) {
         return WalletResponse.builder()
-                .id(w.getId())
-                .walletName(w.getWalletName())
-                .balance(w.getBalance())
-                .currencyCode(w.getCurrency().getCurrencyCode())
-                .notified(w.getNotified())
-                .reportable(w.getReportable())
-                .goalImageUrl(w.getGoalImageUrl())
+                .id(wallet.getId())
+                .walletName(wallet.getWalletName())
+                .balance(wallet.getBalance())
+                .currencyCode(wallet.getCurrency().getCurrencyCode())
+                .notified(wallet.getNotified())
+                .reportable(wallet.getReportable())
+                .goalImageUrl(wallet.getGoalImageUrl())
                 .build();
     }
-
-
 }

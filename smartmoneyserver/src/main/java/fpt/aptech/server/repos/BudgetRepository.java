@@ -1,4 +1,4 @@
-package fpt.aptech.server.repos.Budget;
+package fpt.aptech.server.repos;
 
 import fpt.aptech.server.entity.Budget;
 import org.springframework.data.jpa.repository.JpaRepository;

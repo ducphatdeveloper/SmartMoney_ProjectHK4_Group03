@@ -1,29 +1,22 @@
 package fpt.aptech.server.service.wallet;
 
-import fpt.aptech.server.dto.wallet.reponse.WalletResponse;
-import fpt.aptech.server.dto.wallet.request.CreateBasicWalletRequest;
-import fpt.aptech.server.dto.wallet.request.UpdateBasicWalletRequest;
+import fpt.aptech.server.dto.wallet.WalletRequest;
+import fpt.aptech.server.dto.wallet.WalletResponse;
 
 import java.util.List;
 
 public interface WalletService {
 
     // ================== BASIC WALLET ==================
+    WalletResponse createWallet(Integer accountId, WalletRequest request);
 
-    WalletResponse createBasicWallet(CreateBasicWalletRequest request);
+    WalletResponse updateWallet(Integer accountId, Integer walletId, WalletRequest request);
 
-    WalletResponse updateBasicWallet(Integer id, UpdateBasicWalletRequest request);
+    void deleteWallet(Integer accountId, Integer walletId);
 
-    void deleteBasicWallet(Integer id);
+    WalletResponse getWalletById(Integer accountId, Integer walletId);
 
-    List<WalletResponse> getWalletsByAccount(Integer accId);
+    List<WalletResponse> getAllWallets(Integer accountId , String search);
 
-
-    // =================List Basic Wallet
-    List<WalletResponse> getBasicWallets(Integer accId);
-
-//    TotalWalletResponse getTotalWallet(Integer accId, String currencyCode);
-
-    // ================= Total Runtime =============
 
 }
