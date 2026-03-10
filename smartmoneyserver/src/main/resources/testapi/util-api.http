@@ -1,0 +1,61 @@
+### =================================================================
+### SMARTMONEY - UTILITIES API TEST
+### API này yêu cầu xác thực (Auth) để bảo mật
+### =================================================================
+
+### [0] AUTH - Đăng nhập lấy Token
+POST http://localhost:9999/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "minh.pham@gmail.com",
+  "password": "Test@123",
+  "deviceToken": "device_token_test_util_final_v3",
+  "deviceType": "Postman",
+  "deviceName": "Test Client"
+}
+
+> {%
+    client.global.set("auth_token", response.body.data.accessToken);
+%}
+
+### =================================================================
+### [1] Lấy danh sách các khoảng thời gian cho thanh trượt
+#
+# Chế độ (mode) hỗ trợ:
+# - DAILY
+# - WEEKLY
+# - MONTHLY
+# - QUARTERLY
+# - YEARLY
+#
+# Tham số tùy chọn:
+# - past: Số đơn vị quá khứ cần tạo (mặc định 24)
+# - future: 1 = Có tab "Tương lai" (chung cho tất cả), 0 = Không có (mặc định 1)
+#
+###
+
+### [1.1] Lấy danh sách theo THÁNG
+# Mặc định: past=24 -> Lấy 24 tháng trước + Tháng này + Tương lai
+GET http://localhost:9999/api/utils/date-ranges?mode=MONTHLY
+Authorization: Bearer {{auth_token}}
+
+### [1.2] Lấy danh sách theo TUẦN
+# Mặc định: past=24 -> Lấy 24 tuần trước + Tuần này + Tương lai
+GET http://localhost:9999/api/utils/date-ranges?mode=WEEKLY
+Authorization: Bearer {{auth_token}}
+
+### [1.3] Lấy danh sách theo QUÝ
+# Mặc định: past=24 -> Lấy 24 quý trước (6 năm) + Quý này + Tương lai
+GET http://localhost:9999/api/utils/date-ranges?mode=QUARTERLY
+Authorization: Bearer {{auth_token}}
+
+### [1.4] Lấy danh sách theo NĂM (Tùy chỉnh số lượng)
+# past=10 -> Lấy 10 năm trước + Năm nay + Tương lai
+GET http://localhost:9999/api/utils/date-ranges?mode=YEARLY&past=10
+Authorization: Bearer {{auth_token}}
+
+### [1.5] Lấy danh sách theo NGÀY (Tùy chỉnh số lượng)
+# past=30 -> Lấy 30 ngày trước (tính từ hôm qua trở về trước) + Hôm nay + Tương lai
+GET http://localhost:9999/api/utils/date-ranges?mode=DAILY&past=30
+Authorization: Bearer {{auth_token}}

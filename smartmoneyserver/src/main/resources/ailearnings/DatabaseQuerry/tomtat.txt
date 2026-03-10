@@ -1,0 +1,79 @@
+Tóm tắt project
+SmartMoney - Ứng Dụng Quản Lý Tài Chính Cá Nhân Thông Minh với AI
+Quản lý Ví & Tiết kiệm: Tạo và theo dõi nhiều loại ví (tiền mặt, ngân hàng, ví điện tử) và mục tiêu tiết kiệm riêng biệt — tất cả đều nhập tay hoàn toàn, không liên kết ngân hàng
+
+Theo dõi Thu/Chi: Ghi nhận giao dịch thủ công hoặc qua AI, phân loại danh mục linh hoạt
+
+Quản lý Ngân sách thông minh: Đặt hạn mức chi tiêu, cảnh báo khi vượt ngân sách, tự động dự đoán ngân sách tối ưu cho tháng sau dựa trên lịch sử chi tiêu
+
+Quản lý Sổ Nợ: Theo dõi các khoản vay và cho vay, nhắc nhở ngày đến hạn
+
+Quản lý Sự kiện: Lập kế hoạch tài chính cho các sự kiện lớn (du lịch, đám cưới...)
+
+Hóa đơn Định kỳ: Tự động hóa các giao dịch lặp lại (hóa đơn, thu nhập định kỳ)
+
+Hỗ trợ Đa tiền tệ: Sử dụng hơn 40 loại tiền tệ khác nhau
+
+Trợ lý AI & Thông báo: Nhập liệu bằng chat/giọng nói, quét hóa đơn OCR, nhận thông báo thông minh về tài chính
+
+Báo cáo & Dự báo: Dashboard trực quan, biểu đồ phân tích, dự đoán xu hướng chi tiêu và đề xuất ngân sách cá nhân hóa
+
+Bảo mật & Phân quyền: Đăng ký, đăng nhập, xác thực bằng JWT/OTP/Email. Phân quyền người dùng (User) và (Admin). Đồng bộ dữ liệu đa nền tảng (Web/Mobile).
+
+Admin Dashboard: Tra cứu người dùng, kiểm soát quyền truy cập (khóa/mở) và xem biểu đồ phân tích các chỉ số vận hành hệ thống.
+Lưu ý tóm tắt phía trên dòng này trước "-----------------" là tóm tắt của project và có thể chưa nói rõ các tính năng phức tạp bên trong ai cần học sâu và phân tích để nắm toàn bộ cấu trúc project trước.
+-----------------------------------------------------------------
+
+
+PROJECT GỒM 3 PHẦN CHÍNH: SPRING BOOT API SERVER, CLIENT WEB REACT NODEJS (CHỈ LÀM ADMIN DASHBOARD THỐNG KÊ NGƯỜI DÙNG VÀ CHỈ SỐ HIỆU SUẤT CHUNG), CLIENT MOBILE FLUTTER DART
+1. Spring Boot API SERVER
+Dự án sử dụng Java JDK 21 - v21.0.7, Spring Boot 3.5.10, JWT 0.12.6, IDE IntelliJ IDEA 2025.3
+THÔNG TIN DỰ ÁN SMARTMONEY
+-----------------------------------
+Framework: Spring Boot 3.5.10
+Ngôn ngữ:  Java 21
+
+CÁC THƯ VIỆN ĐƯỢC CẤU HÌNH PHIÊN BẢN RIÊNG (Properties):
+1. JJWT (JSON Web Token)
+   - Phiên bản: 0.12.6
+   - Bao gồm: jjwt-api, jjwt-impl, jjwt-jackson
+
+2. MapStruct (Mapping DTO <-> Entity)
+   - Phiên bản: 1.5.5.Final
+   - Kèm theo: lombok-mapstruct-binding (0.2.0) để chạy chung với Lombok
+
+3. AssertJ Core (Thư viện Test)
+   - Phiên bản: 3.27.6 (Ghi đè bản mặc định để vá lỗi bảo mật)
+
+CÁC THƯ VIỆN ĐI KÈM SPRING BOOT (Phiên bản theo Spring Boot 3.5.10):
+1. Spring Data JPA (Làm việc với Database)
+2. Spring Security (Bảo mật & Phân quyền)
+3. Spring Validation (Kiểm tra dữ liệu input)
+4. Spring Web (Tạo REST API)
+5. Spring Boot DevTools (Hỗ trợ hot-reload khi code)
+6. Microsoft SQL Server Driver (mssql-jdbc)
+7. Lombok (Giảm boilerplate code - Version ~1.18.42)
+
+PLUGINS (Hỗ trợ Build):
+- MapStruct Processor: 1.5.5.Final
+- Lombok Processor
+
+2. CLIENT MOBILE:
+SDK Andnroid 30 - Pixel 5
+  sdk: '>=3.10.7 <4.0.0' # Khóa cứng Dart SDK từ 3.10.7 trở lên  
+  flutter: '3.38.7' 	 # Khóa cứng Flutter SDK đúng bản 3.38.7
+ 
+ intl: ^0.20.2            # Xử lý ngày tháng (Thay cho date-fns bên React)
+ http: ^1.2.0             # Gọi API Server Spring Boot
+ 
+ fl_chart: ^0.66.2        # Vẽ biểu đồ (Thống kê chi tiêu)
+ provider: ^6.1.1         # Quản lý State
+ fluttertoast: ^8.2.4 # Thông báo đẹp (Thay cho react-toastify bên Web)
+ 
+ /// --- Storage & Auth (Bổ sung cho giống Web) ---
+ /// Lưu Token đăng nhập (Thay vì localStorage bên Web)
+ flutter_secure_storage: ^9.0.0
+ /// Giải mã Token lấy Role/Permission (Thay cho jwt-decode bên Web)
+ jwt_decoder: ^2.0.1
+
+3. CLIENT WEB REACT NODEJS (CHỈ LÀM ADMIN DASHBOARD)

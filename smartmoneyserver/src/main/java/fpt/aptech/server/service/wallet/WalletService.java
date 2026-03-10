@@ -1,8 +1,10 @@
 package fpt.aptech.server.service.wallet;
 
+import fpt.aptech.server.dto.wallet.TotalBalanceResponse;
 import fpt.aptech.server.dto.wallet.WalletRequest;
 import fpt.aptech.server.dto.wallet.WalletResponse;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 public interface WalletService {
@@ -18,5 +20,6 @@ public interface WalletService {
 
     List<WalletResponse> getAllWallets(Integer accountId , String search);
 
-
+    // Lấy tổng số dư hiện tại của người dùng
+    TotalBalanceResponse getTotalBalance(Integer accountId);
 }

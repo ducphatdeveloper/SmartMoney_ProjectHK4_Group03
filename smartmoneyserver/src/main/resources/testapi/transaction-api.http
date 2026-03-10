@@ -1,0 +1,477 @@
+### =================================================================
+### SMARTMONEY - TRANSACTION & UTIL API TEST
+### User test: minh.pham@gmail.com (acc_id=6)
+### Wallet:     MB Bank (wallet_id=10), VNPay (wallet_id=11)
+### SavingGoal: Quỹ ChatGPT Plus (goal_id=31)
+### Category:   Ăn uống (ctg_id=1), Mua sắm (ctg_id=10), Giáo dục (ctg_id=8)
+### =================================================================
+
+### [0] AUTH - Đăng nhập lấy Token
+POST http://localhost:9999/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "minh.pham@gmail.com",
+  "password": "Test@123",
+  "deviceToken": "device_token_test_trans_final",
+  "deviceType": "Postman",
+  "deviceName": "Test Client"
+}
+
+> {%
+    client.global.set("auth_token", response.body.data.accessToken);
+%}
+
+### =================================================================
+### [1] CRUD - TẠO / SỬA / XÓA / XEM CHI TIẾT
+### =================================================================
+
+### [1.1] CREATE - Tạo giao dịch chi tiêu từ Ví (wallet_id=10)
+# Kỳ vọng: 201 Created, balance ví MB Bank giảm 123,456đ
+POST http://localhost:9999/api/transactions
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "walletId": 10,
+  "categoryId": 1,
+  "amount": 123456,
+  "note": "Ăn sáng test",
+  "transDate": "2026-03-10T08:00:00",
+  "reportable": true
+}
+
+### [1.2] CREATE - Tạo giao dịch thu nhập từ Ví (wallet_id=10)
+# Kỳ vọng: 201 Created, balance ví MB Bank tăng 5,000,000đ
+POST http://localhost:9999/api/transactions
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "walletId": 10,
+  "categoryId": 15,
+  "amount": 5000000,
+  "note": "Lương tháng 3 test",
+  "transDate": "2026-03-05T09:00:00",
+  "reportable": true
+}
+
+### [1.3] CREATE - Tạo giao dịch từ Mục tiêu tiết kiệm (goal_id=31)
+# Kỳ vọng: 201 Created, currentAmount của goal 31 thay đổi
+POST http://localhost:9999/api/transactions
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "goalId": 31,
+  "categoryId": 8,
+  "amount": 500000,
+  "note": "Góp quỹ ChatGPT tháng 3",
+  "transDate": "2026-03-01T08:00:00",
+  "reportable": true
+}
+
+### [1.4] CREATE - Lỗi: Không truyền walletId lẫn goalId
+# Kỳ vọng: 400 Bad Request - "Vui lòng chọn Ví hoặc Mục tiêu tiết kiệm"
+POST http://localhost:9999/api/transactions
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "categoryId": 1,
+  "amount": 50000,
+  "note": "Test lỗi thiếu ví",
+  "transDate": "2026-03-10T08:00:00",
+  "reportable": true
+}
+
+### [1.5] CREATE - Lỗi: Truyền cả walletId lẫn goalId cùng lúc
+# Kỳ vọng: 400 Bad Request - "Giao dịch chỉ được thuộc về Ví hoặc Mục tiêu"
+POST http://localhost:9999/api/transactions
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "walletId": 10,
+  "goalId": 31,
+  "categoryId": 1,
+  "amount": 50000,
+  "note": "Test lỗi 2 ví",
+  "transDate": "2026-03-10T08:00:00",
+  "reportable": true
+}
+
+### [1.6] CREATE - Lỗi: Dùng ví của người khác (wallet_id=1 thuộc acc_id=1)
+# Kỳ vọng: 403 Forbidden - "Bạn không có quyền sử dụng ví này"
+POST http://localhost:9999/api/transactions
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "walletId": 1,
+  "categoryId": 1,
+  "amount": 50000,
+  "note": "Test lỗi ví người khác",
+  "transDate": "2026-03-10T08:00:00",
+  "reportable": true
+}
+
+### [1.7] READ (SINGLE) - Xem chi tiết giao dịch của mình (ID=23)
+# Kỳ vọng: 200 OK
+GET http://localhost:9999/api/transactions/23
+Authorization: Bearer {{auth_token}}
+
+### [1.8] READ (SINGLE) - Lỗi: Xem giao dịch của người khác (ID=1 thuộc acc_id=1)
+# Kỳ vọng: 403 Forbidden
+GET http://localhost:9999/api/transactions/1
+Authorization: Bearer {{auth_token}}
+
+### [1.9] UPDATE - Đổi từ Ví (wallet_id=10) sang Mục tiêu (goal_id=31)
+# Kiểm tra: balance ví 10 được hoàn lại, currentAmount goal 31 thay đổi
+PUT http://localhost:9999/api/transactions/23
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "goalId": 31,
+  "categoryId": 10,
+  "amount": 250000,
+  "note": "Mua ốp lưng (tính vào quỹ ChatGPT)",
+  "transDate": "2026-02-09T14:10:00",
+  "reportable": true
+}
+
+### [1.10] UPDATE - Đổi ngược từ Mục tiêu (goal_id=31) về Ví (wallet_id=10)
+# Kiểm tra: currentAmount goal 31 hoàn lại, balance ví 10 thay đổi
+PUT http://localhost:9999/api/transactions/23
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "walletId": 10,
+  "categoryId": 10,
+  "amount": 250000,
+  "note": "Mua ốp lưng (hoàn về ví)",
+  "transDate": "2026-02-09T14:10:00",
+  "reportable": true
+}
+
+### [1.11] DELETE - Xóa mềm giao dịch (ID=24)
+# Kỳ vọng: 200 OK, deleted=true, balance ví/goal được hoàn lại
+DELETE http://localhost:9999/api/transactions/24
+Authorization: Bearer {{auth_token}}
+
+### [1.12] DELETE - Lỗi: Xóa giao dịch đã xóa rồi (ID=24)
+# Kỳ vọng: Không làm gì (idempotent - return OK hoặc 404 tùy impl)
+DELETE http://localhost:9999/api/transactions/24
+Authorization: Bearer {{auth_token}}
+
+### =================================================================
+### [2] JOURNAL - XEM NHẬT KÝ GIAO DỊCH (gom nhóm theo ngày)
+### =================================================================
+
+# -----------------------------------------------------------------
+# [2.1] Không lọc ví - Xem tất cả nguồn tiền
+# -----------------------------------------------------------------
+
+### [2.1.1] Tháng này
+GET http://localhost:9999/api/transactions/journal?range=THIS_MONTH
+Authorization: Bearer {{auth_token}}
+
+### [2.1.2] Tháng trước
+GET http://localhost:9999/api/transactions/journal?range=LAST_MONTH
+Authorization: Bearer {{auth_token}}
+
+### [2.1.3] Tháng trong tương lai (xem giao dịch tương lai - planned)
+GET http://localhost:9999/api/transactions/journal?range=FUTURE
+Authorization: Bearer {{auth_token}}
+
+### [2.1.4] Tuần này
+GET http://localhost:9999/api/transactions/journal?range=THIS_WEEK
+Authorization: Bearer {{auth_token}}
+
+### [2.1.5] Tuần trước
+GET http://localhost:9999/api/transactions/journal?range=LAST_WEEK
+Authorization: Bearer {{auth_token}}
+
+### [2.1.6] Tuần trong tương lai
+GET http://localhost:9999/api/transactions/journal?range=FUTURE
+Authorization: Bearer {{auth_token}}
+
+### [2.1.7] Quý này
+GET http://localhost:9999/api/transactions/journal?range=THIS_QUARTER
+Authorization: Bearer {{auth_token}}
+
+### [2.1.8] Quý trước
+GET http://localhost:9999/api/transactions/journal?range=LAST_QUARTER
+Authorization: Bearer {{auth_token}}
+
+### [2.1.9] Quý trong tương lai
+GET http://localhost:9999/api/transactions/journal?range=FUTURE
+Authorization: Bearer {{auth_token}}
+
+### [2.1.10] Năm nay
+GET http://localhost:9999/api/transactions/journal?range=THIS_YEAR
+Authorization: Bearer {{auth_token}}
+
+### [2.1.11] Năm ngoái
+GET http://localhost:9999/api/transactions/journal?range=LAST_YEAR
+Authorization: Bearer {{auth_token}}
+
+### [2.1.12] Năm trong tương lai
+GET http://localhost:9999/api/transactions/journal?range=FUTURE
+Authorization: Bearer {{auth_token}}
+
+### [2.1.13] Tùy chỉnh - Quý 1/2026 (Frontend lấy startDate/endDate từ UtilController rồi gọi CUSTOM)
+GET http://localhost:9999/api/transactions/journal?range=CUSTOM&startDate=2026-01-01T00:00:00&endDate=2026-03-31T23:59:59
+Authorization: Bearer {{auth_token}}
+
+### [2.1.14] Tùy chỉnh - Quý 2/2026
+GET http://localhost:9999/api/transactions/journal?range=CUSTOM&startDate=2026-04-01T00:00:00&endDate=2026-06-30T23:59:59
+Authorization: Bearer {{auth_token}}
+
+### [2.1.15] Tất cả thời gian (Chế độ "Xem tất cả" trên UI)
+GET http://localhost:9999/api/transactions/journal?range=CUSTOM&startDate=2000-01-01T00:00:00&endDate=2099-12-31T23:59:59
+Authorization: Bearer {{auth_token}}
+
+### [2.1.16] Lỗi: Thiếu range lẫn startDate/endDate
+# Kỳ vọng: 400 Bad Request - "API yêu cầu phải có 'range' hoặc cả startDate và endDate"
+GET http://localhost:9999/api/transactions/journal
+Authorization: Bearer {{auth_token}}
+
+# -----------------------------------------------------------------
+# [2.2] Lọc theo VÍ (MB Bank, wallet_id=10)
+# -----------------------------------------------------------------
+
+### [2.2.1] Tháng này - chỉ ví MB Bank
+GET http://localhost:9999/api/transactions/journal?range=THIS_MONTH&walletId=10
+Authorization: Bearer {{auth_token}}
+
+### [2.2.2] Quý này - chỉ ví MB Bank
+GET http://localhost:9999/api/transactions/journal?range=THIS_QUARTER&walletId=10
+Authorization: Bearer {{auth_token}}
+
+### [2.2.3] Tất cả thời gian - chỉ ví MB Bank
+GET http://localhost:9999/api/transactions/journal?range=CUSTOM&startDate=2000-01-01T00:00:00&endDate=2099-12-31T23:59:59&walletId=10
+Authorization: Bearer {{auth_token}}
+
+# -----------------------------------------------------------------
+# [2.3] Lọc theo MỤC TIÊU (Quỹ ChatGPT Plus, goal_id=31)
+# -----------------------------------------------------------------
+
+### [2.3.1] Năm nay - chỉ quỹ ChatGPT
+GET http://localhost:9999/api/transactions/journal?range=THIS_YEAR&savingGoalId=31
+Authorization: Bearer {{auth_token}}
+
+### [2.3.2] Tất cả thời gian - chỉ quỹ ChatGPT
+GET http://localhost:9999/api/transactions/journal?range=CUSTOM&startDate=2000-01-01T00:00:00&endDate=2099-12-31T23:59:59&savingGoalId=31
+Authorization: Bearer {{auth_token}}
+
+### =================================================================
+### [3] GROUPED - XEM THEO NHÓM DANH MỤC
+### =================================================================
+
+### [3.1] Tháng này - tất cả nguồn tiền
+GET http://localhost:9999/api/transactions/grouped?range=THIS_MONTH
+Authorization: Bearer {{auth_token}}
+
+### [3.2] Quý này - tất cả nguồn tiền
+GET http://localhost:9999/api/transactions/grouped?range=THIS_QUARTER
+Authorization: Bearer {{auth_token}}
+
+### [3.3] Năm nay - lọc theo ví MB Bank
+GET http://localhost:9999/api/transactions/grouped?range=THIS_YEAR&walletId=10
+Authorization: Bearer {{auth_token}}
+
+### [3.4] Tất cả thời gian - lọc theo quỹ ChatGPT
+GET http://localhost:9999/api/transactions/grouped?range=CUSTOM&startDate=2000-01-01T00:00:00&endDate=2099-12-31T23:59:59&savingGoalId=31
+Authorization: Bearer {{auth_token}}
+
+### [3.5] Tùy chỉnh - Quý 1/2026
+GET http://localhost:9999/api/transactions/grouped?range=CUSTOM&startDate=2026-01-01T00:00:00&endDate=2026-03-31T23:59:59
+Authorization: Bearer {{auth_token}}
+
+### =================================================================
+### [4] REPORT - BÁO CÁO (Mini form 3 chỉ số + Chi tiết)
+### =================================================================
+
+# -----------------------------------------------------------------
+# [4.1] Summary - Tổng quan (Tiền vào / Tiền ra / Chênh lệch)
+# Mini form trên màn hình nhật ký dùng API này
+# -----------------------------------------------------------------
+
+### [4.1.1] Tháng này
+GET http://localhost:9999/api/transactions/report/summary?range=THIS_MONTH
+Authorization: Bearer {{auth_token}}
+
+### [4.1.2] Tháng trước
+GET http://localhost:9999/api/transactions/report/summary?range=LAST_MONTH
+Authorization: Bearer {{auth_token}}
+
+### [4.1.3] Quý này
+GET http://localhost:9999/api/transactions/report/summary?range=THIS_QUARTER
+Authorization: Bearer {{auth_token}}
+
+### [4.1.4] Quý trước
+GET http://localhost:9999/api/transactions/report/summary?range=LAST_QUARTER
+Authorization: Bearer {{auth_token}}
+
+### [4.1.5] Năm nay
+GET http://localhost:9999/api/transactions/report/summary?range=THIS_YEAR
+Authorization: Bearer {{auth_token}}
+
+### [4.1.6] Năm ngoái
+GET http://localhost:9999/api/transactions/report/summary?range=LAST_YEAR
+Authorization: Bearer {{auth_token}}
+
+### [4.1.7] Tùy chỉnh - Quý 1/2026
+GET http://localhost:9999/api/transactions/report/summary?range=CUSTOM&startDate=2026-01-01T00:00:00&endDate=2026-03-31T23:59:59
+Authorization: Bearer {{auth_token}}
+
+### [4.1.8] Tất cả - lọc theo ví MB Bank
+GET http://localhost:9999/api/transactions/report/summary?range=CUSTOM&startDate=2000-01-01T00:00:00&endDate=2099-12-31T23:59:59&walletId=10
+Authorization: Bearer {{auth_token}}
+
+### [4.1.9] Tất cả - lọc theo quỹ ChatGPT
+GET http://localhost:9999/api/transactions/report/summary?range=CUSTOM&startDate=2000-01-01T00:00:00&endDate=2099-12-31T23:59:59&savingGoalId=31
+Authorization: Bearer {{auth_token}}
+
+# -----------------------------------------------------------------
+# [4.2] Category Report - Biểu đồ tròn
+# -----------------------------------------------------------------
+
+### [4.2.1] Tháng này
+GET http://localhost:9999/api/transactions/report/category?range=THIS_MONTH
+Authorization: Bearer {{auth_token}}
+
+### [4.2.2] Quý trước
+GET http://localhost:9999/api/transactions/report/category?range=LAST_QUARTER
+Authorization: Bearer {{auth_token}}
+
+### [4.2.3] Tùy chỉnh - Quý 1/2026
+GET http://localhost:9999/api/transactions/report/category?range=CUSTOM&startDate=2026-01-01T00:00:00&endDate=2026-03-31T23:59:59
+Authorization: Bearer {{auth_token}}
+
+### [4.2.4] Năm nay - lọc theo ví MB Bank
+GET http://localhost:9999/api/transactions/report/category?range=THIS_YEAR&walletId=10
+Authorization: Bearer {{auth_token}}
+
+# -----------------------------------------------------------------
+# [4.3] Financial Report - Dashboard All-in-One
+# -----------------------------------------------------------------
+
+### [4.3.1] Tháng này
+GET http://localhost:9999/api/transactions/report/financial?range=THIS_MONTH
+Authorization: Bearer {{auth_token}}
+
+### [4.3.2] Năm nay
+GET http://localhost:9999/api/transactions/report/financial?range=THIS_YEAR
+Authorization: Bearer {{auth_token}}
+
+### [4.3.3] Tất cả - lọc theo ví MB Bank
+GET http://localhost:9999/api/transactions/report/financial?range=CUSTOM&startDate=2000-01-01T00:00:00&endDate=2099-12-31T23:59:59&walletId=10
+Authorization: Bearer {{auth_token}}
+
+### [4.3.4] Tất cả - lọc theo quỹ ChatGPT
+GET http://localhost:9999/api/transactions/report/financial?range=CUSTOM&startDate=2000-01-01T00:00:00&endDate=2099-12-31T23:59:59&savingGoalId=31
+Authorization: Bearer {{auth_token}}
+
+# -----------------------------------------------------------------
+# [4.4] Daily Trend - Biểu đồ cột/đường theo ngày
+# -----------------------------------------------------------------
+
+### [4.4.1] Tháng này - tất cả danh mục
+GET http://localhost:9999/api/transactions/report/trend?range=THIS_MONTH
+Authorization: Bearer {{auth_token}}
+
+### [4.4.2] Quý này - tất cả danh mục
+GET http://localhost:9999/api/transactions/report/trend?range=THIS_QUARTER
+Authorization: Bearer {{auth_token}}
+
+### [4.4.3] Tháng này - lọc theo danh mục Ăn uống (ctg_id=1)
+GET http://localhost:9999/api/transactions/report/trend?range=THIS_MONTH&categoryId=1
+Authorization: Bearer {{auth_token}}
+
+### [4.4.4] Năm nay - lọc theo ví MB Bank
+GET http://localhost:9999/api/transactions/report/trend?range=THIS_YEAR&walletId=10
+Authorization: Bearer {{auth_token}}
+
+### [4.4.5] Tùy chỉnh - Quý 1/2026 - lọc theo danh mục Giáo dục (ctg_id=8)
+GET http://localhost:9999/api/transactions/report/trend?range=CUSTOM&startDate=2026-01-01T00:00:00&endDate=2026-03-31T23:59:59&categoryId=8
+Authorization: Bearer {{auth_token}}
+
+### =================================================================
+### [5] SEARCH - TÌM KIẾM NÂNG CAO
+### =================================================================
+
+### [5.1] Tìm theo ghi chú
+POST http://localhost:9999/api/transactions/search
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "note": "quỹ",
+  "startDate": "2026-01-01T00:00:00",
+  "endDate": "2026-12-31T23:59:59"
+}
+
+### [5.2] Tìm theo ví MB Bank trong tháng này
+POST http://localhost:9999/api/transactions/search
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "walletId": 10,
+  "startDate": "2026-02-01T00:00:00",
+  "endDate": "2026-02-28T23:59:59"
+}
+
+### [5.3] Tìm theo mục tiêu ChatGPT
+POST http://localhost:9999/api/transactions/search
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "savingGoalId": 31,
+  "startDate": "2000-01-01T00:00:00",
+  "endDate": "2099-12-31T23:59:59"
+}
+
+### [5.4] Tìm theo danh mục Giáo dục (ctg_id=8)
+POST http://localhost:9999/api/transactions/search
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "categoryId": 8,
+  "startDate": "2026-01-01T00:00:00",
+  "endDate": "2026-12-31T23:59:59"
+}
+
+### =================================================================
+### [6] UTIL - THANH TRƯỢT NGANG CHỌN THỜI GIAN
+### =================================================================
+
+### [6.1] Theo NGÀY - 30 ngày quá khứ
+GET http://localhost:9999/api/utils/date-ranges?mode=DAILY&past=30
+Authorization: Bearer {{auth_token}}
+
+### [6.2] Theo TUẦN - 24 tuần quá khứ (mặc định)
+GET http://localhost:9999/api/utils/date-ranges?mode=WEEKLY
+Authorization: Bearer {{auth_token}}
+
+### [6.3] Theo THÁNG - 24 tháng quá khứ (mặc định)
+# Kỳ vọng: [..., "Tháng 2/2026", "Tháng trước", "Tháng này", "Tương lai"]
+GET http://localhost:9999/api/utils/date-ranges?mode=MONTHLY
+Authorization: Bearer {{auth_token}}
+
+### [6.4] Theo QUÝ - 20 quý quá khứ (= 5 năm)
+# Kỳ vọng: ["Quý 1/2021", "Quý 2/2021" ... "Quý 1/2026", "Quý 2/2026", "Tương lai"]
+# Không có "Quý này/Quý trước" — luôn hiện dạng "Quý x/YYYY"
+GET http://localhost:9999/api/utils/date-ranges?mode=QUARTERLY&past=20
+Authorization: Bearer {{auth_token}}
+
+### [6.5] Theo NĂM - 10 năm quá khứ
+# Kỳ vọng: ["2016", "2017" ... "2024", "Năm trước", "Năm nay", "Tương lai"]
+GET http://localhost:9999/api/utils/date-ranges?mode=YEARLY&past=10
+Authorization: Bearer {{auth_token}}

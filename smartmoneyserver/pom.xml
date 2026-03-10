@@ -28,6 +28,10 @@
     </scm>
     <properties>
         <java.version>21</java.version>
+        <!-- Cấu hình Encoding UTF-8 cho toàn bộ project -->
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+
         <!-- MapStruct: Thư viện giúp chuyển đổi giữa DTO và Entity một cách tự động và hiệu quả -->
         <mapstruct.version>1.5.5.Final</mapstruct.version>
         <!-- Lombok-MapStruct Binding: Giúp MapStruct làm việc được với các code mà Lombok tự động sinh ra -->
@@ -37,6 +41,8 @@
         <!-- AssertJ: Thư viện hỗ trợ viết unit test (nâng cấp để vá lỗi bảo mật) -->
         <assertj.version>3.27.6</assertj.version>
         <!-- Lombok: Để Spring Boot 3.5.10 tự động quản lý version (hiện tại là 1.18.42) -->
+        <!-- Firebase Admin SDK -->
+        <firebase-admin.version>9.2.0</firebase-admin.version>
     </properties>
     <dependencies>
         <!-- Spring Data JPA: Giúp làm việc với cơ sở dữ liệu dễ dàng hơn -->
@@ -127,6 +133,12 @@
             <artifactId>jjwt-jackson</artifactId>
             <version>${jjwt.version}</version>
             <scope>runtime</scope>
+        </dependency>
+        <!-- Firebase Admin SDK: Gửi Push Notification qua FCM -->
+        <dependency>
+            <groupId>com.google.firebase</groupId>
+            <artifactId>firebase-admin</artifactId>
+            <version>${firebase-admin.version}</version>
         </dependency>
     </dependencies>
 

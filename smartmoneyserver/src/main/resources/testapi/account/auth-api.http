@@ -1,0 +1,35 @@
+### 1. Đăng ký tài khoản mới
+POST http://localhost:9999/api/auth/register
+Content-Type: application/json
+
+{
+  "accEmail": "newuser.test@gmail.com",
+  "accPhone": "0999888777",
+  "password": "Test@123"
+}
+
+### 2. Đăng nhập (Login)
+POST http://localhost:9999/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "newuser.test@gmail.com",
+  "password": "Test@123",
+  "deviceToken": "device_token_new_user",
+  "deviceType": "Android",
+  "deviceName": "Samsung S24 Ultra"
+}
+
+> {%
+    client.global.set("auth_token", response.body.data.accessToken);
+    client.log("Token: " + response.body.data.accessToken);
+%}
+
+### 3. Đăng xuất (Logout)
+POST http://localhost:9999/api/auth/logout
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "deviceToken": "device_token_new_user"
+}

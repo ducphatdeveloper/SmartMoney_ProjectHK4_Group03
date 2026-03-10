@@ -6,12 +6,15 @@ import io.jsonwebtoken.JwtException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.validation.FieldError;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.NoHandlerFoundException;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -110,6 +113,51 @@ public class GlobalExceptionHandler {
         return ResponseEntity
                 .status(HttpStatus.UNAUTHORIZED) // 401
                 .body(ApiResponse.error("Token không hợp lệ"));
+    }
+
+    /**
+     * Xử lý lỗi không có quyền truy cập (403 Forbidden)
+     * Bao gồm:
+     * 1. SecurityException: Lỗi ném thủ công từ Service (VD: check quyền sở hữu ví).
+     * 2. AccessDeniedException: Lỗi từ Spring Security (@PreAuthorize).
+     */
+    @ExceptionHandler({SecurityException.class, AccessDeniedException.class})
+    public ResponseEntity<ApiResponse<Void>> handleSecurityException(Exception ex) {
+        // Nếu là AccessDeniedException (từ @PreAuthorize), message mặc định thường là "Access is denied"
+        // Ta có thể custom lại cho thân thiện hơn nếu muốn.
+        String message = ex.getMessage();
+        if (ex instanceof AccessDeniedException) {
+            message = "Bạn không có quyền thực hiện hành động này.";
+        }
+        
+        return ResponseEntity
+                .status(HttpStatus.FORBIDDEN) // 403
+                .body(ApiResponse.error(message));
+    }
+
+    /**
+     * Xử lý lỗi gọi sai phương thức HTTP (VD: POST mà gọi GET)
+     * HTTP 405 Method Not Allowed
+     */
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<ApiResponse<Void>> handleMethodNotSupported(
+            HttpRequestMethodNotSupportedException ex) {
+        return ResponseEntity
+                .status(HttpStatus.METHOD_NOT_ALLOWED) // 405
+                .body(ApiResponse.error("Phương thức " + ex.getMethod() + " không được hỗ trợ cho API này"));
+    }
+
+    /**
+     * Xử lý lỗi gọi sai URL (404 Not Found)
+     * Lưu ý: Cần cấu hình spring.mvc.throw-exception-if-no-handler-found=true trong application.properties mới bắt được lỗi này.
+     * HTTP 404 Not Found
+     */
+    @ExceptionHandler(NoHandlerFoundException.class)
+    public ResponseEntity<ApiResponse<Void>> handleNoHandlerFoundException(
+            NoHandlerFoundException ex) {
+        return ResponseEntity
+                .status(HttpStatus.NOT_FOUND) // 404
+                .body(ApiResponse.error("Không tìm thấy đường dẫn: " + ex.getRequestURL()));
     }
 
     /**

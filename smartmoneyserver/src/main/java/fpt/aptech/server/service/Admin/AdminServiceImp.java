@@ -5,9 +5,10 @@ import fpt.aptech.server.dto.PageResponse;
 import fpt.aptech.server.entity.Account;
 import fpt.aptech.server.entity.Notification;
 import fpt.aptech.server.entity.UserDevice;
+import fpt.aptech.server.enums.notification.NotificationType;
 import fpt.aptech.server.repos.AccountRepository;
 import fpt.aptech.server.repos.UserDeviceRepository;
-import fpt.aptech.server.service.Notification.NotificationService;
+import fpt.aptech.server.service.notification.NotificationService;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -106,8 +107,9 @@ public class AdminServiceImp implements AdminService {
                     account,
                     "Tài khoản bị khóa",
                     "Tài khoản của bạn đã bị khóa bởi quản trị viên. Vui lòng liên hệ hỗ trợ để biết thêm chi tiết.",
-                    4, // SYSTEM
-                    null
+                    NotificationType.SYSTEM,
+                    null,
+                    LocalDateTime.now()
             );
         });
     }
@@ -124,8 +126,9 @@ public class AdminServiceImp implements AdminService {
                     account,
                     "Tài khoản được mở khóa",
                     "Tài khoản của bạn đã được mở khóa. Bạn có thể tiếp tục sử dụng dịch vụ.",
-                    4, // SYSTEM
-                    null
+                    NotificationType.SYSTEM,
+                    null,
+                    LocalDateTime.now()
             );
         });
     }

@@ -1,6 +1,7 @@
 package fpt.aptech.server.api.wallet;
 
 import fpt.aptech.server.dto.response.ApiResponse;
+import fpt.aptech.server.dto.wallet.TotalBalanceResponse;
 import fpt.aptech.server.dto.wallet.WalletResponse;
 import fpt.aptech.server.dto.wallet.WalletRequest;
 import fpt.aptech.server.entity.Account;
@@ -90,6 +91,17 @@ public class WalletController {
 
         return ResponseEntity.ok(
                 ApiResponse.success(response)
+        );
+    }
+
+    // ================= TOTAL BALANCE =================
+    @GetMapping("/total-balance")
+    public ResponseEntity<ApiResponse<TotalBalanceResponse>> getTotalBalance(
+            @AuthenticationPrincipal Account currentUser
+    ) {
+        TotalBalanceResponse total = walletService.getTotalBalance(currentUser.getId());
+        return ResponseEntity.ok(
+                ApiResponse.success(total)
         );
     }
 }

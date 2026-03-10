@@ -1,0 +1,36 @@
+### 1. Đăng nhập ADMIN (Bắt buộc dùng acc Admin)
+POST http://localhost:9999/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "admin@smartmoney.vn",
+  "password": "Test@123",
+  "deviceToken": "device_token_admin",
+  "deviceType": "Web",
+  "deviceName": "Admin PC"
+}
+
+> {%
+    client.global.set("admin_token", response.body.data.accessToken);
+%}
+
+### 2. Lấy danh sách User (Phân trang & Tìm kiếm)
+GET http://localhost:9999/api/admin/users?page=0&size=10&search=minh
+Authorization: Bearer {{admin_token}}
+
+### 3. Lấy danh sách User (Lọc theo trạng thái Locked)
+GET http://localhost:9999/api/admin/users?locked=true
+Authorization: Bearer {{admin_token}}
+
+### 4. Lấy thống kê Dashboard
+GET http://localhost:9999/api/admin/dashboard/stats
+Authorization: Bearer {{admin_token}}
+
+### 5. Khóa tài khoản User
+# Thay ID 100 bằng ID user muốn khóa
+PUT http://localhost:9999/api/admin/users/100/lock
+Authorization: Bearer {{admin_token}}
+
+### 6. Mở khóa tài khoản User
+PUT http://localhost:9999/api/admin/users/100/unlock
+Authorization: Bearer {{admin_token}}

@@ -1,7 +1,7 @@
 package fpt.aptech.server.mapper.transaction;
 
-import fpt.aptech.server.dto.transaction.TransactionRequest;
-import fpt.aptech.server.dto.transaction.TransactionResponse;
+import fpt.aptech.server.dto.transaction.request.TransactionRequest;
+import fpt.aptech.server.dto.transaction.view.TransactionResponse;
 import fpt.aptech.server.entity.Transaction;
 import org.mapstruct.Mapper;
 import org.mapstruct.Mapping;
@@ -17,10 +17,16 @@ public interface TransactionMapper {
      */
     @Mappings({
         @Mapping(source = "wallet.walletName", target = "walletName"),
+        @Mapping(source = "wallet.goalImageUrl", target = "walletIconUrl"), // Icon Ví
+
         @Mapping(source = "category.ctgName", target = "categoryName"),
         @Mapping(source = "category.ctgIconUrl", target = "categoryIconUrl"),
         @Mapping(source = "category.ctgType", target = "categoryType"),
-        @Mapping(source = "event.eventName", target = "eventName")
+
+        @Mapping(source = "event.eventName", target = "eventName"),
+
+        @Mapping(source = "savingGoal.goalName", target = "savingGoalName"),
+        @Mapping(source = "savingGoal.goalImageUrl", target = "savingGoalIconUrl") // Icon SavingGoal
     })
     TransactionResponse toDto(Transaction transaction);
 
@@ -44,7 +50,6 @@ public interface TransactionMapper {
         @Mapping(target = "savingGoal", ignore = true),
         @Mapping(target = "aiConversation", ignore = true),
         @Mapping(target = "createdAt", ignore = true),
-        @Mapping(target = "deleted", ignore = true),
         @Mapping(target = "sourceType", ignore = true)
     })
     Transaction toEntity(TransactionRequest request);

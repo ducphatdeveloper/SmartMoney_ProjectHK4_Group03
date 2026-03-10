@@ -1,0 +1,83 @@
+### 1. Đăng nhập để lấy Token (Chạy cái này trước!)
+POST http://localhost:9999/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "minh.pham@gmail.com",
+  "password": "Test@123",
+  "deviceToken": "device_token_test_category",
+  "deviceType": "Postman",
+  "deviceName": "Test Client"
+}
+
+> {%
+    client.global.set("auth_token", response.body.data.accessToken);
+    client.log("Token đã được lưu: " + response.body.data.accessToken);
+%}
+
+### 2. Lấy danh mục theo nhóm (Expense - Chi tiêu)
+GET http://localhost:9999/api/categories?group=expense
+Authorization: Bearer {{auth_token}}
+
+### 3. Lấy danh mục theo nhóm (Income - Thu nhập)
+GET http://localhost:9999/api/categories?group=income
+Authorization: Bearer {{auth_token}}
+
+### 4. Lấy danh mục theo nhóm (Debt - Đi vay/Cho vay)
+GET http://localhost:9999/api/categories?group=debt
+Authorization: Bearer {{auth_token}}
+
+### 5. Tìm kiếm danh mục (Có từ khóa)
+GET http://localhost:9999/api/categories/search?name=Ăn
+Authorization: Bearer {{auth_token}}
+
+### 6. Tìm kiếm danh mục (Không từ khóa - Lấy tất cả)
+GET http://localhost:9999/api/categories/search
+Authorization: Bearer {{auth_token}}
+
+### 7. Lấy danh sách danh mục CHA (Loại Chi tiêu - false)
+GET http://localhost:9999/api/categories/parents?type=false
+Authorization: Bearer {{auth_token}}
+
+### 8. Tạo danh mục GỐC mới (Chi tiêu)
+POST http://localhost:9999/api/categories
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "ctgName": "Danh mục Test Gốc",
+  "ctgType": false,
+  "ctgIconUrl": "icon_test.svg",
+  "parentId": null
+}
+
+### 9. Tạo danh mục CON mới (Thuộc danh mục cha ID=1 - Ăn uống)
+# Lưu ý: ID=1 phải tồn tại và là danh mục cha hợp lệ (của hệ thống hoặc của user này)
+POST http://localhost:9999/api/categories
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "ctgName": "Trà sữa Test",
+  "ctgType": false,
+  "ctgIconUrl": "icon_milk_tea.svg",
+  "parentId": 1
+}
+
+### 10. Cập nhật danh mục (Sửa tên)
+# Thay ID 100 bằng ID danh mục bạn vừa tạo ở bước 8 hoặc 9
+PUT http://localhost:9999/api/categories/100
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "ctgName": "Danh mục Test Đã Sửa",
+  "ctgType": false,
+  "ctgIconUrl": "icon_test_updated.svg",
+  "parentId": null
+}
+
+### 11. Xóa danh mục
+# Thay ID 100 bằng ID danh mục bạn muốn xóa
+DELETE http://localhost:9999/api/categories/100
+Authorization: Bearer {{auth_token}}

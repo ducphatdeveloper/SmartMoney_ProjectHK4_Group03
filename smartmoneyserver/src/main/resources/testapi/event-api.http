@@ -1,0 +1,52 @@
+### 1. Đăng nhập
+POST http://localhost:9999/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "minh.pham@gmail.com",
+  "password": "Test@123",
+  "deviceToken": "device_token_test_event",
+  "deviceType": "Postman",
+  "deviceName": "Test Client"
+}
+
+> {%
+    client.global.set("auth_token", response.body.data.accessToken);
+    client.global.set("user_id", response.body.data.userId);
+%}
+
+### 2. Lấy danh sách Sự kiện
+GET http://localhost:9999/api/events
+Authorization: Bearer {{auth_token}}
+
+### 3. Tạo Sự kiện Mới
+POST http://localhost:9999/api/events
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "eventName": "Du lịch Đà Lạt 2026",
+  "beginDate": "2026-12-20",
+  "endDate": "2026-12-25",
+  "eventIconUrl": "icon_dalat.svg",
+  "currencyCode": "VND"
+}
+
+### 4. Cập nhật Sự kiện
+# Thay ID 100 bằng ID sự kiện vừa tạo
+PUT http://localhost:9999/api/events/100
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "eventName": "Du lịch Đà Lạt Mùa Đông 2026",
+  "beginDate": "2026-12-19",
+  "endDate": "2026-12-26",
+  "eventIconUrl": "icon_dalat_winter.svg",
+  "currencyCode": "VND"
+}
+
+### 5. Xóa Sự kiện
+# Thay ID 100 bằng ID sự kiện muốn xóa
+DELETE http://localhost:9999/api/events/100
+Authorization: Bearer {{auth_token}}

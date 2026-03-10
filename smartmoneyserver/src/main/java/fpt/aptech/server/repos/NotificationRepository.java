@@ -11,6 +11,9 @@ public interface NotificationRepository extends JpaRepository<Notification, Inte
     // Lấy danh sách thông báo mới nhất của người dùng
     List<Notification> findAllByAccount_IdOrderByScheduledTimeDesc(Integer accId);
 
+    // Lấy danh sách thông báo chưa đọc của người dùng (dùng cho chức năng "Đánh dấu tất cả là đã đọc")
+    List<Notification> findAllByAccount_IdAndNotifyReadIsFalse(Integer accId);
+
     // Tìm các thông báo chưa gửi để chạy tác vụ ngầm (Scheduler)
     List<Notification> findByNotifySentFalseAndScheduledTimeBefore(java.time.LocalDateTime now);
 

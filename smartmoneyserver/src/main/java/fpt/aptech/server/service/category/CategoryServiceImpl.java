@@ -12,7 +12,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -20,13 +19,16 @@ import java.util.Objects;
 @RequiredArgsConstructor
 public class CategoryServiceImpl implements CategoryService {
 
-    // Chỉ lưu tên file mặc định
     private static final String DEFAULT_CATEGORY_ICON_FILENAME = "icon_default_category.svg";
 
     private final CategoryRepository categoryRepository;
     private final AccountRepository accountRepository;
     private final CategoryMapper categoryMapper;
 
+    /**
+     * Lấy danh sách danh mục theo nhóm (Expense, Income, Debt).
+     * - Loại trừ các danh mục đặc biệt không cần hiển thị.
+     */
     @Override
     @Transactional(readOnly = true)
     public List<CategoryResponse> getCategoriesByGroup(Integer accountId, String group) {
@@ -50,6 +52,11 @@ public class CategoryServiceImpl implements CategoryService {
         return categoryMapper.toDtoList(entities);
     }
 
+    /**
+     * Tìm kiếm danh mục theo tên.
+     * - Nếu không có từ khóa -> Trả về tất cả danh mục (Hệ thống + User).
+     * - Nếu có từ khóa -> Tìm kiếm tương đối (LIKE).
+     */
     @Override
     @Transactional(readOnly = true)
     public List<CategoryResponse> searchAllCategories(Integer accountId, String searchTerm) {
@@ -65,6 +72,11 @@ public class CategoryServiceImpl implements CategoryService {
         return categoryMapper.toDtoList(entities);
     }
 
+    /**
+     * Lấy danh sách danh mục cha để chọn khi tạo danh mục con.
+     * - Lọc theo loại (Thu/Chi).
+     * - Loại trừ các danh mục không được phép làm cha.
+     */
     @Override
     @Transactional(readOnly = true)
     public List<CategoryResponse> getParentCategories(Integer accountId, Boolean ctgType) {
@@ -81,10 +93,16 @@ public class CategoryServiceImpl implements CategoryService {
         return categoryMapper.toDtoList(entities);
     }
 
+    /**
+     * Tạo danh mục mới.
+     * - Validate trùng tên (Gốc/Con).
+     * - Validate quyền sử dụng danh mục cha.
+     * - Gán icon mặc định nếu thiếu.
+     */
     @Override
     @Transactional
     public CategoryResponse createCategory(CategoryRequest request, Integer accountId) {
-        // 1. Validate trùng lặp
+        // 1. Validate dữ liệu đầu vào (Trùng tên)
         if (request.parentId() != null) {
             // Nếu tạo danh mục CON: check trùng tên trong cùng cha
             if (categoryRepository.existsByCtgNameAndParent_IdAndAccount_Id(request.ctgName(), request.parentId(), accountId)) {
@@ -104,7 +122,7 @@ public class CategoryServiceImpl implements CategoryService {
             }
         }
 
-        // 2. Map các trường cơ bản từ DTO sang Entity
+        // 2. Map DTO sang Entity
         Category category = categoryMapper.toEntity(request);
 
         // 3. Gán icon mặc định nếu user không chọn
@@ -114,7 +132,7 @@ public class CategoryServiceImpl implements CategoryService {
 
         // 4. Gán Account cho Category
         Account account = accountRepository.findById(accountId)
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy tài khoản ID: " + accountId));
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy tài khoản ID: " + accountId));
         category.setAccount(account);
 
         // 5. Xử lý danh mục cha (nếu có)
@@ -122,8 +140,9 @@ public class CategoryServiceImpl implements CategoryService {
             Category parent = categoryRepository.findById(request.parentId())
                     .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy danh mục cha với ID: " + request.parentId()));
 
+            // Validate quyền sở hữu cha
             if (parent.getAccount() != null && !parent.getAccount().getId().equals(accountId)) {
-                throw new IllegalArgumentException("Không có quyền sử dụng danh mục cha này.");
+                throw new SecurityException("Không có quyền sử dụng danh mục cha này.");
             }
             category.setParent(parent);
         }
@@ -135,6 +154,12 @@ public class CategoryServiceImpl implements CategoryService {
         return categoryMapper.toDto(savedCategory);
     }
 
+    /**
+     * Cập nhật danh mục.
+     * - Validate quyền sở hữu.
+     * - Validate trùng tên (nếu đổi tên).
+     * - Cập nhật thông tin và quan hệ cha-con.
+     */
     @Override
     @Transactional
     public CategoryResponse updateCategory(Integer categoryId, CategoryRequest request, Integer accountId) {
@@ -142,12 +167,12 @@ public class CategoryServiceImpl implements CategoryService {
         Category category = categoryRepository.findById(categoryId)
                 .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy danh mục với ID: " + categoryId));
 
-        // 2. Kiểm tra quyền sở hữu
+        // 2. Validate quyền sở hữu
         if (category.getAccount() == null || !category.getAccount().getId().equals(accountId)) {
-            throw new IllegalArgumentException("Bạn không có quyền sửa danh mục này.");
+            throw new SecurityException("Bạn không có quyền sửa danh mục này.");
         }
 
-        // 3. Kiểm tra trùng tên (chỉ khi tên thay đổi)
+        // 3. Validate trùng tên (chỉ khi tên thay đổi)
         if (!Objects.equals(category.getCtgName(), request.ctgName())) {
             // TODO: Logic check trùng tên khi update cũng cần phân biệt Gốc/Con tương tự như Create
             if (categoryRepository.existsByCtgNameAndAccount_IdAndParentIsNull(request.ctgName(), accountId)) {
@@ -167,7 +192,7 @@ public class CategoryServiceImpl implements CategoryService {
 
             // Kiểm tra quyền: Danh mục cha phải là của hệ thống (account=null) hoặc của chính user này.
             if (parent.getAccount() != null && !parent.getAccount().getId().equals(accountId)) {
-                throw new IllegalArgumentException("Không có quyền sử dụng danh mục cha này.");
+                throw new SecurityException("Không có quyền sử dụng danh mục cha này.");
             }
             category.setParent(parent);
         } else {
@@ -181,6 +206,11 @@ public class CategoryServiceImpl implements CategoryService {
         return categoryMapper.toDto(updatedCategory);
     }
 
+    /**
+     * Xóa danh mục.
+     * - Validate quyền sở hữu.
+     * - (TODO) Validate ràng buộc giao dịch.
+     */
     @Override
     @Transactional
     public void deleteCategory(Integer categoryId, Integer accountId) {
@@ -190,7 +220,7 @@ public class CategoryServiceImpl implements CategoryService {
 
         // 2. Kiểm tra quyền sở hữu (Không cho xóa danh mục hệ thống)
         if (category.getAccount() == null || !category.getAccount().getId().equals(accountId)) {
-            throw new IllegalArgumentException("Bạn không có quyền xóa danh mục này.");
+            throw new SecurityException("Bạn không có quyền xóa danh mục này.");
         }
 
         // 3. Kiểm tra ràng buộc (Ví dụ: có giao dịch nào đang dùng không?)

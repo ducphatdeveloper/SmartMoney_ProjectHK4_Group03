@@ -1,0 +1,34 @@
+### 1. Đăng nhập
+POST http://localhost:9999/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "minh.pham@gmail.com",
+  "password": "Test@123",
+  "deviceToken": "device_token_test_notify",
+  "deviceType": "Postman",
+  "deviceName": "Test Client"
+}
+
+> {%
+    client.global.set("auth_token", response.body.data.accessToken);
+    client.global.set("user_id", response.body.data.userId);
+%}
+
+### 2. Lấy danh sách thông báo của tôi
+# API hiện tại yêu cầu truyền ID user vào URL
+GET http://localhost:9999/api/notifications/user/{{user_id}}
+Authorization: Bearer {{auth_token}}
+
+### 3. Đánh dấu 1 thông báo là Đã đọc
+# Thay ID 100 bằng ID thông báo thật
+PUT http://localhost:9999/api/notifications/100/read
+Authorization: Bearer {{auth_token}}
+
+### 4. Đánh dấu TẤT CẢ thông báo là Đã đọc
+PUT http://localhost:9999/api/notifications/user/{{user_id}}/read-all
+Authorization: Bearer {{auth_token}}
+
+### 5. Đánh dấu 1 thông báo là Đã gửi (Sent)
+PUT http://localhost:9999/api/notifications/100/sent
+Authorization: Bearer {{auth_token}}

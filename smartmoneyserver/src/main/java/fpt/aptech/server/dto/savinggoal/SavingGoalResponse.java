@@ -22,6 +22,7 @@ public class SavingGoalResponse {
     private String currencyCode;
     private String imageUrl;
 
-    // Thêm progress %
-    private Double progressPercent;
+    // Các trường tính toán thêm để Frontend hiển thị
+    private BigDecimal remainingAmount; // Số tiền còn thiếu
+    private Double progressPercent;     // % tiến độ
 }

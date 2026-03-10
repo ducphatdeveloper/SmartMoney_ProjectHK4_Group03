@@ -1,0 +1,65 @@
+### 1. Đăng nhập (Lấy Token & UserID)
+POST http://localhost:9999/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "minh.pham@gmail.com",
+  "password": "Test@123",
+  "deviceToken": "device_token_test_saving",
+  "deviceType": "Postman",
+  "deviceName": "Test Client"
+}
+
+> {%
+    client.global.set("auth_token", response.body.data.accessToken);
+    client.global.set("user_id", response.body.data.userId);
+%}
+
+### 2. Lấy danh sách Mục tiêu tiết kiệm
+GET http://localhost:9999/api/saving-goals/getAll
+Authorization: Bearer {{auth_token}}
+
+### 3. Tạo Mục tiêu tiết kiệm mới
+POST http://localhost:9999/api/saving-goals/create
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "goalName": "Mua iPhone 18 Pro Max",
+  "targetAmount": 50000000,
+  "currentAmount": 1000000,
+  "deadline": "2027-09-30",
+  "goalIconUrl": "icon_iphone.svg"
+}
+
+### 4. Kiểm tra lại Tổng Tài Sản sau khi tạo Saving Goal
+# Kỳ vọng: Total Balance sẽ tăng thêm 1,000,000
+GET http://localhost:9999/api/user/wallets/total-balance
+Authorization: Bearer {{auth_token}}
+
+### 5. Xem chi tiết Mục tiêu
+# Thay ID 9 bằng ID mục tiêu thực tế
+GET http://localhost:9999/api/saving-goals/get/9
+Authorization: Bearer {{auth_token}}
+
+### 6. Cập nhật Mục tiêu
+# Thay ID 9 bằng ID mục tiêu thực tế
+PUT http://localhost:9999/api/saving-goals/update/9
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "goalName": "Mua iPhone 18 Pro Max - Đã sửa",
+  "targetAmount": 55000000,
+  "deadline": "2027-10-31"
+}
+
+### 7. Hủy bỏ Mục tiêu
+# Thay ID 9 bằng ID mục tiêu muốn hủy
+PUT http://localhost:9999/api/saving-goals/cancel/9
+Authorization: Bearer {{auth_token}}
+
+### 8. Xóa Mục tiêu
+# Thay ID 9 bằng ID mục tiêu muốn xóa
+DELETE http://localhost:9999/api/saving-goals/delete/9
+Authorization: Bearer {{auth_token}}

@@ -1,0 +1,19 @@
+### 1. Đăng nhập
+POST http://localhost:9999/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "minh.pham@gmail.com",
+  "password": "Test@123",
+  "deviceToken": "device_token_profile",
+  "deviceType": "iOS",
+  "deviceName": "iPhone 15"
+}
+
+> {%
+    client.global.set("auth_token", response.body.data.accessToken);
+%}
+
+### 2. Xem thông tin cá nhân (Profile)
+GET http://localhost:9999/api/users/profile
+Authorization: Bearer {{auth_token}}

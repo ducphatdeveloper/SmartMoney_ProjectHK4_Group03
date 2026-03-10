@@ -5,8 +5,9 @@ import fpt.aptech.server.dto.request.RegisterRequest;
 import fpt.aptech.server.dto.UserInfoDTO;
 import fpt.aptech.server.dto.response.AuthResponse;
 import fpt.aptech.server.entity.*;
+import fpt.aptech.server.enums.notification.NotificationType;
 import fpt.aptech.server.repos.*;
-import fpt.aptech.server.service.Notification.NotificationService;
+import fpt.aptech.server.service.notification.NotificationService;
 import fpt.aptech.server.service.UserDevice.UserDeviceService;
 import fpt.aptech.server.utils.JwtUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -215,8 +216,9 @@ public class AuthServiceImp implements AuthService {
                     admin,
                     "Người dùng mới đăng ký",
                     message,
-                    4, // 4: SYSTEM
-                    Long.valueOf(newUser.getId())
+                    NotificationType.SYSTEM,
+                    Long.valueOf(newUser.getId()),
+                    LocalDateTime.now()
             );
         }
     }

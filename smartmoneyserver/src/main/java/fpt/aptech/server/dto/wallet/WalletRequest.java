@@ -11,20 +11,20 @@ import java.math.BigDecimal;
 @Getter
 @Setter
 public class WalletRequest{
-    @NotBlank(message = "Currency code is required")
+    @NotBlank(message = "Mã tiền tệ không được để trống")
     private String currencyCode;
 
-    @NotBlank(message = "Wallet name is required")
-    @Size(max = 100, message = "Wallet name must be less than 100 characters")
+    @NotBlank(message = "Tên ví không được để trống")
+    @Size(max = 100, message = "Tên ví không được quá 100 ký tự")
     private String walletName;
 
-    @PositiveOrZero(message = "Balance must be >= 0")
+    @PositiveOrZero(message = "Số dư phải lớn hơn hoặc bằng 0")
     private BigDecimal balance;
 
     private Boolean notified;
 
     private Boolean reportable;
 
-    @Size(max = 2048, message = "Image URL too long")
+    @Size(max = 2048, message = "URL hình ảnh quá dài")
     private String goalImageUrl;
 }

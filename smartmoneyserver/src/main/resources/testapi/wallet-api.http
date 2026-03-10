@@ -1,0 +1,68 @@
+### 1. Đăng nhập (Lấy Token & UserID)
+POST http://localhost:9999/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "minh.pham@gmail.com",
+  "password": "Test@123",
+  "deviceToken": "device_token_test_wallet",
+  "deviceType": "Postman",
+  "deviceName": "Test Client"
+}
+
+> {%
+    client.global.set("auth_token", response.body.data.accessToken);
+    client.global.set("user_id", response.body.data.userId);
+    client.log("Token: " + response.body.data.accessToken);
+%}
+
+### 2. Lấy danh sách Ví (Get All)
+GET http://localhost:9999/api/user/wallets
+Authorization: Bearer {{auth_token}}
+
+### 3. Lấy Tổng Tài Sản (Total Balance)
+# Bao gồm: Tổng tiền trong các Ví (Wallets) + Tổng tiền trong các Mục tiêu tiết kiệm (Saving Goals)
+GET http://localhost:9999/api/user/wallets/total-balance
+Authorization: Bearer {{auth_token}}
+
+### 4. Tìm kiếm Ví theo tên
+GET http://localhost:9999/api/user/wallets?search=Test
+Authorization: Bearer {{auth_token}}
+
+### 5. Tạo Ví Mới
+POST http://localhost:9999/api/user/wallets
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "currencyCode": "VND",
+  "walletName": "Ví Test Mới",
+  "balance": 500000,
+  "notified": true,
+  "reportable": true,
+  "goalImageUrl": "icon_wallet_test.svg"
+}
+
+### 6. Xem chi tiết Ví
+# Thay ID 10 bằng ID ví thực tế
+GET http://localhost:9999/api/user/wallets/10
+Authorization: Bearer {{auth_token}}
+
+### 7. Cập nhật Ví
+# Thay ID 10 bằng ID ví thực tế
+PUT http://localhost:9999/api/user/wallets/10
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "walletName": "Ví Test Đã Sửa",
+  "notified": false,
+  "reportable": true,
+  "goalImageUrl": "icon_wallet_updated.svg",
+  "currencyCode": "VND"
+}
+
+### 8. Xóa Ví
+# Lưu ý: Chỉ xóa được ví có số dư = 0.
+DELETE http://localhost:9999/api/user/wallets/10
+Authorization: Bearer {{auth_token}}

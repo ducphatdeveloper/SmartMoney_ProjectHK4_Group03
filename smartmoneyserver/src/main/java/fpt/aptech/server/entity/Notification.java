@@ -1,5 +1,6 @@
 package fpt.aptech.server.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -59,4 +60,10 @@ public class Notification {
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
+
+    // Ghi đè getter để chặn Jackson truy cập vào account gây lỗi Lazy Loading
+    @JsonIgnore
+    public Account getAccount() {
+        return this.account;
+    }
 }

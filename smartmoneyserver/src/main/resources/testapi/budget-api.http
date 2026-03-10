@@ -1,0 +1,78 @@
+### 1. Đăng nhập
+POST http://localhost:9999/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "minh.pham@gmail.com",
+  "password": "Test@123",
+  "deviceToken": "device_token_test_budget",
+  "deviceType": "Postman",
+  "deviceName": "Test Client"
+}
+
+> {%
+    client.global.set("auth_token", response.body.data.accessToken);
+    client.global.set("user_id", response.body.data.userId);
+%}
+
+### 2. Lấy danh sách Ngân sách
+GET http://localhost:9999/api/budgets
+Authorization: Bearer {{auth_token}}
+
+### 3. Tạo Ngân sách Mới (Cho danh mục Ăn uống - ID 1)
+# Giả sử: Wallet ID = 10 (MB Bank), Category ID = 1 (Ăn uống)
+POST http://localhost:9999/api/budgets
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "amount": 5000000,
+  "beginDate": "2026-02-01",
+  "endDate": "2026-02-28",
+  "walletId": 10,
+  "allCategories": false,
+  "repeating": true,
+  "categoryIds": [1]
+}
+
+### 4. Tạo Ngân sách Tổng (All Categories)
+POST http://localhost:9999/api/budgets
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "amount": 15000000,
+  "beginDate": "2026-02-01",
+  "endDate": "2026-02-28",
+  "walletId": null,
+  "allCategories": true,
+  "repeating": false,
+  "categoryIds": []
+}
+
+### 5. Cập nhật Ngân sách
+# Thay ID 100 bằng ID ngân sách vừa tạo
+PUT http://localhost:9999/api/budgets/100
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "amount": 6000000,
+  "beginDate": "2026-02-01",
+  "endDate": "2026-02-28",
+  "walletId": 10,
+  "allCategories": false,
+  "repeating": true,
+  "categoryIds": [1, 7]
+}
+# Note: categoryIds [1, 7] nghĩa là gộp Ăn uống và Giải trí vào chung 1 ngân sách
+
+### 6. Xóa Ngân sách
+# Thay ID 100 bằng ID ngân sách muốn xóa
+DELETE http://localhost:9999/api/budgets/100
+Authorization: Bearer {{auth_token}}
+
+### 7. Kích hoạt kiểm tra ngân sách thủ công (Trigger Scheduler)
+# Dùng để test tính năng cảnh báo ngân sách ngay lập tức
+POST http://localhost:9999/api/budgets/check-now
+Authorization: Bearer {{auth_token}}

@@ -1,227 +1,226 @@
-﻿-- ================================================================================================================================
+-- ================================================================================================================================
 -- DATABASE: SmartMoney
--- AUTHOR DATABASE: Phạm Đức Phát 
+-- AUTHOR DATABASE: Ph?m ??c Ph�t 
 -- CREATED: 2026 
 -- VERSION: 1.0 (Standardized)
--- DESCRIPTION: Quản lý tài chính cá nhân với AI Assistant - Thu/Chi/Ngân sách/Sổ Nợ/Tiết kiệm/Hóa Đơn/Giao dịch định kỳ/Sự kiện
+-- DESCRIPTION: Qu?n l� t�i ch�nh c� nh�n v?i AI Assistant - Thu/Chi/Ng�n s�ch/S? N?/Ti?t ki?m/H�a ??n/Giao d?ch ??nh k?/S? ki?n
 -- =================================================================================================================================
 -- =======================================================================================================
--- DỰ ÁN: SMARTMONEY - QUY TẮC PHÁT TRIỂN & TỪ ĐIỂN KỸ THUẬT
--- VERSION: 1.0 | TEAM: Phát - Nhật - Nam | THỜI GIAN: 4 Tuần
+-- D? �N: SMARTMONEY - QUY T?C PH�T TRI?N & T? ?I?N K? THU?T
+-- VERSION: 1.0 | TEAM: Ph�t - Nh?t - Nam | TH?I GIAN: 4 Tu?n
+-- VERSION: 1.1 C� d? li?u m?u
 -- =======================================================================================================
--- 📌 LƯU Ý: Đây là guideline tham khảo để nhóm dễ research, không bắt buộc áp dụng 100%
+-- ?? L?U �: ?�y l� guideline tham kh?o ?? nh�m d? research, kh�ng b?t bu?c �p d?ng 100%
 
--- 1. QUY CHUẨN KIỂU DỮ LIỆU
---    Tiền tệ: DECIMAL(18,2)    | Ngày: DATE       | Time: DATETIME
+-- 1. QUY CHU?N KI?U D? LI?U
+--    Ti?n t?: DECIMAL(18,2)    | Ng�y: DATE       | Time: DATETIME
 --    Status: BIT/TINYINT        | ID: INT IDENTITY | Password: VARCHAR(255) (Bcrypt)
 
--- 2. QUY TẮC ĐẶT TÊN
+-- 2. QUY T?C ??T T�N
 --    Table: tTableName     | View: vViewName     | Index: idx_Table_Columns
 --    Trigger: trg_Table_Action | FK: FK_Child_Parent | Constraint: CHK_Table_Field
 
--- 3. BẢO MẬT & QUYỀN TRUY CẬP (BẮT BUỘC)
---    □ Mọi query phải có WHERE acc_id = ? (Row-level security)
---    □ Hash password: Bcrypt cost 12 | JWT: 15 phút + Refresh 7 ngày
---    □ Admin: Chỉ Lock/Unlock account, không xóa Account/Role/Currency
+-- 3. B?O M?T & QUY?N TRUY C?P (B?T BU?C)
+--    ? M?i query ph?i c� WHERE acc_id = ? (Row-level security)
+--    ? Hash password: Bcrypt cost 12 | JWT: 15 ph�t + Refresh 7 ng�y
+--    ? Admin: Ch? Lock/Unlock account, kh�ng x�a Account/Role/Currency
 
--- 4. QUAN HỆ DATABASE
---    ┌────────────┬─────────────────┬───────────────────────────────────┐
---    │ LOẠI       │ VÍ DỤ           │ CÁCH NHẬN BIẾT                   │
---    ├────────────┼─────────────────┼───────────────────────────────────┤
---    │ 1-1        │ Chat ↔ Hóa đơn  │ PK = FK (tReceipts.id = tAIConv.id)│
---    │ 1-N        │ User → Wallets  │ FK từ con trỏ về cha              │
---    │ N-N        │ Roles ↔ Perms   │ Bảng trung gian (2 FK)            │
---    │ SELF-REF   │ Categories      │ parent_id → id (cùng bảng)        │
---    └────────────┴─────────────────┴───────────────────────────────────┘
+-- 4. QUAN H? DATABASE
+--    ????????????????????????????????????????????????????????????????????
+--    ? LO?I       ? V� D?           ? C�CH NH?N BI?T                   ?
+--    ????????????????????????????????????????????????????????????????????
+--    ? 1-1        ? Chat ? H�a ??n  ? PK = FK (tReceipts.id = tAIConv.id)?
+--    ? 1-N        ? User ? Wallets  ? FK t? con tr? v? cha              ?
+--    ? N-N        ? Roles ? Perms   ? B?ng trung gian (2 FK)            ?
+--    ? SELF-REF   ? Categories      ? parent_id ? id (c�ng b?ng)        ?
+--    ????????????????????????????????????????????????????????????????????
 
--- 5. THUẬT NGỮ KỸ THUẬT
---    ┌─────────────────┬─────────────────────────────────────────────┐
---    │ THUẬT NGỮ      │ Ý NGHĨA & VÍ DỤ                            │
---    ├─────────────────┼─────────────────────────────────────────────┤
---    │ CONSTANTS      │ Giá trị cố định DB (CHECK constraint)       │
---    │                 │ VD: CHECK (source_type BETWEEN 1 AND 4)    │
---    ├─────────────────┼─────────────────────────────────────────────┤
---    │ ENUM (Java)    │ Hằng số Backend (package: com.smartmoney.enum)│
---    │                 │ VD: TransactionType.INCOME (DB value = 1)  │
---    ├─────────────────┼─────────────────────────────────────────────┤
---    │ BITMASK        │ Lưu nhiều option vào 1 INT (lũy thừa 2)     │
---    │                 │ VD: T2=1,T3=2,T4=4 → T2+T4 = 5 (1+4)       │
---    ├─────────────────┼─────────────────────────────────────────────┤
---    │ SOFT DELETE    │ Ẩn record (deleted=1) thay vì DELETE     │
---    │                 │ Áp dụng: tTransactions                     │
---    ├─────────────────┼─────────────────────────────────────────────┤
---    │ DTO            │ Data Transfer Object - Chỉ trả data cần    │
---    │                 │ VD: TransactionDTO (không trả Entity JPA)  │
---    └─────────────────┴─────────────────────────────────────────────┘
+-- 5. THU?T NG? K? THU?T
+--    ?????????????????????????????????????????????????????????????????
+--    ? THU?T NG?      ? � NGH?A & V� D?                            ?
+--    ?????????????????????????????????????????????????????????????????
+--    ? CONSTANTS      ? Gi� tr? c? ??nh DB (CHECK constraint)       ?
+--    ?                 ? VD: CHECK (source_type BETWEEN 1 AND 4)    ?
+--    ?????????????????????????????????????????????????????????????????
+--    ? ENUM (Java)    ? H?ng s? Backend (package: com.smartmoney.enum)?
+--    ?                 ? VD: TransactionType.INCOME (DB value = 1)  ?
+--    ?????????????????????????????????????????????????????????????????
+--    ? BITMASK        ? L?u nhi?u option v�o 1 INT (l?y th?a 2)     ?
+--    ?                 ? VD: T2=1,T3=2,T4=4 ? T2+T4 = 5 (1+4)       ?
+--    ?????????????????????????????????????????????????????????????????
+--    ?????????????????????????????????????????????????????????????????
+--    ? DTO            ? Data Transfer Object - Ch? tr? data c?n    ?
+--    ?                 ? VD: TransactionDTO (kh�ng tr? Entity JPA)  ?
+--    ?????????????????????????????????????????????????????????????????
 
--- 6. QUY TẮC XỬ LÝ ĐẶC BIỆT
---    □ Xóa danh mục: Chuyển transaction sang danh mục khác hoặc xóa
---    □ Số dư âm: Cho phép (hiển thị màu đỏ + cảnh báo)
+-- 6. QUY T?C X? L� ??C BI?T
+--    ? X�a danh m?c: Chuy?n transaction sang danh m?c kh�c ho?c x�a
+--    ? S? d? �m: Cho ph�p (hi?n th? m�u ?? + c?nh b�o)
 
--- 7. TRIGGER - TỰ ĐỘNG HÓA
---    □ Tự cộng/trừ số dư ví khi có giao dịch mới/xóa
---    □ Tự cập nhật updated_at khi record thay đổi
---    □ Tự update current_amount của SavingGoals
---    -- Lưu ý: Trigger đơn giản, logic phức tạp xử lý ở Backend
+-- 7. TRIGGER - T? ??NG H�A
+--    ? T? c?ng/tr? s? d? v� khi c� giao d?ch m?i/x�a
+--    ? T? c?p nh?t updated_at khi record thay ??i
+--    ? T? update current_amount c?a SavingGoals
+--    -- L?u �: Trigger ??n gi?n, logic ph?c t?p x? l� ? Backend
 
--- 8. INDEX TỐI ƯU HIỆU NĂNG
---    □ Luôn có acc_id đầu trong composite index
---    □ Dùng INCLUDE cho column thường SELECT
+-- 8. INDEX T?I ?U HI?U N?NG
+--    ? Lu�n c� acc_id ??u trong composite index
+--    ? D�ng INCLUDE cho column th??ng SELECT
 --    VD: CREATE INDEX idx_trans_active ON tTransactions(acc_id, deleted) 
---        INCLUDE (amount, trans_date) WHERE deleted = 0
+--        INCLUDE (amount, trans_date)
 
--- 9. QUY TRÌNH PHÁT TRIỂN
---    1. Đọc business rules (mục 3,6) trước khi code
---    2. Check constants/enum trong DB và Java
---    3. Mọi API phải validate acc_id của user đang login
---    4. Test với ít nhất 2 user (đảm bảo data isolation)
+-- 9. QUY TR�NH PH�T TRI?N
+--    1. ??c business rules (m?c 3,6) tr??c khi code
+--    2. Check constants/enum trong DB v� Java
+--    3. M?i API ph?i validate acc_id c?a user ?ang login
+--    4. Test v?i �t nh?t 2 user (??m b?o data isolation)
 
--- 10. COMMON MISTAKES CẦN TRÁNH
---     ❌ SELECT * (dùng column cụ thể)  ❌ N+1 query (dùng JOIN FETCH)
---     ❌ Hardcode số (dùng constant)    ❌ Không validate ownership
---     ❌ Gửi raw Entity ra API (dùng DTO) ❌ Quên WHERE acc_id = ?
+-- 10. COMMON MISTAKES C?N TR�NH
+--     ? SELECT * (d�ng column c? th?)  ? N+1 query (d�ng JOIN FETCH)
+--     ? Hardcode s? (d�ng constant)    ? Kh�ng validate ownership
+--     ? G?i raw Entity ra API (d�ng DTO) ? Qu�n WHERE acc_id = ?
 
 -- 11. AI INTEGRATION NOTES
---     □ Chat Intent: 1=add_trans, 2=report, 3=budget, 4=chat, 5=remind
---     □ OCR Receipt: Google Vision API (free tier)
---     □ Voice: Google Speech-to-Text
---     □ AI Model: Ưu tiên Gemini API (free), backup OpenAI
+--     ? Chat Intent: 1=add_trans, 2=report, 3=budget, 4=chat, 5=remind
+--     ? OCR Receipt: Google Vision API (free tier)
+--     ? Voice: Google Speech-to-Text
+--     ? AI Model: ?u ti�n Gemini API (free), backup OpenAI
 
 -- 12. SECURITY CHECKLIST
---     □ Password hash với Bcrypt (cost 12) □ JWT expiration hợp lý
---     □ Input validation (SQL injection)   □ Rate limiting API login
---     □ HTTPS only                         □ CORS configuration
+--     ? Password hash v?i Bcrypt (cost 12) ? JWT expiration h?p l�
+--     ? Input validation (SQL injection)   ? Rate limiting API login
+--     ? HTTPS only                         ? CORS configuration
 
 -- =======================================================================================================
--- 🎯 PHÂN CÔNG MODULE & TRÁCH NHIỆM
+-- ?? PH�N C�NG MODULE & TR�CH NHI?M
 -- =======================================================================================================
--- MODULE 1: WEB/AUTH (Nam phụ trách)
---   Bảng: tAccounts, tRoles, tPermissions, tRolePermissions, tUserDevices, tNotifications
---   Nhiệm vụ:
+-- MODULE 1: WEB/AUTH (Nam ph? tr�ch)
+--   B?ng: tAccounts, tRoles, tPermissions, tRolePermissions, tUserDevices, tNotifications
+--   Nhi?m v?:
 --     - JWT Authentication & Spring Security
---     - Dashboard / Admin Frontend với biểu đồ thống kê
---     - Hệ thống nhận thông báo (tNotifications) trên thiết bị đã login lưu token của thiết bị pc, laptop, đt
---     - Quản lý đa thiết bị đăng nhập (tUserDevices)
+--     - Dashboard / Admin Frontend v?i bi?u ?? th?ng k�
+--     - H? th?ng nh?n th�ng b�o (tNotifications) tr�n thi?t b? ?� login l?u token c?a thi?t b? pc, laptop, ?t
+--     - Qu?n l� ?a thi?t b? ??ng nh?p (tUserDevices)
 --     - Frontend Admin Dashboard (React)
 -- 
--- MODULE 2: BASIC CRUD (Nhật phụ trách)
---   Bảng: tWallets, tSavingGoals, tEvents, tBudgets, tBudgetCategories, tCurrencies
---   Nhiệm vụ:
---     - CRUDS cơ bản cho các bảng trên ( cả tWallet và tSavingGoals thực chất cũng là ví nhưng mục đích sử dụng khác nhau )
---     - Cung cấp API để Module 3 có cơ sở xử lý backend phần giao dịch
---     - Frontend EndUser cơ bản (React)
+-- MODULE 2: BASIC CRUD (Nh?t ph? tr�ch)
+--   B?ng: tWallets, tSavingGoals, tEvents, tBudgets, tBudgetCategories, tCurrencies
+--   Nhi?m v?:
+--     - CRUDS c? b?n cho c�c b?ng tr�n ( c? tWallet v� tSavingGoals th?c ch?t c?ng l� v� nh?ng m?c ?�ch s? d?ng kh�c nhau )
+--     - Cung c?p API ?? Module 3 c� c? s? x? l� backend ph?n giao d?ch
+--     - Frontend EndUser c? b?n (React)
 -- 
--- MODULE 3: TRANSACTION CORE (Phát - Leader phụ trách)
---   Bảng: tTransactions, tPlannedTransactions, tCategories, tDebts
---   Nhiệm vụ:
---     - Thiết kế database & Quản lý tổng thể
---     - Viết tài liệu dự án & Hướng dẫn nhóm
---     - Xử lý logic giao dịch phức tạp (thu/chi, định kỳ, nợ)
---     - Quản lý danh mục (tCategories) - cả system và user
+-- MODULE 3: TRANSACTION CORE (Ph�t - Leader ph? tr�ch)
+--   B?ng: tTransactions, tPlannedTransactions, tCategories, tDebts
+--   Nhi?m v?:
+--     - Thi?t k? database & Qu?n l� t?ng th?
+--     - Vi?t t�i li?u d? �n & H??ng d?n nh�m
+--     - X? l� logic giao d?ch ph?c t?p (thu/chi, ??nh k?, n?)
+--     - Qu?n l� danh m?c (tCategories) - c? system v� user
 -- 
--- MODULE 4: APP CLIENT (Cả nhóm cùng làm SAU KHI hoàn thành 3 module trên)
---   Nhiệm vụ:
---     - Ứng dụng di động
+-- MODULE 4: APP CLIENT (C? nh�m c�ng l�m SAU KHI ho�n th�nh 3 module tr�n)
+--   Nhi?m v?:
+--     - ?ng d?ng di ??ng
 --     - Mobile UI/UX, Push Notifications
 -- 
--- MODULE 5: AI INTEGRATION (Cả nhóm cùng làm SAU KHI hoàn thành 3 module trên)
---   Bảng: tAIConversations, tReceipts
---   Nhiệm vụ:
+-- MODULE 5: AI INTEGRATION (C? nh�m c�ng l�m SAU KHI ho�n th�nh 3 module tr�n)
+--   B?ng: tAIConversations, tReceipts
+--   Nhi?m v?:
 --     - AI Chat (text/voice)
---     - OCR xử lý hóa đơn
+--     - OCR x? l� h�a ??n
 --     - Voice Processing
 ------------------------------------------------------------------------------------------
 -- =======================================================================================================
--- 📌 LƯU Ý: Đây là guideline tham khảo, không bắt buộc áp dụng 100%
--- 📌 LƯU Ý: Nếu viết view, trigger, mọi chỉnh sửa vào database phải thông báo trước cho nhóm không tự ý thay đổi.
+-- ?? L?U �: ?�y l� guideline tham kh?o, kh�ng b?t bu?c �p d?ng 100%
+-- ?? L?U �: N?u vi?t view, trigger, m?i ch?nh s?a v�o database ph?i th�ng b�o tr??c cho nh�m kh�ng t? � thay ??i.
 -- =======================================================================================================
 GO
 
 USE master;
 GO
 
--- Xóa database cũ nếu tồn tại
+-- X�a database c? n?u t?n t?i
 IF EXISTS (SELECT * FROM sys.databases WHERE name = 'SmartMoney')
 BEGIN
     ALTER DATABASE SmartMoney SET SINGLE_USER WITH ROLLBACK IMMEDIATE;
     DROP DATABASE SmartMoney;
 END
 GO
--- TẠO DATABASE
+-- T?O DATABASE
 CREATE DATABASE SmartMoney;
 GO
 USE SmartMoney
 GO
 
 -- ======================================================================
--- XÓA BẢNG THEO THỨ TỰ NGƯỢC (CON TRƯỚC, CHA SAU)
+-- X�A B?NG THEO TH? T? NG??C (CON TR??C, CHA SAU)
 -- ======================================================================
-DROP TABLE IF EXISTS tBudgetCategories;        -- [1]  Bảng trung gian (N-N) giữa tBudgets và tCategories
-DROP TABLE IF EXISTS tPlannedTransactions;     -- [2]  Con của tAccounts(1-N) + tWallets(1-N) + tCategories(1-N)
-DROP TABLE IF EXISTS tTransactions;            -- [3]  Con của tAccounts(1-N) + tWallets(1-N) + tCategories(1-N)
-DROP TABLE IF EXISTS tReceipts;                -- [4]  Con của tAIConversations (quan hệ 1-1: PK = FK)
-DROP TABLE IF EXISTS tAIConversations;         -- [5]  Con của tAccounts (1-N)
-DROP TABLE IF EXISTS tNotifications;           -- [6]  Con của tAccounts (1-N)
-DROP TABLE IF EXISTS tDebts;                   -- [7]  Con của tAccounts (1-N)
-DROP TABLE IF EXISTS tBudgets;                 -- [8]  Con của tAccounts(1-N) + tWallets(1-N)
-DROP TABLE IF EXISTS tSavingGoals;             -- [9]  Con của tAccounts (1-N)
-DROP TABLE IF EXISTS tEvents;                  -- [10] Con của tAccounts (1-N)
-DROP TABLE IF EXISTS tWallets;                 -- [11] Con của tAccounts(1-N) + tCurrencies(1-N)
-DROP TABLE IF EXISTS tCategories;              -- [12] Con của tAccounts(1-N) + Tự tham chiếu chính nó
-DROP TABLE IF EXISTS tUserDevices;             -- [13] Con của tAccounts (1-N)
-DROP TABLE IF EXISTS tAccounts;                -- [14] Cha chính - Con của tRoles(1-N) và tCurrencies(1-N)
-DROP TABLE IF EXISTS tRolePermissions;         -- [15] Bảng trung gian (N-N) giữa tRoles và tPermissions
-DROP TABLE IF EXISTS tRoles;                   -- [16] Master data - Không phụ thuộc bảng nào
-DROP TABLE IF EXISTS tPermissions;             -- [17] Master data - Không phụ thuộc bảng nào
-DROP TABLE IF EXISTS tCurrencies;              -- [18] Master data - Xóa cuối cùng
+DROP TABLE IF EXISTS tBudgetCategories;        -- [1]  B?ng trung gian (N-N) gi?a tBudgets v� tCategories
+DROP TABLE IF EXISTS tPlannedTransactions;     -- [2]  Con c?a tAccounts(1-N) + tWallets(1-N) + tCategories(1-N)
+DROP TABLE IF EXISTS tTransactions;            -- [3]  Con c?a tAccounts(1-N) + tWallets(1-N) + tCategories(1-N)
+DROP TABLE IF EXISTS tReceipts;                -- [4]  Con c?a tAIConversations (quan h? 1-1: PK = FK)
+DROP TABLE IF EXISTS tAIConversations;         -- [5]  Con c?a tAccounts (1-N)
+DROP TABLE IF EXISTS tNotifications;           -- [6]  Con c?a tAccounts (1-N)
+DROP TABLE IF EXISTS tDebts;                   -- [7]  Con c?a tAccounts (1-N)
+DROP TABLE IF EXISTS tBudgets;                 -- [8]  Con c?a tAccounts(1-N) + tWallets(1-N)
+DROP TABLE IF EXISTS tSavingGoals;             -- [9]  Con c?a tAccounts (1-N)
+DROP TABLE IF EXISTS tEvents;                  -- [10] Con c?a tAccounts (1-N)
+DROP TABLE IF EXISTS tWallets;                 -- [11] Con c?a tAccounts(1-N) + tCurrencies(1-N)
+DROP TABLE IF EXISTS tCategories;              -- [12] Con c?a tAccounts(1-N) + T? tham chi?u ch�nh n�
+DROP TABLE IF EXISTS tUserDevices;             -- [13] Con c?a tAccounts (1-N)
+DROP TABLE IF EXISTS tAccounts;                -- [14] Cha ch�nh - Con c?a tRoles(1-N) v� tCurrencies(1-N)
+DROP TABLE IF EXISTS tRolePermissions;         -- [15] B?ng trung gian (N-N) gi?a tRoles v� tPermissions
+DROP TABLE IF EXISTS tRoles;                   -- [16] Master data - Kh�ng ph? thu?c b?ng n�o
+DROP TABLE IF EXISTS tPermissions;             -- [17] Master data - Kh�ng ph? thu?c b?ng n�o
+DROP TABLE IF EXISTS tCurrencies;              -- [18] Master data - X�a cu?i c�ng
 GO
 -- ======================================================================
--- 1. BẢNG QUYỀN HỆ THỐNG
+-- 1. B?NG QUY?N H? TH?NG
 -- ======================================================================
 CREATE TABLE tPermissions(
     -- PRIMARY KEY
 	id INT PRIMARY KEY IDENTITY(1,1),
 
     -- DATA COLUMNS
-	per_code VARCHAR(50) UNIQUE NOT NULL,   -- Mã quyền động từ (VD: "USER_STANDARD_MANAGE", "ADMIN_SYSTEM_ALL")
-	per_name NVARCHAR(100) UNIQUE NOT NULL, -- Tên hiển thị
-	module_group NVARCHAR(50) NOT NULL      -- Nhóm module (USER_CORE, ADMIN_CORE)
+	per_code VARCHAR(50) UNIQUE NOT NULL,   -- M� quy?n ??ng t? (VD: "USER_STANDARD_MANAGE", "ADMIN_SYSTEM_ALL")
+	per_name NVARCHAR(100) UNIQUE NOT NULL, -- T�n hi?n th?
+	module_group NVARCHAR(50) NOT NULL      -- Nh�m module (USER_CORE, ADMIN_CORE)
 );
 GO
--- Index: Tối ưu tìm kiếm quyền theo nhóm module cho Admin UI
+-- Index: T?i ?u t�m ki?m quy?n theo nh�m module cho Admin UI
 CREATE INDEX idx_permissions_group ON tPermissions(module_group) INCLUDE (per_code, per_name);
 GO
 
--- DỮ LIỆU MẪU: Quyền hệ thống
+-- D? LI?U M?U: Quy?n h? th?ng
 INSERT INTO tPermissions (per_code, per_name, module_group) VALUES 
-('ADMIN_SYSTEM_ALL',     N'Toàn quyền quản trị hệ thống và người dùng', 'ADMIN_CORE'),
-('USER_STANDARD_MANAGE', N'Toàn quyền quản lý tài chính cá nhân cơ bản', 'USER_CORE');
+('ADMIN_SYSTEM_ALL',     N'To�n quy?n qu?n tr? h? th?ng v� ng??i d�ng', 'ADMIN_CORE'),
+('USER_STANDARD_MANAGE', N'To�n quy?n qu?n l� t�i ch�nh c� nh�n c? b?n', 'USER_CORE');
 GO
 
 -- ======================================================================
--- 2. BẢNG VAI TRÒ
+-- 2. B?NG VAI TR�
 -- ======================================================================
 CREATE TABLE tRoles(
     -- PRIMARY KEY
     id INT PRIMARY KEY IDENTITY(1,1),
     -- DATA COLUMNS
-    role_code VARCHAR(50) UNIQUE NOT NULL,       -- Mã role cho code check (VD: "ROLE_USER", "ROLE_ADMIN")
-    role_name NVARCHAR(100) UNIQUE NOT NULL      -- Tên role hiển thị UI (VD: "Quản trị viên", "Người dùng")
+    role_code VARCHAR(50) UNIQUE NOT NULL,       -- M� role cho code check (VD: "ROLE_USER", "ROLE_ADMIN")
+    role_name NVARCHAR(100) UNIQUE NOT NULL      -- T�n role hi?n th? UI (VD: "Qu?n tr? vi�n", "Ng??i d�ng")
 )
 GO
 
--- Index: Tối ưu check role từ Backend
+-- Index: T?i ?u check role t? Backend
 CREATE INDEX idx_role_code ON tRoles(role_code) INCLUDE (role_name);
 GO
 
--- DỮ LIỆU MẪU: Vai trò
+-- D? LI?U M?U: Vai tr�
 INSERT INTO tRoles (role_code, role_name) VALUES 
-('ROLE_ADMIN', N'Quản trị viên'),
-('ROLE_USER', N'Người dùng tiêu chuẩn');
+('ROLE_ADMIN', N'Qu?n tr? vi�n'),
+('ROLE_USER', N'Ng??i d�ng ti�u chu?n');
 GO
 
 -- ======================================================================
--- 3. BẢNG TRUNG GIAN ROLE - PERMISSION (N-N)
+-- 3. B?NG TRUNG GIAN ROLE - PERMISSION (N-N)
 -- ======================================================================
 CREATE TABLE tRolePermissions(
     -- PRIMARY KEY (Composite)
@@ -235,87 +234,87 @@ CREATE TABLE tRolePermissions(
 )
 GO
 
--- Index: Tối ưu load quyền theo Role (dùng khi nạp Security Context)
+-- Index: T?i ?u load quy?n theo Role (d�ng khi n?p Security Context)
 CREATE INDEX idx_roleper_role ON tRolePermissions(role_id) INCLUDE (per_id);
 GO
 
 INSERT INTO tRolePermissions (role_id, per_id) VALUES 
-(1, 1),  -- Admin có quyền toàn quyền hệ thống
-(2, 2);  -- User có quyền quản lý tài chính cá nhân
+(1, 1),  -- Admin c� quy?n to�n quy?n h? th?ng
+(2, 2);  -- User c� quy?n qu?n l� t�i ch�nh c� nh�n
 GO
 
 -- ======================================================================
--- 4. BẢNG TIỀN TỆ
+-- 4. B?NG TI?N T?
 -- ======================================================================
 CREATE TABLE tCurrencies (
     -- PRIMARY KEY
-    currency_code VARCHAR(10) PRIMARY KEY,       -- Mã tiền tệ (VD: VND, USD, EUR)
+    currency_code VARCHAR(10) PRIMARY KEY,       -- M� ti?n t? (VD: VND, USD, EUR)
     
     -- DATA COLUMNS
-    currency_name NVARCHAR(100) UNIQUE NOT NULL, -- Tên đầy đủ (VD: "Việt Nam Đồng")
-    symbol NVARCHAR(10) NOT NULL,                -- Ký hiệu (VD: "₫", "$", "€")
-    flag_url VARCHAR(500) UNIQUE NOT NULL        -- URL cờ quốc gia (dùng CDN)
+    currency_name NVARCHAR(100) UNIQUE NOT NULL, -- T�n ??y ?? (VD: "Vi?t Nam ??ng")
+    symbol NVARCHAR(10) NOT NULL,                -- K� hi?u (VD: "?", "$", "�")
+    flag_url VARCHAR(500) UNIQUE NOT NULL        -- URL c? qu?c gia (d�ng CDN)
 );
 GO
 
--- DỮ LIỆU MẪU: Tiền tệ
+-- D? LI?U M?U: Ti?n t?
 INSERT INTO tCurrencies (currency_code, currency_name, symbol, flag_url) VALUES 
--- Cường quốc & Chiến hữu
-('VND', N'Việt Nam Đồng', N'₫', 'https://flagcdn.com/w40/vn.png'),
-('CNY', N'Nhân dân tệ', N'¥', 'https://flagcdn.com/w40/cn.png'),
-('RUB', N'Rúp Nga', N'₽', 'https://flagcdn.com/w40/ru.png'),
-('CUP', N'Peso Cuba', N'₱', 'https://flagcdn.com/w40/cu.png'),
-('KPW', N'Won Triều Tiên', N'₩', 'https://flagcdn.com/w40/kp.png'),
+-- C??ng qu?c & Chi?n h?u
+('VND', N'Vi?t Nam ??ng', N'?', 'https://flagcdn.com/w40/vn.png'),
+('CNY', N'Nh�n d�n t?', N'�', 'https://flagcdn.com/w40/cn.png'),
+('RUB', N'R�p Nga', N'?', 'https://flagcdn.com/w40/ru.png'),
+('CUP', N'Peso Cuba', N'?', 'https://flagcdn.com/w40/cu.png'),
+('KPW', N'Won Tri?u Ti�n', N'?', 'https://flagcdn.com/w40/kp.png'),
 ('AOA', N'Kwanza Angola', N'Kz', 'https://flagcdn.com/w40/ao.png'),
 
--- Khu vực Đông Á
-('HKD', N'Đô la Hồng Kông', N'$', 'https://flagcdn.com/w40/hk.png'),
+-- Khu v?c ?�ng �
+('HKD', N'?� la H?ng K�ng', N'$', 'https://flagcdn.com/w40/hk.png'),
 ('MOP', N'Pataca Macao', N'MOP$', 'https://flagcdn.com/w40/mo.png'),
-('TWD', N'Đô la Đài Loan', N'$', 'https://flagcdn.com/w40/tw.png'),
-('JPY', N'Yên Nhật', N'¥', 'https://flagcdn.com/w40/jp.png'),
-('KRW', N'Won Hàn Quốc', N'₩', 'https://flagcdn.com/w40/kr.png'),
+('TWD', N'?� la ?�i Loan', N'$', 'https://flagcdn.com/w40/tw.png'),
+('JPY', N'Y�n Nh?t', N'�', 'https://flagcdn.com/w40/jp.png'),
+('KRW', N'Won H�n Qu?c', N'?', 'https://flagcdn.com/w40/kr.png'),
 
--- Đông Âu & Trung Á
-('UAH', N'Hryvnia Ukraina', N'₴', 'https://flagcdn.com/w40/ua.png'),
-('BYN', N'Rúp Belarus', N'Br', 'https://flagcdn.com/w40/by.png'),
-('KZT', N'Tenge Kazakhstan', N'₸', 'https://flagcdn.com/w40/kz.png'),
-('PLN', N'Zloty Ba Lan', N'zł', 'https://flagcdn.com/w40/pl.png'),
+-- ?�ng �u & Trung �
+('UAH', N'Hryvnia Ukraina', N'?', 'https://flagcdn.com/w40/ua.png'),
+('BYN', N'R�p Belarus', N'Br', 'https://flagcdn.com/w40/by.png'),
+('KZT', N'Tenge Kazakhstan', N'?', 'https://flagcdn.com/w40/kz.png'),
+('PLN', N'Zloty Ba Lan', N'z?', 'https://flagcdn.com/w40/pl.png'),
 
--- Phương Tây
-('USD', N'Đô la Mỹ', N'$', 'https://flagcdn.com/w40/us.png'),
-('EUR', N'Euro (Khối EU)', N'€', 'https://flagcdn.com/w40/eu.png'),
-('GBP', N'Bảng Anh', N'£', 'https://flagcdn.com/w40/gb.png'),
-('CHF', N'Franc Thụy Sĩ', N'CHF', 'https://flagcdn.com/w40/ch.png'),
-('CAD', N'Đô la Canada', N'$', 'https://flagcdn.com/w40/ca.png'),
-('AUD', N'Đô la Úc', N'$', 'https://flagcdn.com/w40/au.png'),
+-- Ph??ng T�y
+('USD', N'?� la M?', N'$', 'https://flagcdn.com/w40/us.png'),
+('EUR', N'Euro (Kh?i EU)', N'�', 'https://flagcdn.com/w40/eu.png'),
+('GBP', N'B?ng Anh', N'�', 'https://flagcdn.com/w40/gb.png'),
+('CHF', N'Franc Th?y S?', N'CHF', 'https://flagcdn.com/w40/ch.png'),
+('CAD', N'?� la Canada', N'$', 'https://flagcdn.com/w40/ca.png'),
+('AUD', N'?� la �c', N'$', 'https://flagcdn.com/w40/au.png'),
 
--- Nam Mỹ & Nam Á
+-- Nam M? & Nam �
 ('ARS', N'Peso Argentina', N'$', 'https://flagcdn.com/w40/ar.png'),
 ('BRL', N'Real Brazil', N'R$', 'https://flagcdn.com/w40/br.png'),
-('INR', N'Rupee Ấn Độ', N'₹', 'https://flagcdn.com/w40/in.png'),
+('INR', N'Rupee ?n ??', N'?', 'https://flagcdn.com/w40/in.png'),
 
--- Trung Đông & Châu Phi
-('SAR', N'Riyal Saudi Arabia', N'﷼', 'https://flagcdn.com/w40/sa.png'),
-('AED', N'Dirham UAE', N'د.إ', 'https://flagcdn.com/w40/ae.png'),
-('ILS', N'Shekel Israel', N'₪', 'https://flagcdn.com/w40/il.png'),
-('EGP', N'Bảng Ai Cập', N'E£', 'https://flagcdn.com/w40/eg.png'),
-('NGN', N'Naira Nigeria', N'₦', 'https://flagcdn.com/w40/ng.png'),
+-- Trung ?�ng & Ch�u Phi
+('SAR', N'Riyal Saudi Arabia', N'?', 'https://flagcdn.com/w40/sa.png'),
+('AED', N'Dirham UAE', N'?.?', 'https://flagcdn.com/w40/ae.png'),
+('ILS', N'Shekel Israel', N'?', 'https://flagcdn.com/w40/il.png'),
+('EGP', N'B?ng Ai C?p', N'E�', 'https://flagcdn.com/w40/eg.png'),
+('NGN', N'Naira Nigeria', N'?', 'https://flagcdn.com/w40/ng.png'),
 ('ZAR', N'Rand Nam Phi', N'R', 'https://flagcdn.com/w40/za.png'),
 
--- Đông Nam Á (ASEAN)
-('LAK', N'Kip Lào', N'₭', 'https://flagcdn.com/w40/la.png'),
-('KHR', N'Riel Campuchia', N'៛', 'https://flagcdn.com/w40/kh.png'),
-('THB', N'Baht Thái Lan', N'฿', 'https://flagcdn.com/w40/th.png'),
-('SGD', N'Đô la Singapore', N'$', 'https://flagcdn.com/w40/sg.png'),
+-- ?�ng Nam � (ASEAN)
+('LAK', N'Kip L�o', N'?', 'https://flagcdn.com/w40/la.png'),
+('KHR', N'Riel Campuchia', N'?', 'https://flagcdn.com/w40/kh.png'),
+('THB', N'Baht Th�i Lan', N'?', 'https://flagcdn.com/w40/th.png'),
+('SGD', N'?� la Singapore', N'$', 'https://flagcdn.com/w40/sg.png'),
 ('MYR', N'Ringgit Malaysia', N'RM', 'https://flagcdn.com/w40/my.png'),
 ('IDR', N'Rupiah Indonesia', N'Rp', 'https://flagcdn.com/w40/id.png'),
-('PHP', N'Peso Philippines', N'₱', 'https://flagcdn.com/w40/ph.png'),
+('PHP', N'Peso Philippines', N'?', 'https://flagcdn.com/w40/ph.png'),
 ('MMK', N'Kyat Myanmar', N'K', 'https://flagcdn.com/w40/mm.png'),
-('BND', N'Đô la Brunei', N'$', 'https://flagcdn.com/w40/bn.png');
+('BND', N'?� la Brunei', N'$', 'https://flagcdn.com/w40/bn.png');
 GO
 
 -- ======================================================================
--- 5. BẢNG TÀI KHOẢN NGƯỜI DÙNG
+-- 5. B?NG T�I KHO?N NG??I D�NG
 -- ======================================================================
 CREATE TABLE tAccounts (
     -- PRIMARY KEY
@@ -323,52 +322,69 @@ CREATE TABLE tAccounts (
     
     -- FOREIGN KEYS
     role_id INT NOT NULL,                        -- FK -> tRoles (N-1)
-    currency VARCHAR(10) DEFAULT 'VND',          -- FK -> tCurrencies (N-1) Tiền tệ mặc định
+    currency VARCHAR(10) DEFAULT 'VND',          -- FK -> tCurrencies (N-1) Ti?n t? m?c ??nh
     
     -- DATA COLUMNS
-    acc_phone VARCHAR(20) NULL,                  -- Số điện thoại (NULL nếu đăng ký bằng email)
-    acc_email VARCHAR(100) NULL,                 -- Email (NULL nếu đăng ký bằng SĐT)
-    hash_password VARCHAR(255) NOT NULL,         -- Mật khẩu đã hash (BCrypt/Argon2)
-    avatar_url VARCHAR(2048) NULL,               -- URL avatar (upload hoặc CDN)
-    locked BIT DEFAULT 0 NOT NULL,            -- 0: Active | 1: Locked (không thể login)
+    acc_phone VARCHAR(20) NULL,                  -- S? ?i?n tho?i (NULL n?u ??ng k� b?ng email)
+    acc_email VARCHAR(100) NULL,                 -- Email (NULL n?u ??ng k� b?ng S?T)
+    hash_password VARCHAR(255) NOT NULL,         -- M?t kh?u ?� hash (BCrypt/Argon2)
+    avatar_url VARCHAR(2048) NULL,               -- URL avatar (upload ho?c CDN)
+    locked BIT DEFAULT 0 NOT NULL,            -- 0: Active | 1: Locked (kh�ng th? login)
     
     -- METADATA
     created_at DATETIME DEFAULT GETDATE() NOT NULL,
     updated_at DATETIME DEFAULT GETDATE(),
     
     -- CONSTRAINTS
-    CONSTRAINT CHK_Account_Identity CHECK (acc_phone IS NOT NULL OR acc_email IS NOT NULL), -- Bắt buộc có 1 trong 2
+    CONSTRAINT CHK_Account_Identity CHECK (acc_phone IS NOT NULL OR acc_email IS NOT NULL), -- B?t bu?c c� 1 trong 2
 
     CONSTRAINT FK_Account_Role FOREIGN KEY (role_id) REFERENCES tRoles(id),
     CONSTRAINT FK_Account_Currency FOREIGN KEY (currency) REFERENCES tCurrencies(currency_code)
 );
 GO
 
--- Index: Unique cho Phone (chặn trùng lặp)
+-- Index: Unique cho Phone (ch?n tr�ng l?p)
 CREATE UNIQUE NONCLUSTERED INDEX idx_unique_acc_phone ON tAccounts(acc_phone) 
 WHERE acc_phone IS NOT NULL;
 
--- Index: Unique cho Email (chặn trùng lặp)
+-- Index: Unique cho Email (ch?n tr�ng l?p)
 CREATE UNIQUE NONCLUSTERED INDEX idx_unique_acc_email ON tAccounts(acc_email) 
 WHERE acc_email IS NOT NULL;
 
--- Index: Tối ưu Admin search User theo status và role
+-- Index: T?i ?u Admin search User theo status v� role
 CREATE INDEX idx_accounts_admin ON tAccounts(locked, role_id, created_at DESC) 
 INCLUDE (acc_phone, acc_email, avatar_url, currency);
 
--- Index: Tối ưu lọc User theo tiền tệ cho thống kê
+-- Index: T?i ?u l?c User theo ti?n t? cho th?ng k�
 CREATE INDEX idx_accounts_currency ON tAccounts(currency, created_at DESC);
 GO
 
--- DỮ LIỆU MẪU: Tài khoản
+-- D? LI?U M?U: T�i kho?n
 INSERT INTO tAccounts (role_id, acc_phone, acc_email, hash_password, avatar_url, currency, locked) VALUES 
 (1, '0901234567', 'admin@smartmoney.vn', '$2a$10$tF5hUn6YqBEMNkVi/0SlhOKYXEIzQwoGMXY1wIcRqRWSiG2Z.Id5K', 'https://api.dicebear.com/7.x/avataaars/svg?seed=AdminPRO', 'VND', 0),
 (2, '0912345678', 'mai.tran@gmail.com', '$2a$10$tF5hUn6YqBEMNkVi/0SlhOKYXEIzQwoGMXY1wIcRqRWSiG2Z.Id5K', 'https://api.dicebear.com/7.x/avataaars/svg?seed=Mai', 'VND', 1),
-(2, '0987654321', 'nam.le@yahoo.com', '$2a$10$tF5hUn6YqBEMNkVi/0SlhOKYXEIzQwoGMXY1wIcRqRWSiG2Z.Id5K', 'https://api.dicebear.com/7.x/avataaars/svg?seed=Nam', 'VND', 0);
+(2, '0987654321', 'nam.le@yahoo.com', '$2a$10$tF5hUn6YqBEMNkVi/0SlhOKYXEIzQwoGMXY1wIcRqRWSiG2Z.Id5K', 'https://api.dicebear.com/7.x/avataaars/svg?seed=Nam', 'VND', 0),
+(2, '0987654332', 'test3@gmail.com', '$2a$10$tF5hUn6YqBEMNkVi/0SlhOKYXEIzQwoGMXY1wIcRqRWSiG2Z.Id5K', NULL, 'VND', 0),
+(1, '0909876543', 'huong.nguyen@gmail.com', '$2a$10$tF5hUn6YqBEMNkVi/0SlhOKYXEIzQwoGMXY1wIcRqRWSiG2Z.Id5K', 'https://api.dicebear.com/7.x/avataaars/svg?seed=Huong', 'VND', 0),
+(2, '0923456789', 'minh.pham@gmail.com', '$2a$10$tF5hUn6YqBEMNkVi/0SlhOKYXEIzQwoGMXY1wIcRqRWSiG2Z.Id5K', 'https://api.dicebear.com/7.x/avataaars/svg?seed=Minh', 'VND', 0),
+(2, '0934567890', 'linhvo@yahoo.com', '$2a$10$tF5hUn6YqBEMNkVi/0SlhOKYXEIzQwoGMXY1wIcRqRWSiG2Z.Id5K', 'https://api.dicebear.com/7.x/avataaars/svg?seed=Linh', 'VND', 1),
+(2, '0945678901', 'quanhoang@gmail.com', '$2a$10$tF5hUn6YqBEMNkVi/0SlhOKYXEIzQwoGMXY1wIcRqRWSiG2Z.Id5K', 'https://api.dicebear.com/7.x/avataaars/svg?seed=Quan', 'VND', 0),
+(2, '0956789012', 'thaodang@gmail.com', '$2a$10$tF5hUn6YqBEMNkVi/0SlhOKYXEIzQwoGMXY1wIcRqRWSiG2Z.Id5K', NULL, 'VND', 0),
+(2, '0967890123', 'khanhbui@outlook.com', '$2a$10$tF5hUn6YqBEMNkVi/0SlhOKYXEIzQwoGMXY1wIcRqRWSiG2Z.Id5K', 'https://api.dicebear.com/7.x/avataaars/svg?seed=Khanh', 'VND', 0),
+(2, '0978901234', 'anhtruong@gmail.com', '$2a$10$tF5hUn6YqBEMNkVi/0SlhOKYXEIzQwoGMXY1wIcRqRWSiG2Z.Id5K', 'https://api.dicebear.com/7.x/avataaars/svg?seed=Anh', 'VND', 1),
+(2, '0989012345', 'ducdo@gmail.com', '$2a$10$tF5hUn6YqBEMNkVi/0SlhOKYXEIzQwoGMXY1wIcRqRWSiG2Z.Id5K', 'https://api.dicebear.com/7.x/avataaars/svg?seed=Duc', 'VND', 0),
+(2, '0911223344', 'hoanguyen@gmail.com', '$2a$10$tF5hUn6YqBEMNkVi/0SlhOKYXEIzQwoGMXY1wIcRqRWSiG2Z.Id5K', 'https://api.dicebear.com/7.x/avataaars/svg?seed=Hoa', 'VND', 0),
+(2, '0922334455', 'tuanvu@gmail.com', '$2a$10$tF5hUn6YqBEMNkVi/0SlhOKYXEIzQwoGMXY1wIcRqRWSiG2Z.Id5K', 'https://api.dicebear.com/7.x/avataaars/svg?seed=Tuan', 'VND', 0),
+(2, '0933445566', 'lanphan@yahoo.com', '$2a$10$tF5hUn6YqBEMNkVi/0SlhOKYXEIzQwoGMXY1wIcRqRWSiG2Z.Id5K', NULL, 'VND', 1),
+(2, '0944556677', 'hung.ngo@gmail.com', '$2a$10$tF5hUn6YqBEMNkVi/0SlhOKYXEIzQwoGMXY1wIcRqRWSiG2Z.Id5K', 'https://api.dicebear.com/7.x/avataaars/svg?seed=Hung', 'VND', 0),
+(2, '0955667788', 'my.tran@outlook.com', '$2a$10$tF5hUn6YqBEMNkVi/0SlhOKYXEIzQwoGMXY1wIcRqRWSiG2Z.Id5K', 'https://api.dicebear.com/7.x/avataaars/svg?seed=My', 'VND', 0),
+(2, '0966778899', 'son.le@gmail.com', '$2a$10$tF5hUn6YqBEMNkVi/0SlhOKYXEIzQwoGMXY1wIcRqRWSiG2Z.Id5K', 'https://api.dicebear.com/7.x/avataaars/svg?seed=Son', 'VND', 0),
+(2, '0977889900', 'thu.hoang@gmail.com', '$2a$10$tF5hUn6YqBEMNkVi/0SlhOKYXEIzQwoGMXY1wIcRqRWSiG2Z.Id5K', NULL, 'VND', 1),
+(2, '0988990011', 'long.dang@gmail.com', '$2a$10$tF5hUn6YqBEMNkVi/0SlhOKYXEIzQwoGMXY1wIcRqRWSiG2Z.Id5K', 'https://api.dicebear.com/7.x/avataaars/svg?seed=Long', 'VND', 0);
 GO
 
 -- ======================================================================
--- 6. BẢNG THIẾT BỊ NGƯỜI DÙNG (1-N với tAccounts)
+-- 6. B?NG THI?T B? NG??I D�NG (1-N v?i tAccounts)
 -- ======================================================================
 CREATE TABLE tUserDevices (
     -- PRIMARY KEY
@@ -381,39 +397,257 @@ CREATE TABLE tUserDevices (
     device_token VARCHAR(500) NOT NULL,          -- Firebase/APNs token (UNIQUE)
 
     refresh_token VARCHAR(512) NULL,             -- JWT Refresh Token (hash)
-    refresh_token_expired_at DATETIME NULL,      -- Thời hạn Refresh Token
+    refresh_token_expired_at DATETIME NULL,      -- Th?i h?n Refresh Token
 
     device_type VARCHAR(50) NOT NULL,            -- VD: "iOS", "Android", "Chrome_Windows"
     device_name NVARCHAR(100) NULL,              -- VD: "iPhone 15 Pro", "Samsung S24"
-    ip_address VARCHAR(45) NULL,                 -- IPv4/IPv6 cuối cùng (cảnh báo đăng nhập lạ)
-    logged_in BIT DEFAULT 1 NOT NULL,         -- 0: Đã logout | 1: Còn session
-    last_active DATETIME DEFAULT GETDATE() NOT NULL, -- Thời gian cuối active (dùng tính Online)
+    ip_address VARCHAR(45) NULL,                 -- IPv4/IPv6 cu?i c�ng (c?nh b�o ??ng nh?p l?)
+    logged_in BIT DEFAULT 1 NOT NULL,         -- 0: ?� logout | 1: C�n session
+    last_active DATETIME DEFAULT GETDATE() NOT NULL, -- Th?i gian cu?i active (d�ng t�nh Online)
     
     -- CONSTRAINTS
     CONSTRAINT FK_UserDevices_Account FOREIGN KEY (acc_id) REFERENCES tAccounts(id)     
 );
 GO
-/* CÔNG THỨC CHECK ONLINE (Dành cho Dev Backend/Frontend):
-  Online = (logged_in == 1) AND (CurrentTime - last_active < 5 phút)
+/* C�NG TH?C CHECK ONLINE (D�nh cho Dev Backend/Frontend):
+  Online = (logged_in == 1) AND (CurrentTime - last_active < 5 ph�t)
   
-  Lý do: logged_in chỉ cho biết User chưa bấm "Đăng xuất". 
-  Còn last_active mới cho biết User có thực sự đang cầm máy hay không.
+  L� do: logged_in ch? cho bi?t User ch?a b?m "??ng xu?t". 
+  C�n last_active m?i cho bi?t User c� th?c s? ?ang c?m m�y hay kh�ng.
 */
 
---  Index: Unique cho Device Token (chặn trùng lặp)
+--  Index: Unique cho Device Token (ch?n tr�ng l?p)
 CREATE UNIQUE NONCLUSTERED INDEX idx_unique_device_token ON tUserDevices(device_token) WHERE device_token IS NOT NULL;
--- Index: Tối ưu validate Refresh Token nhanh
+-- Index: T?i ?u validate Refresh Token nhanh
 CREATE INDEX idx_devices_refresh ON tUserDevices(refresh_token, refresh_token_expired_at) WHERE refresh_token IS NOT NULL;
--- Index: Tối ưu query danh sách thiết bị Online của User
+-- Index: T?i ?u query danh s�ch thi?t b? Online c?a User
 CREATE INDEX idx_devices_presence ON tUserDevices(acc_id, logged_in, last_active DESC) INCLUDE (device_name, device_type);
--- Index: Tối ưu Worker dọn token hết hạn
+-- Index: T?i ?u Worker d?n token h?t h?n
 CREATE INDEX idx_devices_expired_token ON tUserDevices(refresh_token_expired_at) WHERE refresh_token IS NOT NULL;
+GO
+-- ======================================================================
+-- D? LI?U M?U: Thi?t b? ng??i d�ng (tUserDevices)
+-- ======================================================================
+-- PH�N B?: 26 rows cho 20 users
+-- TEST CASES: Multi-device, Online/Offline, Token h?t h?n, ?a n?n t?ng
+-- ======================================================================
+
+INSERT INTO tUserDevices (
+    acc_id, device_token, refresh_token, refresh_token_expired_at,
+    device_type, device_name, ip_address, logged_in, last_active
+) VALUES
+
+-- ??????????????????????????????????????????????????????????????????????
+-- USER 1 (Admin) - 2 thi?t b? (PC + Mobile)
+-- ??????????????????????????????????????????????????????????????????????
+(1, 'fcm_admin_desktop_token_001', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.admin.pc', 
+ DATEADD(DAY, 7, GETDATE()), 
+ 'Chrome_Windows', N'PC Dell XPS 15', '192.168.1.100', 1, DATEADD(MINUTE, -2, GETDATE())),
+ -- ?? ONLINE (logged_in=1, last_active < 5 ph�t)
+
+(1, 'fcm_admin_mobile_token_002', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.admin.iphone', 
+ DATEADD(DAY, 5, GETDATE()), 
+ 'iOS', N'iPhone 15 Pro Max', '42.118.225.134', 1, DATEADD(HOUR, -3, GETDATE())),
+ -- ?? OFFLINE (logged_in=1 nh?ng last_active > 5 ph�t)
+
+-- ??????????????????????????????????????????????????????????????????????
+-- USER 2 (Mai) - LOCKED account - 1 thi?t b? c?
+-- ??????????????????????????????????????????????????????????????????????
+(2, 'fcm_mai_android_token_003', NULL, NULL, 
+ 'Android', N'Samsung Galaxy S23', '103.56.158.92', 0, DATEADD(DAY, -15, GETDATE())),
+ -- ?? LOGGED OUT (logged_in=0) - Account b? lock
+
+-- ??????????????????????????????????????????????????????????????????????
+-- USER 3 (Nam) - 3 thi?t b? (test multi-device)
+-- ??????????????????????????????????????????????????????????????????????
+(3, 'fcm_nam_iphone_token_004', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.nam.iphone', 
+ DATEADD(DAY, 6, GETDATE()), 
+ 'iOS', N'iPhone 14', '115.78.34.201', 1, GETDATE()),
+ -- ?? ONLINE (v?a m?i active)
+
+(3, 'fcm_nam_laptop_token_005', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.nam.macbook', 
+ DATEADD(DAY, 3, GETDATE()), 
+ 'Safari_macOS', N'MacBook Pro 2023', '192.168.1.105', 1, DATEADD(MINUTE, -4, GETDATE())),
+ -- ?? ONLINE (trong 5 ph�t)
+
+(3, 'fcm_nam_ipad_token_006', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.nam.ipad', 
+ DATEADD(DAY, -2, GETDATE()), 
+ 'iOS', N'iPad Air 5', '115.78.34.201', 1, DATEADD(DAY, -1, GETDATE())),
+ -- ?? TOKEN H?T H?N + OFFLINE
+
+-- ??????????????????????????????????????????????????????????????????????
+-- USER 4 (test3) - 1 thi?t b? Android
+-- ??????????????????????????????????????????????????????????????????????
+(4, 'fcm_test3_xiaomi_token_007', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.test3.xiaomi', 
+ DATEADD(DAY, 4, GETDATE()), 
+ 'Android', N'Xiaomi Redmi Note 12', '171.244.56.123', 1, DATEADD(MINUTE, -30, GETDATE())),
+ -- ?? OFFLINE (30 ph�t tr??c)
+
+-- ??????????????????????????????????????????????????????????????????????
+-- USER 5 (H??ng - Admin) - 2 thi?t b?
+-- ??????????????????????????????????????????????????????????????????????
+(5, 'fcm_huong_desktop_token_008', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.huong.desktop', 
+ DATEADD(DAY, 7, GETDATE()), 
+ 'Edge_Windows', N'PC HP EliteBook', '192.168.10.50', 1, DATEADD(MINUTE, -1, GETDATE())),
+ -- ?? ONLINE
+
+(5, 'fcm_huong_android_token_009', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.huong.oppo', 
+ DATEADD(DAY, 5, GETDATE()), 
+ 'Android', N'OPPO Find X6 Pro', '113.161.78.45', 1, DATEADD(HOUR, -2, GETDATE())),
+ -- ?? OFFLINE
+
+-- ??????????????????????????????????????????????????????????????????????
+-- USER 6 (Minh) - 1 thi?t b? iPhone
+-- ??????????????????????????????????????????????????????????????????????
+(6, 'fcm_minh_iphone13_token_010', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.minh.iphone', 
+ DATEADD(DAY, 6, GETDATE()), 
+ 'iOS', N'iPhone 13 Pro', '14.231.187.92', 1, DATEADD(MINUTE, -10, GETDATE())),
+ -- ?? OFFLINE
+
+-- ??????????????????????????????????????????????????????????????????????
+-- USER 7 (Linh) - LOCKED - 1 thi?t b? c?
+-- ??????????????????????????????????????????????????????????????????????
+(7, 'fcm_linh_vivo_token_011', NULL, NULL, 
+ 'Android', N'Vivo V29', '125.235.10.88', 0, DATEADD(DAY, -20, GETDATE())),
+ -- ?? LOGGED OUT - Account locked
+
+-- ??????????????????????????????????????????????????????????????????????
+-- USER 8 (Qu�n) - 2 thi?t b? (Web + Mobile)
+-- ??????????????????????????????????????????????????????????????????????
+(8, 'fcm_quan_chrome_token_012', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.quan.chrome', 
+ DATEADD(DAY, 7, GETDATE()), 
+ 'Chrome_Linux', N'Ubuntu Desktop 22.04', '118.70.186.45', 1, DATEADD(SECOND, -30, GETDATE())),
+ -- ?? ONLINE (30s tr??c)
+
+(8, 'fcm_quan_realme_token_013', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.quan.realme', 
+ DATEADD(DAY, 4, GETDATE()), 
+ 'Android', N'Realme GT Neo 5', '118.70.186.45', 1, DATEADD(DAY, -1, GETDATE())),
+ -- ?? OFFLINE (1 ng�y tr??c)
+
+-- ??????????????????????????????????????????????????????????????????????
+-- USER 9 (Th?o) - 1 thi?t b? Samsung
+-- ??????????????????????????????????????????????????????????????????????
+(9, 'fcm_thao_samsung_token_014', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.thao.samsung', 
+ DATEADD(DAY, 5, GETDATE()), 
+ 'Android', N'Samsung Galaxy A54', '171.224.178.90', 1, DATEADD(MINUTE, -3, GETDATE())),
+ -- ?? ONLINE
+
+-- ??????????????????????????????????????????????????????????????????????
+-- USER 10 (Kh�nh) - 2 thi?t b? (PC + iOS)
+-- ??????????????????????????????????????????????????????????????????????
+(10, 'fcm_khanh_firefox_token_015', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.khanh.firefox', 
+ DATEADD(DAY, 6, GETDATE()), 
+ 'Firefox_Windows', N'PC Acer Aspire', '192.168.2.88', 1, DATEADD(MINUTE, -15, GETDATE())),
+ -- ?? OFFLINE
+
+(10, 'fcm_khanh_iphone_token_016', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.khanh.iphone12', 
+ DATEADD(DAY, -1, GETDATE()), 
+ 'iOS', N'iPhone 12 Mini', '42.112.89.156', 1, DATEADD(HOUR, -10, GETDATE())),
+ -- ?? TOKEN H?T H?N + OFFLINE
+
+-- ??????????????????????????????????????????????????????????????????????
+-- USER 11 (Anh) - LOCKED - ?� logout
+-- ??????????????????????????????????????????????????????????????????????
+(11, 'fcm_anh_oneplus_token_017', NULL, NULL, 
+ 'Android', N'OnePlus 11', '113.185.42.78', 0, DATEADD(DAY, -10, GETDATE())),
+ -- ?? LOGGED OUT
+
+-- ??????????????????????????????????????????????????????????????????????
+-- USER 12 (??c) - 1 thi?t b? Android
+-- ??????????????????????????????????????????????????????????????????????
+(12, 'fcm_duc_pixel_token_018', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.duc.pixel', 
+ DATEADD(DAY, 7, GETDATE()), 
+ 'Android', N'Google Pixel 8 Pro', '171.250.166.34', 1, DATEADD(MINUTE, -2, GETDATE())),
+ -- ?? ONLINE
+
+-- ??????????????????????????????????????????????????????????????????????
+-- USER 13 (Hoa) - 1 thi?t b? Web
+-- ??????????????????????????????????????????????????????????????????????
+(13, 'fcm_hoa_brave_token_019', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.hoa.brave', 
+ DATEADD(DAY, 5, GETDATE()), 
+ 'Brave_macOS', N'MacBook Air M2', '192.168.5.120', 1, DATEADD(HOUR, -1, GETDATE())),
+ -- ?? OFFLINE
+
+-- ??????????????????????????????????????????????????????????????????????
+-- USER 14 (Tu?n) - 1 thi?t b? iPhone
+-- ??????????????????????????????????????????????????????????????????????
+(14, 'fcm_tuan_iphone14_token_020', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.tuan.iphone14', 
+ DATEADD(DAY, 6, GETDATE()), 
+ 'iOS', N'iPhone 14 Plus', '27.72.98.156', 1, DATEADD(MINUTE, -4, GETDATE())),
+ -- ?? ONLINE
+
+-- ??????????????????????????????????????????????????????????????????????
+-- USER 15 (Lan) - LOCKED - Kh�ng c�n session
+-- ??????????????????????????????????????????????????????????????????????
+(15, 'fcm_lan_huawei_token_021', NULL, NULL, 
+ 'Android', N'Huawei Nova 11', '14.177.234.89', 0, DATEADD(DAY, -25, GETDATE())),
+ -- ?? LOGGED OUT
+
+-- ??????????????????????????????????????????????????????????????????????
+-- USER 16 (H?ng) - 1 thi?t b? Android
+-- ??????????????????????????????????????????????????????????????????????
+(16, 'fcm_hung_note20_token_022', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.hung.note20', 
+ DATEADD(DAY, 4, GETDATE()), 
+ 'Android', N'Samsung Note 20 Ultra', '113.172.45.201', 1, DATEADD(MINUTE, -8, GETDATE())),
+ -- ?? OFFLINE
+
+-- ??????????????????????????????????????????????????????????????????????
+-- USER 17 (M?) - 2 thi?t b? (PC + Mobile)
+-- ??????????????????????????????????????????????????????????????????????
+(17, 'fcm_my_opera_token_023', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.my.opera', 
+ DATEADD(DAY, 7, GETDATE()), 
+ 'Opera_Windows', N'PC Lenovo ThinkPad', '192.168.8.45', 1, GETDATE()),
+ -- ?? ONLINE (v?a m?i active)
+
+(17, 'fcm_my_asus_token_024', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.my.asus', 
+ DATEADD(DAY, 3, GETDATE()), 
+ 'Android', N'ASUS Zenfone 10', '171.255.89.123', 1, DATEADD(HOUR, -6, GETDATE())),
+ -- ?? OFFLINE
+
+-- ??????????????????????????????????????????????????????????????????????
+-- USER 18 (S?n) - 1 thi?t b? iOS
+-- ??????????????????????????????????????????????????????????????????????
+(18, 'fcm_son_iphone13pro_token_025', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.son.iphone', 
+ DATEADD(DAY, 5, GETDATE()), 
+ 'iOS', N'iPhone 13 Pro Max', '42.119.167.88', 1, DATEADD(MINUTE, -20, GETDATE())),
+ -- ?? OFFLINE
+
+-- ??????????????????????????????????????????????????????????????????????
+-- USER 19 (Thu) - LOCKED - ?� logout
+-- ??????????????????????????????????????????????????????????????????????
+(19, 'fcm_thu_tablet_token_026', NULL, NULL, 
+ 'Android', N'Samsung Galaxy Tab S9', '113.168.234.77', 0, DATEADD(DAY, -30, GETDATE())),
+ -- ?? LOGGED OUT - Account locked
+
+-- ??????????????????????????????????????????????????????????????????????
+-- USER 20 (Long) - 1 thi?t b? Web
+-- ??????????????????????????????????????????????????????????????????????
+(20, 'fcm_long_chromium_token_027', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.long.chromium', 
+ DATEADD(DAY, 6, GETDATE()), 
+ 'Chromium_Linux', N'Linux Mint Desktop', '118.69.78.156', 1, DATEADD(MINUTE, -3, GETDATE()));
+ -- ?? ONLINE
+
 GO
 
 -- ======================================================================
--- 7. BẢNG DANH MỤC THU/CHI (Tự tham chiếu: 1-N với chính nó)
+-- TH?NG K� D? LI?U ?� CH�N
 -- ======================================================================
--- Nếu người dùng muốn xóa danh mục thì sẽ có 2 hướng ( Xóa hẳn và gồm lịch sử giao dịch hoặc chọn gộp sang một danh mục khác và xóa danh mục này )
+-- Total Rows: 27 devices
+-- Users c� >1 thi?t b?: User 1, 3, 5, 8, 10, 17 (6 users)
+-- Devices ONLINE (logged_in=1, last_active < 5 min): 10 devices
+-- Devices OFFLINE: 11 devices
+-- Devices LOGGED OUT (logged_in=0): 6 devices (users b? lock)
+-- Tokens h?t h?n: 2 devices (user 3, user 10)
+-- N?n t?ng: iOS (8), Android (13), Windows (4), macOS (2), Linux (2)
+-- ======================================================================
+PRINT '? ?� ch�n 27 rows v�o tUserDevices th�nh c�ng!';
+PRINT 'Ph�n b?: 20 users, 10 online, 11 offline, 6 logged out';
+GO
+
+-- ======================================================================
+-- 7. B?NG DANH M?C THU/CHI (T? tham chi?u: 1-N v?i ch�nh n�)
+-- ======================================================================
+-- N?u ng??i d�ng mu?n x�a danh m?c th� s? c� 2 h??ng ( X�a h?n v� g?m l?ch s? giao d?ch ho?c ch?n g?p sang m?t danh m?c kh�c v� x�a danh m?c n�y )
 CREATE TABLE tCategories (
     -- PRIMARY KEY
     id INT PRIMARY KEY IDENTITY(1,1),
@@ -423,108 +657,108 @@ CREATE TABLE tCategories (
     parent_id INT NULL,                          -- FK -> tCategories (1-N) | NULL = Root Category
     
     -- DATA COLUMNS
-    ctg_name NVARCHAR(100) NOT NULL,             -- Tên danh mục (VD: "Ăn uống", "Lương")
-    ctg_type BIT NOT NULL,                       -- 0: Chi tiêu | 1: Thu nhập
-    ctg_icon_url VARCHAR(2048) NULL,             -- Icon SVG hoặc URL (VD: "icon_food.svg")
+    ctg_name NVARCHAR(100) NOT NULL,             -- T�n danh m?c (VD: "?n u?ng", "L??ng")
+    ctg_type BIT NOT NULL,                       -- 0: Chi ti�u | 1: Thu nh?p
+    ctg_icon_url VARCHAR(2048) NULL,             -- Icon SVG ho?c URL (VD: "icon_food.svg")
     
     -- CONSTRAINTS
     CONSTRAINT FK_Categories_Account FOREIGN KEY (acc_id) REFERENCES tAccounts(id),
-    CONSTRAINT FK_Categories_Parent FOREIGN KEY (parent_id) REFERENCES tCategories(id) -- Tự tham chiếu
+    CONSTRAINT FK_Categories_Parent FOREIGN KEY (parent_id) REFERENCES tCategories(id) -- T? tham chi?u
 );
 GO
 
--- Index: Tối ưu Backend check danh mục System
+-- Index: T?i ?u Backend check danh m?c System
 CREATE INDEX idx_system_category_check ON tCategories(ctg_name) WHERE acc_id IS NULL AND parent_id IS NULL;
--- Index: Tối ưu query danh mục theo User và Parent
+-- Index: T?i ?u query danh m?c theo User v� Parent
 CREATE INDEX idx_categories_lookup ON tCategories(acc_id, parent_id, ctg_type) INCLUDE (ctg_name, ctg_icon_url);
--- Chặn User tạo 2 mục con (vd: "Tiền trà đá", "Tiền trà đá") trong cùng một mục cha.
+-- Ch?n User t?o 2 m?c con (vd: "Ti?n tr� ?�", "Ti?n tr� ?�") trong c�ng m?t m?c cha.
 CREATE UNIQUE NONCLUSTERED INDEX idx_unique_sub_category ON tCategories(acc_id, parent_id, ctg_name, ctg_type) WHERE parent_id IS NOT NULL;
--- Chặn User tạo 2 mục cha (vd: "Ăn uống", "Ăn uống").
+-- Ch?n User t?o 2 m?c cha (vd: "?n u?ng", "?n u?ng").
 CREATE UNIQUE NONCLUSTERED INDEX idx_unique_user_root ON tCategories(acc_id, ctg_name, ctg_type) 
 WHERE parent_id IS NULL AND acc_id IS NOT NULL;
--- Index Unique: Bảo vệ danh mục gốc System không bị trùng
+-- Index Unique: B?o v? danh m?c g?c System kh�ng b? tr�ng
 CREATE UNIQUE NONCLUSTERED INDEX idx_unique_root_category ON tCategories(ctg_name, ctg_type) 
 WHERE parent_id IS NULL AND acc_id IS NULL;
--- Index Unique: Bảo vệ danh mục con System không bị trùng
+-- Index Unique: B?o v? danh m?c con System kh�ng b? tr�ng
 CREATE UNIQUE NONCLUSTERED INDEX idx_unique_system_sub_category ON tCategories(parent_id, ctg_name, ctg_type) WHERE parent_id IS NOT NULL AND acc_id IS NULL;
--- Ngăn User tạo danh mục Gốc trùng tên với danh mục Gốc của Hệ thống ( viết trong backend )
+-- Ng?n User t?o danh m?c G?c tr�ng t�n v?i danh m?c G?c c?a H? th?ng ( vi?t trong backend )
 
-/* HƯỚNG DẪN CHO BACKEND hoặc dùng trigger (IMPORTANT):
-   - ĐIỀU KIỆN: "User không được tạo danh mục Gốc trùng tên với System".
-   - BACKEND CẦN CHECK: Trước khi lưu danh mục Gốc cho User, hãy kiểm tra xem 'ctg_name' 
-     đã tồn tại trong các dòng (acc_id IS NULL AND parent_id IS NULL) chưa. 
-     Nếu có -> Báo lỗi cho người dùng không được tạo trùng danh mục hệ thống
+/* H??NG D?N CHO BACKEND ho?c d�ng trigger (IMPORTANT):
+   - ?I?U KI?N: "User kh�ng ???c t?o danh m?c G?c tr�ng t�n v?i System".
+   - BACKEND C?N CHECK: Tr??c khi l?u danh m?c G?c cho User, h�y ki?m tra xem 'ctg_name' 
+     ?� t?n t?i trong c�c d�ng (acc_id IS NULL AND parent_id IS NULL) ch?a. 
+     N?u c� -> B�o l?i cho ng??i d�ng kh�ng ???c t?o tr�ng danh m?c h? th?ng
 */
 
 GO
--- Chèn danh mục hệ thống (acc_id = NULL)
+-- Ch�n danh m?c h? th?ng (acc_id = NULL)
 -- ==========================================================
--- BƯỚC 1: CHÈN CÁC NHÓM CHA (ROOT) - ĐỊNH DANH CẤP CAO NHẤT
+-- B??C 1: CH�N C�C NH�M CHA (ROOT) - ??NH DANH C?P CAO NH?T
 -- ==========================================================
--- 1.1 NHÓM CHI TIÊU (EXPENSE = 0)
+-- 1.1 NH�M CHI TI�U (EXPENSE = 0)
 INSERT INTO tCategories (acc_id, parent_id, ctg_name, ctg_type, ctg_icon_url) VALUES  
- (NULL, NULL, N'Ăn uống', 0, 'icon_food.svg')
-,(NULL, NULL, N'Bảo hiểm', 0, 'icon_insurance.svg')
-,(NULL, NULL, N'Các chi phí khác', 0, 'icon_other_expense.svg')
-,(NULL, NULL, N'Đầu tư', 0, 'icon_invest.svg')
-,(NULL, NULL, N'Di chuyển', 0, 'icon_transport.svg')
-,(NULL, NULL, N'Gia đình', 0, 'icon_family.svg')
-,(NULL, NULL, N'Giải trí', 0, 'icon_entertainment.svg')
-,(NULL, NULL, N'Giáo dục', 0, 'icon_education.svg')
-,(NULL, NULL, N'Hoá đơn & Tiện ích', 0, 'icon_utilities.svg')
-,(NULL, NULL, N'Mua sắm', 0, 'icon_shopping.svg')
-,(NULL, NULL, N'Quà tặng & Quyên góp', 0, 'icon_gift.svg')
-,(NULL, NULL, N'Sức khỏe', 0, 'icon_health.svg')
-,(NULL, NULL, N'Tiền chuyển đi', 0, 'icon_transfer_out.svg')
-,(NULL, NULL, N'Trả lãi', 0, 'icon_interest_pay.svg');
+ (NULL, NULL, N'?n u?ng', 0, 'icon_food.svg')
+,(NULL, NULL, N'B?o hi?m', 0, 'icon_insurance.svg')
+,(NULL, NULL, N'C�c chi ph� kh�c', 0, 'icon_other_expense.svg')
+,(NULL, NULL, N'??u t?', 0, 'icon_invest.svg')
+,(NULL, NULL, N'Di chuy?n', 0, 'icon_transport.svg')
+,(NULL, NULL, N'Gia ?�nh', 0, 'icon_family.svg')
+,(NULL, NULL, N'Gi?i tr�', 0, 'icon_entertainment.svg')
+,(NULL, NULL, N'Gi�o d?c', 0, 'icon_education.svg')
+,(NULL, NULL, N'Ho� ??n & Ti?n �ch', 0, 'icon_utilities.svg')
+,(NULL, NULL, N'Mua s?m', 0, 'icon_shopping.svg')
+,(NULL, NULL, N'Qu� t?ng & Quy�n g�p', 0, 'icon_gift.svg')
+,(NULL, NULL, N'S?c kh?e', 0, 'icon_health.svg')
+,(NULL, NULL, N'Ti?n chuy?n ?i', 0, 'icon_transfer_out.svg')
+,(NULL, NULL, N'Tr? l�i', 0, 'icon_interest_pay.svg');
 
--- 1.2 NHÓM THU NHẬP (INCOME = 1)
+-- 1.2 NH�M THU NH?P (INCOME = 1)
 INSERT INTO tCategories (acc_id, parent_id, ctg_name, ctg_type, ctg_icon_url) VALUES  
- (NULL, NULL, N'Lương', 1, 'icon_salary.svg')
-,(NULL, NULL, N'Thu lãi', 1, 'icon_interest_receive.svg')
-,(NULL, NULL, N'Thu nhập khác', 1, 'icon_other_income.svg')
-,(NULL, NULL, N'Tiền chuyển đến', 1, 'icon_transfer_in.svg');
+ (NULL, NULL, N'L??ng', 1, 'icon_salary.svg')
+,(NULL, NULL, N'Thu l�i', 1, 'icon_interest_receive.svg')
+,(NULL, NULL, N'Thu nh?p kh�c', 1, 'icon_other_income.svg')
+,(NULL, NULL, N'Ti?n chuy?n ??n', 1, 'icon_transfer_in.svg');
 
--- 1.3 NHÓM VAY / NỢ
+-- 1.3 NH�M VAY / N?
 INSERT INTO tCategories (acc_id, parent_id, ctg_name, ctg_type, ctg_icon_url) VALUES  
  (NULL, NULL, N'Cho vay', 0, 'icon_loan_out.svg')
-,(NULL, NULL, N'Đi vay', 1, 'icon_loan_in.svg')
-,(NULL, NULL, N'Thu nợ', 1, 'icon_debt_collection.svg')
-,(NULL, NULL, N'Trả nợ', 0, 'icon_debt_repayment.svg');
-GO -- Kết thúc phiên làm việc 1 để SQL lưu ID các nhóm Cha
+,(NULL, NULL, N'?i vay', 1, 'icon_loan_in.svg')
+,(NULL, NULL, N'Thu n?', 1, 'icon_debt_collection.svg')
+,(NULL, NULL, N'Tr? n?', 0, 'icon_debt_repayment.svg');
+GO -- K?t th�c phi�n l�m vi?c 1 ?? SQL l?u ID c�c nh�m Cha
 
 -- ==========================================================
--- BƯỚC 2: CHÈN CÁC NHÓM CON (SUB-CATEGORIES) - LIÊN KẾT CHA
+-- B??C 2: CH�N C�C NH�M CON (SUB-CATEGORIES) - LI�N K?T CHA
 -- ==========================================================
--- Chèn con cho nhóm CHI TIÊU
+-- Ch�n con cho nh�m CHI TI�U
 INSERT INTO tCategories (acc_id, parent_id, ctg_name, ctg_type, ctg_icon_url)
 SELECT NULL, p.id, v.new_name, p.ctg_type, v.icon
 FROM (VALUES  
-    (N'Di chuyển', N'Bảo dưỡng xe', 'icon_car_repair.svg'),
-    (N'Gia đình', N'Dịch vụ gia đình', 'icon_home_service.svg'),
-    (N'Gia đình', N'Sửa & trang trí nhà', 'icon_home_decor.svg'),
-    (N'Gia đình', N'Vật nuôi', 'icon_pets.svg'),
-    (N'Giải trí', N'Dịch vụ trực tuyến', 'icon_online_service.svg'),
-    (N'Giải trí', N'Vui - chơi', 'icon_travel.svg'),
-    (N'Hoá đơn & Tiện ích', N'Hoá đơn điện', 'icon_electricity.svg'),
-    (N'Hoá đơn & Tiện ích', N'Hoá đơn điện thoại', 'icon_phone_bill.svg'),
-    (N'Hoá đơn & Tiện ích', N'Hoá đơn gas', 'icon_gas.svg'),
-    (N'Hoá đơn & Tiện ích', N'Hoá đơn internet', 'icon_internet.svg'),
-    (N'Hoá đơn & Tiện ích', N'Hoá đơn nước', 'icon_water.svg'),
-    (N'Hoá đơn & Tiện ích', N'Hoá đơn tiện ích khác', 'icon_other_bill.svg'),
-    (N'Hoá đơn & Tiện ích', N'Hoá đơn TV', 'icon_tv.svg'),
-    (N'Hoá đơn & Tiện ích', N'Thuê nhà', 'icon_rent.svg'),
-    (N'Mua sắm', N'Đồ dùng cá nhân', 'icon_personal_item.svg'),
-    (N'Mua sắm', N'Đồ gia dụng', 'icon_home_appliance.svg'),
-    (N'Mua sắm', N'Làm đẹp', 'icon_beauty.svg'),
-    (N'Sức khỏe', N'Khám sức khoẻ', 'icon_medical.svg'),
-    (N'Sức khỏe', N'Thể dục thể thao', 'icon_sport.svg')
+    (N'Di chuy?n', N'B?o d??ng xe', 'icon_car_repair.svg'),
+    (N'Gia ?�nh', N'D?ch v? gia ?�nh', 'icon_home_service.svg'),
+    (N'Gia ?�nh', N'S?a & trang tr� nh�', 'icon_home_decor.svg'),
+    (N'Gia ?�nh', N'V?t nu�i', 'icon_pets.svg'),
+    (N'Gi?i tr�', N'D?ch v? tr?c tuy?n', 'icon_online_service.svg'),
+    (N'Gi?i tr�', N'Vui - ch?i', 'icon_travel.svg'),
+    (N'Ho� ??n & Ti?n �ch', N'Ho� ??n ?i?n', 'icon_electricity.svg'),
+    (N'Ho� ??n & Ti?n �ch', N'Ho� ??n ?i?n tho?i', 'icon_phone_bill.svg'),
+    (N'Ho� ??n & Ti?n �ch', N'Ho� ??n gas', 'icon_gas.svg'),
+    (N'Ho� ??n & Ti?n �ch', N'Ho� ??n internet', 'icon_internet.svg'),
+    (N'Ho� ??n & Ti?n �ch', N'Ho� ??n n??c', 'icon_water.svg'),
+    (N'Ho� ??n & Ti?n �ch', N'Ho� ??n ti?n �ch kh�c', 'icon_other_bill.svg'),
+    (N'Ho� ??n & Ti?n �ch', N'Ho� ??n TV', 'icon_tv.svg'),
+    (N'Ho� ??n & Ti?n �ch', N'Thu� nh�', 'icon_rent.svg'),
+    (N'Mua s?m', N'?? d�ng c� nh�n', 'icon_personal_item.svg'),
+    (N'Mua s?m', N'?? gia d?ng', 'icon_home_appliance.svg'),
+    (N'Mua s?m', N'L�m ??p', 'icon_beauty.svg'),
+    (N'S?c kh?e', N'Kh�m s?c kho?', 'icon_medical.svg'),
+    (N'S?c kh?e', N'Th? d?c th? thao', 'icon_sport.svg')
 ) AS v(parent_name, new_name, icon)
 JOIN tCategories p ON p.ctg_name = v.parent_name AND p.parent_id IS NULL;
 GO
 
 -- ======================================================================
--- 8. BẢNG VÍ (1-N với tAccounts)
+-- 8. B?NG V� (1-N v?i tAccounts)
 -- ======================================================================
 CREATE TABLE tWallets (
     -- PRIMARY KEY
@@ -534,12 +768,12 @@ CREATE TABLE tWallets (
     acc_id INT NOT NULL,                         -- FK -> tAccounts (N-1)
     currency VARCHAR(10) DEFAULT 'VND',          -- FK -> tCurrencies (N-1)
     -- them anh con thieu
-     goal_image_url VARCHAR(2048) NULL,           -- Hình ảnh ví
+     goal_image_url VARCHAR(2048) NULL,           -- H�nh ?nh v�
     -- DATA COLUMNS
-    wallet_name NVARCHAR(100) NOT NULL,          -- VD: "Tiền mặt", "Vietcombank", "Momo"
-    balance DECIMAL(18,2) DEFAULT 0,             -- Số dư hiện tại (tự động tính từ Transactions)
-    notified BIT DEFAULT 1 NOT NULL,          -- 0: Tắt thông báo | 1: Bật thông báo
-    reportable BIT DEFAULT 1 NOT NULL,        -- 0: Không tính vào báo cáo | 1: Tính vào Dashboard
+    wallet_name NVARCHAR(100) NOT NULL,          -- VD: "Ti?n m?t", "Vietcombank", "Momo"
+    balance DECIMAL(18,2) DEFAULT 0,             -- S? d? hi?n t?i (t? ??ng t�nh t? Transactions)
+    notified BIT DEFAULT 1 NOT NULL,          -- 0: T?t th�ng b�o | 1: B?t th�ng b�o
+    reportable BIT DEFAULT 1 NOT NULL,        -- 0: Kh�ng t�nh v�o b�o c�o | 1: T�nh v�o Dashboard
     
     -- CONSTRAINTS
     CONSTRAINT FK_Wallets_Account FOREIGN KEY (acc_id) REFERENCES tAccounts(id),
@@ -547,18 +781,42 @@ CREATE TABLE tWallets (
 );
 GO
 
--- Index: Tối ưu load danh sách Ví của User
+-- Index: T?i ?u load danh s�ch V� c?a User
 CREATE INDEX idx_wallets_user ON tWallets(acc_id, reportable) INCLUDE (wallet_name, balance, currency, notified);
 GO
 
--- DỮ LIỆU MẪU: Ví
-INSERT INTO tWallets (acc_id, wallet_name, balance, currency) VALUES 
-(1, N'Tiền mặt', 5000000, 'VND'),
-(2, N'Vietcombank', 15000000, 'VND');
+-- D? LI?U M?U: V�
+INSERT INTO tWallets (acc_id, wallet_name, balance, currency, notified, reportable, goal_image_url) VALUES 
+(1, N'Ti?n m?t', 5000000, 'VND', 1, 1, 'https://api.dicebear.com/7.x/icons/svg?seed=cash'),
+(1, N'Vietcombank', 15000000, 'VND', 1, 1, 'https://api.dicebear.com/7.x/icons/svg?seed=bank1'),
+(2, N'V� MoMo', 2500000, 'VND', 1, 1, 'https://api.dicebear.com/7.x/icons/svg?seed=momo'),
+(2, N'Techcombank', 8000000, 'VND', 1, 1, 'https://api.dicebear.com/7.x/icons/svg?seed=bank2'),
+(3, N'Ti?n m?t', 3200000, 'VND', 1, 1, 'https://api.dicebear.com/7.x/icons/svg?seed=cash2'),
+(3, N'BIDV', 12000000, 'VND', 1, 1, 'https://api.dicebear.com/7.x/icons/svg?seed=bank3'),
+(19, N'ZaloPay', 1800000, 'VND', 1, 1, 'https://api.dicebear.com/7.x/icons/svg?seed=zalopay'),
+(4, N'Agribank', 20000000, 'VND', 1, 1, 'https://api.dicebear.com/7.x/icons/svg?seed=bank4'),
+(5, N'V� ti?t ki?m', 50000000, 'VND', 0, 0, 'https://api.dicebear.com/7.x/icons/svg?seed=saving'),
+(6, N'MB Bank', 6500000, 'VND', 1, 1, 'https://api.dicebear.com/7.x/icons/svg?seed=bank5'),
+(6, N'VNPay', 900000, 'VND', 1, 1, 'https://api.dicebear.com/7.x/icons/svg?seed=vnpay'),
+(7, N'ACB', 18000000, 'VND', 1, 1, 'https://api.dicebear.com/7.x/icons/svg?seed=bank6'),
+(20, N'V� du l?ch', 10000000, 'VND', 1, 1, 'https://api.dicebear.com/7.x/icons/svg?seed=travel'),
+(20, N'VPBank', 7200000, 'VND', 1, 1, 'https://api.dicebear.com/7.x/icons/svg?seed=bank7'),
+(9, N'Ti?n m?t', 4500000, 'VND', 1, 1, 'https://api.dicebear.com/7.x/icons/svg?seed=cash3'),
+(10, N'SHB', 9800000, 'VND', 1, 1, 'https://api.dicebear.com/7.x/icons/svg?seed=bank8'),
+(10, N'V� mua s?m', 3000000, 'VND', 1, 1, 'https://api.dicebear.com/7.x/icons/svg?seed=shopping'),
+(11, N'TPBank', 11000000, 'VND', 1, 1, 'https://api.dicebear.com/7.x/icons/svg?seed=bank9'),
+(12, N'V� kh?n c?p', 5000000, 'VND', 0, 0, 'https://api.dicebear.com/7.x/icons/svg?seed=emergency'),
+(12, N'Sacombank', 14500000, 'VND', 1, 1, 'https://api.dicebear.com/7.x/icons/svg?seed=bank10'),
+(8, N'Ti?n m?t', 2800000, 'VND', 1, 1, 'https://api.dicebear.com/7.x/icons/svg?seed=cash4'),
+(14, N'HDBank', 16000000, 'VND', 1, 1, 'https://api.dicebear.com/7.x/icons/svg?seed=bank11'),
+(15, N'V� h?c ph�', 25000000, 'VND', 1, 1, 'https://api.dicebear.com/7.x/icons/svg?seed=education'),
+(16, N'OCB', 8500000, 'VND', 1, 1, 'https://api.dicebear.com/7.x/icons/svg?seed=bank12'),
+(17, N'V� ??u t?', 30000000, 'VND', 0, 0, 'https://api.dicebear.com/7.x/icons/svg?seed=invest'),
+(18, N'VietinBank', 13200000, 'VND', 1, 1, 'https://api.dicebear.com/7.x/icons/svg?seed=bank13');
 GO
 
 -- ======================================================================
--- 9. BẢNG MỤC TIÊU TIẾT KIỆM (1-N với tAccounts)
+-- 9. B?NG M?C TI�U TI?T KI?M (1-N v?i tAccounts)
 -- ======================================================================
 CREATE TABLE tSavingGoals (
     -- PRIMARY KEY
@@ -569,41 +827,126 @@ CREATE TABLE tSavingGoals (
     currency VARCHAR(10) DEFAULT 'VND',          -- FK -> tCurrencies (N-1)
     
     -- DATA COLUMNS
-    goal_name NVARCHAR(200) NOT NULL,            -- VD: "Mua iPhone 15 Pro Max", "Quỹ khẩn cấp"
-    target_amount DECIMAL(18,2) NOT NULL,        -- Số tiền mục tiêu
-    current_amount DECIMAL(18,2) DEFAULT 0,      -- Số tiền đã tiết kiệm
-    goal_image_url VARCHAR(2048) NULL,           -- Hình ảnh mục tiêu (VD: ảnh iPhone)
-    begin_date DATE DEFAULT GETDATE(),           -- Ngày bắt đầu
-    end_date DATE NOT NULL,                      -- Ngày kết thúc
-    goal_status TINYINT DEFAULT 1 NOT NULL,        -- 1: Active | 2: Completed | 3: Cancelled
-    notified BIT DEFAULT 1 NOT NULL,          -- 0: Tắt thông báo | 1: Bật thông báo
-    reportable BIT DEFAULT 1 NOT NULL,        -- 0: Không tính vào báo cáo | 1: Tính vào Dashboard
-    finished BIT DEFAULT 0,                   -- 0: Đang diễn ra | 1: Đã kết thúc
+    goal_name NVARCHAR(200) NOT NULL,            -- VD: "Mua iPhone 15 Pro Max", "Qu? kh?n c?p"
+    target_amount DECIMAL(18,2) NOT NULL,        -- S? ti?n m?c ti�u
+    current_amount DECIMAL(18,2) DEFAULT 0,      -- S? ti?n ?� ti?t ki?m
+    goal_image_url VARCHAR(2048) NULL,           -- H�nh ?nh m?c ti�u (VD: ?nh iPhone)
+    begin_date DATE DEFAULT GETDATE(),           -- Ng�y b?t ??u
+    end_date DATE NOT NULL,                      -- Ng�y k?t th�c
+    goal_status TINYINT DEFAULT 1 NOT NULL,        -- 1: Active | 2: Completed | 3: Cancelled | 4: OVERDUE ( qu� h?n )
+    notified BIT DEFAULT 1 NOT NULL,          -- 0: T?t th�ng b�o | 1: B?t th�ng b�o
+    reportable BIT DEFAULT 1 NOT NULL,        -- 0: Kh�ng t�nh v�o b�o c�o | 1: T�nh v�o Dashboard
+    finished BIT DEFAULT 0,                   -- 0: ?ang di?n ra | 1: ?� k?t th�c
     
     -- CONSTRAINTS
     CONSTRAINT CHK_SavingGoals_Amount CHECK (target_amount > 0 AND current_amount >= 0),
     CONSTRAINT CHK_SavingGoals_Progress CHECK (current_amount <= target_amount),
     CONSTRAINT CHK_SavingGoals_Dates CHECK (end_date >= begin_date),
-    CONSTRAINT CHK_SavingGoals_Status CHECK (goal_status IN (1, 2, 3)),
+    CONSTRAINT CHK_SavingGoals_Status CHECK (goal_status IN (1, 2, 3, 4)),
 
     CONSTRAINT FK_SavingGoals_Account FOREIGN KEY (acc_id) REFERENCES tAccounts(id),
     CONSTRAINT FK_SavingGoals_Currency FOREIGN KEY (currency) REFERENCES tCurrencies(currency_code)
 );
 GO
 
--- Index: Tối ưu Dashboard và Báo cáo tổng quát
+-- Index: T?i ?u Dashboard v� B�o c�o t?ng qu�t
 CREATE INDEX idx_saving_reportable ON tSavingGoals(acc_id, reportable, goal_status, finished) INCLUDE (current_amount, target_amount, end_date, currency);
--- Index: Tối ưu hiển thị mục tiêu đang Active
+-- Index: T?i ?u hi?n th? m?c ti�u ?ang Active
 CREATE INDEX idx_saving_active ON tSavingGoals(acc_id, goal_status, finished) INCLUDE (goal_name, current_amount, target_amount, end_date);
 GO
 
--- DỮ LIỆU MẪU: Mục tiêu tiết kiệm
-INSERT INTO tSavingGoals (acc_id, goal_name, target_amount, current_amount, end_date) VALUES 
-(2, N'Mua iPhone 15', 25000000, 5000000, '2027-12-31');
+-- D? LI?U M?U: M?c ti�u ti?t ki?m
+INSERT INTO tSavingGoals (acc_id, goal_name, target_amount, current_amount, begin_date, end_date, goal_status, notified, reportable, finished, goal_image_url, currency) VALUES 
+(1, N'Qu? kh?n c?p', 50000000, 30000000, '2024-01-15', '2026-12-31', 1, 1, 1, 0, 'https://api.dicebear.com/7.x/icons/svg?seed=emergency', 'VND'),
+(1, N'Mua nh�', 2000000000, 500000000, '2023-06-01', '2028-12-31', 1, 1, 1, 0, 'https://api.dicebear.com/7.x/icons/svg?seed=house', 'VND'),
+(2, N'Mua iPhone 15', 25000000, 5000000, '2025-03-10', '2027-12-31', 1, 1, 1, 0, 'https://api.dicebear.com/7.x/icons/svg?seed=iphone', 'VND'),
+(2, N'Du l?ch Nh?t B?n', 40000000, 15000000, '2025-01-20', '2026-06-30', 1, 1, 1, 0, 'https://api.dicebear.com/7.x/icons/svg?seed=japan', 'VND'),
+(3, N'Heo ??t m�u v�ng', 10000000, 8500000, '2024-08-01', '2026-08-01', 1, 1, 1, 0, 'https://api.dicebear.com/7.x/icons/svg?seed=piggy', 'VND'),
+(3, N'Ti?n kh�m b?nh', 15000000, 12000000, '2024-05-15', '2026-12-31', 1, 1, 1, 0, 'https://api.dicebear.com/7.x/icons/svg?seed=health', 'VND'),
+(5, N'Mua xe m�y SH', 90000000, 45000000, '2024-11-01', '2026-10-31', 1, 1, 1, 0, 'https://api.dicebear.com/7.x/icons/svg?seed=motorbike', 'VND'),
+(5, N'Qu? c??i', 200000000, 80000000, '2024-02-14', '2027-02-14', 1, 1, 1, 0, 'https://api.dicebear.com/7.x/icons/svg?seed=wedding', 'VND'),
+(6, N'Mua laptop Dell XPS 15', 45000000, 25000000, '2025-02-01', '2026-05-31', 1, 1, 1, 0, 'https://api.dicebear.com/7.x/icons/svg?seed=laptop', 'VND'),
+(7, N'Ti?t ki?m h?c t?p', 30000000, 18000000, '2024-09-01', '2027-06-30', 1, 1, 1, 0, 'https://api.dicebear.com/7.x/icons/svg?seed=education', 'VND'),
+(8, N'Mua ??t', 500000000, 150000000, '2024-01-01', '2029-12-31', 1, 1, 1, 0, 'https://api.dicebear.com/7.x/icons/svg?seed=land', 'VND'),
+(9, N'Qu? kh?n c?p', 40000000, 25000000, '2024-07-01', '2026-06-30', 1, 1, 1, 0, 'https://api.dicebear.com/7.x/icons/svg?seed=emergency2', 'VND'),
+(10, N'Mua nh?n c??i', 50000000, 35000000, '2024-12-01', '2026-11-30', 1, 1, 1, 0, 'https://api.dicebear.com/7.x/icons/svg?seed=ring', 'VND'),
+(10, N'K? ngh? Ch�u �u', 80000000, 30000000, '2025-01-01', '2027-05-31', 1, 1, 1, 0, 'https://api.dicebear.com/7.x/icons/svg?seed=europe', 'VND'),
+(11, N'Mua � t�', 400000000, 120000000, '2024-03-15', '2028-03-15', 1, 1, 1, 0, 'https://api.dicebear.com/7.x/icons/svg?seed=car', 'VND'),
+(12, N'Qu? s?a nh�', 100000000, 45000000, '2024-10-01', '2026-09-30', 1, 1, 1, 0, 'https://api.dicebear.com/7.x/icons/svg?seed=renovation', 'VND'),
+(13, N'Mua iPad Pro', 28000000, 10000000, '2025-04-01', '2026-12-31', 1, 1, 1, 0, 'https://api.dicebear.com/7.x/icons/svg?seed=ipad', 'VND'),
+(14, N'Ti?n sinh nh?t con', 20000000, 15000000, '2024-06-01', '2026-08-15', 1, 1, 1, 0, 'https://api.dicebear.com/7.x/icons/svg?seed=birthday', 'VND'),
+(15, N'H?c Th?c s?', 150000000, 60000000, '2024-01-10', '2028-12-31', 1, 1, 1, 0, 'https://api.dicebear.com/7.x/icons/svg?seed=master', 'VND'),
+(16, N'Mua AirPods Pro', 6000000, 4500000, '2025-03-01', '2026-03-31', 1, 1, 1, 0, 'https://api.dicebear.com/7.x/icons/svg?seed=airpods', 'VND'),
+(17, N'??u t? ch?ng kho�n', 100000000, 70000000, '2024-02-01', '2027-12-31', 1, 1, 1, 0, 'https://api.dicebear.com/7.x/icons/svg?seed=stock', 'VND'),
+(18, N'Mua ??ng h?', 45000000, 20000000, '2025-01-05', '2026-12-31', 1, 1, 1, 0, 'https://api.dicebear.com/7.x/icons/svg?seed=watch', 'VND'),
+(19, N'Qu? kh?i nghi?p', 200000000, 50000000, '2024-04-01', '2027-12-31', 1, 1, 1, 0, 'https://api.dicebear.com/7.x/icons/svg?seed=startup', 'VND'),
+(20, N'Mua m�y ?nh', 55000000, 35000000, '2024-11-15', '2026-06-30', 1, 1, 1, 0, 'https://api.dicebear.com/7.x/icons/svg?seed=camera', 'VND'),
+(4, N'Qu? h?u tr�', 500000000, 100000000, '2023-01-01', '2030-12-31', 1, 1, 1, 0, 'https://api.dicebear.com/7.x/icons/svg?seed=retirement', 'VND'),
+(4, N'Qu? gi�o d?c con', 300000000, 150000000, '2023-09-01', '2028-08-31', 1, 1, 1, 0, 'https://api.dicebear.com/7.x/icons/svg?seed=school', 'VND'),
+(11, N'Kh�a h?c AWS Solutions Architect', 18000000, 8000000, '2025-02-10', '2026-08-31', 1, 1, 1, 0, 'https://api.dicebear.com/7.x/icons/svg?seed=aws', 'VND'),
+(13, N'Chuy?n du ngo?n Maldives', 65000000, 22000000, '2025-03-15', '2026-12-31', 1, 1, 1, 0, 'https://api.dicebear.com/7.x/icons/svg?seed=maldives', 'VND'),
+(15, N'Qu? ph�t tri?n k? n?ng l?p tr�nh', 25000000, 12000000, '2024-10-01', '2027-03-31', 1, 1, 1, 0, 'https://api.dicebear.com/7.x/icons/svg?seed=coding', 'VND'),
+(17, N'Mua MacBook Pro M3', 52000000, 28000000, '2025-01-20', '2026-09-30', 1, 1, 1, 0, 'https://api.dicebear.com/7.x/icons/svg?seed=macbook', 'VND'),
+(6, N'Qu? ??ng k� ChatGPT Plus & Claude Pro', 12000000, 3500000, '2025-01-01', '2026-12-31', 1, 1, 1, 0, 'https://api.dicebear.com/7.x/icons/svg?seed=ai', 'VND'),
+(8, N'Qu? mua license JetBrains', 8000000, 4200000, '2024-11-01', '2026-06-30', 1, 1, 1, 0, 'https://api.dicebear.com/7.x/icons/svg?seed=jetbrains', 'VND'),
+(12, N'Qu? n�ng c?p VPS & Domain', 15000000, 6800000, '2024-08-15', '2027-12-31', 1, 1, 1, 0, 'https://api.dicebear.com/7.x/icons/svg?seed=server', 'VND'),
+(14, N'Qu? s?c kh?e tinh th?n (sau khi b? AI thay th?)', 30000000, 8000000, '2024-06-01', '2028-12-31', 1, 1, 1, 0, 'https://api.dicebear.com/7.x/icons/svg?seed=mental', 'VND'),
+(16, N'Qu? h?c chuy?n ngh? (ph�ng th�n)', 50000000, 15000000, '2024-09-01', '2027-06-30', 1, 1, 1, 0, 'https://api.dicebear.com/7.x/icons/svg?seed=career', 'VND'),
+(18, N'Qu? mua API credits (OpenAI, Anthropic)', 20000000, 9500000, '2025-02-01', '2026-12-31', 1, 1, 1, 0, 'https://api.dicebear.com/7.x/icons/svg?seed=api', 'VND'),
+-- ??????????????????????????????????????????????????????????????????????
+-- STATUS 2: Completed (?� ho�n th�nh)
+-- Logic: current_amount = target_amount, finished = 1, end_date ?� qua
+-- ??????????????????????????????????????????????????????????????????????
+(1,  N'Mua iPhone 14 Pro',          20000000, 20000000, '2024-01-01', '2024-12-31', 2, 1, 1, 1, 'https://api.dicebear.com/7.x/icons/svg?seed=iphone14',   'VND'),
+-- ? ?� ti?t ki?m ?? 20tr, ho�n th�nh tr??c h?n
+
+(3,  N'Mua xe ??p th? thao',         8000000,  8000000, '2024-03-01', '2025-06-30', 2, 1, 1, 1, 'https://api.dicebear.com/7.x/icons/svg?seed=bicycle',    'VND'),
+-- ? ?� ??t m?c ti�u, finished
+
+(8,  N'Qu? du l?ch Th�i Lan',       25000000, 25000000, '2024-05-01', '2025-12-31', 2, 1, 1, 1, 'https://api.dicebear.com/7.x/icons/svg?seed=thailand',   'VND'),
+-- ? Ho�n th�nh ?�ng h?n
+
+(12, N'Mua m�y ?nh Sony A7III',      40000000, 40000000, '2023-06-01', '2025-01-31', 2, 1, 1, 1, 'https://api.dicebear.com/7.x/icons/svg?seed=sony',       'VND'),
+-- ? Ho�n th�nh s?m
+
+(20, N'H?c kh�a Flutter n�ng cao',    5000000,  5000000, '2025-01-01', '2025-08-31', 2, 1, 1, 1, 'https://api.dicebear.com/7.x/icons/svg?seed=flutter',    'VND'),
+-- ? Ho�n th�nh
+
+-- ??????????????????????????????????????????????????????????????????????
+-- STATUS 3: Cancelled (?� h?y)
+-- Logic: finished = 1, current_amount < target_amount (b? d? gi?a ch?ng)
+-- ??????????????????????????????????????????????????????????????????????
+(2,  N'Mua PS5',                     16000000,  4500000, '2024-02-01', '2025-03-31', 3, 0, 0, 1, 'https://api.dicebear.com/7.x/icons/svg?seed=ps5',        'VND'),
+-- ? H?y v� ??i � kh�ng mua n?a, ?� r�t ti?n ra
+
+(5,  N'Du l?ch H�n Qu?c',           60000000, 12000000, '2024-06-01', '2025-12-31', 3, 0, 0, 1, 'https://api.dicebear.com/7.x/icons/svg?seed=korea',      'VND'),
+-- ? H?y v� k? ho?ch thay ??i
+
+(9,  N'Mua t? l?nh side-by-side',   18000000,  3000000, '2024-09-01', '2025-06-30', 3, 0, 0, 1, 'https://api.dicebear.com/7.x/icons/svg?seed=fridge',     'VND'),
+-- ? H?y v� m??n ???c ti?n ng??i th�n
+
+(16, N'Mua SmartTV 65 inch',        22000000,  8000000, '2024-04-01', '2025-09-30', 3, 0, 1, 1, 'https://api.dicebear.com/7.x/icons/svg?seed=tv',         'VND'),
+-- ? H?y v� mua lo?i kh�c r? h?n
+
+-- ??????????????????????????????????????????????????????????????????????
+-- STATUS 4 OVERDUE: ?? status=1, end_date trong QU� KH?
+-- ? Scheduler s? t? ??ng detect v� chuy?n sang status=4
+-- ??????????????????????????????????????????????????????????????????????
+
+-- CASE A: S? b? Scheduler ?�ng (finished s? = 1 sau khi scheduler ch?y)
+(1,  N'Qu? s?a xe � t�',            15000000,  6000000, '2024-08-01', '2025-12-31', 1, 1, 1, 0, 'https://api.dicebear.com/7.x/icons/svg?seed=carfix',    'VND'),
+(7,  N'Qu? h?c IELTS',              12000000,  5000000, '2024-07-01', '2025-11-30', 1, 1, 1, 0, 'https://api.dicebear.com/7.x/icons/svg?seed=ielts',     'VND'),
+(18, N'Mua gh? gaming DXRacer',      9000000,  4000000, '2025-02-01', '2026-02-28', 1, 1, 1, 0, 'https://api.dicebear.com/7.x/icons/svg?seed=gaming',    'VND'),
+
+-- CASE B: Qu� h?n nh?ng user v?n mu?n ti?p t?c (finished = 0 gi? nguy�n)
+-- ? Scheduler detect ra, chuy?n status=4 nh?ng KH�NG set finished=1
+(4,  N'Mua m�y l?c kh�ng kh�',       8000000,  2500000, '2024-10-01', '2025-10-31', 1, 1, 1, 0, 'https://api.dicebear.com/7.x/icons/svg?seed=airfilter', 'VND'),
+(10, N'Mua b�n l�m vi?c ergonomic',  6000000,  1800000, '2025-01-01', '2025-12-31', 1, 1, 1, 0, 'https://api.dicebear.com/7.x/icons/svg?seed=desk',      'VND'),
+(13, N'Qu? ?�m c??i b?n th�n',      10000000,  3000000, '2025-03-01', '2026-01-31', 1, 1, 1, 0, 'https://api.dicebear.com/7.x/icons/svg?seed=friend',    'VND');
 GO
 
 -- ======================================================================
--- 10. BẢNG SỰ KIỆN (1-N với tAccounts)
+-- 10. B?NG S? KI?N (1-N v?i tAccounts)
 -- ======================================================================
 CREATE TABLE tEvents (
     -- PRIMARY KEY
@@ -614,11 +957,11 @@ CREATE TABLE tEvents (
     currency VARCHAR(10) DEFAULT 'VND',          -- FK -> tCurrencies (N-1)
     
     -- DATA COLUMNS
-    event_name NVARCHAR(200) NOT NULL,           -- VD: "Đám cưới", "Du lịch Đà Lạt"
+    event_name NVARCHAR(200) NOT NULL,           -- VD: "?�m c??i", "Du l?ch ?� L?t"
     event_icon_url NVARCHAR(2048) DEFAULT 'icon_event_default.svg',
-    begin_date DATE DEFAULT GETDATE(),           -- Ngày bắt đầu sự kiện
-    end_date DATE NOT NULL,                      -- Ngày kết thúc sự kiện
-    finished BIT DEFAULT 0,                   -- 0: Đang diễn ra | 1: Đã kết thúc
+    begin_date DATE DEFAULT GETDATE(),           -- Ng�y b?t ??u s? ki?n
+    end_date DATE NOT NULL,                      -- Ng�y k?t th�c s? ki?n
+    finished BIT DEFAULT 0,                   -- 0: ?ang di?n ra | 1: ?� k?t th�c
     
     -- CONSTRAINTS
     CONSTRAINT CHK_Events_Dates CHECK (end_date >= begin_date),
@@ -627,22 +970,42 @@ CREATE TABLE tEvents (
 );
 GO
 
--- Index: Tối ưu tìm kiếm sự kiện đang chạy để gán vào giao dịch
+-- Index: T?i ?u t�m ki?m s? ki?n ?ang ch?y ?? g�n v�o giao d?ch
 CREATE INDEX idx_events_active ON tEvents(acc_id, finished, currency) 
 INCLUDE (event_name, begin_date, end_date);
 
--- Index: Tối ưu hiển thị danh sách tất cả sự kiện ở màn quản lý
+-- Index: T?i ?u hi?n th? danh s�ch t?t c? s? ki?n ? m�n qu?n l�
 CREATE INDEX idx_events_all ON tEvents(acc_id, begin_date DESC) 
 INCLUDE (event_name, finished, event_icon_url);
 GO
 
--- DỮ LIỆU MẪU: Sự kiện
-INSERT INTO tEvents (acc_id, event_name, end_date) VALUES 
-(2, N'Du lịch Đà Nẵng', '2029-08-30');
+-- D? LI?U M?U: S? ki?n
+INSERT INTO tEvents (acc_id, event_name, begin_date, end_date, finished, event_icon_url, currency) VALUES 
+(1, N'Du l?ch ?� L?t', '2025-12-20', '2025-12-25', 0, 'https://api.dicebear.com/7.x/icons/svg?seed=dalat', 'VND'),
+(1, N'T?t Nguy�n ?�n 2026', '2026-01-28', '2026-02-03', 0, 'https://api.dicebear.com/7.x/icons/svg?seed=tet', 'VND'),
+(2, N'Du l?ch ?� N?ng', '2025-08-15', '2029-08-30', 0, 'https://api.dicebear.com/7.x/icons/svg?seed=danang', 'VND'),
+(3, N'Sinh nh?t 25 tu?i', '2026-03-15', '2026-03-15', 0, 'https://api.dicebear.com/7.x/icons/svg?seed=birthday', 'VND'),
+(4, N'?�m c??i anh Tu?n', '2026-05-10', '2026-05-10', 0, 'https://api.dicebear.com/7.x/icons/svg?seed=wedding', 'VND'),
+(5, N'H?p l?p 10 n?m', '2026-07-20', '2026-07-20', 0, 'https://api.dicebear.com/7.x/icons/svg?seed=reunion', 'VND'),
+(6, N'D? �n t?t nghi?p', '2025-02-01', '2026-06-30', 0, 'https://api.dicebear.com/7.x/icons/svg?seed=thesis', 'VND'),
+(7, N'Kh�a h?c React Native', '2025-03-01', '2025-08-31', 0, 'https://api.dicebear.com/7.x/icons/svg?seed=course', 'VND'),
+(8, N'Du l?ch Ph� Qu?c', '2026-04-10', '2026-04-15', 0, 'https://api.dicebear.com/7.x/icons/svg?seed=phuquoc', 'VND'),
+(9, N'Thi ch?ng ch? AWS', '2026-06-01', '2026-06-30', 0, 'https://api.dicebear.com/7.x/icons/svg?seed=aws', 'VND'),
+(10, N'L? h?i �m nh?c', '2026-09-12', '2026-09-13', 0, 'https://api.dicebear.com/7.x/icons/svg?seed=festival', 'VND'),
+(11, N'Hackathon FPT 2026', '2026-10-15', '2026-10-17', 0, 'https://api.dicebear.com/7.x/icons/svg?seed=hackathon', 'VND'),
+(12, N'Chuy?n v? qu� T?t', '2027-01-25', '2027-02-05', 0, 'https://api.dicebear.com/7.x/icons/svg?seed=hometown', 'VND'),
+(13, N'Workshop Spring Boot', '2025-05-10', '2025-05-12', 0, 'https://api.dicebear.com/7.x/icons/svg?seed=workshop', 'VND'),
+(14, N'?i teambuilding c�ng ty', '2026-08-20', '2026-08-22', 0, 'https://api.dicebear.com/7.x/icons/svg?seed=teambuilding', 'VND'),
+(15, N'Mua s?m Black Friday', '2025-11-28', '2025-11-30', 0, 'https://api.dicebear.com/7.x/icons/svg?seed=blackfriday', 'VND'),
+(16, N'Du l?ch Sapa', '2026-12-10', '2026-12-15', 0, 'https://api.dicebear.com/7.x/icons/svg?seed=sapa', 'VND'),
+(17, N'Tham gia DevFest 2026', '2026-11-05', '2026-11-06', 0, 'https://api.dicebear.com/7.x/icons/svg?seed=devfest', 'VND'),
+(18, N'Kh�m s?c kh?e ??nh k?', '2026-03-01', '2026-03-31', 0, 'https://api.dicebear.com/7.x/icons/svg?seed=health', 'VND'),
+(19, N'S?a nh�', '2025-06-01', '2025-09-30', 0, 'https://api.dicebear.com/7.x/icons/svg?seed=renovation', 'VND'),
+(20, N'K? ngh? h� gia ?�nh', '2026-07-01', '2026-07-10', 0, 'https://api.dicebear.com/7.x/icons/svg?seed=vacation', 'VND');
 GO
 
 -- ======================================================================
--- 11. BẢNG SỔ NỢ (1-N với tAccounts)
+-- 11. B?NG S? N? (1-N v?i tAccounts)
 -- ======================================================================
 CREATE TABLE tDebts (
     -- PRIMARY KEY
@@ -652,13 +1015,13 @@ CREATE TABLE tDebts (
     acc_id INT NOT NULL,                         -- FK -> tAccounts (N-1)
     
     -- DATA COLUMNS
-    debt_type BIT NOT NULL,                      -- 0: Cần Trả (Đi vay) | 1: Cần Thu (Cho vay)
-    total_amount DECIMAL(18,2) NOT NULL,         -- Tổng số tiền ban đầu
-    remain_amount DECIMAL(18,2) NOT NULL,        -- Số tiền còn lại (giảm dần khi trả/thu)
-    due_date DATETIME NULL,                      -- Ngày hẹn trả (dùng để nhắc nhở)
-    note NVARCHAR(500),                          -- Ghi chú (VD: "Vay bạn A mua xe")
-    finished BIT DEFAULT 0 NOT NULL,          -- 0: Đang nợ | 1: Đã hoàn thành
-    created_at DATETIME DEFAULT GETDATE(),       -- Ngày tạo khoản nợ
+    debt_type BIT NOT NULL,                      -- 0: C?n Tr? (?i vay) | 1: C?n Thu (Cho vay)
+    total_amount DECIMAL(18,2) NOT NULL,         -- T?ng s? ti?n ban ??u
+    remain_amount DECIMAL(18,2) NOT NULL,        -- S? ti?n c�n l?i (gi?m d?n khi tr?/thu)
+    due_date DATETIME NULL,                      -- Ng�y h?n tr? (d�ng ?? nh?c nh?)
+    note NVARCHAR(500),                          -- Ghi ch� (VD: "Vay b?n A mua xe")
+    finished BIT DEFAULT 0 NOT NULL,          -- 0: ?ang n? | 1: ?� ho�n th�nh
+    created_at DATETIME DEFAULT GETDATE(),       -- Ng�y t?o kho?n n?
     
     -- CONSTRAINTS
     CONSTRAINT CHK_Debts_TotalAmount CHECK (total_amount > 0),
@@ -667,25 +1030,59 @@ CREATE TABLE tDebts (
 );
 GO
 
--- Index: Tối ưu Tab Cần Thu/Trả theo User và loại
+-- Index: T?i ?u Tab C?n Thu/Tr? theo User v� lo?i
 CREATE INDEX idx_debts_active ON tDebts(acc_id, debt_type, finished, due_date) INCLUDE (remain_amount, total_amount, note);
 
--- Index: Tối ưu tính tổng nợ cho Báo cáo/Dashboard
+-- Index: T?i ?u t�nh t?ng n? cho B�o c�o/Dashboard
 CREATE INDEX idx_debts_reportable ON tDebts(acc_id, finished) INCLUDE (remain_amount, debt_type);
 
--- Index: Tối ưu lọc sổ nợ theo thời gian tạo
+-- Index: T?i ?u l?c s? n? theo th?i gian t?o
 CREATE INDEX idx_debts_created ON tDebts(acc_id, created_at DESC) WHERE finished = 0;
 GO
 
--- DỮ LIỆU MẪU: Sổ nợ
-INSERT INTO tDebts (acc_id, debt_type, total_amount, remain_amount, due_date, note) VALUES 
-(2, 1, 500000, 500000, '2029-07-30', N'Cho bạn A vay');
+-- D? LI?U M?U: S? n?
+INSERT INTO tDebts (acc_id, debt_type, total_amount, remain_amount, due_date, note, finished, created_at) VALUES 
+-- User 1 - Admin
+(1, 0, 20000000, 15000000, '2026-06-30 23:59:59', N'Vay ng�n h�ng mua xe m�y SH', 0, '2025-07-15 10:00:00'),
+(1, 1, 5000000, 3000000, '2026-03-31 23:59:59', N'Cho anh Minh vay ti?n kh?n c?p', 0, '2025-12-10 14:30:00'),
+-- User 2 - Mai Tr?n
+(2, 1, 500000, 500000, '2029-07-30 23:59:59', N'Cho b?n A vay', 0, '2025-01-15 09:00:00'),
+(2, 0, 3000000, 1500000, '2026-04-15 23:59:59', N'Vay b? m? mua iPhone', 0, '2026-01-20 11:00:00'),
+-- User 3 - Nam L�
+(3, 1, 2000000, 2000000, '2026-05-20 23:59:59', N'Cho em trai vay h?c ph�', 0, '2026-02-01 08:00:00'),
+(3, 0, 10000000, 7000000, '2026-12-31 23:59:59', N'Vay b?n th�n mua laptop', 0, '2025-10-15 16:30:00'),
+-- User 5 
+(5, 0, 50000000, 40000000, '2027-12-31 23:59:59', N'Vay ng�n h�ng c??i', 0, '2025-06-01 09:30:00'),
+(5, 1, 8000000, 5000000, '2026-08-30 23:59:59', N'Cho ??ng nghi?p vay mua xe', 0, '2025-11-20 13:00:00'),
+-- User 6
+(6, 1, 3500000, 3500000, '2026-07-15 23:59:59', N'Cho ch? g�i vay ?i du l?ch', 0, '2026-01-25 10:45:00'),
+-- User 7
+(7, 0, 15000000, 12000000, '2026-09-30 23:59:59', N'Vay b? ti?n mua MacBook', 0, '2025-12-05 15:00:00'),
+-- User 8
+(8, 1, 4000000, 1500000, '2026-06-10 23:59:59', N'Cho b?n c�ng ph�ng vay ti?n nh�', 0, '2025-09-01 12:00:00'),
+-- User 10
+(10, 0, 25000000, 20000000, '2027-06-30 23:59:59', N'Vay m? mua nh?n c??i', 0, '2025-08-20 11:30:00'),
+(10, 1, 6000000, 6000000, '2026-10-31 23:59:59', N'Cho em h? vay ti?n s?a xe', 0, '2026-01-10 09:15:00'),
+-- User 11
+(11, 0, 35000000, 28000000, '2028-12-31 23:59:59', N'Vay ng�n h�ng ??u t? ch?ng kho�n', 0, '2024-11-01 10:00:00'),
+-- User 12
+(12, 1, 10000000, 7000000, '2026-11-20 23:59:59', N'Cho anh trai vay s?a nh�', 0, '2025-07-30 14:00:00'),
+-- User 14
+(14, 0, 7000000, 5000000, '2026-05-31 23:59:59', N'Vay c�ng ty ti?n ?ng l??ng', 0, '2025-11-15 08:30:00'),
+-- User 15
+(15, 1, 12000000, 12000000, '2027-03-31 23:59:59', N'Cho b?n h?c vay ti?n h?c Th?c s?', 0, '2026-01-05 13:20:00'),
+-- User 17
+(17, 0, 100000000, 80000000, '2029-12-31 23:59:59', N'Vay ng�n h�ng kh?i nghi?p', 0, '2024-06-15 09:00:00'),
+-- User 18
+(18, 1, 5500000, 2500000, '2026-08-15 23:59:59', N'Cho ch�u vay mua ?i?n tho?i', 0, '2025-10-20 16:00:00'),
+-- User 20
+(20, 0, 18000000, 15000000, '2027-02-28 23:59:59', N'Vay b?n th�n mua m�y ?nh', 0, '2025-09-10 11:00:00');
 GO
 
 -----------------------------------------------------------------------------------------------------------------------------
--- tAIConversations 1-1 tReceipts nếu xác nhận có hóa đơn thì mới tạo hóa đơn khóa chính. Hóa đơn là khóa chính của chat
+-- tAIConversations 1-1 tReceipts n?u x�c nh?n c� h�a ??n th� m?i t?o h�a ??n kh�a ch�nh. H�a ??n l� kh�a ch�nh c?a chat
 -- ======================================================================
--- 12. BẢNG LỊCH SỬ CHAT AI (1-N với tAccounts)
+-- 12. B?NG L?CH S? CHAT AI (1-N v?i tAccounts)
 -- ======================================================================
 CREATE TABLE tAIConversations (
     -- PRIMARY KEY
@@ -695,48 +1092,106 @@ CREATE TABLE tAIConversations (
     acc_id INT NOT NULL,                         -- FK -> tAccounts (N-1)
     
     -- DATA COLUMNS
-    message_content NVARCHAR(MAX) NOT NULL,      -- Nội dung tin nhắn
-    sender_type BIT NOT NULL,                    -- 0: User nhắn | 1: AI phản hồi
-    intent TINYINT,                              -- 1: add_transaction | 2: report_query | 3: set_budget | 4: general_chat | 5: remind_task
-    attachment_url NVARCHAR(500) NULL,           -- URL file đính kèm (hình ảnh hóa đơn/voice)
+    message_content NVARCHAR(MAX) NOT NULL,      -- N?i dung tin nh?n
+    sender_type BIT NOT NULL,                    -- 0: User nh?n | 1: AI ph?n h?i
+    intent TINYINT,                              -- NULL AI ?ang qu�t ?nh, 1: add_transaction | 2: report_query | 3: set_budget | 4: general_chat | 5: remind_task
+    attachment_url NVARCHAR(500) NULL,           -- URL file ?�nh k�m (h�nh ?nh h�a ??n/voice)
     attachment_type TINYINT NULL,                -- 1: image | 2: voice | NULL: chat text
-    created_at DATETIME DEFAULT GETDATE(),       -- Thời gian chat 
+    created_at DATETIME DEFAULT GETDATE(),       -- Th?i gian chat 
 
     -- CONSTRAINTS    
     
-    --1. Thêm chi tiêu/thu nhập
-    --2. Hỏi về báo cáo, số dư
-    --3. Thiết lập hạn mức
-    --4. Tán gẫu hoặc hỏi đáp chung
-    --5. Nhắc nhở    
+    --1. Th�m chi ti�u/thu nh?p
+    --2. H?i v? b�o c�o, s? d?
+    --3. Thi?t l?p h?n m?c
+    --4. T�n g?u ho?c h?i ?�p chung
+    --5. Nh?c nh?    
     CONSTRAINT CHK_AIConversations_Intent CHECK (intent BETWEEN 1 AND 5),
-	CONSTRAINT CHK_AIConversations_Attachment_Type CHECK (attachment_type IN (1, 2)), -- chat thường là null
+	CONSTRAINT CHK_AIConversations_Attachment_Type CHECK (attachment_type IN (1, 2)), -- chat th??ng l� null
 
 	CONSTRAINT CHK_AIConversations_Attach_Logic CHECK (
-		(attachment_type = 1 AND attachment_url IS NOT NULL) OR     -- Có ảnh thì bắt buộc phải có URL
-		(attachment_type = 2 AND attachment_url IS NULL) OR         -- Lệnh giọng nói thì URL để NULL (không lưu file)
-		(attachment_type IS NULL AND attachment_url IS NULL)        -- Chat text thì cả 2 NULL
+		(attachment_type = 1 AND attachment_url IS NOT NULL) OR     -- C� ?nh th� b?t bu?c ph?i c� URL
+		(attachment_type = 2 AND attachment_url IS NULL) OR         -- L?nh gi?ng n�i th� URL ?? NULL (kh�ng l?u file)
+		(attachment_type IS NULL AND attachment_url IS NULL)        -- Chat text th� c? 2 NULL
 	),
 
 	CONSTRAINT FK_AIConversations_Account FOREIGN KEY (acc_id) REFERENCES tAccounts(id),
 );
 GO
 
--- Index: Tối ưu load lịch sử chat của User theo thời gian
+-- Index: T?i ?u load l?ch s? chat c?a User theo th?i gian
 CREATE INDEX idx_ai_chat_user ON tAIConversations(acc_id, created_at DESC) INCLUDE (message_content, sender_type, intent);
 
--- Index: Tối ưu phân loại chat theo mục đích (intent)
+-- Index: T?i ?u ph�n lo?i chat theo m?c ?�ch (intent)
 CREATE INDEX idx_ai_intent ON tAIConversations(acc_id, intent, created_at DESC) INCLUDE (message_content, sender_type, attachment_type);
 GO
 
--- DỮ LIỆU MẪU: Chat AI
-INSERT INTO tAIConversations (acc_id, message_content, sender_type, intent) VALUES 
-(2, N'Tôi đã chi 100k ăn sáng', 0, 1),
-(2, N'Đã ghi nhận giao dịch ăn sáng 100k', 1, 1);
+-- D? LI?U M?U: Chat AI
+INSERT INTO tAIConversations (acc_id, message_content, sender_type, intent, attachment_url, attachment_type, created_at) VALUES
+-- User 1: Nh?n text th�m giao d?ch cafe
+(1, N'T�i v?a mua cafe 45k', 0, 1, NULL, NULL, '2026-02-10 08:15:00'),
+(1, N'?� ghi nh?n: Chi ti�u 45,000? cho danh m?c ?n u?ng - Cafe. V� Ti?n m?t c�n 4,955,000?', 1, 1, NULL, NULL, '2026-02-10 08:15:03'),
+
+-- User 2: Nh?n text th�m giao d?ch ?n s�ng, sau ?� g?i ?nh h�a ??n Vinmart
+(2, N'T�i ?� chi 100k ?n s�ng', 0, 1, NULL, NULL, '2026-02-09 07:30:00'),
+(2, N'?� ghi nh?n giao d?ch ?n s�ng 100k', 1, 1, NULL, NULL, '2026-02-09 07:30:02'),
+(2, N'?�y l� h�a ??n mua s?m t?i Vinmart', 0, NULL, 'https://res.cloudinary.com/smartmoney/image/upload/receipts/user2_vinmart.jpg', 1, '2026-02-09 18:45:00'),
+(2, N'T�i ?� ph�n t�ch h�a ??n: T?ng chi 850,000? g?m 15 m�n h�ng t?i Vinmart. B?n mu?n ph�n lo?i v�o danh m?c n�o?', 1, 1, NULL, NULL, '2026-02-09 18:45:05'),
+
+-- User 3: H?i b�o c�o chi ti�u ?n u?ng th�ng n�y
+(3, N'Th�ng n�y t�i chi bao nhi�u ti?n ?n u?ng?', 0, 2, NULL, NULL, '2026-02-10 20:00:00'),
+(3, N'Th�ng 2/2026 b?n ?� chi 2,350,000? cho ?n u?ng, chi?m 35% t?ng chi ti�u. Top 3: Nh� h�ng (1.2tr), Cafe (800k), ?n v?t (350k)', 1, 2, NULL, NULL, '2026-02-10 20:00:04'),
+
+-- User 5: D�ng gi?ng n�i th�m giao d?ch x?ng, sau ?� g?i ?nh h�a ??n Petrolimex
+(5, N'V?a ?? x?ng 200 ngh�n', 0, 1, NULL, 2, '2026-02-09 17:20:00'),
+(5, N'OK! ?� ghi nh?n 200,000? v�o danh m?c ?i l?i - X?ng xe. V� Agribank c�n 19,800,000?', 1, 1, NULL, NULL, '2026-02-09 17:20:02'),
+(5, N'H�a ??n ?? x?ng Petrolimex', 0, NULL, 'https://res.cloudinary.com/smartmoney/image/upload/receipts/user5_petrolimex.jpg', 1, '2026-02-09 17:25:00'),
+(5, N'?� ph�n t�ch h�a ??n Petrolimex: X?ng RON95 5.2L x 25,500? = 132,600?. Ghi v�o danh m?c ?i l?i?', 1, 1, NULL, NULL, '2026-02-09 17:25:04'),
+
+-- User 6: Thi?t l?p h?n m?c ng�n s�ch ?n u?ng
+(6, N'??t h?n m?c chi ti�u ?n u?ng th�ng n�y l� 3 tri?u', 0, 3, NULL, NULL, '2026-02-01 09:00:00'),
+(6, N'?� thi?t l?p ng�n s�ch: ?n u?ng - 3,000,000?/th�ng. Hi?n t?i b?n ?� chi 450,000? (15%). T�i s? nh?c nh? khi ??t 80%', 1, 3, NULL, NULL, '2026-02-01 09:00:03'),
+
+-- User 7: H?i t? v?n c�ch ti?t ki?m ti?n
+(7, N'L�m sao ?? ti?t ki?m ti?n hi?u qu??', 0, 4, NULL, NULL, '2026-02-08 21:30:00'),
+(7, N'D?a v�o th�i quen chi ti�u c?a b?n, t�i c� 3 g?i �: 1) Gi?m cafe/tr� s?a (?ang chi 600k/th�ng) 2) N?u ?n thay v� ?n ngo�i 3) ??t m?c ti�u ti?t ki?m c? th? v?i t�nh n?ng Saving Goals', 1, 4, NULL, NULL, '2026-02-08 21:30:06'),
+
+-- User 10: ??t nh?c nh? tr? n?, sau ?� g?i ?nh h�a ??n Uniqlo
+(10, N'Nh?c t�i tr? n? anh Tu?n v�o ng�y 15', 0, 5, NULL, NULL, '2026-02-10 14:00:00'),
+(10, N'?� t?o l?i nh?c: "Tr? n? anh Tu?n" v�o 15/02/2026 l�c 9:00 s�ng. S? ti?n c�n n?: 5,000,000?', 1, 5, NULL, NULL, '2026-02-10 14:00:02'),
+(10, N'H�a ??n Uniqlo Diamond Plaza', 0, NULL, 'https://res.cloudinary.com/smartmoney/image/upload/receipts/user10_uniqlo.jpg', 1, '2026-02-07 18:00:00'),
+(10, N'?� ph�n t�ch h�a ??n Uniqlo: �o thun nam x2 (600k), Qu?n jean (900k). T?ng: 1,500,000?. X�c nh?n ghi v�o Mua s?m?', 1, 1, NULL, NULL, '2026-02-07 18:00:05'),
+
+-- User 11: G?i ?nh h�a ??n CGV ?? th�m giao d?ch
+(11, N'Th�m giao d?ch t? h�a ??n n�y', 0, NULL, 'https://res.cloudinary.com/smartmoney/image/upload/receipts/user11_cgv.jpg', 1, '2026-02-09 22:00:00'),
+(11, N'Ph�t hi?n h�a ??n CGV: 2 v� phim (300k), b?p rang b? (80k), n??c ng?t (60k). T?ng: 440,000?. X�c nh?n ghi v�o danh m?c Gi?i tr�?', 1, 1, NULL, NULL, '2026-02-09 22:00:04'),
+
+-- User 15: H?i so s�nh chi ti�u 2 th�ng, sau ?� g?i ?nh h�a ??n h?c ph� FPT
+(15, N'So s�nh chi ti�u th�ng n�y v?i th�ng tr??c', 0, 2, NULL, NULL, '2026-02-10 19:30:00'),
+(15, N'Th�ng 2: 8,500,000? | Th�ng 1: 7,200,000? (+18%). T?ng ch? y?u ?: Gi�o d?c (+2tr), Mua s?m (+500k). Gi?m: ?n u?ng (-200k)', 1, 2, NULL, NULL, '2026-02-10 19:30:05'),
+(15, N'H�a ??n h?c ph� ?H FPT', 0, NULL, 'https://res.cloudinary.com/smartmoney/image/upload/receipts/user15_fpt.jpg', 1, '2026-02-06 13:05:00'),
+(15, N'?� ph�n t�ch h�a ??n ?H FPT: H?c ph� k? 2 - 3,500,000?. Ghi v�o danh m?c Gi�o d?c?', 1, 1, NULL, NULL, '2026-02-06 13:05:06'),
+
+-- User 17: D�ng gi?ng n�i th�m giao d?ch mua s�ch
+(17, N'Mua s�ch l?p tr�nh 350 ngh�n', 0, 1, NULL, 2, '2026-02-08 16:45:00'),
+(17, N'?� l?u: 350,000? - S�ch l?p tr�nh v�o danh m?c Gi�o d?c. Qu? ph�t tri?n k? n?ng l?p tr�nh c�n 11,650,000?', 1, 1, NULL, NULL, '2026-02-08 16:45:03'),
+
+-- User 20: H?i t?ng quan ng�n s�ch, sau ?� g?i ?nh v� m�y bay VietJet
+(20, N'T�i ?� chi bao nhi�u % ng�n s�ch th�ng n�y?', 0, 2, NULL, NULL, '2026-02-10 22:00:00'),
+(20, N'T?ng quan th�ng 2: ?� chi 4,200,000?/8,000,000? (52.5%). An to�n ? h?u h?t danh m?c. C?nh b�o: Du l?ch ??t 85% (2,550k/3tr)', 1, 2, NULL, NULL, '2026-02-10 22:00:03'),
+(20, N'V� m�y bay VietJet H� N?i - ?� L?t', 0, NULL, 'https://res.cloudinary.com/smartmoney/image/upload/receipts/user20_vietjet.jpg', 1, '2026-02-09 11:25:00'),
+(20, N'?� ph�n t�ch v� VietJet: H� N?i ? ?� L?t, 2,700,000?. Ghi v�o danh m?c Du l?ch?', 1, 1, NULL, NULL, '2026-02-09 11:25:06'),
+-- User 3: G?i ?nh h�a ??n b? m?, OCR th?t b?i
+(3, N'H�a ??n si�u th? ?�y b?n', 0, NULL, 'https://res.cloudinary.com/smartmoney/image/upload/receipts/user3_blur.jpg', 1, '2026-02-10 21:00:00'),
+(3, N'Xin l?i, ?nh h�a ??n b? m?, t�i kh�ng th? ??c ???c. B?n c� th? ch?p l?i r� h?n kh�ng?', 1, NULL, NULL, NULL, '2026-02-10 21:00:06'),
+
+-- User 6: G?i ?nh h�a ??n m?i, AI ?ang x? l�
+(6, N'H�a ??n mua s?m Shopee h�m nay', 0, NULL, 'https://res.cloudinary.com/smartmoney/image/upload/receipts/user6_shopee.jpg', 1, '2026-02-10 23:50:00');
+-- (ch?a c� AI reply v� ?ang pending)
 GO
 
 -- ======================================================================
--- 13. BẢNG HÓA ĐƠN QUÉT (1-1 với tAIConversations)
+-- 13. B?NG H�A ??N QU�T (1-1 v?i tAIConversations)
 -- ======================================================================
 CREATE TABLE tReceipts (
     -- PRIMARY KEY (= Foreign Key)
@@ -746,16 +1201,16 @@ CREATE TABLE tReceipts (
     acc_id INT NOT NULL,                         -- FK -> tAccounts (N-1)
     
     -- DATA COLUMNS
-    image_url NVARCHAR(500) NOT NULL,            -- URL ảnh hóa đơn (upload lên Cloud)
-    raw_ocr_text NVARCHAR(MAX) NULL,             -- Text gốc từ OCR
-    processed_data NVARCHAR(MAX) NULL DEFAULT '{}',    -- Dữ liệu đã parse (JSON format)
+    image_url NVARCHAR(500) NOT NULL,            -- URL ?nh h�a ??n (upload l�n Cloud ho?c server)
+    raw_ocr_text NVARCHAR(MAX) NULL,             -- Text g?c t? OCR
+    processed_data NVARCHAR(MAX) NULL DEFAULT '{}',    -- D? li?u ?� parse (JSON format)
     receipt_status NVARCHAR(20) DEFAULT 'pending' NOT NULL, -- pending | processed | error
     created_at DATETIME DEFAULT GETDATE() NOT NULL,
 
     -- CONSTRAINTS	
     CONSTRAINT CHK_Receipt_Status CHECK (receipt_status IN ('pending', 'processed', 'error')),
     
-    -- Check logic: Đã xong thì phải có dữ liệu
+    -- Check logic: ?� xong th� ph?i c� d? li?u
     CONSTRAINT CHK_Receipt_Processed_Logic CHECK (
         (receipt_status = 'processed' AND processed_data IS NOT NULL) 
         OR (receipt_status <> 'processed')
@@ -765,18 +1220,90 @@ CREATE TABLE tReceipts (
 	CONSTRAINT FK_Receipts_Chat FOREIGN KEY (id) REFERENCES tAIConversations(id) ON DELETE CASCADE
 );
 GO
--- Index: Tối ưu lọc hóa đơn chờ xử lý (pending) của User
+-- Index: T?i ?u l?c h�a ??n ch? x? l� (pending) c?a User
 CREATE INDEX idx_receipts_pending ON tReceipts(acc_id, receipt_status, created_at DESC) 
 WHERE receipt_status = 'pending';
 
--- Index: Tối ưu query hóa đơn theo User và trạng thái
+-- Index: T?i ?u query h�a ??n theo User v� tr?ng th�i
 CREATE INDEX idx_receipts_user ON tReceipts(acc_id, receipt_status, created_at DESC) 
 INCLUDE (image_url, raw_ocr_text);
+GO
+-- ======================================================================
+-- D? LI?U M?U: H�a ??n
+-- ======================================================================
+INSERT INTO tReceipts (id, acc_id, image_url, raw_ocr_text, processed_data, receipt_status, created_at) VALUES
+(5, 2,
+'https://res.cloudinary.com/smartmoney/image/upload/receipts/user2_vinmart.jpg',
+N'VINMART
+123 Nguy?n Hu? Q1
+09/02/2026 18:30
+Rau c?i 35.000?
+Th?t heo 180.000?
+Tr?ng g� 45.000?
+G?o ST25 150.000?
+T?NG C?NG 850.000?',
+'{"store":"Vinmart","total":850000,"date":"2026-02-09","category":"Mua s?m"}', 'processed', '2026-02-09 18:45:00'),
+
+(11, 5,
+'https://res.cloudinary.com/smartmoney/image/upload/receipts/user5_petrolimex.jpg',
+N'PETROLIMEX
+09/02/2026 17:25
+X?ng RON95 5.2L
+??n gi� 25.500?/L
+Th�nh ti?n 132.600?
+Ti?n kh�ch ??a 200.000?
+Ti?n th?a 67.400?',
+'{"store":"Petrolimex","total":132600,"date":"2026-02-09","category":"?i l?i"}', 'processed', '2026-02-09 17:25:00'),
+
+(19, 10,
+'https://res.cloudinary.com/smartmoney/image/upload/receipts/user10_uniqlo.jpg',
+N'UNIQLO
+Diamond Plaza Q1
+07/02/2026 18:00
+�o thun nam x2 600.000?
+Qu?n jean 900.000?
+T?NG C?NG 1.500.000?',
+'{"store":"Uniqlo","total":1500000,"date":"2026-02-07","category":"Mua s?m"}', 'processed', '2026-02-07 18:00:00'),
+
+(21, 11,
+'https://res.cloudinary.com/smartmoney/image/upload/receipts/user11_cgv.jpg',
+N'CGV CINEMAS
+Landmark 81
+09/02/2026 22:00
+2x V� phim 300.000?
+B?p rang b? 80.000?
+Coca 60.000?
+T?NG 440.000?',
+'{"store":"CGV","total":440000,"date":"2026-02-09","category":"Gi?i tr�"}', 'processed', '2026-02-09 22:00:00'),
+
+(25, 15,
+'https://res.cloudinary.com/smartmoney/image/upload/receipts/user15_fpt.jpg',
+NULL,
+'{"store":"?H FPT","total":3500000,"date":"2026-02-06","category":"Gi�o d?c"}', 'processed', '2026-02-06 13:05:00'),
+
+(31, 20,
+'https://res.cloudinary.com/smartmoney/image/upload/receipts/user20_vietjet.jpg',
+NULL,
+'{"airline":"VietJet","total":2700000,"date":"2026-02-09","category":"Du l?ch"}', 'processed', '2026-02-09 11:25:00'),
+-- id=33: error - ?nh m? kh�ng OCR ???c
+(33, 3,
+'https://res.cloudinary.com/smartmoney/image/upload/receipts/user3_blur.jpg',
+N'##�U TH##
+##/##/20## ##:##
+S### ph### ##.###?
+T?## ##?NG ???',
+NULL, 'error', '2026-02-10 21:00:00'),
+
+-- id=35: pending - v?a g?i, ch?a x? l� xong
+(35, 6,
+'https://res.cloudinary.com/smartmoney/image/upload/receipts/user6_shopee.jpg',
+NULL,
+NULL, 'pending', '2026-02-10 23:50:00');
 GO
 -----------------------------------------------------------------------------------------------------------------------------
 
 -- ======================================================================
--- 14. BẢNG NGÂN SÁCH (1-N với tAccounts)
+-- 14. B?NG NG�N S�CH (1-N v?i tAccounts)
 -- ======================================================================
 CREATE TABLE tBudgets (
     -- PRIMARY KEY
@@ -784,14 +1311,14 @@ CREATE TABLE tBudgets (
     
     -- FOREIGN KEYS
     acc_id INT NOT NULL,                         -- FK -> tAccounts (N-1)
-    wallet_id INT NULL,                      -- FK -> tWallets (N-1) Ngân sách rút từ ví nào
+    wallet_id INT NULL,                      -- FK -> tWallets (N-1) Ng�n s�ch r�t t? v� n�o
     
     -- DATA COLUMNS
-    amount DECIMAL(18,2) NOT NULL,               -- Giới hạn ngân sách
-    begin_date DATE DEFAULT GETDATE() NOT NULL,  -- Ngày bắt đầu chu kỳ
-    end_date DATE NOT NULL,                      -- Ngày kết thúc chu kỳ
-    all_categories BIT DEFAULT 0,             -- 0: Theo danh mục cụ thể | 1: Tất cả Chi tiêu
-    repeating BIT DEFAULT 0,                  -- 0: Một lần | 1: Tự động gia hạn
+    amount DECIMAL(18,2) NOT NULL,               -- Gi?i h?n ng�n s�ch
+    begin_date DATE DEFAULT GETDATE() NOT NULL,  -- Ng�y b?t ??u chu k?
+    end_date DATE NOT NULL,                      -- Ng�y k?t th�c chu k?
+    all_categories BIT DEFAULT 0,             -- 0: Theo danh m?c c? th? | 1: T?t c? Chi ti�u
+    repeating BIT DEFAULT 0,                  -- 0: M?t l?n | 1: T? ??ng gia h?n
     
     -- CONSTRAINTS
     CONSTRAINT CHK_Budgets_Amount CHECK (amount > 0),
@@ -802,20 +1329,62 @@ CREATE TABLE tBudgets (
 GO
 
 -- Code back end
--- CHẶN TRÙNG NGÂN SÁCH: Một User không thể có 2 ngân sách cho 1 danh mục trong cùng 1 khoảng thời gian
--- Lưu ý: Backend cần check logic ngày tháng, còn DB chặn trùng lặp tuyệt đối category cho chắc ăn.
+-- CH?N TR�NG NG�N S�CH: M?t User kh�ng th? c� 2 ng�n s�ch cho 1 danh m?c trong c�ng 1 kho?ng th?i gian
+-- L?u �: Backend c?n check logic ng�y th�ng, c�n DB ch?n tr�ng l?p tuy?t ??i category cho ch?c ?n.
 --CREATE UNIQUE NONCLUSTERED INDEX idx_unique_budget_period ON tBudgets(acc_id, ctg_id, begin_date, end_date);
 
--- Index: Tối ưu query ngân sách theo User và chu kỳ
+-- Index: T?i ?u query ng�n s�ch theo User v� chu k?
 CREATE INDEX idx_budget_lookup ON tBudgets(acc_id, begin_date, end_date, all_categories) INCLUDE (amount, wallet_id, repeating);
 GO
 
--- DỮ LIỆU MẪU: Ngân sách
---INSERT INTO tBudgets VALUES()
---GO
+-- ======================================================================
+-- D? li?u m?u tBudgets
+-- ======================================================================
+INSERT INTO tBudgets (acc_id, wallet_id, amount, begin_date, end_date, all_categories, repeating) VALUES
+-- [ID=1]  User 1:  ?n u?ng th�ng 2 - m?i v� - t? gia h?n
+(1,  NULL, 5000000,  '2026-02-01', '2026-02-28', 0, 1),
+-- [ID=2]  User 2:  Mua s?m th�ng 2 - v� MoMo (id=3)
+(2,  3,    3000000,  '2026-02-01', '2026-02-28', 0, 0),
+-- [ID=3]  User 2:  T?ng chi ti�u all_categories - m?i v�
+(2,  NULL, 10000000, '2026-02-01', '2026-02-28', 1, 1),
+-- [ID=4]  User 6:  ?n u?ng + Gi?i tr� g?p - m?i v�
+(6,  NULL, 2000000,  '2026-02-01', '2026-02-28', 0, 1),
+-- [ID=5]  User 5:  Di chuy?n th�ng 2 - m?i v�
+(5,  NULL, 1500000,  '2026-02-01', '2026-02-28', 0, 1),
+-- [ID=6]  User 3:  Ho� ??n & Ti?n �ch - v� Ti?n m?t (id=5)
+(3,  5,    2000000,  '2026-02-01', '2026-02-28', 0, 1),
+-- [ID=7]  User 20: Du l?ch th�ng 2 - m?i v�
+(20, NULL, 10000000, '2026-02-01', '2026-02-28', 0, 0),
+-- [ID=8]  User 1:  Mua s?m th�ng 2 - v� Vietcombank (id=2)
+(1,  2,    3000000,  '2026-02-01', '2026-02-28', 0, 0),
+-- [ID=9]  User 7:  ?n u?ng th�ng 2 - v� ACB (id=12)
+(7,  12,   2500000,  '2026-02-01', '2026-02-28', 0, 1),
+-- [ID=10] User 10: T?ng chi ti�u all_categories - m?i v�
+(10, NULL, 8000000,  '2026-02-01', '2026-02-28', 1, 1),
+-- [ID=11] User 11: Gi�o d?c th�ng 2 - v� TPBank (id=18)
+(11, 18,   5000000,  '2026-02-01', '2026-02-28', 0, 0),
+-- [ID=12] User 15: Gi�o d?c th�ng 2 - v� H?c ph� (id=23)
+(15, 23,   8000000,  '2026-02-01', '2026-02-28', 0, 1),
+-- [ID=13] User 17: ??u t? th�ng 2 - v� ??u t? (id=26) - kh�ng gia h?n
+(17, 26,   15000000, '2026-02-01', '2026-02-28', 0, 0),
+-- [ID=14] User 3:  ?n u?ng + S?c kh?e g?p - m?i v�
+(3,  NULL, 3000000,  '2026-02-01', '2026-02-28', 0, 1),
+-- [ID=15] User 12: T?ng chi ti�u all_categories - v� Sacombank (id=20)
+(12, 20,   12000000, '2026-02-01', '2026-02-28', 1, 1),
+-- [ID=16] User 8:  S?c kh?e th�ng 2 - v� Ti?n m?t (id=21)
+(8,  21,   2000000,  '2026-02-01', '2026-02-28', 0, 0),
+-- [ID=17] User 2:  ?n u?ng th�ng 3 - v� Techcombank (id=4) - t? gia h?n
+(2,  4,    2500000,  '2026-03-01', '2026-03-31', 0, 1),
+-- [ID=18] User 6:  Gi�o d?c th�ng 2 - m?i v�
+(6,  NULL, 1500000,  '2026-02-01', '2026-02-28', 0, 1),
+-- [ID=19] User 20: T?ng all_categories th�ng 2 - v� du l?ch (id=13)
+(20, 13,   20000000, '2026-02-01', '2026-02-28', 1, 0),
+-- [ID=20] User 1:  Ho� ??n & Ti?n �ch qu� 1 - m?i v� - t? gia h?n
+(1,  NULL, 2000000,  '2026-01-01', '2026-03-31', 0, 1);
+GO
 
 -- ======================================================================
--- 15. BẢNG TRUNG GIAN BUDGET - CATEGORY (N-N)
+-- 15. B?NG TRUNG GIAN BUDGET - CATEGORY (N-N)
 -- ======================================================================
 CREATE TABLE tBudgetCategories (
     -- PRIMARY KEY (Composite)
@@ -829,12 +1398,41 @@ CREATE TABLE tBudgetCategories (
 );
 GO
 
--- Index: Tối ưu query ngược từ Category -> Budgets
+-- Index: T?i ?u query ng??c t? Category -> Budgets
 CREATE INDEX idx_budget_ctg_reverse ON tBudgetCategories(ctg_id, budget_id);
+GO
+-- ======================================================================
+-- D? LI?U M?U: Chi ti?t danh m?c �p d?ng ng�n s�ch (tBudgetCategories)
+-- ======================================================================
+INSERT INTO tBudgetCategories (budget_id, ctg_id) VALUES
+(1,  1),  -- Budget 1  (User 1):  ?n u?ng (id=1)
+(2,  10), -- Budget 2  (User 2):  Mua s?m (id=10)
+          -- Budget 3  (User 2):  all_categories=1 ? kh�ng c?n insert
+(4,  1),  -- Budget 4  (User 6):  ?n u?ng
+(4,  7),  -- Budget 4  (User 6):  Gi?i tr�
+(5,  5),  -- Budget 5  (User 5):  Di chuy?n (id=5)
+(6,  9),  -- Budget 6  (User 3):  Ho� ??n & Ti?n �ch (id=9)
+(7,  7),  -- Budget 7  (User 20): Gi?i tr� (id=7) - map du l?ch v�o Gi?i tr�
+(8,  10), -- Budget 8  (User 1):  Mua s?m (id=10)
+(9,  1),  -- Budget 9  (User 7):  ?n u?ng (id=1)
+          -- Budget 10 (User 10): all_categories=1 ? kh�ng c?n insert
+(11, 8),  -- Budget 11 (User 11): Gi�o d?c (id=8)
+(12, 8),  -- Budget 12 (User 15): Gi�o d?c (id=8)
+(13, 4),  -- Budget 13 (User 17): ??u t? (id=4)
+(14, 1),  -- Budget 14 (User 3):  ?n u?ng
+(14, 12), -- Budget 14 (User 3):  S?c kh?e
+          -- Budget 15 (User 12): all_categories=1 ? kh�ng c?n insert
+(16, 12), -- Budget 16 (User 8):  S?c kh?e (id=12)
+(17, 1),  -- Budget 17 (User 2):  ?n u?ng (id=1)
+(18, 8),  -- Budget 18 (User 6):  Gi�o d?c (id=8)
+          -- Budget 19 (User 20): all_categories=1 ? kh�ng c?n insert
+(20, 9),  -- Budget 20 (User 1):  Ho� ??n & Ti?n �ch (id=9)
+(20, 29), -- Budget 20 (User 1):  sub ?i?n (id=29)
+(20, 32); -- Budget 20 (User 1):  Internet (id=32)
 GO
 
 -- ======================================================================
--- 16. BẢNG GIAO DỊCH (TRUNG TÂM HỆ THỐNG)
+-- 16. B?NG GIAO D?CH (TRUNG T�M H? TH?NG)
 -- ======================================================================
 CREATE TABLE tTransactions (
     -- PRIMARY KEY
@@ -842,29 +1440,31 @@ CREATE TABLE tTransactions (
     
     -- FOREIGN KEYS
     acc_id INT NOT NULL,                         -- FK -> tAccounts (N-1)
-    ctg_id INT NULL,                             -- FK -> tCategories (N-1) | NULL = Chi trừ nợ không phân loại
+    ctg_id INT NULL,                             -- FK -> tCategories (N-1) | NULL = Chi tr? n? kh�ng ph�n lo?i
     wallet_id INT NULL,                          -- FK -> tWallets (N-1)
-    event_id INT NULL,                           -- FK -> tEvents (N-1) | NULL = Không thuộc sự kiện
-    debt_id INT NULL,                            -- FK -> tDebts (N-1) | NULL = Không liên quan nợ
-    goal_id INT NULL,                            -- FK -> tSavingGoals (N-1) | NULL = Không liên quan mục tiêu
-    ai_chat_id INT NULL,                         -- FK -> tAIConversations (N-1) | NULL = Nhập thủ công
+    event_id INT NULL,                           -- FK -> tEvents (N-1) | NULL = Kh�ng thu?c s? ki?n
+    debt_id INT NULL,                            -- FK -> tDebts (N-1) | NULL = Kh�ng li�n quan n?
+    goal_id INT NULL,                            -- FK -> tSavingGoals (N-1) | NULL = Kh�ng li�n quan m?c ti�u
+    ai_chat_id INT NULL,                         -- FK -> tAIConversations (N-1) | NULL = Nh?p th? c�ng
     
     -- DATA COLUMNS
-    amount DECIMAL(18,2) NOT NULL,               -- Số tiền giao dịch
-    with_person NVARCHAR(100) NULL,              -- Tên người liên quan (VD: người vay, người trả)
-    note NVARCHAR(500) NULL,                     -- Ghi chú (VD: "Ăn sáng", "Lương tháng 1")
-    reportable BIT DEFAULT 1 NOT NULL,        -- 0: Không tính vào báo cáo | 1: Tính vào Dashboard
+    amount DECIMAL(18,2) NOT NULL,               -- S? ti?n giao d?ch
+    with_person NVARCHAR(100) NULL,              -- T�n ng??i li�n quan (VD: ng??i vay, ng??i tr?)
+    note NVARCHAR(500) NULL,                     -- Ghi ch� (VD: "?n s�ng", "L??ng th�ng 1")
+    reportable BIT DEFAULT 1 NOT NULL,        -- 0: Kh�ng t�nh v�o b�o c�o | 1: T�nh v�o Dashboard
     source_type TINYINT DEFAULT 1 NOT NULL,      -- 1: manual | 2: chat | 3: voice | 4: receipt
-    trans_date DATETIME DEFAULT GETDATE() NOT NULL,   -- Ngày giao dịch thực tế
-    created_at DATETIME DEFAULT GETDATE() NOT NULL,   -- Ngày hệ thống ghi nhận
-    deleted BIT DEFAULT 0 NOT NULL,           -- 0: Hoạt động | 1: Đã xóa (soft delete)
+    trans_date DATETIME DEFAULT GETDATE() NOT NULL,   -- Ng�y giao d?ch th?c t?
+    created_at DATETIME DEFAULT GETDATE() NOT NULL,   -- Ng�y h? th?ng ghi nh?n
     
     -- CONSTRAINTS
     CONSTRAINT CHK_Transaction_Amount CHECK (amount > 0),
     CONSTRAINT CHK_Transaction_SourceType CHECK (source_type BETWEEN 1 AND 4),
     CONSTRAINT CHK_Transaction_Integrity CHECK (
-        (source_type = 1 AND ai_chat_id IS NULL) OR          -- Manual thì không có chat_id
-        (source_type IN (2,3,4) AND ai_chat_id IS NOT NULL)  -- AI thì bắt buộc có chat_id
+        (source_type = 1 AND ai_chat_id IS NULL) OR          -- Manual th� kh�ng c� chat_id
+        (source_type IN (2,3,4) AND ai_chat_id IS NOT NULL)  -- AI th� b?t bu?c c� chat_id
+    ),    
+    CONSTRAINT CHK_Transaction_SingleWallet CHECK (
+        NOT (wallet_id IS NOT NULL AND goal_id IS NOT NULL)
     ),
     CONSTRAINT FK_Transactions_Account FOREIGN KEY (acc_id) REFERENCES tAccounts(id),
     CONSTRAINT FK_Transactions_Category FOREIGN KEY (ctg_id) REFERENCES tCategories(id),
@@ -876,41 +1476,113 @@ CREATE TABLE tTransactions (
 );
 GO
 
--- Index: Tối ưu Báo cáo tài chính và Dashboard chính
-CREATE INDEX idx_trans_main ON tTransactions(acc_id, wallet_id, deleted, trans_date DESC) 
+-- Index: T?i ?u B�o c�o t�i ch�nh v� Dashboard ch�nh
+CREATE INDEX idx_trans_main ON tTransactions(acc_id, wallet_id, trans_date DESC) 
 INCLUDE (amount, ctg_id, reportable, source_type);
 
--- Index: Tối ưu query giao dịch theo Mục tiêu tiết kiệm
-CREATE INDEX idx_trans_goal ON tTransactions(goal_id, deleted) 
+-- Index: T?i ?u query giao d?ch theo M?c ti�u ti?t ki?m
+CREATE INDEX idx_trans_goal ON tTransactions(goal_id) 
 INCLUDE (amount, trans_date) 
 WHERE goal_id IS NOT NULL;
 
--- Index: Tối ưu query giao dịch theo Sự kiện
-CREATE INDEX idx_trans_event ON tTransactions(event_id, deleted) 
+-- Index: T?i ?u query giao d?ch theo S? ki?n
+CREATE INDEX idx_trans_event ON tTransactions(event_id) 
 INCLUDE (amount, trans_date, ctg_id) 
 WHERE event_id IS NOT NULL;
 
--- Index: Tối ưu query giao dịch do AI tạo
-CREATE INDEX idx_trans_ai ON tTransactions(ai_chat_id, deleted) 
+-- Index: T?i ?u query giao d?ch do AI t?o
+CREATE INDEX idx_trans_ai ON tTransactions(ai_chat_id) 
 INCLUDE (amount, trans_date, source_type) 
 WHERE ai_chat_id IS NOT NULL;
 
--- Index: Tối ưu tính toán khoản nợ (Trả/Thu)
-CREATE INDEX idx_trans_debt ON tTransactions(debt_id, deleted) 
+-- Index: T?i ?u t�nh to�n kho?n n? (Tr?/Thu)
+CREATE INDEX idx_trans_debt ON tTransactions(debt_id) 
 INCLUDE (amount, trans_date) 
 WHERE debt_id IS NOT NULL;
 
--- Index: Tối ưu query giao dịch theo Danh mục
-CREATE INDEX idx_trans_category ON tTransactions(acc_id, ctg_id, deleted, trans_date DESC) 
+-- Index: T?i ?u query giao d?ch theo Danh m?c
+CREATE INDEX idx_trans_category ON tTransactions(acc_id, ctg_id, trans_date DESC) 
 INCLUDE (amount, wallet_id);
 GO
 
--- DỮ LIỆU MẪU: Giao dịch
---INSERT INTO tTransactions (acc_id, ctg_id, wallet_id, amount, note) VALUES 
---GO
 
 -- ======================================================================
--- 17. BẢNG THÔNG BÁO (1-N với tAccounts)
+-- D? LI?U M?U: Giao d?ch
+-- ======================================================================
+INSERT INTO tTransactions (acc_id, ctg_id, wallet_id, amount, note, trans_date, with_person, reportable, source_type, event_id, debt_id, goal_id, ai_chat_id) VALUES
+
+-- ?? User 1 ??????????????????????????????????????????????????????????????
+(1, 1,  1,    50000,      N'?n s�ng b�nh m�',            '2026-02-10 07:30:00', N'C� H??ng',               1, 1, NULL, NULL, NULL, NULL),
+(1, 15, 2,    15000000,   N'L??ng th�ng 2',               '2026-02-05 09:00:00', N'C�ng ty ABC',            1, 1, NULL, NULL, NULL, NULL),
+(1, 9,  1,    500000,     N'Ti?n ?i?n th�ng 1',           '2026-02-08 14:20:00', N'?i?n l?c TP.HCM',        1, 1, NULL, NULL, NULL, NULL),
+(1, 1,  1,    45000,      N'Cafe',                        '2026-02-10 08:15:00', NULL,                      1, 2, NULL, NULL, NULL, 2),
+(1, 1,  2,    250000,     N'?n t?i gia ?�nh',             '2026-02-03 19:00:00', NULL,                      1, 1, 2,    NULL, NULL, NULL),
+(1, 19, 2,    5000000,    N'Cho anh Minh vay kh?n c?p',   '2025-12-10 14:30:00', N'Anh Minh',               1, 1, NULL, 2,    NULL, NULL),
+
+-- ?? User 2 ??????????????????????????????????????????????????????????????
+(2, 1,  3,    85000,      N'Tr� s?a chi?u',               '2026-02-09 15:45:00', N'Gongcha',                1, 1, NULL, NULL, NULL, NULL),
+(2, 10, 4,    2000000,    N'Mua �o kho�c Zara',           '2026-02-07 18:30:00', N'Zara Vincom',            1, 1, NULL, NULL, NULL, NULL),
+(2, 5,  3,    300000,     N'X?ng xe m�y',                 '2026-02-06 08:15:00', N'Petrolimex',             1, 1, NULL, NULL, NULL, NULL),
+(2, 1,  3,    100000,     N'?n s�ng',                     '2026-02-09 07:30:00', NULL,                      1, 2, NULL, NULL, NULL, 4),
+(2, 10, 3,    850000,     N'Mua s?m Vinmart',              '2026-02-09 18:45:00', N'Vinmart',                1, 4, NULL, NULL, NULL, 6),
+(2, 16, NULL, 3000000,    N'?i vay b? m? mua iPhone',     '2026-01-20 11:00:00', N'B? m?',                  0, 1, NULL, 4,    3,    NULL),
+
+-- ?? User 3 ??????????????????????????????????????????????????????????????
+(3, 1,  5,    120000,     N'C?m tr?a v?n ph�ng',          '2026-02-10 12:00:00', N'Qu�n c?m Ph�c L?c Th?', 1, 1, NULL, NULL, NULL, NULL),
+(3, 12, 6,    500000,     N'Kh�m r?ng ??nh k?',           '2026-02-08 10:30:00', N'Nha khoa Kim',           1, 1, NULL, NULL, NULL, NULL),
+(3, 20, 6,    10000000,   N'Vay b?n th�n mua laptop',     '2025-10-15 16:30:00', N'B?n th�n',               0, 1, NULL, 6,    NULL, NULL),
+(3, 22, 6,    1000000,    N'Tr? n? b?n th�n k? n�y',      '2026-02-15 10:00:00', N'B?n th�n',               1, 1, NULL, 6,    NULL, NULL),
+
+-- ?? User 5 ??????????????????????????????????????????????????????????????
+(5, 7,  9,    150000,     N'Xem phim Avengers',           '2026-02-09 19:45:00', N'CGV Landmark',           1, 1, NULL, NULL, NULL, NULL),
+(5, 16, NULL, 5000000,    N'R�t ti?t ki?m v? v�',         '2026-02-07 11:00:00', NULL,                      0, 1, NULL, NULL, 7,    NULL),
+(5, 5,  9,    200000,     N'?? x?ng',                     '2026-02-09 17:20:00', N'Petrolimex',             1, 3, NULL, NULL, NULL, 10),
+(5, 5,  9,    132600,     N'X?ng RON95 5.2L',             '2026-02-09 17:25:00', N'Petrolimex',             1, 4, NULL, NULL, NULL, 12),
+(5, 20, NULL, 50000000,   N'Vay ng�n h�ng ti?n c??i',     '2025-06-01 09:30:00', N'Ng�n h�ng',              0, 1, NULL, 7,    8,    NULL),
+
+-- ?? User 6 ??????????????????????????????????????????????????????????????
+(6, 8,  10,   800000,     N'Mua s�ch l?p tr�nh',          '2026-02-08 16:20:00', N'Fahasa',                 1, 1, NULL, NULL, NULL, NULL),
+(6, 10, 11,   250000,     N'Mua ?p l?ng iPhone',          '2026-02-09 14:10:00', N'Shopee',                 1, 1, NULL, NULL, NULL, NULL),
+(6, 7,  10,   350000,     N'Chi ph� d? �n t?t nghi?p',    '2026-02-05 10:00:00', NULL,                      1, 1, 7,    NULL, NULL, NULL),
+(6, 16, NULL, 500000,     N'G�p qu? ChatGPT Plus',        '2026-02-01 08:00:00', NULL,                      1, 1, NULL, NULL, 31,   NULL),
+
+-- ?? User 7 ??????????????????????????????????????????????????????????????
+(7, 1,  12,   350000,     N'?n t?i l?u',                  '2026-02-09 19:00:00', N'L?u H?i S?n ?� L?t',    1, 1, 8,    NULL, NULL, NULL),
+(7, 9,  12,   1200000,    N'Thu� kh�ch s?n 2 ?�m',        '2026-02-08 15:30:00', N'Dalat Palace Hotel',     1, 1, 8,    NULL, NULL, NULL),
+(7, 20, NULL, 15000000,   N'Vay b? mua MacBook',          '2025-12-05 15:00:00', N'B?',                     0, 1, NULL, 10,   10,   NULL),
+
+-- ?? User 10 ?????????????????????????????????????????????????????????????
+(10, 1, 16,   95000,      N'Cafe s�ng',                   '2026-02-10 08:00:00', N'Highlands Coffee',       1, 1, NULL, NULL, NULL, NULL),
+(10, 10,17,   1500000,    N'�o thun nam x2, Qu?n jean',   '2026-02-07 18:00:00', N'Uniqlo',                 1, 4, NULL, NULL, NULL, 20),
+(10, 20,NULL, 25000000,   N'Vay m? mua nh?n c??i',       '2025-08-20 11:30:00', N'M?',                     0, 1, NULL, 12,   13,   NULL),
+(10, 22,16,   2000000,    N'Tr? n? m? k? n�y',           '2026-02-10 09:00:00', N'M?',                     1, 1, NULL, 12,   NULL, NULL),
+
+-- ?? User 11 ?????????????????????????????????????????????????????????????
+(11, 11,18,   200000,     N'?�ng g�p t? thi?n',           '2026-02-09 09:30:00', N'Qu? v� ng??i ngh�o',     1, 1, NULL, NULL, NULL, NULL),
+(11, 15,18,   18000000,   N'L??ng th�ng 2',               '2026-02-05 10:00:00', N'C�ng ty Tech Innovation', 1, 1, NULL, NULL, NULL, NULL),
+(11, 7, 18,   440000,     N'2 v� phim, b?p, n??c',        '2026-02-09 22:00:00', N'CGV Landmark 81',        1, 4, NULL, NULL, NULL, 22),
+(11, 8, NULL, 8000000,    N'G�p qu? kh�a h?c AWS',        '2026-02-10 10:00:00', NULL,                      1, 1, NULL, NULL, 27,   NULL),
+
+-- ?? User 15 ?????????????????????????????????????????????????????????????
+(15, 8, NULL, 3500000,    N'H?c ph� h?c k? 1',            '2026-02-06 13:00:00', N'Tr??ng ?H FPT',          1, 1, NULL, NULL, 19,   NULL),
+(15, 8, NULL, 3500000,    N'H?c ph� k? 2 - ?H FPT',       '2026-02-06 13:05:00', N'?H FPT',                 1, 4, NULL, NULL, 19,   26),
+(15, 21,23,   12000000,   N'Cho b?n h?c vay h?c Th?c s?', '2026-01-05 13:20:00', N'B?n h?c',                1, 1, NULL, 17,   NULL, NULL),
+
+-- ?? User 17 ?????????????????????????????????????????????????????????????
+(17, 8, 26,   350000,     N'S�ch l?p tr�nh',              '2026-02-08 16:45:00', NULL,                      1, 3, NULL, NULL, NULL, 28),
+(17, 16,NULL, 10000000,   N'G�p qu? ??u t? ch?ng kho�n', '2026-02-01 09:00:00', NULL,                      0, 1, NULL, NULL, 21,   NULL),
+(17, 20,26,   100000000,  N'Vay ng�n h�ng kh?i nghi?p',  '2024-06-15 09:00:00', N'Ng�n h�ng',              0, 1, NULL, 18,   NULL, NULL),
+
+-- ?? User 20 ?????????????????????????????????????????????????????????????
+(20, 9, 13,   2500000,    N'??t v� m�y bay ?i Ph� Qu?c', '2026-02-09 11:20:00', N'VietJet Air',            1, 1, 21,   NULL, NULL, NULL),
+(20, 9, 13,   2700000,    N'V� m�y bay HN - ?� L?t',     '2026-02-09 11:25:00', N'VietJet Air',            1, 4, NULL, NULL, NULL, 32),
+(20, 9, 14,   4000000,    N'??t kh�ch s?n ?� L?t',       '2026-02-08 10:00:00', N'Agoda',                  1, 1, 21,   NULL, NULL, NULL),
+(20, 16,NULL, 5000000,    N'G�p qu? mua m�y ?nh',        '2026-02-05 08:00:00', NULL,                      1, 1, NULL, NULL, 24,   NULL),
+(20, 20,13,   18000000,   N'Vay b?n th�n mua m�y ?nh',   '2025-09-10 11:00:00', N'B?n th�n',               0, 1, NULL, 20,   NULL, NULL);
+GO
+
+-- ======================================================================
+-- 17. B?NG TH�NG B�O (1-N v?i tAccounts)
 -- ======================================================================
 CREATE TABLE tNotifications (
     -- PRIMARY KEY
@@ -919,29 +1591,29 @@ CREATE TABLE tNotifications (
     -- FOREIGN KEYS
     acc_id INT NOT NULL,                         -- FK -> tAccounts (N-1)     
 
-	-- LOẠI THÔNG BÁO (Sử dụng TINYINT để tối ưu hiệu năng)
-    -- 1: TRANSACTION (Giao dịch/Biến động số dư)
-    -- 2: SAVING      (Mục tiêu tiết kiệm/Quỹ)
-    -- 3: BUDGET      (Cảnh báo ngân sách/Vượt hạn mức)
-    -- 4: SYSTEM      (Hệ thống/Cập nhật/Bảo mật)
-    -- 5: CHAT_AI     (Thông báo từ trợ lý AI)
-    -- 6: WALLETS     (Thông báo liên quan đến ví/số dư âm)
-    -- 7: EVENTS      (Sự kiện/Lịch trình)
-    -- 8: DEBT_LOAN   (Nhắc nợ/Thu nợ)
-    -- 9: REMINDER    (Nhắc nhở chung/Daily nhắc ghi chép)
+	-- LO?I TH�NG B�O (S? d?ng TINYINT ?? t?i ?u hi?u n?ng)
+    -- 1: TRANSACTION (Giao d?ch/Bi?n ??ng s? d?)
+    -- 2: SAVING      (M?c ti�u ti?t ki?m/Qu?)
+    -- 3: BUDGET      (C?nh b�o ng�n s�ch/V??t h?n m?c)
+    -- 4: SYSTEM      (H? th?ng/C?p nh?t/B?o m?t)
+    -- 5: CHAT_AI     (Th�ng b�o t? tr? l� AI)
+    -- 6: WALLETS     (Th�ng b�o li�n quan ??n v�/s? d? �m)
+    -- 7: EVENTS      (S? ki?n/L?ch tr�nh)
+    -- 8: DEBT_LOAN   (Nh?c n?/Thu n?)
+    -- 9: REMINDER    (Nh?c nh? chung/Daily nh?c ghi ch�p)
     notify_type TINYINT NOT NULL, 
 
-    -- ID CỦA ĐỐI TƯỢNG LIÊN QUAN (Tùy theo notify_type)
-    -- Ví dụ: Nếu type = 1 thì đây là ID của tTransactions
-    -- Nếu type = 6 thì đây là ID của tWallets
+    -- ID C?A ??I T??NG LI�N QUAN (T�y theo notify_type)
+    -- V� d?: N?u type = 1 th� ?�y l� ID c?a tTransactions
+    -- N?u type = 6 th� ?�y l� ID c?a tWallets
     related_id BIGINT NULL,
 
-	title NVARCHAR(100) NULL,                    -- Tiêu đề ngắn gọn (VD: "Cảnh báo ngân sách")
-    content NVARCHAR(500) NOT NULL,              -- Nội dung chi tiết (VD: "Bạn đã xài hết 50% tiền Ăn uống")
-    scheduled_time DATETIME DEFAULT GETDATE(),   -- Thời điểm thông báo (ngay hoặc hẹn lịch)
-    notify_sent BIT DEFAULT 0,                       -- 0: Chưa gửi Push | 1: Đã gửi Push
-    notify_read BIT DEFAULT 0,                       -- 0: Chưa đọc | 1: Đã đọc  
-    created_at DATETIME DEFAULT GETDATE(),       -- Ngày tạo thông báo
+	title NVARCHAR(100) NULL,                    -- Ti�u ?? ng?n g?n (VD: "C?nh b�o ng�n s�ch")
+    content NVARCHAR(500) NOT NULL,              -- N?i dung chi ti?t (VD: "B?n ?� x�i h?t 50% ti?n ?n u?ng")
+    scheduled_time DATETIME DEFAULT GETDATE(),   -- Th?i ?i?m th�ng b�o (ngay ho?c h?n l?ch)
+    notify_sent BIT DEFAULT 0,                       -- 0: Ch?a g?i Push | 1: ?� g?i Push
+    notify_read BIT DEFAULT 0,                       -- 0: Ch?a ??c | 1: ?� ??c  
+    created_at DATETIME DEFAULT GETDATE(),       -- Ng�y t?o th�ng b�o
 	
     -- CONSTRAINTS
     CONSTRAINT CHK_Notify_Type CHECK (notify_type BETWEEN 1 AND 9),
@@ -949,23 +1621,63 @@ CREATE TABLE tNotifications (
 );
 GO
 
--- Index: Tối ưu Worker quét thông báo cần gửi
+-- Index: T?i ?u Worker qu�t th�ng b�o c?n g?i
 CREATE INDEX idx_notify_worker ON tNotifications(scheduled_time, notify_sent) WHERE notify_sent = 0;
 
--- Index: Tối ưu load thông báo cho User UI
+-- Index: T?i ?u load th�ng b�o cho User UI
 CREATE INDEX idx_notify_ui ON tNotifications(acc_id, notify_read, created_at DESC) INCLUDE (title, content, notify_type, related_id);
 
--- Index: Tối ưu load thông báo mới nhất
+-- Index: T?i ?u load th�ng b�o m?i nh?t
 CREATE INDEX idx_notify_latest ON tNotifications(acc_id, created_at DESC) INCLUDE (notify_read, title, content);
 GO
 
--- DỮ LIỆU MẪU: Thông báo
-INSERT INTO tNotifications (acc_id, notify_type, title, content) VALUES 
-(2, 3, N'Cảnh báo ngân sách', N'Bạn đã chi 80% ngân sách ăn uống');
+-- ======================================================================
+-- D? LI?U M?U: Th�ng b�o
+-- ======================================================================
+INSERT INTO tNotifications (acc_id, notify_type, related_id, title, content, scheduled_time, notify_sent, notify_read) VALUES
+
+-- type=1: Giao d?ch l?n (?� ??c)
+(1,  1, 2,    N'Giao d?ch m?i',       N'?� ghi nh?n thu nh?p 15,000,000? - L??ng th�ng 2 v�o v� Vietcombank',       '2026-02-05 09:00:05', 1, 1),
+(11, 1, 23,   N'Giao d?ch m?i',       N'?� ghi nh?n thu nh?p 18,000,000? - L??ng th�ng 2 v�o v� TPBank',            '2026-02-05 10:00:05', 1, 1),
+(2,  1, 12,   N'Giao d?ch m?i',       N'?� ghi nh?n chi ti�u 3,000,000? - ?i vay b? m? mua iPhone v�o v� TCB',     '2026-01-20 11:00:10', 1, 1),
+
+-- type=2: M?c ti�u ti?t ki?m (mix ??c/ch?a)
+(5,  2, 7,    N'M?c ti�u ti?n tri?n', N'B?n ?� ??t 50% m?c ti�u "Mua xe m�y SH". C�n 45,000,000? n?a l� ho�n th�nh!','2026-02-07 09:00:00', 1, 0),
+(10, 2, 13,   N'Nh?c m?c ti�u',       N'M?c ti�u "Mua nh?n c??i" s?p ??n h?n (30/11/2026). C�n thi?u 15,000,000?', '2026-02-10 08:00:00', 1, 0),
+(6,  2, 31,   N'M?c ti�u ti?n tri?n', N'Qu? ChatGPT Plus ?� ??t 29%. C? l�n! C�n 8,500,000? n?a.',                  '2026-02-08 10:00:00', 1, 1),
+
+-- type=3: C?nh b�o ng�n s�ch (mix)
+(2,  3, 1,    N'C?nh b�o ng�n s�ch',  N'B?n ?� chi 80% ng�n s�ch ?n u?ng th�ng 2. H�y c�n nh?c chi ti�u!',          '2026-02-09 20:00:00', 1, 1),
+(6,  3, 4,    N'V??t ng�n s�ch',      N'B?n ?� v??t 120% ng�n s�ch ?n u?ng + Gi?i tr�. T?ng chi: 2,400,000?/2tr',   '2026-02-10 18:00:00', 1, 0),
+(10, 3, 10,   N'C?nh b�o ng�n s�ch',  N'?� chi 75% t?ng ng�n s�ch th�ng 2 (6,000,000?/8,000,000?).',                 '2026-02-09 22:00:00', 1, 0),
+
+-- type=4: H? th?ng
+(1,  4, NULL, N'C?p nh?t h? th?ng',   N'SmartMoney v1.1 v?a ra m?t! T�nh n?ng m?i: B�o c�o n�ng cao v� xu?t PDF',   '2026-02-01 07:00:00', 1, 1),
+(15, 4, NULL, N'B?o m?t t�i kho?n',   N'Ph�t hi?n ??ng nh?p m?i t? thi?t b? l? l�c 02:30. H�y ??i m?t kh?u ngay',  '2026-02-08 02:35:00', 1, 0),
+
+-- type=5: AI Chat
+(3,  5, 7,    N'Ph�n t�ch AI',        N'AI ?� ph�n t�ch xong chi ti�u th�ng 2. B?n ?ang chi nhi?u h?n 18% th�ng tr??c','2026-02-10 20:00:10', 1, 0),
+(10, 5, 18,   N'AI nh?c nh?',         N'L?i nh?c: "Tr? n? anh Tu?n" v�o ng�y mai 15/02/2026 l�c 9:00 s�ng',         '2026-02-14 21:00:00', 0, 0),
+
+-- type=6: V� s? d? th?p
+(2,  6, 3,    N'S? d? v� th?p',       N'V� MoMo c�n 250,000? - d??i m?c c?nh b�o 500,000?. H�y n?p th�m ti?n',      '2026-02-10 15:00:00', 1, 0),
+(6,  6, 11,   N'S? d? v� th?p',       N'V� VNPay c�n 150,000?. B?n c� mu?n chuy?n ti?n t? MB Bank sang kh�ng?',      '2026-02-09 22:00:00', 1, 1),
+
+-- type=7: S? ki?n s?p t?i (h?n l?ch t??ng lai)
+(3,  7, 4,    N'S? ki?n s?p t?i',     N'Sinh nh?t 25 tu?i c�n 33 ng�y n?a (15/03/2026). ??ng qu�n l�n k? ho?ch!',   '2026-02-10 08:00:00', 1, 0),
+(20, 7, 21,   N'S? ki?n s?p t?i',     N'K? ngh? h� gia ?�nh c�n 141 ng�y (01/07/2026). Ng�n s�ch: 10,000,000?',     '2026-02-15 08:00:00', 0, 0),
+
+-- type=8: Nh?c n? (h?n l?ch t??ng lai)
+(1,  8, 2,    N'Nh?c kho?n thu',      N'Kho?n cho anh Minh vay 3,000,000? ??n h?n thu 31/03/2026. H�y li�n h?!',    '2026-02-20 09:00:00', 0, 0),
+(5,  8, 7,    N'Nh?c kho?n n?',       N'Kho?n vay c??i c�n 40,000,000?. K? thanh to�n ti?p theo 01/03/2026',         '2026-02-25 09:00:00', 0, 0),
+
+-- type=9: Nh?c ghi ch�p
+(7,  9, NULL, N'Nh?c ghi ch�p',       N'B?n ch?a ghi ch�p chi ti�u h�m nay! H�y d�nh 2 ph�t c?p nh?t s? chi ti�u ??','2026-02-10 21:00:00', 1, 1),
+(17, 9, NULL, N'T?ng k?t tu?n',       N'Tu?n n�y b?n ?� chi 2,350,000?. Chi ti�u cao nh?t: Gi�o d?c (350,000?).',    '2026-02-10 20:00:00', 1, 0);
 GO
 
 -- ======================================================================
--- 18. BẢNG GIAO DỊCH ĐỊNH KỲ/HÓA ĐƠN (1-N với tAccounts)
+-- 18. B?NG GIAO D?CH ??NH K?/H�A ??N (1-N v?i tAccounts)
 -- ======================================================================
 CREATE TABLE tPlannedTransactions (
     -- PRIMARY KEY
@@ -975,47 +1687,47 @@ CREATE TABLE tPlannedTransactions (
     acc_id INT NOT NULL,    -- FK -> tAccounts (N-1)
     wallet_id INT NOT NULL, -- FK -> tWallets (N-1)
     
-    -- Nếu người dùng tạo Bills menu sẽ chỉ hiện các danh mục chi, nếu là Recurring menu sẽ cho chọn tất cả loại giao dịch Thu/Chi/Vay-Nợ
+    -- N?u ng??i d�ng t?o Bills menu s? ch? hi?n c�c danh m?c chi, n?u l� Recurring menu s? cho ch?n t?t c? lo?i giao d?ch Thu/Chi/Vay-N?
     ctg_id INT NOT NULL,                         -- FK -> tCategories (N-1)
     currency_code VARCHAR(10) DEFAULT 'VND',     -- FK -> tCurrencies (N-1)
     
     -- DATA COLUMNS
-    note NVARCHAR(500) NULL, -- Lưu tên hóa đơn hoặc ghi chú
-    amount DECIMAL(18,2) NOT NULL, -- Số tiền mỗi kỳ
+    note NVARCHAR(500) NULL, -- L?u t�n h�a ??n ho?c ghi ch�
+    amount DECIMAL(18,2) NOT NULL, -- S? ti?n m?i k?
     
-    -- Phân loại nghiệp vụ
-    -- 1: Bill (Chi - Cần duyệt tay để tạo ra giao dịch)
-    -- 2: Recurring (Thu/Chi/Nợ - Tự động hoàn toàn tạo giao dịch mà không cần duyệt tay)
+    -- Ph�n lo?i nghi?p v?
+    -- 1: Bill (Chi - C?n duy?t tay ?? t?o ra giao d?ch)
+    -- 2: Recurring (Thu/Chi/N? - T? ??ng ho�n to�n t?o giao d?ch m� kh�ng c?n duy?t tay)
     plan_type TINYINT NOT NULL,
     
-    -- Phân loại giao dịch (Để biết khi sinh ra Transaction thì thuộc loại nào)
-    -- 1: Khoản chi, 2: Khoản thu, 3: Cho vay, 4: Đi vay, 5: Thu nợ, 6: Trả nợ
+    -- Ph�n lo?i giao d?ch (?? bi?t khi sinh ra Transaction th� thu?c lo?i n�o)
+    -- 1: Kho?n chi, 2: Kho?n thu, 3: Cho vay, 4: ?i vay, 5: Thu n?, 6: Tr? n?
     trans_type TINYINT NOT NULL,
 
-    -- Cấu hình lặp lại
-    repeat_type TINYINT NOT NULL,           --: 0: Không lặp lại, 1: Ngày, 2: Tuần, 3: Tháng, 4: Năm
-    repeat_interval INT DEFAULT 1 NOT NULL, -- Mỗi "1" ngày, mỗi "2" tuần...   
-    /* Giải thích Bitmask cho Dev: 
-    - Nếu repeat_type = 2 (Tuần): CN=1, T2=2, T3=4, T4=8, T5=16, T6=32, T7=64.
-    - Ví dụ: T2 + T4 = 10 (2 + 8). */
+    -- C?u h�nh l?p l?i
+    repeat_type TINYINT NOT NULL,           --: 0: Kh�ng l?p l?i, 1: Ng�y, 2: Tu?n, 3: Th�ng, 4: N?m
+    repeat_interval INT DEFAULT 1 NOT NULL, -- M?i "1" ng�y, m?i "2" tu?n...   
+    /* Gi?i th�ch Bitmask cho Dev: 
+    - N?u repeat_type = 2 (Tu?n): CN=1, T2=2, T3=4, T4=8, T5=16, T6=32, T7=64.
+    - V� d?: T2 + T4 = 10 (2 + 8). */
     repeat_on_day_val INT NULL,
     
     begin_date DATE NOT NULL,
-    next_due_date DATE NOT NULL,                        -- Ngày đến hạn tiếp và backend có thể quét cột này để gửi thông báo.
-    last_executed_at DATE NULL,                         -- Ngày thực hiện gần nhất (Để tránh duyệt trùng kỳ)
-    end_date DATE NULL,                                 -- NULL nếu muốn lặp lại "Trọn đời".    
+    next_due_date DATE NOT NULL,                        -- Ng�y ??n h?n ti?p v� backend c� th? qu�t c?t n�y ?? g?i th�ng b�o.
+    last_executed_at DATE NULL,                         -- Ng�y th?c hi?n g?n nh?t (?? tr�nh duy?t tr�ng k?)
+    end_date DATE NULL,                                 -- NULL n?u mu?n l?p l?i "Tr?n ??i".    
 
-    active BIT DEFAULT 1 NOT NULL,                   -- 1: Đang chạy, 0: Tạm dừng      
-    created_at DATETIME DEFAULT GETDATE() NOT NULL,     -- Ngày tạo ra để admin sắp xếp hiển thị theo ngày.
+    active BIT DEFAULT 1 NOT NULL,                   -- 1: ?ang ch?y, 0: T?m d?ng      
+    created_at DATETIME DEFAULT GETDATE() NOT NULL,     -- Ng�y t?o ra ?? admin s?p x?p hi?n th? theo ng�y.
 
     -- CONSTRAINTS
-    CONSTRAINT CHK_Plan_Amount    CHECK (amount > 0),                                   -- Chặn tiền âm hoặc bằng 0
-    CONSTRAINT CHK_Plan_Repeat    CHECK (repeat_type BETWEEN 0 AND 4),                  -- Chỉ chấp nhận các mã lặp từ 0-4
-    CONSTRAINT CHK_Plan_Interval  CHECK (repeat_interval >= 1),                         -- Khoảng cách lặp tối thiểu là 1
-    CONSTRAINT CHK_Plan_Dates     CHECK (end_date IS NULL OR end_date >= begin_date),   -- Ngày kết thúc phải sau ngày bắt đầu
-    CONSTRAINT CHK_Plan_Type      CHECK (plan_type IN (1, 2)),                          -- Chỉ cho phép loại Bill hoặc Recurring
-    CONSTRAINT CHK_Plan_TransType CHECK (trans_type BETWEEN 1 AND 6),                   -- Phân loại giao dịch từ 1 đến 6
-    CONSTRAINT CHK_Plan_NextDue   CHECK (next_due_date >= begin_date),                  -- Ngày đến hạn không được trước ngày bắt đầu
+    CONSTRAINT CHK_Plan_Amount    CHECK (amount > 0),                                   -- Ch?n ti?n �m ho?c b?ng 0
+    CONSTRAINT CHK_Plan_Repeat    CHECK (repeat_type BETWEEN 0 AND 4),                  -- Ch? ch?p nh?n c�c m� l?p t? 0-4
+    CONSTRAINT CHK_Plan_Interval  CHECK (repeat_interval >= 1),                         -- Kho?ng c�ch l?p t?i thi?u l� 1
+    CONSTRAINT CHK_Plan_Dates     CHECK (end_date IS NULL OR end_date >= begin_date),   -- Ng�y k?t th�c ph?i sau ng�y b?t ??u
+    CONSTRAINT CHK_Plan_Type      CHECK (plan_type IN (1, 2)),                          -- Ch? cho ph�p lo?i Bill ho?c Recurring
+    CONSTRAINT CHK_Plan_TransType CHECK (trans_type BETWEEN 1 AND 6),                   -- Ph�n lo?i giao d?ch t? 1 ??n 6
+    CONSTRAINT CHK_Plan_NextDue   CHECK (next_due_date >= begin_date),                  -- Ng�y ??n h?n kh�ng ???c tr??c ng�y b?t ??u
     
     CONSTRAINT FK_Bills_Acc FOREIGN KEY (acc_id) REFERENCES tAccounts(id),
     CONSTRAINT FK_Bills_Wallet FOREIGN KEY (wallet_id) REFERENCES tWallets(id) ON DELETE CASCADE,
@@ -1024,6 +1736,290 @@ CREATE TABLE tPlannedTransactions (
 );
 GO
 
--- Index: Tối ưu Scheduler quét hóa đơn/giao dịch đến hạn
+-- Index: T?i ?u Scheduler qu�t h�a ??n/giao d?ch ??n h?n
 CREATE INDEX idx_planned_scan ON tPlannedTransactions(acc_id, next_due_date, active) INCLUDE (note, amount, plan_type, wallet_id);
 GO
+-- ======================================================================
+-- D? LI?U M?U: Giao d?ch ??nh k?/H�a ??n (tPlannedTransactions)
+-- ======================================================================
+-- PH�N LO?I ?�NG:
+--   ? BILLS (plan_type=1): S? ti?n THAY ??I m?i k?, c?n duy?t tay
+--      VD: ?i?n, n??c, gas, chi ph� y t?...
+--   ? RECURRING (plan_type=2): S? ti?n C? ??NH, t? ??ng t?o giao d?ch
+--      VD: Internet, Netflix, l??ng, tr? g�p, b?o hi?m, h?c ph�...
+-- ======================================================================
+GO
+
+-- ??????????????????????????????????????????????????????????????????????
+-- NH�M 1: BILLS (plan_type = 1) - S? ti?n THAY ??I
+-- ??????????????????????????????????????????????????????????????????????
+
+INSERT INTO tPlannedTransactions (
+    acc_id, wallet_id, ctg_id, note, amount, 
+    plan_type, trans_type, 
+    repeat_type, repeat_interval, repeat_on_day_val,
+    begin_date, next_due_date, last_executed_at, end_date, active
+) VALUES
+
+-- ????????????????????????????????????????????????????????????????????
+-- Bills - H�a ??n ?i?n (s? ti?n dao ??ng)
+-- ????????????????????????????????????????????????????????????????????
+(1, 2, 28, N'H�a ??n ti?n ?i?n EVN',
+ 520000, 1, 1, 3, 1, NULL,
+ '2026-01-08', '2026-03-08', '2026-02-08', NULL, 1),
+-- ?? Th�ng 1: 480k, Th�ng 2: 520k, Th�ng 3: d? ki?n 500k (thay ??i theo m?c ti�u th?)
+
+(2, 4, 28, N'H�a ??n ti?n ?i?n (C?n h?)',
+ 680000, 1, 1, 3, 1, NULL,
+ '2026-01-05', '2026-03-05', '2026-02-05', NULL, 1),
+-- ?? C?n h? l?n n�n ti?n ?i?n dao ??ng 650k-750k
+
+(6, 10, 28, N'H�a ??n ?i?n (Nh� ri�ng)',
+ 450000, 1, 1, 3, 1, NULL,
+ '2026-01-20', '2026-03-20', '2026-02-20', NULL, 1),
+-- ?? Nh� nh? ti?n ?i?n th?p h?n 400k-500k
+
+-- ????????????????????????????????????????????????????????????????????
+-- Bills - H�a ??n n??c (s? ti?n dao ??ng)
+-- ????????????????????????????????????????????????????????????????????
+(1, 2, 32, N'H�a ??n ti?n n??c C?p n??c TP',
+ 85000, 1, 1, 3, 1, NULL,
+ '2026-01-10', '2026-03-10', '2026-02-10', NULL, 1),
+-- ?? N??c th??ng dao ??ng 70k-100k t�y m?c ti�u th?
+
+(3, 6, 32, N'Ti?n n??c h�ng th�ng',
+ 120000, 1, 1, 3, 1, NULL,
+ '2026-01-12', '2026-03-12', '2026-02-12', NULL, 1),
+-- ?? Gia ?�nh ?�ng ng??i d�ng nhi?u n??c 100k-150k
+
+-- ????????????????????????????????????????????????????????????????????
+-- Bills - H�a ??n gas (s? ti?n dao ??ng)
+-- ????????????????????????????????????????????????????????????????????
+(2, 3, 30, N'H�a ??n gas Petrolimex',
+ 320000, 1, 1, 3, 1, NULL,
+ '2026-01-15', '2026-03-15', '2026-02-15', NULL, 1),
+-- ?? Gas thay b�nh kh�ng ??u, c� th? 0? (kh�ng thay) ho?c 300k-350k
+
+(11, 18, 30, N'Gas n?u ?n',
+ 280000, 1, 1, 3, 1, NULL,
+ '2026-01-18', '2026-03-18', '2026-02-18', NULL, 1),
+-- ?? Gas dao ??ng 250k-350k t�y m?c ti�u th?
+
+-- ????????????????????????????????????????????????????????????????????
+-- Bills - Chi ph� y t? (kh�ng bi?t tr??c)
+-- ????????????????????????????????????????????????????????????????????
+(3, 5, 38, N'Kh�m s?c kh?e ??nh k?',
+ 650000, 1, 1, 4, 1, NULL,
+ '2026-01-15', '2027-01-15', '2026-01-15', NULL, 1),
+-- ?? Chi ph� kh�m ??nh k? h�ng n?m dao ??ng t�y g�i kh�m
+
+(8, 21, 38, N'Chi ph� y t? gia ?�nh',
+ 1200000, 1, 1, 3, 1, NULL,
+ '2026-02-01', '2026-03-01', '2026-02-01', '2026-06-30', 1),
+-- ?? Chi ph� ch?a b?nh kh�ng ?n ??nh, c� th�ng 0? c� th�ng v�i tri?u
+
+-- ??????????????????????????????????????????????????????????????????????
+-- NH�M 2: RECURRING (plan_type = 2) - S? ti?n C? ??NH
+-- ??????????????????????????????????????????????????????????????????????
+
+-- ????????????????????????????????????????????????????????????????????
+-- Recurring - Internet/TV Cable (g�i c??c c? ??nh)
+-- ????????????????????????????????????????????????????????????????????
+(1, 2, 31, N'Internet VNPT - G�i 200Mbps',
+ 280000, 2, 1, 3, 1, NULL,
+ '2026-01-15', '2026-03-15', '2026-02-15', NULL, 1),
+-- ? G�i c??c internet C? ??NH h�ng th�ng
+
+(2, 4, 31, N'Internet FPT - G�i 300Mbps',
+ 350000, 2, 1, 3, 1, NULL,
+ '2026-01-05', '2026-03-05', '2026-02-05', NULL, 1),
+-- ? G�i c??c internet C? ??NH
+
+(6, 10, 31, N'Internet Viettel - G�i 100Mbps',
+ 220000, 2, 1, 3, 1, NULL,
+ '2026-01-20', '2026-03-20', '2026-02-20', NULL, 1),
+
+(11, 18, 34, N'Truy?n h�nh K+ Premium',
+ 180000, 2, 1, 3, 1, NULL,
+ '2026-01-12', '2026-03-12', '2026-02-12', NULL, 1),
+-- ? G�i truy?n h�nh C? ??NH
+
+-- ????????????????????????????????????????????????????????????????????
+-- Recurring - Subscription services (Netflix, Spotify...)
+-- ????????????????????????????????????????????????????????????????????
+(11, 18, 25, N'Netflix Premium (G�i gia ?�nh)',
+ 260000, 2, 1, 3, 1, NULL,
+ '2026-01-12', '2026-03-12', '2026-02-12', NULL, 1),
+-- ? G�i Netflix C? ??NH h�ng th�ng
+
+(7, 12, 25, N'Spotify Premium',
+ 59000, 2, 1, 3, 1, NULL,
+ '2026-01-08', '2026-03-08', '2026-02-08', NULL, 1),
+-- ? G�i Spotify C? ??NH
+
+(3, 6, 25, N'YouTube Premium',
+ 79000, 2, 1, 3, 1, NULL,
+ '2026-01-10', '2026-03-10', '2026-02-10', NULL, 1),
+-- ? G�i YouTube Premium C? ??NH
+
+(17, 26, 25, N'ChatGPT Plus',
+ 440000, 2, 1, 3, 1, NULL,
+ '2026-01-15', '2026-03-15', '2026-02-15', NULL, 1),
+-- ? Subscription AI C? ??NH ($20/th�ng ~ 440k VND)
+
+-- ????????????????????????????????????????????????????????????????????
+-- Recurring - ?i?n tho?i/Mobile (g�i c??c c? ??nh)
+-- ????????????????????????????????????????????????????????????????????
+(6, 10, 29, N'G�i c??c Viettel - V90',
+ 90000, 2, 1, 3, 1, NULL,
+ '2026-01-20', '2026-03-20', '2026-02-20', NULL, 1),
+-- ? G�i c??c di ??ng C? ??NH
+
+(1, 2, 29, N'G�i c??c VinaPhone - VD149',
+ 149000, 2, 1, 3, 1, NULL,
+ '2026-01-05', '2026-03-05', '2026-02-05', NULL, 1),
+
+(11, 18, 29, N'G�i c??c MobiFone - MAX200',
+ 200000, 2, 1, 3, 1, NULL,
+ '2026-01-10', '2026-03-10', '2026-02-10', NULL, 1),
+
+-- ????????????????????????????????????????????????????????????????????
+-- Recurring - Thu� nh� (c? ??nh h�ng th�ng)
+-- ????????????????????????????????????????????????????????????????????
+(2, 4, 34, N'Ti?n thu� c?n h? Vinhomes',
+ 8500000, 2, 1, 3, 1, NULL,
+ '2026-01-05', '2026-03-05', '2026-02-05', NULL, 1),
+-- ? Ti?n thu� nh� C? ??NH theo h?p ??ng
+
+(9, 15, 34, N'Ti?n thu� tr?',
+ 3200000, 2, 1, 3, 1, NULL,
+ '2026-01-08', '2026-03-08', '2026-02-08', '2026-12-31', 1),
+-- ? Thu� tr? C? ??NH ??n khi h?t h?p ??ng
+
+-- ????????????????????????????????????????????????????????????????????
+-- Recurring - Ph� b?o hi?m (c? ??nh)
+-- ????????????????????????????????????????????????????????????????????
+(3, 6, 2, N'Ph� b?o hi?m nh�n th? Prudential',
+ 8400000, 2, 1, 4, 1, NULL,
+ '2026-01-20', '2027-01-20', '2026-01-20', '2030-01-20', 1),
+-- ? B?o hi?m h�ng N?M, ph� C? ??NH theo h?p ??ng
+
+(1, 2, 2, N'B?o hi?m xe � t�',
+ 6500000, 2, 1, 4, 1, NULL,
+ '2026-02-01', '2027-02-01', '2026-02-01', NULL, 1),
+-- ? B?o hi?m xe h�ng n?m C? ??NH
+
+-- ????????????????????????????????????????????????????????????????????
+-- Recurring - H?c ph� (c? ??nh theo h?c k?)
+-- ????????????????????????????????????????????????????????????????????
+(15, 23, 8, N'H?c ph� ??i h?c FPT - H?c k? Spring',
+ 16500000, 2, 1, 4, 6, NULL,
+ '2026-02-06', '2027-02-06', '2026-02-06', '2028-06-30', 1),
+-- ? H?c ph� m?i K? C? ??NH (6 th�ng/l?n)
+
+(12, 19, 8, N'H?c ph� THPT Chuy�n',
+ 4500000, 2, 1, 4, 1, NULL,
+ '2026-01-15', '2027-01-15', '2026-01-15', '2029-06-30', 1),
+-- ? H?c ph� h�ng N?M C? ??NH
+
+-- ????????????????????????????????????????????????????????????????????
+-- Recurring - L??ng h�ng th�ng (thu nh?p c? ??nh)
+-- ????????????????????????????????????????????????????????????????????
+(1, 2, 15, N'L??ng th�ng - C�ng ty ABC Tech',
+ 15000000, 2, 2, 3, 1, NULL,
+ '2026-01-05', '2026-03-05', '2026-02-05', NULL, 1),
+-- ? L??ng C? ??NH h�ng th�ng (trans_type = 2: Thu)
+
+(11, 18, 15, N'L??ng th�ng - Ng�n h�ng XYZ',
+ 28000000, 2, 2, 3, 1, NULL,
+ '2026-01-05', '2026-03-05', '2026-02-05', NULL, 1),
+
+(17, 26, 15, N'L??ng freelance',
+ 12000000, 2, 2, 3, 1, NULL,
+ '2026-01-10', '2026-03-10', '2026-02-10', NULL, 1),
+
+(3, 6, 16, N'Thu c? t?c ??u t? ch?ng kho�n',
+ 2500000, 2, 2, 3, 1, NULL,
+ '2026-01-28', '2026-03-28', '2026-02-28', NULL, 1),
+-- ? Thu l�i C? ??NH h�ng th�ng t? ??u t?
+
+-- ????????????????????????????????????????????????????????????????????
+-- Recurring - Tr? n?/vay ??nh k? (s? ti?n c? ??nh)
+-- ????????????????????????????????????????????????????????????????????
+(5, 9, 22, N'Tr? g�p vay c??i - Ng�n h�ng Vietcombank',
+ 2000000, 2, 6, 3, 1, NULL,
+ '2025-07-01', '2026-03-01', '2026-02-01', '2027-12-31', 1),
+-- ? Tr? n? h�ng th�ng C? ??NH (trans_type = 6: Tr? n?)
+
+(3, 6, 22, N'Tr? n? b?n th�n - Vay mua laptop',
+ 1000000, 2, 6, 3, 1, NULL,
+ '2025-11-15', '2026-03-15', '2026-02-15', '2026-09-15', 1),
+
+(10, 16, 22, N'Tr? g�p mua xe m�y Honda Vision',
+ 3500000, 2, 6, 3, 1, NULL,
+ '2025-08-01', '2026-03-01', '2026-02-01', '2027-08-01', 1),
+
+(6, 10, 22, N'Tr? g�p mua iPhone 15 Pro',
+ 8000000, 2, 6, 3, 1, NULL,
+ '2025-10-01', '2026-03-01', '2026-02-01', '2026-10-01', 1),
+
+-- ????????????????????????????????????????????????????????????????????
+-- Recurring - L?p l?i h�ng tu?n (Bitmask: T2+T6 = 2+32 = 34)
+-- ????????????????????????????????????????????????????????????????????
+(7, 12, 1, N'Cafe s�ng ??u tu?n (T2, T6)',
+ 50000, 2, 1, 2, 1, 34,
+ '2026-01-05', '2026-02-16', '2026-02-13', NULL, 1),
+-- ? Chi cafe C? ??NH m?i T2 v� T6
+
+(1, 1, 1, N'?n tr?a v?n ph�ng (T2-T6)',
+ 70000, 2, 1, 2, 1, 62,
+ '2026-02-03', '2026-02-14', '2026-02-13', NULL, 1),
+-- ? Bitmask T2+T3+T4+T5+T6 = 2+4+8+16+32 = 62
+
+-- ????????????????????????????????????????????????????????????????????
+-- Recurring - L?p l?i h�ng ng�y
+-- ????????????????????????????????????????????????????????????????????
+(5, 9, 1, N'?n s�ng h�ng ng�y',
+ 40000, 2, 1, 1, 1, NULL,
+ '2026-02-01', '2026-02-11', '2026-02-10', NULL, 1),
+-- ? Chi C? ??NH m?i ng�y
+
+-- ????????????????????????????????????????????????????????????????????
+-- Recurring - ?ang t?m d?ng (active = 0)
+-- ????????????????????????????????????????????????????????????????????
+(2, 3, 10, N'Mua s?m Shopee ??nh k?',
+ 500000, 2, 1, 3, 1, NULL,
+ '2025-10-01', '2026-03-01', '2026-02-01', NULL, 0);
+-- ?? T?m d?ng giao d?ch ??nh k?
+
+GO
+
+-- ======================================================================
+-- TH?NG K� D? LI?U ?� S?A
+-- ======================================================================
+-- ? BILLS (plan_type = 1): 11 rows
+--    - ?i?n: 3 | N??c: 2 | Gas: 2 | Y t?: 4
+--    - ??c ?i?m: S? ti?n THAY ??I m?i k?
+--
+-- ? RECURRING (plan_type = 2): 29 rows
+--    - Internet/TV: 5 | Subscription: 4 | Mobile: 3
+--    - Thu� nh�: 2 | B?o hi?m: 2 | H?c ph�: 2
+--    - L??ng: 4 | Tr? n?: 4 | L?p tu?n: 2 | L?p ng�y: 1
+--    - ??c ?i?m: S? ti?n C? ??NH, t? ??ng t?o giao d?ch
+--
+-- TOTAL: 40 planned transactions
+-- ======================================================================
+
+PRINT '? ?� ch�n 40 rows v�o tPlannedTransactions (LOGIC ?�NG)';
+PRINT '   - Bills (thay ??i): 11 rows';
+PRINT '   - Recurring (c? ??nh): 29 rows';
+GO
+
+--select * from tWallets
+--select * from tSavingGoals
+--select * from tAccounts
+--select * from tTransactions
+--select * from tUserDevices
+--select * from tReceipts
+--select * from tPlannedTransactions
+--select * from tNotifications

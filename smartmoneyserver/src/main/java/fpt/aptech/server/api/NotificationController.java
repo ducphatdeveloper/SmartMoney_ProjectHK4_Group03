@@ -1,7 +1,7 @@
 package fpt.aptech.server.api;
 
 import fpt.aptech.server.entity.Notification;
-import fpt.aptech.server.service.Notification.NotificationService;
+import fpt.aptech.server.service.notification.NotificationService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
