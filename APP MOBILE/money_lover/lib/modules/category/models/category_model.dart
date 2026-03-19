@@ -13,6 +13,7 @@ class CategoryModel {
     this.parentId,
   });
 
+  // Factory constructor để tạo đối tượng từ JSON
   factory CategoryModel.fromJson(Map<String, dynamic> json) {
     return CategoryModel(
       id: json['id'],
@@ -20,6 +21,34 @@ class CategoryModel {
       ctgType: json['ctgType'],
       ctgIconUrl: json['ctgIconUrl'],
       parentId: json['parentId'],
+    );
+  }
+
+  // Phương thức để chuyển đổi đối tượng thành JSON (khi gửi lên API)
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'ctgName': ctgName,
+      'ctgType': ctgType,
+      'ctgIconUrl': ctgIconUrl,
+      'parentId': parentId,
+    };
+  }
+
+  // Phương thức copyWith để tạo một bản sao với các thuộc tính được thay đổi
+  CategoryModel copyWith({
+    int? id,
+    String? ctgName,
+    bool? ctgType,
+    String? ctgIconUrl,
+    int? parentId,
+  }) {
+    return CategoryModel(
+      id: id ?? this.id,
+      ctgName: ctgName ?? this.ctgName,
+      ctgType: ctgType ?? this.ctgType,
+      ctgIconUrl: ctgIconUrl ?? this.ctgIconUrl,
+      parentId: parentId ?? this.parentId,
     );
   }
 

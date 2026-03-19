@@ -1,0 +1,97 @@
+### ============================================================
+### AI CHAT MODULE — HTTP Test
+### Chức năng: Chat AI tự động tạo giao dịch
+### ============================================================
+
+### 1. Đăng nhập
+POST http://localhost:9999/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "minh.pham@gmail.com",
+  "password": "Test@123",
+  "deviceToken": "device_token_test_ai",
+  "deviceType": "Postman",
+  "deviceName": "Test Client"
+}
+
+> {%
+    client.global.set("auth_token", response.body.data.accessToken);
+%}
+
+### ============================================================
+### 2. Chat tạo giao dịch — "cafe 90k" → AI tự tạo giao dịch luôn
+### Kỳ vọng: intent=1, action.executed=true
+### ============================================================
+POST http://localhost:9999/api/ai/chat
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "message": "Tôi vừa ăn cafe 90k",
+  "attachmentType": null
+}
+
+### ============================================================
+### 3. Chat tạo giao dịch với đơn vị "nghìn"
+### ============================================================
+POST http://localhost:9999/api/ai/chat
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "message": "Đổ xăng 50 k",
+  "attachmentType": null
+}
+
+### ============================================================
+### 4. Chat chung — AI trả lời, không tạo giao dịch
+### Kỳ vọng: intent=4, action=null
+### ============================================================
+POST http://localhost:9999/api/ai/chat
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "message": "Làm sao để tiết kiệm tiền?",
+  "attachmentType": null
+}
+
+### ============================================================
+### 5. Chat mập mờ — AI gợi ý lựa chọn (Suggestions)
+### Kỳ vọng: intent=4, action.type="suggestion"
+### ============================================================
+POST http://localhost:9999/api/ai/chat
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "message": "Tôi vừa tiêu tiền",
+  "attachmentType": null
+}
+
+### ============================================================
+### 6. Lấy lịch sử hội thoại (History)
+### ============================================================
+GET http://localhost:9999/api/ai/history
+Authorization: Bearer {{auth_token}}
+
+### ============================================================
+### 7. Thực thi hành động cụ thể (Xác nhận tay nếu cần)
+### Lưu ý: sourceType=2 (AI) yêu cầu aiChatId (CHK_Transaction_Integrity)
+###        sourceType=1 (manual) không cần aiChatId
+### ============================================================
+POST http://localhost:9999/api/ai/execute
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "actionType": "create_transaction",
+  "params": {
+    "categoryId": 1,
+    "walletId": 10,
+    "amount": 50000,
+    "note": "Xác nhận ăn sáng",
+    "sourceType": 1
+  }
+}

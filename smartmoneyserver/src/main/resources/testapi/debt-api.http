@@ -1,0 +1,206 @@
+### =================================================================
+### SMARTMONEY - DEBT API TEST
+### User test: minh.pham@gmail.com
+### Debt được tạo tự động qua giao dịch "Đi vay / Cho vay"
+### KHÔNG có POST /api/debts trực tiếp
+### =================================================================
+
+### [0] AUTH - Đăng nhập lấy Token
+POST http://localhost:9999/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "minh.pham@gmail.com",
+  "password": "Test@123",
+  "deviceToken": "device_token_test_debt",
+  "deviceType": "Postman",
+  "deviceName": "Test Client"
+}
+
+> {%
+    client.global.set("auth_token", response.body.data.accessToken);
+    client.log("Token: " + response.body.data.accessToken);
+%}
+
+### =================================================================
+### [1] FLOW TẠO DEBT QUA TRANSACTION
+### =================================================================
+
+### [1.1] Tạo giao dịch "Đi vay" → tự động INSERT tDebts mới
+# Kỳ vọng: 201 Created
+# - tTransactions: amount=5tr, debt_id=<id mới>
+# - tDebts: totalAmount=5tr, remainAmount=5tr, debtType=false, finished=false
+POST http://localhost:9999/api/transactions
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "walletId": 10,
+  "categoryId": 20,
+  "amount": 5000000,
+  "note": "Đi vay từ bạn Hùng",
+  "transDate": "2026-03-12T09:00:00",
+  "reportable": true,
+  "personName": "Bạn Hùng",
+  "dueDate": "2026-12-31T23:59:59"
+}
+
+> {%
+    client.global.set("debt_id", response.body.data.debtId);
+    client.log("Debt ID: " + response.body.data.debtId);
+%}
+
+### [1.2] Vay thêm 2tr vào khoản nợ cũ (debtId từ [1.1])
+# Kỳ vọng: tDebts.totalAmount = 5tr + 2tr = 7tr, remainAmount = 7tr
+POST http://localhost:9999/api/transactions
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "walletId": 10,
+  "categoryId": 20,
+  "amount": 2000000,
+  "note": "Vay thêm bạn Hùng",
+  "transDate": "2026-03-13T10:00:00",
+  "reportable": true,
+  "debtId": {{debt_id}}
+}
+
+### [1.3] Trả nợ 1tr — gắn debtId
+# Kỳ vọng: tDebts.remainAmount = 7tr - 1tr = 6tr, finished=false
+POST http://localhost:9999/api/transactions
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "walletId": 10,
+  "categoryId": 22,
+  "amount": 1000000,
+  "note": "Trả nợ bạn Hùng kỳ 1",
+  "transDate": "2026-03-14T11:00:00",
+  "reportable": true,
+  "debtId": {{debt_id}}
+}
+
+### [1.4] Tạo giao dịch "Cho vay" → tạo debt mới debtType=true (CẦN THU)
+# Kỳ vọng: 201 Created, tDebts mới với debtType=true
+POST http://localhost:9999/api/transactions
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "walletId": 10,
+  "categoryId": 19,
+  "amount": 3000000,
+  "note": "Cho em Khoa vay",
+  "transDate": "2026-03-12T14:00:00",
+  "reportable": true,
+  "personName": "Em Khoa",
+  "dueDate": "2026-09-30T23:59:59"
+}
+
+### [1.5] Lỗi: Đi vay mà không có personName và không có debtId
+# Kỳ vọng: 400 Bad Request - "Vui lòng nhập tên người cho vay."
+POST http://localhost:9999/api/transactions
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "walletId": 10,
+  "categoryId": 20,
+  "amount": 1000000,
+  "transDate": "2026-03-12T15:00:00",
+  "reportable": true
+}
+
+### =================================================================
+### [2] LIST - XEM DANH SÁCH
+### =================================================================
+
+### [2.1] Lấy danh sách CẦN TRẢ (debtType=false)
+# Flutter tự chia header: "CHƯA TRẢ" (finished=false) và "ĐÃ TRẢ HẾT" (finished=true)
+GET http://localhost:9999/api/debts?debtType=false
+Authorization: Bearer {{auth_token}}
+
+### [2.2] Lấy danh sách CẦN THU (debtType=true)
+# Flutter tự chia header: "CHƯA THU" và "ĐÃ NHẬN HẾT"
+GET http://localhost:9999/api/debts?debtType=true
+Authorization: Bearer {{auth_token}}
+
+### =================================================================
+### [3] CRUD - XEM CHI TIẾT / SỬA / XÓA
+### =================================================================
+
+### [3.1] Xem chi tiết khoản nợ
+# Kỳ vọng: totalAmount, remainAmount, paidAmount đều đúng
+GET http://localhost:9999/api/debts/{{debt_id}}
+Authorization: Bearer {{auth_token}}
+
+### [3.2] Lỗi: Xem khoản nợ của người khác
+# Kỳ vọng: 403 Forbidden
+GET http://localhost:9999/api/debts/1
+Authorization: Bearer {{auth_token}}
+
+### [3.3] Sửa personName, dueDate, note (KHÔNG sửa được totalAmount)
+# Kỳ vọng: 200 OK, chỉ 3 field thay đổi, totalAmount/remainAmount giữ nguyên
+PUT http://localhost:9999/api/debts/{{debt_id}}
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "personName": "Bạn Hùng (đã đổi tên)",
+  "dueDate": "2027-06-30T23:59:59",
+  "note": "Gia hạn thêm 6 tháng"
+}
+
+### [3.4] Toggle trạng thái finished
+# Lần 1: false → true (đánh dấu đã trả hết)
+# Lần 2: true → false (đánh dấu chưa xong)
+PUT http://localhost:9999/api/debts/{{debt_id}}/status
+Authorization: Bearer {{auth_token}}
+
+### [3.5] Xóa khoản nợ (giao dịch liên quan set debt_id = null, không bị xóa)
+DELETE http://localhost:9999/api/debts/99
+Authorization: Bearer {{auth_token}}
+
+### =================================================================
+### [4] LỊCH SỬ GIAO DỊCH CỦA KHOẢN NỢ
+### =================================================================
+
+### [4.1] Lấy lịch sử giao dịch
+# Kỳ vọng: List giao dịch theo thứ tự mới nhất
+# Bao gồm: giao dịch gốc "Đi vay" + các lần "Trả nợ" về sau
+GET http://localhost:9999/api/debts/{{debt_id}}/transactions
+Authorization: Bearer {{auth_token}}
+
+### =================================================================
+### [5] FLOW TEST - SỬA / XÓA TRANSACTION → DEBT TỰ CẬP NHẬT
+### =================================================================
+
+### [5.1] Sửa amount giao dịch "Đi vay" từ 5tr → 10tr
+# Kỳ vọng: tDebts.totalAmount tự tăng (recalculate)
+# Thay transaction_id bằng ID giao dịch đi vay gốc ở [1.1]
+PUT http://localhost:9999/api/transactions/101
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "walletId": 10,
+  "categoryId": 20,
+  "amount": 10000000,
+  "note": "Sửa lại số tiền vay",
+  "transDate": "2026-03-12T09:00:00",
+  "reportable": true,
+  "debtId": {{debt_id}}
+}
+
+### [5.2] Xóa giao dịch "Trả nợ 1tr" → debt tự cộng lại
+# Kỳ vọng: tDebts.remainAmount tăng lên (recalculate)
+# Thay transaction_id bằng ID giao dịch trả nợ ở [1.3]
+DELETE http://localhost:9999/api/transactions/103
+Authorization: Bearer {{auth_token}}
+
+### [5.3] Xóa TẤT CẢ giao dịch của 1 debt → debt tự xóa
+# Kỳ vọng: tDebts record bị xóa tự động (recalculate → total=0 → delete)
+DELETE http://localhost:9999/api/transactions/101
+Authorization: Bearer {{auth_token}}

@@ -8,7 +8,10 @@ import fpt.aptech.server.entity.UserDevice;
 import fpt.aptech.server.enums.notification.NotificationType;
 import fpt.aptech.server.repos.AccountRepository;
 import fpt.aptech.server.repos.UserDeviceRepository;
+import fpt.aptech.server.repos.TransactionRepository;
 import fpt.aptech.server.service.notification.NotificationService;
+import fpt.aptech.server.service.notification.NotificationContent;
+import fpt.aptech.server.service.notification.NotificationMessages;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -32,6 +35,7 @@ public class AdminServiceImp implements AdminService {
     private final AccountRepository accountRepository;
     private final UserDeviceRepository userDeviceRepository;
     private final NotificationService notificationService;
+    private final TransactionRepository transactionRepository;
 
     @Override
     public PageResponse<AccountDto> getUsers(String search, Boolean locked, String onlineStatus, Pageable pageable) {
@@ -103,10 +107,10 @@ public class AdminServiceImp implements AdminService {
             userDeviceRepository.saveAll(devices);
 
             // Gửi thông báo cho người dùng bị khóa
+            NotificationContent msg = NotificationMessages.accountLocked();
             notificationService.createNotification(
                     account,
-                    "Tài khoản bị khóa",
-                    "Tài khoản của bạn đã bị khóa bởi quản trị viên. Vui lòng liên hệ hỗ trợ để biết thêm chi tiết.",
+                    msg.title(), msg.content(),
                     NotificationType.SYSTEM,
                     null,
                     LocalDateTime.now()
@@ -122,10 +126,10 @@ public class AdminServiceImp implements AdminService {
             accountRepository.save(account);
 
             // Gửi thông báo cho người dùng được mở khóa
+            NotificationContent msg = NotificationMessages.accountUnlocked();
             notificationService.createNotification(
                     account,
-                    "Tài khoản được mở khóa",
-                    "Tài khoản của bạn đã được mở khóa. Bạn có thể tiếp tục sử dụng dịch vụ.",
+                    msg.title(), msg.content(),
                     NotificationType.SYSTEM,
                     null,
                     LocalDateTime.now()
@@ -137,7 +141,7 @@ public class AdminServiceImp implements AdminService {
     public Map<String, Object> getStats() {
         Map<String, Object> stats = new HashMap<>();
         stats.put("totalUsers", accountRepository.count());
-        stats.put("totalTransactions", 0L);
+        stats.put("totalTransactions", transactionRepository.count()); // Đếm tổng số giao dịch thực tế từ DB
         stats.put("activeDevices", userDeviceRepository.countByLoggedInTrue());
 
         // Thêm thống kê người dùng mới theo tháng

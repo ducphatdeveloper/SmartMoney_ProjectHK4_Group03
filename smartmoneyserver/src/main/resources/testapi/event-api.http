@@ -1,4 +1,10 @@
-### 1. Đăng nhập
+### =================================================================
+### SMARTMONEY - EVENT API TEST
+### User test: minh.pham@gmail.com (acc_id=6)
+### Event test: Chuyến đi Vũng Tàu (event_id=7)
+### =================================================================
+
+### [0] AUTH - Đăng nhập lấy Token
 POST http://localhost:9999/api/auth/login
 Content-Type: application/json
 
@@ -13,40 +19,125 @@ Content-Type: application/json
 > {%
     client.global.set("auth_token", response.body.data.accessToken);
     client.global.set("user_id", response.body.data.userId);
+    client.log("Token: " + response.body.data.accessToken);
 %}
 
-### 2. Lấy danh sách Sự kiện
-GET http://localhost:9999/api/events
-Authorization: Bearer {{auth_token}}
+### =================================================================
+### [1] CRUD - TẠO / SỬA / XÓA / XEM CHI TIẾT
+### =================================================================
 
-### 3. Tạo Sự kiện Mới
+### [1.1] CREATE - Tạo sự kiện mới (tiền tệ VND)
+# Kỳ vọng: 201 Created, finished=false mặc định
 POST http://localhost:9999/api/events
 Authorization: Bearer {{auth_token}}
 Content-Type: application/json
 
 {
-  "eventName": "Du lịch Đà Lạt 2026",
-  "beginDate": "2026-12-20",
-  "endDate": "2026-12-25",
-  "eventIconUrl": "icon_dalat.svg",
+  "eventName": "Chuyến đi Vũng Tàu cuối năm",
+  "eventIconUrl": "icon_event_travel.svg",
+  "endDate": "2026-12-31",
   "currencyCode": "VND"
 }
 
-### 4. Cập nhật Sự kiện
-# Thay ID 100 bằng ID sự kiện vừa tạo
-PUT http://localhost:9999/api/events/100
+### [1.2] CREATE - Tạo sự kiện tiền tệ USD
+# Kỳ vọng: 201 Created, currencyCode=USD
+POST http://localhost:9999/api/events
 Authorization: Bearer {{auth_token}}
 Content-Type: application/json
 
 {
-  "eventName": "Du lịch Đà Lạt Mùa Đông 2026",
-  "beginDate": "2026-12-19",
-  "endDate": "2026-12-26",
-  "eventIconUrl": "icon_dalat_winter.svg",
+  "eventName": "Du lịch nước ngoài",
+  "eventIconUrl": "icon_event_flight.svg",
+  "endDate": "2026-08-15",
+  "currencyCode": "USD"
+}
+
+### [1.3] READ (SINGLE) - Xem chi tiết sự kiện (ID=7)
+# Kỳ vọng: 200 OK, có totalIncome + totalExpense + netAmount
+GET http://localhost:9999/api/events/7
+Authorization: Bearer {{auth_token}}
+
+### [1.4] READ (SINGLE) - Lỗi: Xem sự kiện của người khác (ID=1)
+# Kỳ vọng: 403 Forbidden - "Bạn không có quyền truy cập sự kiện này"
+GET http://localhost:9999/api/events/1
+Authorization: Bearer {{auth_token}}
+
+### [1.5] UPDATE - Sửa tên, icon, ngày, tiền tệ (ID=7)
+# Kỳ vọng: 200 OK, dữ liệu được cập nhật
+PUT http://localhost:9999/api/events/7
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "eventName": "Chuyến đi Vũng Tàu xả hơi",
+  "eventIconUrl": "icon_event_beach.svg",
+  "endDate": "2027-01-05",
+  "currencyCode": "USD"
+}
+
+### [1.6] UPDATE - Lỗi: Sửa sự kiện của người khác (ID=1)
+# Kỳ vọng: 403 Forbidden
+PUT http://localhost:9999/api/events/1
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "eventName": "Test hack",
+  "eventIconUrl": "icon_hack.svg",
+  "endDate": "2026-12-31",
   "currencyCode": "VND"
 }
 
-### 5. Xóa Sự kiện
-# Thay ID 100 bằng ID sự kiện muốn xóa
-DELETE http://localhost:9999/api/events/100
+### [1.7] DELETE - Chỉ xóa sự kiện (giữ nguyên giao dịch, event_id = null)
+# Lưu ý: Thay ID bằng sự kiện test, KHÔNG dùng ID=7 nếu chưa muốn xóa
+DELETE http://localhost:9999/api/events/99
+Authorization: Bearer {{auth_token}}
+
+### [1.8] DELETE - Xóa cả sự kiện và toàn bộ giao dịch thuộc sự kiện
+# Lưu ý: DÙNG CẨN THẬN! Giao dịch bị xóa vĩnh viễn
+DELETE http://localhost:9999/api/events/99?deleteTransactions=true
+Authorization: Bearer {{auth_token}}
+
+### =================================================================
+### [2] LIST - XEM DANH SÁCH (2 Tab)
+### =================================================================
+
+### [2.1] Lấy danh sách sự kiện ĐANG DIỄN RA (Tab 1)
+# Kỳ vọng: isFinished=false (mặc định), mỗi item có netAmount
+GET http://localhost:9999/api/events
+Authorization: Bearer {{auth_token}}
+
+### [2.2] Lấy danh sách sự kiện ĐÃ KẾT THÚC (Tab 2)
+GET http://localhost:9999/api/events?isFinished=true
+Authorization: Bearer {{auth_token}}
+
+### =================================================================
+### [3] STATUS - TOGGLE HOÀN TẤT / CHƯA HOÀN TẤT
+### =================================================================
+
+### [3.1] Toggle trạng thái sự kiện (ID=7)
+# Kỳ vọng: finished đổi từ false → true (hoặc ngược lại)
+# Gọi lần 2: đổi lại thành trạng thái ban đầu
+PUT http://localhost:9999/api/events/7/status
+Authorization: Bearer {{auth_token}}
+
+### =================================================================
+### [4] TRANSACTIONS - DANH SÁCH GIAO DỊCH THUỘC SỰ KIỆN
+### =================================================================
+
+### [4.1] Lấy danh sách giao dịch dạng flat list (ID=7)
+# Kỳ vọng: List<TransactionResponse>, mỗi item đủ thông tin category, wallet
+GET http://localhost:9999/api/events/7/transactions
+Authorization: Bearer {{auth_token}}
+
+### [4.2] Lấy danh sách giao dịch grouped theo ngày (ID=7)
+# Kỳ vọng: List<DailyTransactionGroup>
+# Form dưới màn hình chi tiết sự kiện dùng API này
+# Header mỗi nhóm: "Hôm nay, 11 tháng 3 2026 ... -500,000"
+GET http://localhost:9999/api/events/7/transactions/grouped
+Authorization: Bearer {{auth_token}}
+
+### [4.3] Lỗi: Xem giao dịch sự kiện của người khác (ID=1)
+# Kỳ vọng: 403 Forbidden
+GET http://localhost:9999/api/events/1/transactions/grouped
 Authorization: Bearer {{auth_token}}

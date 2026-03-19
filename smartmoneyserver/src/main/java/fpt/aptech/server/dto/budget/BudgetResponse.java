@@ -11,13 +11,27 @@ import java.util.List;
 @Getter
 @Builder
 public class BudgetResponse {
+
+    // ── Thông tin cơ bản ──────────────────────────────────────────────────────
     private Integer id;
-    private BigDecimal amount;
+    private BigDecimal amount;          // Hạn mức ngân sách
     private LocalDate beginDate;
     private LocalDate endDate;
-    private Integer walletId;
-    private String walletName;
+    private Integer walletId;           // null = tất cả ví
+    private String walletName;          // null = "Tổng cộng"
     private Boolean allCategories;
     private Boolean repeating;
-    private List<CategoryResponse> categories;
+    private List<CategoryResponse> categories; // rỗng nếu allCategories=true
+
+    // ── Trạng thái ───────────────────────────────────────────────────────────
+    private boolean expired;            // endDate < today
+
+    // ── Thực chi ─────────────────────────────────────────────────────────────
+    private BigDecimal spentAmount;     // Đã chi
+    private BigDecimal remainingAmount; // Còn lại (amount - spentAmount)
+
+    // ── Chỉ số dự đoán ───────────────────────────────────────────────────────
+    private BigDecimal dailyShouldSpend;  // Nên chi hàng ngày = remainingAmount / daysLeft
+    private BigDecimal dailyActualSpend;  // Thực tế chi hàng ngày = spentAmount / daysElapsed
+    private BigDecimal projectedSpend;    // Dự kiến chi tiêu = dailyActual * totalDays
 }

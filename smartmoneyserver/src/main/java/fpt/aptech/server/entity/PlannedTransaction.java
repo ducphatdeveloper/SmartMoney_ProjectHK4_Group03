@@ -9,8 +9,9 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 /**
- * Bảng giao dịch định kỳ và hóa đơn.
- * Dùng để tự động tạo giao dịch hoặc nhắc nhở người dùng.
+ * Bảng giao dịch định kỳ / hóa đơn.
+ * plan_type=1: Bill (hóa đơn, số tiền thay đổi, user duyệt tay)
+ * plan_type=2: Recurring (định kỳ cố định, Scheduler tự tạo Transaction)
  */
 @Entity
 @Table(name = "tPlannedTransactions")
@@ -37,9 +38,11 @@ public class PlannedTransaction {
     @JoinColumn(name = "ctg_id", nullable = false)
     private Category category;
 
+    // NULL nếu không liên quan đến nợ
+    // Chỉ điền khi ctg là: Cho vay(19), Đi vay(20), Thu nợ(21), Trả nợ(22)
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "currency_code", referencedColumnName = "currency_code", nullable = false)
-    private Currency currency;
+    @JoinColumn(name = "debt_id")
+    private Debt debt;
 
     @Column(name = "note", length = 500)
     private String note;
@@ -47,43 +50,39 @@ public class PlannedTransaction {
     @Column(name = "amount", nullable = false, precision = 18, scale = 2)
     private BigDecimal amount;
 
-    // 1: Bill (cần duyệt), 2: Recurring (tự động)
+    // 1: Bill (duyệt tay) | 2: Recurring (tự động)
     @Column(name = "plan_type", nullable = false)
     private Integer planType;
 
-    // Loại giao dịch sẽ được tạo ra.
-    @Column(name = "trans_type", nullable = false)
-    private Integer transType;
-
-    // 0: Không lặp, 1: Ngày, 2: Tuần, 3: Tháng, 4: Năm
+    // 0: Không lặp | 1: Ngày | 2: Tuần | 3: Tháng | 4: Năm
     @Column(name = "repeat_type", nullable = false)
     private Integer repeatType;
 
-    // Khoảng cách lặp (VD: mỗi 2 tuần)
+    // Mỗi bao nhiêu ngày/tuần/tháng/năm
     @Column(name = "repeat_interval", nullable = false)
     @Builder.Default
     private Integer repeatInterval = 1;
 
-    // Giá trị ngày lặp (VD: bitmask cho ngày trong tuần)
+    // Bitmask ngày trong tuần (repeat_type=2): CN=1,T2=2,T3=4,T4=8,T5=16,T6=32,T7=64
     @Column(name = "repeat_on_day_val")
     private Integer repeatOnDayVal;
 
     @Column(name = "begin_date", nullable = false)
     private LocalDate beginDate;
 
-    // Ngày đến hạn tiếp theo, dùng cho worker quét.
+    // Scheduler quét cột này để biết khi nào cần xử lý
     @Column(name = "next_due_date", nullable = false)
     private LocalDate nextDueDate;
 
-    // Ngày thực thi gần nhất để tránh lặp lại.
+    // Ngày thực hiện gần nhất (tránh duyệt trùng kỳ)
     @Column(name = "last_executed_at")
     private LocalDate lastExecutedAt;
 
-    // NULL nếu lặp lại vô hạn.
+    // NULL = lặp mãi mãi
     @Column(name = "end_date")
     private LocalDate endDate;
 
-    // true: đang chạy, false: tạm dừng.
+    // 1: Đang áp dụng | 0: Đã kết thúc
     @Column(name = "active", nullable = false)
     @Builder.Default
     private Boolean active = true;

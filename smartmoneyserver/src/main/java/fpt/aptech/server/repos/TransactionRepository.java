@@ -2,9 +2,11 @@ package fpt.aptech.server.repos;
 
 import fpt.aptech.server.dto.transaction.report.CategoryReportDTO;
 import fpt.aptech.server.dto.transaction.report.DailyTrendDTO;
+import fpt.aptech.server.dto.transaction.report.TransactionTotalDTO;
 import fpt.aptech.server.entity.Transaction;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -141,4 +143,74 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
             @Param("allCategories") Boolean allCategories,
             @Param("categoryIds") Set<Integer> categoryIds
     );
+
+    /// [BUDGET] Lấy danh sách giao dịch CHI thuộc ngân sách (cho GET /api/budgets/{id}/transactions)
+    /// - allCategories=true  → lấy tất cả giao dịch chi trong khoảng thời gian + ví của ngân sách
+    /// - allCategories=false → lọc thêm theo danh sách categoryIds
+    @Query("SELECT t FROM Transaction t " +
+            "JOIN t.category c " +
+            "WHERE t.account.id = :accountId " +
+            "  AND t.transDate BETWEEN :startDate AND :endDate " +
+            "  AND c.ctgType = false " +
+            "  AND (:walletId IS NULL OR t.wallet.id = :walletId) " +
+            "  AND (:allCategories = true OR c.id IN :categoryIds) " +
+            "ORDER BY t.transDate DESC")
+    List<Transaction> findTransactionsForBudget(
+            @Param("accountId") Integer accountId,
+            @Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate,
+            @Param("walletId") Integer walletId,
+            @Param("allCategories") Boolean allCategories,
+            @Param("categoryIds") Set<Integer> categoryIds
+    );
+
+    // =================================================================================
+    // 5. CÁC HÀM CHO SỰ KIỆN (EVENT)
+    // =================================================================================
+
+    /// [EVENT] Tính tổng thu và tổng chi cho một sự kiện.
+    @Query("SELECT new fpt.aptech.server.dto.transaction.report.TransactionTotalDTO(" +
+            "   SUM(CASE WHEN c.ctgType = true THEN t.amount ELSE 0 END), " +  // Tổng thu
+            "   SUM(CASE WHEN c.ctgType = false THEN t.amount ELSE 0 END) " + // Tổng chi
+            ") " +
+            "FROM Transaction t JOIN t.category c " +
+            "WHERE t.event.id = :eventId")
+    TransactionTotalDTO getTotalsByEventId(@Param("eventId") Integer eventId);
+
+    /// [EVENT] Set event_id = null cho tất cả giao dịch thuộc một sự kiện.
+    /// Dùng khi người dùng chọn "Chỉ xóa sự kiện".
+    @Modifying
+    @Query("UPDATE Transaction t SET t.event = null WHERE t.event.id = :eventId")
+    void setEventIdToNullByEventId(@Param("eventId") Integer eventId);
+
+    /// [EVENT] Lấy danh sách giao dịch theo eventId (cho trang XEM GIAO DỊCH)
+    @Query("SELECT t FROM Transaction t WHERE t.event.id = :eventId ORDER BY t.transDate DESC")
+    List<Transaction> findAllByEventId(@Param("eventId") Integer eventId);
+
+    /// [EVENT] Xóa cứng giao dịch theo eventId (cho nút XÓA CẢ HAI)
+    @Modifying
+    @Query("DELETE FROM Transaction t WHERE t.event.id = :eventId")
+    void deleteAllByEventId(@Param("eventId") Integer eventId);
+
+    // =================================================================================
+    // 6. CÁC HÀM CHO SỔ NỢ (DEBT)
+    // =================================================================================
+
+    /// [DEBT] Lấy danh sách giao dịch theo debtId (lịch sử trả/thu nợ)
+    @Query("SELECT t FROM Transaction t WHERE t.debt.id = :debtId ORDER BY t.transDate DESC")
+    List<Transaction> findAllByDebtId(@Param("debtId") Integer debtId);
+
+    /// [DEBT] Set debt_id = null khi xóa debt (giữ lại giao dịch)
+    @Modifying
+    @Query("UPDATE Transaction t SET t.debt = null WHERE t.debt.id = :debtId")
+    void setDebtIdToNullByDebtId(@Param("debtId") Integer debtId);
+
+    /// [DEBT] Tính tổng amount theo debtId và danh sách categoryId
+    /// Dùng cho recalculateDebt() — tính totalAmount và paidAmount
+    @Query("SELECT COALESCE(SUM(t.amount), 0) FROM Transaction t " +
+            "WHERE t.debt.id = :debtId " +
+            "AND t.category.id IN :categoryIds")
+    BigDecimal sumAmountByDebtIdAndCategoryIds(
+            @Param("debtId") Integer debtId,
+            @Param("categoryIds") List<Integer> categoryIds);
 }

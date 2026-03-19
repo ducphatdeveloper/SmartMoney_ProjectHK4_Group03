@@ -32,6 +32,10 @@ public class Debt {
     @Column(name = "debt_type", nullable = false)
     private Boolean debtType;
 
+    // Tên người vay/cho vay (VD: "Bạn A", "Anh Minh").
+    @Column(name = "person_name", nullable = false, length = 200)
+    private String personName;
+
     // Tổng số tiền ban đầu.
     @Column(name = "total_amount", nullable = false, precision = 18, scale = 2)
     private BigDecimal totalAmount;

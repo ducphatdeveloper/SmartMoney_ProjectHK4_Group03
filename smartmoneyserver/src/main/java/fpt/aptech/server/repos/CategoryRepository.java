@@ -71,4 +71,16 @@ public interface CategoryRepository extends JpaRepository<Category, Integer> {
            "ORDER BY COALESCE(p.ctgName, c.ctgName) ASC, (CASE WHEN c.parent IS NULL THEN 0 ELSE 1 END) ASC, c.ctgName ASC")
     List<Category> findAllSystemAndUserCategories(@Param("accountId") Integer accountId);
 
+    // =================================================================================
+    // HÀM CHO NGÂN SÁCH (BUDGET)
+    // =================================================================================
+
+    /// [BUDGET] Expand cha → con an toàn đa user:
+    /// Chỉ lấy con hệ thống (account=null) HOẶC con của chính user đó
+    @Query("SELECT c FROM Category c " +
+           "WHERE c.parent.id = :parentId " +
+           "  AND (c.account IS NULL OR c.account.id = :accountId)")
+    List<Category> findChildrenForBudget(
+            @Param("parentId") Integer parentId,
+            @Param("accountId") Integer accountId);
 }

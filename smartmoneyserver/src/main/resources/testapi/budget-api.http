@@ -1,4 +1,9 @@
-### 1. Đăng nhập
+### ══════════════════════════════════════════════════════════
+### BUDGET MODULE — API TEST FILE
+### Chạy [0. Login] trước để lấy token
+### ══════════════════════════════════════════════════════════
+
+### [0] Đăng nhập
 POST http://localhost:9999/api/auth/login
 Content-Type: application/json
 
@@ -15,64 +20,222 @@ Content-Type: application/json
     client.global.set("user_id", response.body.data.userId);
 %}
 
-### 2. Lấy danh sách Ngân sách
+### ══════════════════════════════════════════════════════════
+### QUERIES
+### ══════════════════════════════════════════════════════════
+
+### [1.1] Lấy danh sách ngân sách đang hoạt động
 GET http://localhost:9999/api/budgets
 Authorization: Bearer {{auth_token}}
 
-### 3. Tạo Ngân sách Mới (Cho danh mục Ăn uống - ID 1)
-# Giả sử: Wallet ID = 10 (MB Bank), Category ID = 1 (Ăn uống)
+###
+
+### [1.2] Lấy danh sách ngân sách đã kết thúc
+GET http://localhost:9999/api/budgets/expired
+Authorization: Bearer {{auth_token}}
+
+###
+
+### [1.3] Xem chi tiết ngân sách (thay {id} bằng id thực)
+GET http://localhost:9999/api/budgets/21
+Authorization: Bearer {{auth_token}}
+
+###
+
+### [1.4] Xem danh sách giao dịch thuộc ngân sách
+GET http://localhost:9999/api/budgets/21/transactions
+Authorization: Bearer {{auth_token}}
+
+###
+
+### ══════════════════════════════════════════════════════════
+### CREATE — các case khác nhau
+### ══════════════════════════════════════════════════════════
+
+### [2.1] Tạo ngân sách: Ăn uống (category cha ID=1) — 1 ví MB Bank
+### → Expect: allCategories=false, tBudgetCategories có Ăn uống + Ăn Vặt (expand cha)
 POST http://localhost:9999/api/budgets
 Authorization: Bearer {{auth_token}}
 Content-Type: application/json
 
 {
-  "amount": 5000000,
-  "beginDate": "2026-02-01",
-  "endDate": "2026-02-28",
+  "amount": 3000000,
+  "beginDate": "2026-03-01",
+  "endDate": "2026-03-31",
   "walletId": 10,
   "allCategories": false,
-  "repeating": true,
-  "categoryIds": [1]
+  "categoryId": 1,
+  "repeating": false
 }
 
-### 4. Tạo Ngân sách Tổng (All Categories)
+> {%
+    client.global.set("budget_id_1", response.body.data.id);
+%}
+
+###
+
+### [2.2] Tạo ngân sách: Tất cả danh mục — tất cả ví — có lặp lại
+### → Expect: allCategories=true, wallet=null, repeating=true
 POST http://localhost:9999/api/budgets
 Authorization: Bearer {{auth_token}}
 Content-Type: application/json
 
 {
   "amount": 15000000,
-  "beginDate": "2026-02-01",
-  "endDate": "2026-02-28",
+  "beginDate": "2026-03-01",
+  "endDate": "2026-03-31",
   "walletId": null,
   "allCategories": true,
-  "repeating": false,
-  "categoryIds": []
+  "categoryId": null,
+  "repeating": true
 }
 
-### 5. Cập nhật Ngân sách
-# Thay ID 100 bằng ID ngân sách vừa tạo
-PUT http://localhost:9999/api/budgets/100
+> {%
+    client.global.set("budget_id_2", response.body.data.id);
+%}
+
+###
+
+### [2.3] Tạo ngân sách: Chỉ 1 category con (Ăn Vặt ID=?) — không chọn ví
+### → Expect: tBudgetCategories chỉ có mình Ăn Vặt, wallet=null
+POST http://localhost:9999/api/budgets
 Authorization: Bearer {{auth_token}}
 Content-Type: application/json
 
 {
-  "amount": 6000000,
-  "beginDate": "2026-02-01",
-  "endDate": "2026-02-28",
-  "walletId": 10,
+  "amount": 500000,
+  "beginDate": "2026-03-01",
+  "endDate": "2026-03-31",
+  "walletId": null,
   "allCategories": false,
-  "repeating": true,
-  "categoryIds": [1, 7]
+  "categoryId": 2,
+  "repeating": false
 }
-# Note: categoryIds [1, 7] nghĩa là gộp Ăn uống và Giải trí vào chung 1 ngân sách
 
-### 6. Xóa Ngân sách
-# Thay ID 100 bằng ID ngân sách muốn xóa
-DELETE http://localhost:9999/api/budgets/100
+###
+
+### [2.4] Tạo ngân sách: Tab CHO VAY — Cho vay (ID=19)
+### → Expect: categories=[Cho vay]
+POST http://localhost:9999/api/budgets
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "amount": 10000000,
+  "beginDate": "2026-03-01",
+  "endDate": "2026-03-31",
+  "walletId": null,
+  "allCategories": false,
+  "categoryId": 19,
+  "repeating": false
+}
+
+###
+
+### [2.5] Lỗi — allCategories=false nhưng categoryId=null
+### → Expect: 400 "Vui lòng chọn một danh mục hoặc chọn Tất cả danh mục"
+POST http://localhost:9999/api/budgets
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "amount": 3000000,
+  "beginDate": "2026-03-01",
+  "endDate": "2026-03-31",
+  "walletId": null,
+  "allCategories": false,
+  "categoryId": null,
+  "repeating": false
+}
+
+###
+
+### [2.6] Lỗi — ngày bắt đầu sau ngày kết thúc
+### → Expect: 400 "Ngày bắt đầu phải trước ngày kết thúc"
+POST http://localhost:9999/api/budgets
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "amount": 3000000,
+  "beginDate": "2026-03-31",
+  "endDate": "2026-03-01",
+  "walletId": null,
+  "allCategories": true,
+  "categoryId": null,
+  "repeating": false
+}
+
+###
+
+### ══════════════════════════════════════════════════════════
+### UPDATE
+### ══════════════════════════════════════════════════════════
+
+### [3.1] Sửa ngân sách: đổi amount + đổi category
+PUT http://localhost:9999/api/budgets/{{budget_id_1}}
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "amount": 4000000,
+  "beginDate": "2026-03-01",
+  "endDate": "2026-03-31",
+  "walletId": null,
+  "allCategories": false,
+  "categoryId": 5,
+  "repeating": true
+}
+
+###
+
+### [3.2] Sửa sang allCategories=true (xóa hết categories cũ)
+PUT http://localhost:9999/api/budgets/{{budget_id_1}}
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "amount": 5000000,
+  "beginDate": "2026-03-01",
+  "endDate": "2026-03-31",
+  "walletId": null,
+  "allCategories": true,
+  "categoryId": null,
+  "repeating": false
+}
+
+###
+
+### ══════════════════════════════════════════════════════════
+### DELETE
+### ══════════════════════════════════════════════════════════
+
+### [4.1] Xóa ngân sách (không xóa giao dịch)
+DELETE http://localhost:9999/api/budgets/{{budget_id_2}}
 Authorization: Bearer {{auth_token}}
 
-### 7. Kích hoạt kiểm tra ngân sách thủ công (Trigger Scheduler)
-# Dùng để test tính năng cảnh báo ngân sách ngay lập tức
+###
+
+### ══════════════════════════════════════════════════════════
+### SCHEDULER (test)
+### ══════════════════════════════════════════════════════════
+
+### [5.1] Trigger check notification thủ công
 POST http://localhost:9999/api/budgets/check-now
+Authorization: Bearer {{auth_token}}
+
+###
+
+### ══════════════════════════════════════════════════════════
+### CATEGORY PICKER (dùng API category sẵn có)
+### ══════════════════════════════════════════════════════════
+
+### [6.1] Lấy danh mục tab KHOẢN CHI cho budget picker
+GET http://localhost:9999/api/categories?group=expense
+Authorization: Bearer {{auth_token}}
+
+###
+
+### [6.2] Lấy danh mục tab CHO VAY cho budget picker (mới thêm)
+GET http://localhost:9999/api/categories?group=lending
 Authorization: Bearer {{auth_token}}

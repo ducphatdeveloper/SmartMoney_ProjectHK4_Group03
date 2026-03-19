@@ -34,17 +34,41 @@ public class CategoryServiceImpl implements CategoryService {
     public List<CategoryResponse> getCategoriesByGroup(Integer accountId, String group) {
         List<Category> entities;
         switch (group.toLowerCase()) {
+
+            // ── Tab KHOẢN CHI (Tạo giao dịch) ────────────────────────────────────────
+            // Hiển thị tất cả danh mục CHI của hệ thống + user
+            // Loại trừ "Cho vay", "Trả nợ" vì 2 mục này thuộc tab riêng (CHO VAY)
             case "expense":
                 List<String> expenseExclusions = List.of("Cho vay", "Trả nợ");
                 entities = categoryRepository.findAllExpenseCategories(accountId, expenseExclusions);
                 break;
+
+            // ── Tab KHOẢN THU (Tạo giao dịch) ────────────────────────────────────────
+            // Hiển thị tất cả danh mục THU của hệ thống + user
+            // Loại trừ "Đi vay", "Thu nợ" vì 2 mục này thuộc tab riêng (VAY/NỢ)
             case "income":
                 List<String> incomeExclusions = List.of("Đi vay", "Thu nợ");
                 entities = categoryRepository.findAllIncomeCategories(accountId, incomeExclusions);
                 break;
+
+            // ── Tab VAY/NỢ (Tạo giao dịch) ───────────────────────────────────────────
+            // Hiển thị đủ 4 danh mục nợ/vay của hệ thống:
+            //   CHI: Cho vay (19), Trả nợ (22)
+            //   THU: Đi vay  (20), Thu nợ (21)
             case "debt":
                 List<String> debtNames = List.of("Cho vay", "Đi vay", "Thu nợ", "Trả nợ");
                 entities = categoryRepository.findDebtAndLoanCategories(debtNames);
+                break;
+
+            // ── Tab CHO VAY (Chọn nhóm khi tạo Ngân sách) ────────────────────────────
+            // Chỉ hiển thị 2 danh mục CHI thuộc nhóm vay/nợ:
+            //   Cho vay (19) — tiền tôi cho người khác vay
+            //   Trả nợ  (22) — tiền tôi trả lại người đã cho tôi vay
+            // Không hiển thị "Đi vay", "Thu nợ" vì đó là THU, ngân sách chỉ quản lý CHI
+            case "lending":
+                // Tab "CHO VAY" trong Budget picker — chỉ Cho vay + Trả nợ
+                List<String> lendingNames = List.of("Cho vay", "Trả nợ");
+                entities = categoryRepository.findDebtAndLoanCategories(lendingNames);
                 break;
             default:
                 throw new IllegalArgumentException("Nhóm danh mục không hợp lệ: " + group);

@@ -1,0 +1,221 @@
+### ======================================================================
+### TEST FILE: PlannedTransactions API (Recurring & Bills)
+### User 6: minh.pham@gmail.com
+### Wallet: 10 (MB Bank) | 11 (VNPay)
+### ======================================================================
+
+### [0] Đăng nhập lấy token
+# @name loginForPlanned
+POST http://localhost:9999/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "minh.pham@gmail.com",
+  "password": "Test@123",
+  "deviceToken": "device_token_test_saving",
+  "deviceType": "Postman",
+  "deviceName": "Test Client"
+}
+
+> {%
+    client.global.set("auth_token", response.body.data.accessToken);
+%}
+
+### ======================================================================
+### RECURRING — /api/recurring
+### ======================================================================
+
+### [R1] Tạo Recurring — Lương hàng tháng (THU)
+# @name createRecurringLuong
+POST http://localhost:9999/api/recurring
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "walletId": 10,
+  "amount": 12000000,
+  "categoryId": 15,
+  "debtId": null,
+  "note": "Lương Freelance Dev",
+  "planType": 2,
+  "repeatType": 3,
+  "repeatInterval": 1,
+  "repeatOnDayVal": null,
+  "beginDate": "2026-03-05",
+  "endDateOption": "FOREVER",
+  "endDateValue": null,
+  "repeatCount": null
+}
+
+> {%
+    client.global.set("recurring_id_luong", response.body.data.id);
+%}
+
+###
+
+### [R2] Tạo Recurring — Cà phê tuần (CHI, bitmask T2+T4+T6=42)
+# @name createRecurringCafe
+POST http://localhost:9999/api/recurring
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "walletId": 11,
+  "amount": 35000,
+  "categoryId": 1,
+  "debtId": null,
+  "note": "Cà phê sáng T2, T4, T6",
+  "planType": 2,
+  "repeatType": 2,
+  "repeatInterval": 1,
+  "repeatOnDayVal": 42,
+  "beginDate": "2026-03-16",
+  "endDateOption": "FOREVER",
+  "endDateValue": null,
+  "repeatCount": null
+}
+
+> {%
+    client.global.set("recurring_id_cafe", response.body.data.id);
+%}
+
+###
+
+### [R3] Tạo Recurring — Thu nợ chị gái (THU, debt_id=9, lặp 6 lần)
+# @name createRecurringThuNo
+POST http://localhost:9999/api/recurring
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "walletId": 10,
+  "amount": 500000,
+  "categoryId": 21,
+  "debtId": 9,
+  "note": "Thu nợ chị gái hàng tháng",
+  "planType": 2,
+  "repeatType": 3,
+  "repeatInterval": 1,
+  "repeatOnDayVal": null,
+  "beginDate": "2026-03-15",
+  "endDateOption": "COUNT",
+  "endDateValue": null,
+  "repeatCount": 6
+}
+
+> {%
+    client.global.set("recurring_id_thuno", response.body.data.id);
+%}
+
+###
+
+### [R4] Lấy danh sách Recurring đang áp dụng (active=true)
+GET http://localhost:9999/api/recurring?active=true
+Authorization: Bearer {{auth_token}}
+
+###
+
+### [R5] Lấy danh sách Recurring đã kết thúc (active=false)
+GET http://localhost:9999/api/recurring?active=false
+Authorization: Bearer {{auth_token}}
+
+###
+
+### [R6] Sửa recurring Lương (đã tạo ở R1)
+PUT http://localhost:9999/api/recurring/{{recurring_id_luong}}
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "walletId": 10,
+  "amount": 15000000,
+  "categoryId": 15,
+  "debtId": null,
+  "note": "Lương Freelance tăng lương",
+  "planType": 2,
+  "repeatType": 3,
+  "repeatInterval": 1,
+  "repeatOnDayVal": null,
+  "beginDate": "2026-03-05",
+  "endDateOption": "FOREVER",
+  "endDateValue": null,
+  "repeatCount": null
+}
+
+###
+
+### [R7] Toggle recurring Cafe (tạm dừng)
+PATCH http://localhost:9999/api/recurring/{{recurring_id_cafe}}/toggle
+Authorization: Bearer {{auth_token}}
+
+###
+
+### [R8] Xóa recurring Lương
+DELETE http://localhost:9999/api/recurring/{{recurring_id_luong}}
+Authorization: Bearer {{auth_token}}
+
+###
+
+### ======================================================================
+### BILLS — /api/bills
+### ======================================================================
+
+### [B1] Tạo Bill — Hóa đơn điện
+# @name createBillDien
+POST http://localhost:9999/api/bills
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "walletId": 10,
+  "amount": 450000,
+  "categoryId": 28,
+  "debtId": null,
+  "note": "Hóa đơn điện EVN tháng 3",
+  "planType": 1,
+  "repeatType": 3,
+  "repeatInterval": 1,
+  "repeatOnDayVal": null,
+  "beginDate": "2026-03-20",
+  "endDateOption": "FOREVER",
+  "endDateValue": null,
+  "repeatCount": null
+}
+
+> {%
+    client.global.set("bill_id_dien", response.body.data.id);
+%}
+
+###
+
+### [B2] Lấy danh sách Bills đang áp dụng
+GET http://localhost:9999/api/bills?active=true
+Authorization: Bearer {{auth_token}}
+
+###
+
+### [B3] User bấm "Trả tiền" cho hóa đơn điện (tạo Transaction)
+POST http://localhost:9999/api/bills/{{bill_id_dien}}/pay
+Authorization: Bearer {{auth_token}}
+
+###
+
+### [B4] Toggle bill (đánh dấu đã hoàn tất)
+PATCH http://localhost:9999/api/bills/{{bill_id_dien}}/toggle
+Authorization: Bearer {{auth_token}}
+
+###
+
+### [B5] Xóa bill
+DELETE http://localhost:9999/api/bills/{{bill_id_dien}}
+Authorization: Bearer {{auth_token}}
+
+###
+
+### ======================================================================
+### SCHEDULER — Trigger thủ công để test
+### ======================================================================
+
+### [S1] Chạy scheduler ngay (test)
+POST http://localhost:9999/api/planned/check-now
+Authorization: Bearer {{auth_token}}

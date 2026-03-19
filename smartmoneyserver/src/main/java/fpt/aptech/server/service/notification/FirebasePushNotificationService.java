@@ -29,7 +29,7 @@ public class FirebasePushNotificationService implements IPushNotificationService
 
         // Bước 3: Nếu không có thiết bị nào đang đăng nhập → bỏ qua.
         if (devices.isEmpty()) {
-            log.info("  -> User ID: {} không có thiết bị nào đang đăng nhập. Bỏ qua push.", accId);
+            log.info("  -> Người dùng (ID: {}) không có thiết bị nào đang đăng nhập. Bỏ qua gửi thông báo.", accId);
             return;
         }
 
@@ -50,12 +50,12 @@ public class FirebasePushNotificationService implements IPushNotificationService
 
                 // Bước 4.3: Gọi Firebase API gửi thông báo → Firebase lo việc chuyển phát.
                 String response = FirebaseMessaging.getInstance().send(message);
-                log.info("  -> Push tới device token: {}... thành công. Response: {}",
+                log.info("  -> Gửi thông báo tới thiết bị (Token: {}...) thành công. Response: {}",
                         device.getDeviceToken().substring(0, 20), response);
 
             } catch (Exception e) {
                 // Nếu 1 thiết bị lỗi → log cảnh báo và tiếp tục gửi cho thiết bị khác.
-                log.error("  -> Push tới device ID: {} thất bại: {}", device.getId(), e.getMessage());
+                log.error("  -> Gửi thông báo tới thiết bị (ID: {}) thất bại. Lý do (có thể do Token giả/không hợp lệ): {}", device.getId(), e.getMessage());
             }
         }
     }

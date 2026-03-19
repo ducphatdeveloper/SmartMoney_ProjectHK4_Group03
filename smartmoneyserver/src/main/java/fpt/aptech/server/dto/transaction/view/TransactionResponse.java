@@ -29,6 +29,8 @@ public record TransactionResponse(
 
     String eventName,
 
+    Integer debtId, // ID của khoản nợ liên quan (nếu có)
+
     String savingGoalName,
     String savingGoalIconUrl // Icon của Mục tiêu tiết kiệm (nếu dùng thay ví)
 ) {}

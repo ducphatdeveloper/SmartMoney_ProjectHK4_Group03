@@ -1,6 +1,11 @@
 package fpt.aptech.server.dto.savinggoal;
 
-import jakarta.validation.constraints.*;
+import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.FutureOrPresent;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.PositiveOrZero;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -25,6 +30,7 @@ public class SavingGoalRequest {
 
     // Currency FK
     @NotBlank(message = "Mã tiền tệ không được để trống")
+    @Pattern(regexp = "VND", message = "Mục tiêu tiết kiệm hiện chỉ hỗ trợ VND.")
     private String currencyCode;
 
     // Phải là ngày tương lai

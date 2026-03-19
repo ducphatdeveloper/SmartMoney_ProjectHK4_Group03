@@ -42,11 +42,19 @@ public class NotificationServiceImp implements NotificationService {
      * Đánh dấu một thông báo là "đã đọc" bởi người dùng.
      */
     @Override
-    public void markAsRead(Integer notificationId) {
-        notificationRepository.findById(notificationId).ifPresent(n -> {
-            n.setNotifyRead(true);
-            notificationRepository.save(n);
-        });
+    public void markAsRead(Integer notificationId, Integer accId) {
+        // Tìm thông báo theo ID
+        Notification notification = notificationRepository.findById(notificationId)
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy thông báo với ID: " + notificationId));
+
+        // Kiểm tra quyền sở hữu
+        if (!notification.getAccount().getId().equals(accId)) {
+            throw new SecurityException("Bạn không có quyền đánh dấu đã đọc cho thông báo này.");
+        }
+
+        // Cập nhật trạng thái và lưu lại
+        notification.setNotifyRead(true);
+        notificationRepository.save(notification);
     }
 
     /**
@@ -85,9 +93,10 @@ public class NotificationServiceImp implements NotificationService {
         // Bước 2: Nếu là thông báo gửi ngay (không hẹn lịch), kích hoạt gửi push
         if (scheduledTime == null) {
             pushNotificationService.sendToUser(account.getId(), title, content);
-            // Cập nhật trạng thái đã gửi (tùy chọn, vì push service có thể chạy bất đồng bộ)
-            // notification.setNotifySent(true);
-            // notificationRepository.save(notification);
+            // Bước 3: Cập nhật trạng thái đã gửi.
+            // Cập nhật notify_sent = true sau khi Firebase đã nhận yêu cầu gửi thành công.
+            notification.setNotifySent(true);
+            notificationRepository.save(notification);
         }
     }
 }

@@ -4,6 +4,7 @@ import fpt.aptech.server.dto.response.ApiResponse;
 import fpt.aptech.server.dto.savinggoal.SavingGoalRequest;
 import fpt.aptech.server.dto.savinggoal.SavingGoalResponse;
 import fpt.aptech.server.entity.Account;
+import fpt.aptech.server.scheduler.savinggoal.SavingGoalScheduler;
 import fpt.aptech.server.service.savinggoal.SavingGoalService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -15,12 +16,14 @@ import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
 import java.util.List;
+
 @RestController
 @RequestMapping("/api/saving-goals")
 @RequiredArgsConstructor
 public class SavingGoalController {
 
     private final SavingGoalService savingGoalService;
+    private final SavingGoalScheduler savingGoalScheduler; // Inject Scheduler
 
     // CREATE
     @PostMapping("/create")
@@ -92,5 +95,14 @@ public class SavingGoalController {
 
         return ResponseEntity.ok(ApiResponse.success(
                 savingGoalService.getSavingGoalDetail(id, currentUser.getId())));
+    }
+
+    // TRIGGER THỦ CÔNG SCHEDULER ĐỂ TEST
+    @PostMapping("/check-now")
+    @PreAuthorize("hasAuthority('USER_STANDARD_MANAGE')")
+    public ResponseEntity<ApiResponse<String>> checkNow() {
+        savingGoalScheduler.checkOverdueGoals();
+        savingGoalScheduler.remindNearDeadlineGoals();
+        return ResponseEntity.ok(ApiResponse.success("Đã kích hoạt thủ công scheduler của Mục tiêu tiết kiệm."));
     }
 }

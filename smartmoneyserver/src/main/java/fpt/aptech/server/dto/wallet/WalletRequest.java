@@ -1,6 +1,7 @@
 package fpt.aptech.server.dto.wallet;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
 import lombok.Getter;
@@ -12,6 +13,7 @@ import java.math.BigDecimal;
 @Setter
 public class WalletRequest{
     @NotBlank(message = "Mã tiền tệ không được để trống")
+    @Pattern(regexp = "VND", message = "Ví hiện chỉ hỗ trợ VND.")
     private String currencyCode;
 
     @NotBlank(message = "Tên ví không được để trống")

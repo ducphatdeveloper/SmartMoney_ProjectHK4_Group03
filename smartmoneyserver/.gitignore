@@ -44,3 +44,4 @@ Desktop.ini
 
 ### Firebase Secret Key ###
 src/main/resources/serviceAccountKey.json
+/src/main/resources/ailearnings/DatabaseQuerry/

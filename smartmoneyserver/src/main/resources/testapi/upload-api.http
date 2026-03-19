@@ -1,0 +1,57 @@
+### ============================================================
+### UPLOAD MODULE — HTTP Test
+### Chức năng: Upload & xóa hình ảnh trên Cloudinary
+### ============================================================
+
+### 1. Đăng nhập
+POST http://localhost:9999/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "minh.pham@gmail.com",
+  "password": "Test@123",
+  "deviceToken": "device_token_test_upload",
+  "deviceType": "Postman",
+  "deviceName": "Test Client"
+}
+
+> {%
+    client.global.set("auth_token", response.body.data.accessToken);
+%}
+
+### ============================================================
+### 2. Upload icon (cho danh mục, ví, sự kiện, mục tiêu...)
+### Thay đường dẫn file bằng ảnh thật trên máy bạn
+### ============================================================
+POST http://localhost:9999/api/upload/image?type=icon
+Authorization: Bearer {{auth_token}}
+Content-Type: multipart/form-data; boundary=boundary
+
+--boundary
+Content-Disposition: form-data; name="file"; filename="test_icon.png"
+Content-Type: image/png
+
+< D:/path/to/your/icon.png
+--boundary--
+
+### ============================================================
+### 3. Upload avatar (cho tài khoản người dùng)
+### ============================================================
+POST http://localhost:9999/api/upload/image?type=avatar
+Authorization: Bearer {{auth_token}}
+Content-Type: multipart/form-data; boundary=boundary
+
+--boundary
+Content-Disposition: form-data; name="file"; filename="avatar.jpg"
+Content-Type: image/jpeg
+
+< D:/path/to/your/avatar.jpg
+--boundary--
+
+### ============================================================
+### 4. Xóa ảnh theo URL
+### Thay URL bằng URL thật từ kết quả upload
+### ============================================================
+DELETE http://localhost:9999/api/upload/image?imageUrl=https://res.cloudinary.com/xxx/image/upload/v123/smartmoney/icons/abc.png
+Authorization: Bearer {{auth_token}}
+

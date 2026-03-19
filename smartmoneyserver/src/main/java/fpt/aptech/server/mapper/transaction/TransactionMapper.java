@@ -24,6 +24,8 @@ public interface TransactionMapper {
         @Mapping(source = "category.ctgType", target = "categoryType"),
 
         @Mapping(source = "event.eventName", target = "eventName"),
+        
+        @Mapping(source = "debt.id", target = "debtId"), // Map debtId
 
         @Mapping(source = "savingGoal.goalName", target = "savingGoalName"),
         @Mapping(source = "savingGoal.goalImageUrl", target = "savingGoalIconUrl") // Icon SavingGoal

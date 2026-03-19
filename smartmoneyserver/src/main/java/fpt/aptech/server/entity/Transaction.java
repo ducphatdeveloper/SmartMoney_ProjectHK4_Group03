@@ -65,7 +65,7 @@ public class Transaction {
     @Builder.Default
     private Boolean reportable = true;
 
-    // Nguồn tạo giao dịch: 1: manual, 2: chat, 3: voice, 4: receipt
+    // Nguồn tạo giao dịch: 1: manual, 2: chat, 3: voice, 4: receipt, 5: planned
     @Column(name = "source_type", nullable = false)
     @Builder.Default
     private Integer sourceType = 1;

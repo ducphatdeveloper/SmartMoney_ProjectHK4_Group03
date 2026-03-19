@@ -6,27 +6,29 @@ import lombok.Builder;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.util.Set;
 
 @Builder
 public record BudgetRequest(
-    @NotNull(message = "Số tiền không được để trống")
-    @DecimalMin(value = "0.0", inclusive = false, message = "Số tiền phải lớn hơn 0")
-    BigDecimal amount,
 
-    @NotNull(message = "Ngày bắt đầu không được để trống")
-    LocalDate beginDate,
+        @NotNull(message = "Số tiền không được để trống")
+        @DecimalMin(value = "0.0", inclusive = false, message = "Số tiền phải lớn hơn 0")
+        BigDecimal amount,
 
-    @NotNull(message = "Ngày kết thúc không được để trống")
-    LocalDate endDate,
+        @NotNull(message = "Ngày bắt đầu không được để trống")
+        LocalDate beginDate,
 
-    Integer walletId, // Null nếu áp dụng cho tất cả ví
+        @NotNull(message = "Ngày kết thúc không được để trống")
+        LocalDate endDate,
 
-    @NotNull
-    Boolean allCategories, // True: Tất cả danh mục, False: Theo danh sách categories
+        Integer walletId,       // null → áp dụng cho tất cả ví
 
-    @NotNull
-    Boolean repeating, // True: Tự động lặp lại
+        @NotNull(message = "allCategories không được để trống")
+        Boolean allCategories,  // true → Tất cả danh mục chi | false → theo categoryId
 
-    Set<Integer> categoryIds // Danh sách ID danh mục (nếu allCategories = false)
+        Integer categoryId,     // null nếu allCategories=true
+        // id cha → expand cha + toàn bộ con
+        // id con → chỉ con đó
+
+        @NotNull(message = "repeating không được để trống")
+        Boolean repeating       // true → tự động tạo ngân sách mới khi hết kỳ
 ) {}

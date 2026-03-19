@@ -28,7 +28,7 @@ public class Receipt {
     @OneToOne(fetch = FetchType.LAZY)
     @MapsId
     @JoinColumn(name = "id")
-    private AIConversation aiConversation;
+    private AIConversation conversation;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "acc_id", nullable = false)
@@ -38,13 +38,11 @@ public class Receipt {
     private String imageUrl;
 
     // Text thô trả về từ dịch vụ OCR.
-    @Lob
-    @Column(name = "raw_ocr_text")
+    @Column(name = "raw_ocr_text", columnDefinition = "NVARCHAR(MAX)")
     private String rawOcrText;
 
     // Dữ liệu đã được xử lý và chuẩn hóa (dưới dạng JSON).
-    @Lob
-    @Column(name = "processed_data")
+    @Column(name = "processed_data", columnDefinition = "NVARCHAR(MAX)")
     @Builder.Default
     private String processedData = "{}";
 

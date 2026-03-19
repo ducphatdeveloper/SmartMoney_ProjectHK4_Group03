@@ -1,3 +1,10 @@
+### ============================================================
+### MODULE: SAVING GOAL (Mục tiêu tiết kiệm)
+### Controller: /api/saving-goals
+### Endpoints: create, update(/{id}), deposit(/{id}/deposit),
+###            delete(/{id}), getAll, getDetail(/{id}), check-now
+### ============================================================
+
 ### 1. Đăng nhập (Lấy Token & UserID)
 POST http://localhost:9999/api/auth/login
 Content-Type: application/json
@@ -13,13 +20,26 @@ Content-Type: application/json
 > {%
     client.global.set("auth_token", response.body.data.accessToken);
     client.global.set("user_id", response.body.data.userId);
+    client.log("Token: " + response.body.data.accessToken);
 %}
 
-### 2. Lấy danh sách Mục tiêu tiết kiệm
+### ============================================================
+### 2. Lấy danh sách Mục tiêu tiết kiệm (GET ALL)
+### GET /api/saving-goals/getAll?search=
+### ============================================================
 GET http://localhost:9999/api/saving-goals/getAll
 Authorization: Bearer {{auth_token}}
 
-### 3. Tạo Mục tiêu tiết kiệm mới
+### 3. Tìm kiếm Mục tiêu theo tên
+GET http://localhost:9999/api/saving-goals/getAll?search=iPhone
+Authorization: Bearer {{auth_token}}
+
+### ============================================================
+### 4. Tạo Mục tiêu tiết kiệm mới (CREATE)
+### POST /api/saving-goals/create
+### Body: goalName, targetAmount, initialAmount, currencyCode,
+###        endDate, goalImageUrl, notified, reportable
+### ============================================================
 POST http://localhost:9999/api/saving-goals/create
 Authorization: Bearer {{auth_token}}
 Content-Type: application/json
@@ -27,39 +47,75 @@ Content-Type: application/json
 {
   "goalName": "Mua iPhone 18 Pro Max",
   "targetAmount": 50000000,
-  "currentAmount": 1000000,
-  "deadline": "2027-09-30",
-  "goalIconUrl": "icon_iphone.svg"
+  "initialAmount": 1000000,
+  "currencyCode": "VND",
+  "endDate": "2027-09-30",
+  "goalImageUrl": "icon_iphone.svg",
+  "notified": true,
+  "reportable": true
 }
 
-### 4. Kiểm tra lại Tổng Tài Sản sau khi tạo Saving Goal
-# Kỳ vọng: Total Balance sẽ tăng thêm 1,000,000
+### ============================================================
+### 5. Kiểm tra Tổng Tài Sản sau khi tạo Saving Goal
+### Kỳ vọng: Total Balance tăng thêm initialAmount (1,000,000)
+### ============================================================
 GET http://localhost:9999/api/user/wallets/total-balance
 Authorization: Bearer {{auth_token}}
 
-### 5. Xem chi tiết Mục tiêu
-# Thay ID 9 bằng ID mục tiêu thực tế
-GET http://localhost:9999/api/saving-goals/get/9
+### ============================================================
+### 6. Xem chi tiết Mục tiêu (DETAIL)
+### GET /api/saving-goals/getDetail/{id}
+### Thay {id} bằng ID mục tiêu thực tế
+### ============================================================
+GET http://localhost:9999/api/saving-goals/getDetail/9
 Authorization: Bearer {{auth_token}}
 
-### 6. Cập nhật Mục tiêu
-# Thay ID 9 bằng ID mục tiêu thực tế
-PUT http://localhost:9999/api/saving-goals/update/9
+### ============================================================
+### 7. Cập nhật thông tin Mục tiêu (UPDATE)
+### PUT /api/saving-goals/{id}
+### Thay {id} bằng ID mục tiêu thực tế
+### ============================================================
+PUT http://localhost:9999/api/saving-goals/9
 Authorization: Bearer {{auth_token}}
 Content-Type: application/json
 
 {
   "goalName": "Mua iPhone 18 Pro Max - Đã sửa",
   "targetAmount": 55000000,
-  "deadline": "2027-10-31"
+  "currencyCode": "VND",
+  "endDate": "2027-10-31",
+  "goalImageUrl": "icon_iphone.svg",
+  "notified": true,
+  "reportable": true
 }
 
-### 7. Hủy bỏ Mục tiêu
-# Thay ID 9 bằng ID mục tiêu muốn hủy
-PUT http://localhost:9999/api/saving-goals/cancel/9
+### ============================================================
+### 8. Nạp tiền vào Mục tiêu (DEPOSIT)
+### POST /api/saving-goals/{id}/deposit?amount=
+### Thay {id} bằng ID mục tiêu thực tế
+### ============================================================
+POST http://localhost:9999/api/saving-goals/9/deposit?amount=5000000
 Authorization: Bearer {{auth_token}}
 
-### 8. Xóa Mục tiêu
-# Thay ID 9 bằng ID mục tiêu muốn xóa
-DELETE http://localhost:9999/api/saving-goals/delete/9
+### ============================================================
+### 9. Kiểm tra Tổng Tài Sản sau khi Deposit
+### Kỳ vọng: Total Balance tăng thêm 5,000,000
+### ============================================================
+GET http://localhost:9999/api/user/wallets/total-balance
+Authorization: Bearer {{auth_token}}
+
+### ============================================================
+### 10. Hủy / Xóa Mục tiêu (DELETE)
+### DELETE /api/saving-goals/{id}
+### Thay {id} bằng ID mục tiêu muốn hủy
+### Lưu ý: Hủy = chuyển trạng thái CANCELLED, không xóa vật lý
+### ============================================================
+DELETE http://localhost:9999/api/saving-goals/9
+Authorization: Bearer {{auth_token}}
+
+### ============================================================
+### 11. Chạy scheduler thủ công (Test kiểm tra mục tiêu quá hạn)
+### POST /api/saving-goals/check-now
+### ============================================================
+POST http://localhost:9999/api/saving-goals/check-now
 Authorization: Bearer {{auth_token}}

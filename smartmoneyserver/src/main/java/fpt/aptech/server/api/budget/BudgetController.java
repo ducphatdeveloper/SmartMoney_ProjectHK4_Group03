@@ -3,8 +3,9 @@ package fpt.aptech.server.api.budget;
 import fpt.aptech.server.dto.budget.BudgetRequest;
 import fpt.aptech.server.dto.budget.BudgetResponse;
 import fpt.aptech.server.dto.response.ApiResponse;
+import fpt.aptech.server.dto.transaction.view.TransactionResponse;
 import fpt.aptech.server.entity.Account;
-import fpt.aptech.server.service.budget.BudgetScheduler;
+import fpt.aptech.server.scheduler.budget.BudgetScheduler;
 import fpt.aptech.server.service.budget.BudgetService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -22,65 +23,79 @@ import java.util.List;
 public class BudgetController {
 
     private final BudgetService budgetService;
-    private final BudgetScheduler budgetScheduler; // Inject Scheduler
+    private final BudgetScheduler budgetScheduler;
 
+    /// Ngân sách đang hoạt động (endDate >= today)
     @GetMapping
     @PreAuthorize("hasAuthority('USER_STANDARD_MANAGE')")
     public ResponseEntity<ApiResponse<List<BudgetResponse>>> getBudgets(
             @AuthenticationPrincipal Account currentUser) {
-        
-        Integer userId = currentUser.getId();
-        List<BudgetResponse> budgets = budgetService.getBudgets(userId);
-        return ResponseEntity.ok(ApiResponse.success(budgets));
+        return ResponseEntity.ok(ApiResponse.success(
+                budgetService.getBudgets(currentUser.getId())));
     }
 
+    /// Ngân sách đã kết thúc (endDate < today)
+    @GetMapping("/expired")
+    @PreAuthorize("hasAuthority('USER_STANDARD_MANAGE')")
+    public ResponseEntity<ApiResponse<List<BudgetResponse>>> getExpiredBudgets(
+            @AuthenticationPrincipal Account currentUser) {
+        return ResponseEntity.ok(ApiResponse.success(
+                budgetService.getExpiredBudgets(currentUser.getId())));
+    }
+
+    /// Chi tiết ngân sách
     @GetMapping("/{id}")
     @PreAuthorize("hasAuthority('USER_STANDARD_MANAGE')")
     public ResponseEntity<ApiResponse<BudgetResponse>> getBudgetById(
             @PathVariable Integer id,
             @AuthenticationPrincipal Account currentUser) {
-        
-        Integer userId = currentUser.getId();
-        BudgetResponse budget = budgetService.getBudgetById(id, userId);
-        return ResponseEntity.ok(ApiResponse.success(budget));
+        return ResponseEntity.ok(ApiResponse.success(
+                budgetService.getBudgetById(id, currentUser.getId())));
     }
 
+    /// Danh sách giao dịch thuộc ngân sách
+    @GetMapping("/{id}/transactions")
+    @PreAuthorize("hasAuthority('USER_STANDARD_MANAGE')")
+    public ResponseEntity<ApiResponse<List<TransactionResponse>>> getBudgetTransactions(
+            @PathVariable Integer id,
+            @AuthenticationPrincipal Account currentUser) {
+        return ResponseEntity.ok(ApiResponse.success(
+                budgetService.getBudgetTransactions(id, currentUser.getId())));
+    }
+
+    /// Tạo ngân sách mới
     @PostMapping
     @PreAuthorize("hasAuthority('USER_STANDARD_MANAGE')")
     public ResponseEntity<ApiResponse<BudgetResponse>> createBudget(
             @Valid @RequestBody BudgetRequest request,
             @AuthenticationPrincipal Account currentUser) {
-        
-        Integer userId = currentUser.getId();
-        BudgetResponse newBudget = budgetService.createBudget(request, userId);
+        BudgetResponse newBudget = budgetService.createBudget(request, currentUser.getId());
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success(newBudget, "Tạo ngân sách thành công"));
     }
 
+    /// Cập nhật ngân sách
     @PutMapping("/{id}")
     @PreAuthorize("hasAuthority('USER_STANDARD_MANAGE')")
     public ResponseEntity<ApiResponse<BudgetResponse>> updateBudget(
             @PathVariable Integer id,
             @Valid @RequestBody BudgetRequest request,
             @AuthenticationPrincipal Account currentUser) {
-        
-        Integer userId = currentUser.getId();
-        BudgetResponse updatedBudget = budgetService.updateBudget(id, request, userId);
-        return ResponseEntity.ok(ApiResponse.success(updatedBudget, "Cập nhật ngân sách thành công"));
+        BudgetResponse updated = budgetService.updateBudget(id, request, currentUser.getId());
+        return ResponseEntity.ok(ApiResponse.success(updated, "Cập nhật ngân sách thành công"));
     }
 
+    /// Xóa ngân sách (không xóa giao dịch)
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAuthority('USER_STANDARD_MANAGE')")
     public ResponseEntity<ApiResponse<Void>> deleteBudget(
             @PathVariable Integer id,
             @AuthenticationPrincipal Account currentUser) {
-        
-        Integer userId = currentUser.getId();
-        budgetService.deleteBudget(id, userId);
+        budgetService.deleteBudget(id, currentUser.getId());
         return ResponseEntity.ok(ApiResponse.success("Xóa ngân sách thành công"));
     }
 
-    // API để kích hoạt kiểm tra ngân sách thủ công (cho mục đích test)
+    /// Trigger kiểm tra ngân sách thủ công (test only)
     @PostMapping("/check-now")
     @PreAuthorize("hasAuthority('USER_STANDARD_MANAGE')")
     public ResponseEntity<ApiResponse<String>> triggerBudgetCheck() {

@@ -39,5 +39,14 @@ public record TransactionRequest(
     LocalDateTime reminderDate,
 
     @NotNull(message = "Trạng thái báo cáo không được để trống.")
-    Boolean reportable
+    Boolean reportable,
+
+    // Các trường mới cho module Sổ nợ
+    String personName,   // nullable — chỉ dùng khi category = Cho vay / Đi vay
+    Integer debtId,      // nullable — chỉ dùng khi category = Trả nợ / Thu nợ
+    LocalDateTime dueDate, // nullable - chỉ dùng khi tạo khoản nợ mới từ giao dịch
+
+    //AI MODULE
+    Integer sourceType,  // 1=manual|2=chat|3=voice|4=receipt|5=planned
+    Integer aiChatId     // NULL nếu manual, NOT NULL nếu sourceType 2/3/4
 ) {}
