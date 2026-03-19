@@ -123,7 +123,11 @@ const Login = () => {
                         )}
                     </button>
                     
-                    <div className="text-center mt-4 small">
+                    <div className="text-center mt-3">
+                        <Link to="/forgot-password" className="text-decoration-none small">Quên mật khẩu?</Link>
+                    </div>
+
+                    <div className="text-center mt-2 small">
                         Chưa có tài khoản? <Link to="/register" className="text-decoration-none fw-bold">Đăng ký ngay</Link>
                     </div>
                 </form>

@@ -45,6 +45,10 @@
         <firebase-admin.version>9.2.0</firebase-admin.version>
     </properties>
     <dependencies>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-mail</artifactId>
+        </dependency>
         <!-- Spring Data JPA: Giúp làm việc với cơ sở dữ liệu dễ dàng hơn -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

@@ -115,6 +115,42 @@ public class AuthServiceImp implements AuthService {
         return account;
     }
 
+
+    @Override
+    public String generateResetToken(String email) {
+        Account account = accountRepository.findByAccEmail(email)
+                .orElseThrow(() -> new RuntimeException("Email không tồn tại trong hệ thống"));
+
+        // Tạo OTP 6 số ngẫu nhiên
+        String otp = String.valueOf((int) ((Math.random() * 900000) + 100000));
+
+        account.setResetPasswordToken(otp);
+        account.setResetPasswordTokenExpiry(LocalDateTime.now().plusMinutes(15)); // Hết hạn sau 15 phút
+        accountRepository.save(account);
+
+        return otp;
+    }
+
+    @Override
+    public void resetPassword(String email, String otp, String newPassword) {
+        Account account = accountRepository.findByAccEmail(email)
+                .orElseThrow(() -> new RuntimeException("Email không tồn tại"));
+
+        if (account.getResetPasswordToken() == null || !account.getResetPasswordToken().equals(otp)) {
+            throw new RuntimeException("Mã OTP không chính xác");
+        }
+
+        if (account.getResetPasswordTokenExpiry().isBefore(LocalDateTime.now())) {
+            throw new RuntimeException("Mã OTP đã hết hạn");
+        }
+
+        account.setHashPassword(passwordEncoder.encode(newPassword));
+        // Xóa OTP sau khi đổi mật khẩu thành công
+        account.setResetPasswordToken(null);
+        account.setResetPasswordTokenExpiry(null);
+        accountRepository.save(account);
+    }
+
     /**
      * [2.2] Tạo và lưu Refresh Token mới cho thiết bị.
      * Hiện tại được thay thế bởi logic trong authenticate() — giữ lại để tương thích ngược.

@@ -61,6 +61,14 @@ public class Account implements UserDetails {
     @Builder.Default
     private Boolean locked = false;
 
+    // Mã OTP để reset mật khẩu
+    @Column(name = "reset_password_token", length = 10)
+    private String resetPasswordToken;
+
+    // Thời gian hết hạn của mã OTP
+    @Column(name = "reset_password_token_expiry")
+    private LocalDateTime resetPasswordTokenExpiry;
+
     // Tự động gán ngày giờ tạo, không thể cập nhật.
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
