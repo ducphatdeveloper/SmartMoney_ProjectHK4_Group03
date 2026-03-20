@@ -150,7 +150,7 @@ Content-Type: application/json
 {
   "walletId": 10,
   "categoryId": 10,
-  "amount": 250000,
+  "amount": 260000,
   "note": "Mua ốp lưng (hoàn về ví)",
   "transDate": "2026-02-09T14:10:00",
   "reportable": true

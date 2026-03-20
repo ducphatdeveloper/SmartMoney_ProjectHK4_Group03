@@ -13,7 +13,7 @@ POST http://localhost:9999/api/auth/login
 Content-Type: application/json
 
 {
-  "username": "newuser.test@gmail.com",
+  "username": "0923456789",
   "password": "Test@123",
   "deviceToken": "device_token_new_user",
   "deviceType": "Android",

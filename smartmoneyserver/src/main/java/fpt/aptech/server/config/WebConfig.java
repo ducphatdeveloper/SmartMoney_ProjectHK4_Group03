@@ -29,10 +29,21 @@ public class WebConfig implements WebMvcConfigurer {
         CorsConfiguration configuration = new CorsConfiguration();
 
         // Cho phép các nguồn (Origins) truy cập - Bạn có thể thêm URL Production vào đây
-        configuration.setAllowedOrigins(Arrays.asList(
-                "http://localhost:3000",      // React Dev
-                "http://localhost:5173",      // Vite Dev
-                "capacitor://localhost",      // Cho Mobile (nếu cần)
+        // SỬ DỤNG setAllowedOriginPatterns thay vì setAllowedOrigins
+        configuration.setAllowedOriginPatterns(Arrays.asList(
+                "http://localhost:[*]",       // Cho Flutter Web
+                "http://127.0.0.1:[*]",      // Cho Flutter Web (dự phòng)
+
+                // CHO ANDROID EMULATOR (MÁY ẢO)
+                "http://10.0.2.2:[*]",       // Mặc định của Android Studio Emulator
+                "http://10.0.3.2:[*]",       // Mặc định của Genymotion (nếu dùng)
+
+                // CHO ANDROID REAL DEVICE (MÁY THẬT) & MẠNG TRƯỜNG/NHÀ
+                "http://192.168.[*]:[*]",    // Dải IP Lớp C (Nhà/Cafe)
+                "http://172.[*]:[*]",        // Dải IP Lớp B (Trường học/Công ty)
+                "http://10.[*]:[*]",         // Dải IP Lớp A (Mạng nội bộ lớn)
+
+                "capacitor://localhost",
                 "ionic://localhost"
         ));
 
