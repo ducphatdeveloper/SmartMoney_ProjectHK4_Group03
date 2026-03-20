@@ -17,6 +17,8 @@ class UserModel {
   final String? roleCode;     // ROLE_ADMIN / ROLE_USER
   final String? roleName;     // Quản trị viên / Người dùng
   final List<String> permissions;
+  
+  final String? loginAt; // Thêm trường loginAt
 
   UserModel({
     required this.userId,
@@ -28,6 +30,7 @@ class UserModel {
     this.roleCode,
     this.roleName,
     this.permissions = const [],
+    this.loginAt,
   });
 
   // Tạo UserModel từ AuthResponse sau khi login thành công
@@ -43,6 +46,7 @@ class UserModel {
       roleCode:    response.roleCode,
       roleName:    response.roleName,
       permissions: response.permissions,
+      loginAt:     response.loginAt, // Map trường loginAt
     );
   }
 

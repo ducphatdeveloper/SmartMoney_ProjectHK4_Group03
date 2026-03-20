@@ -31,13 +31,31 @@ class AuthProvider extends ChangeNotifier {
 
     final accessToken = await TokenHelper.getAccessToken();
     if (accessToken != null && !JwtDecoder.isExpired(accessToken)) {
-      // Lấy thông tin cơ bản từ JWT
+      // Giải mã token để lấy các trường (theo JwtUtils của Spring Boot)
+      // { "userId": 6, "sub": "minh.pham@gmail.com", "authorities": ["ROLE_USER", "USER_STANDARD_MANAGE"] }
       final decodedToken = JwtDecoder.decode(accessToken);
+      
+      // Parse authorities thành roleCode và permissions
+      List<dynamic> authorities = decodedToken['authorities'] ?? [];
+      String? roleCode;
+      List<String> permissions = [];
+      
+      for (var auth in authorities) {
+        if (auth.toString().startsWith('ROLE_')) {
+          roleCode = auth.toString();
+        } else {
+          permissions.add(auth.toString());
+        }
+      }
+
+      // Tái tạo lại UserModel ở mức cơ bản từ JWT
+      // Lưu ý: Các field như avatarUrl, currency sẽ null cho đến khi gọi API /users/profile
       _currentUser = UserModel(
-        userId: decodedToken['accId'], // Giả định accId có trong token
-        accEmail: decodedToken['sub'], // Giả định email là subject
-        // Các thông tin khác có thể lấy từ token nếu có
-        // hoặc gọi API /users/profile
+        userId: decodedToken['userId'],
+        accEmail: decodedToken['sub'].contains('@') ? decodedToken['sub'] : null,
+        accPhone: !decodedToken['sub'].contains('@') ? decodedToken['sub'] : null,
+        roleCode: roleCode,
+        permissions: permissions,
       );
     }
 
@@ -57,19 +75,18 @@ class AuthProvider extends ChangeNotifier {
 
       if (kIsWeb) {
         deviceType = "WEB";
-        deviceName = "Web Browser"; // Hoặc có thể lấy thông tin chi tiết hơn từ trình duyệt nếu cần
+        deviceName = "Web Browser";
       } else if (Platform.isAndroid) {
         final androidInfo = await deviceInfo.androidInfo;
         deviceType = "ANDROID";
         deviceName = androidInfo.model;
-        // deviceToken = await FirebaseMessaging.instance.getToken(); // Uncomment if Firebase is set up
+        // deviceToken = await FirebaseMessaging.instance.getToken();
       } else if (Platform.isIOS) {
         final iosInfo = await deviceInfo.iosInfo;
         deviceType = "IOS";
         deviceName = iosInfo.name;
-        // deviceToken = await FirebaseMessaging.instance.getToken(); // Uncomment if Firebase is set up
+        // deviceToken = await FirebaseMessaging.instance.getToken();
       } else {
-        // Các nền tảng desktop khác (Windows, macOS, Linux)
         deviceType = Platform.operatingSystem.toUpperCase();
         deviceName = Platform.localHostname;
       }
@@ -85,6 +102,7 @@ class AuthProvider extends ChangeNotifier {
       final response = await _authService.login(request);
 
       if (response.success && response.data != null) {
+        // Có đầy đủ data từ API
         _currentUser = UserModel.fromAuthResponse(response.data!);
         _isLoading = false;
         notifyListeners();
@@ -107,13 +125,12 @@ class AuthProvider extends ChangeNotifier {
     _isLoading = true;
     notifyListeners();
 
-    // Lấy deviceToken để gửi lên server khi logout
     String? deviceToken;
-    // if (Firebase.apps.isNotEmpty) { // Check if Firebase is initialized
+    // if (Firebase.apps.isNotEmpty) {
     //   deviceToken = await FirebaseMessaging.instance.getToken();
     // }
 
-    await _authService.logout(deviceToken: deviceToken ?? ""); // Gửi rỗng nếu không có
+    await _authService.logout(deviceToken: deviceToken ?? "");
 
     _currentUser = null;
     _isLoading = false;

@@ -19,6 +19,8 @@ class AuthResponse {
   // JWT Tokens — lưu vào flutter_secure_storage
   final String accessToken;
   final String refreshToken;
+  
+  final String? loginAt; // Thêm trường loginAt từ JSON trả về
 
   AuthResponse({
     required this.userId,
@@ -32,6 +34,7 @@ class AuthResponse {
     this.permissions = const [],
     required this.accessToken,
     required this.refreshToken,
+    this.loginAt,
   });
 
   // Parse JSON từ Spring Boot
@@ -50,6 +53,7 @@ class AuthResponse {
           : [],
       accessToken:  json['accessToken'] ?? '',
       refreshToken: json['refreshToken'] ?? '',
+      loginAt:      json['loginAt']?.toString(), // Parse loginAt
     );
   }
 
