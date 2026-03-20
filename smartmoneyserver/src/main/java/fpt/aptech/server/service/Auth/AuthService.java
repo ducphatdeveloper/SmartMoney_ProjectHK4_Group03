@@ -12,6 +12,10 @@ public interface AuthService {
 
     // Các phương thức bổ trợ
     Account login(String username, String password);
+    String generateResetToken(String email);
+
+    void resetPassword(String email, String otp, String newPassword);
+
     String generateAndSaveRefreshToken(Account account, String deviceToken, String deviceType, String deviceName, String ipAddress, Boolean loggedIn);
     String generateAccessToken(Account account);
     UserInfoDTO convertToUserInfoDTO(Account account);

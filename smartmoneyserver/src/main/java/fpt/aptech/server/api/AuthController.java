@@ -1,12 +1,15 @@
 package fpt.aptech.server.api;
 
+import fpt.aptech.server.dto.request.ForgotPasswordRequest;
 import fpt.aptech.server.dto.request.LoginRequest;
+import fpt.aptech.server.dto.request.ResetPasswordRequest;
 import fpt.aptech.server.dto.request.RegisterRequest;
 import fpt.aptech.server.dto.response.ApiResponse;
 import fpt.aptech.server.dto.response.AuthResponse;
 import fpt.aptech.server.dto.UserInfoDTO;
 import fpt.aptech.server.entity.Account;
 import fpt.aptech.server.service.Auth.AuthService;
+import fpt.aptech.server.service.emailsender.EmailService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -21,6 +24,8 @@ public class AuthController {
     @Autowired
     private AuthService authService;
 
+    @Autowired
+    private EmailService emailService;
 
     @PostMapping("/login")
     public ResponseEntity<ApiResponse<AuthResponse>> login(
@@ -51,8 +56,38 @@ public class AuthController {
         Account account = authService.register(registerRequest);
         UserInfoDTO userInfo = authService.convertToUserInfoDTO(account);
 
+        // Gửi email chào mừng sau khi đăng ký thành công
+        String subject = "Chào mừng bạn đến với SmartMoney";
+        String htmlBody = "<h3>Đăng ký thành công!</h3><p>Cảm ơn bạn đã tạo tài khoản. Hãy bắt đầu quản lý chi tiêu của mình ngay hôm nay.</p>";
+        emailService.sendHtmlReport(account.getAccEmail(), subject, htmlBody);
+
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(ApiResponse.success(userInfo, "Đăng ký tài khoản thành công"));
+    }
+
+    @PostMapping("/forgot-password")
+    public ResponseEntity<ApiResponse<Void>> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
+        // 1. Gọi Service để tạo mã OTP và lưu vào DB (bạn cần thêm hàm generateResetToken vào AuthService)
+        // Giả sử hàm này trả về mã OTP string sau khi đã lưu vào DB
+        String otp = authService.generateResetToken(request.getEmail());
+
+        // 2. Gửi OTP qua email
+        emailService.sendOtp(request.getEmail(), otp);
+
+        return ResponseEntity.ok(ApiResponse.success(null, "Mã xác thực đã được gửi đến email của bạn"));
+    }
+
+    @PostMapping("/reset-password")
+    public ResponseEntity<ApiResponse<Void>> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
+        // 1. Gọi Service để verify OTP và đổi mật khẩu (bạn cần thêm hàm resetPassword vào AuthService)
+        // Hàm này sẽ throw exception nếu OTP sai hoặc hết hạn
+        authService.resetPassword(
+                request.getEmail(),
+                request.getOtp(),
+                request.getNewPassword()
+        );
+
+        return ResponseEntity.ok(ApiResponse.success(null, "Đặt lại mật khẩu thành công"));
     }
 
     @PostMapping("/logout")

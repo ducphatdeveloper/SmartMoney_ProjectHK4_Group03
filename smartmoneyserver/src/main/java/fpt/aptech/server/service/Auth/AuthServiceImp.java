@@ -20,8 +20,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.Map;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 @Service
@@ -37,6 +39,22 @@ public class AuthServiceImp implements AuthService {
     @Autowired private UserDetailsService   userDetailsService;
     @Autowired private CurrencyRepository   currencyRepository;
 
+    // Cache để lưu trữ OTP. Key: username, Value: OtpData(otp, expiry)
+    private final Map<String, OtpData> otpCache = new ConcurrentHashMap<>();
+
+    // Inner class để chứa thông tin OTP
+    private static class OtpData {
+        private final String otp;
+        private final LocalDateTime expiry;
+
+        public OtpData(String otp, LocalDateTime expiry) {
+            this.otp = otp;
+            this.expiry = expiry;
+        }
+
+        public String getOtp() { return otp; }
+        public LocalDateTime getExpiry() { return expiry; }
+    }
     // =================================================================================
     // 1. XÁC THỰC (AUTHENTICATE)
     // =================================================================================
@@ -113,6 +131,47 @@ public class AuthServiceImp implements AuthService {
         }
 
         return account;
+    }
+
+    @Override
+    public String generateResetToken(String username) {
+        // 1. Vẫn kiểm tra tài khoản tồn tại trong DB
+        accountRepository.findByUsernameOrEmail(username)
+                .orElseThrow(() -> new RuntimeException("Tài khoản không tồn tại trong hệ thống"));
+
+        // 2. Tạo OTP 6 số ngẫu nhiên
+        String otp = String.valueOf((int) ((Math.random() * 900000) + 100000));
+
+        // 3. Lưu OTP và thời gian hết hạn vào cache, không cần save account
+        LocalDateTime expiry = LocalDateTime.now().plusMinutes(15); // Hết hạn sau 15 phút
+        otpCache.put(username, new OtpData(otp, expiry));
+
+        return otp;
+    }
+
+    @Override
+    public void resetPassword(String username, String otp, String newPassword) {
+        // 1. Lấy dữ liệu OTP từ cache
+        OtpData storedOtp = otpCache.get(username);
+
+        // 2. Kiểm tra OTP
+        if (storedOtp == null || !storedOtp.getOtp().equals(otp)) {
+            throw new RuntimeException("Mã OTP không chính xác hoặc không tồn tại");
+        }
+
+        if (storedOtp.getExpiry().isBefore(LocalDateTime.now())) {
+            throw new RuntimeException("Mã OTP đã hết hạn");
+        }
+
+        // 3. Nếu OTP hợp lệ, tìm tài khoản và đổi mật khẩu
+        Account account = accountRepository.findByUsernameOrEmail(username)
+                .orElseThrow(() -> new RuntimeException("Tài khoản không tồn tại")); // Should not happen
+
+        account.setHashPassword(passwordEncoder.encode(newPassword));
+        accountRepository.save(account);
+
+        // 4. Xóa OTP khỏi cache sau khi sử dụng
+        otpCache.remove(username);
     }
 
     /**
