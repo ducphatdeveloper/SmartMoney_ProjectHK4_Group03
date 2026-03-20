@@ -3,7 +3,7 @@ import 'package:smart_money/modules/category/screens/category_screens.dart';
 import 'package:smart_money/modules/event/screen/event_screen.dart';
 import 'package:smart_money/modules/wallet/screens/wallet_screen.dart';
 
-import 'Account_Management_screen.dart';
+import 'account_management_screen.dart';
 
 class AccountScreen extends StatelessWidget {
   const AccountScreen({super.key});

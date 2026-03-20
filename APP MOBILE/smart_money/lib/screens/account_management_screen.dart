@@ -1,10 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
+import '../modules/auth/providers/auth_provider.dart';
 
 class AccountManagementScreen extends StatelessWidget {
   const AccountManagementScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
+    // Lấy instance của AuthProvider
+    final authProvider = context.read<AuthProvider>();
+
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
@@ -85,7 +91,7 @@ class AccountManagementScreen extends StatelessWidget {
             title: "Đăng xuất",
             color: Colors.red,
             onTap: () {
-              _confirmLogout(context);
+              _confirmLogout(context, authProvider);
             },
           ),
 
@@ -132,7 +138,7 @@ class AccountManagementScreen extends StatelessWidget {
   }
 
   // ===== DIALOG =====
-  void _confirmLogout(BuildContext context) {
+  void _confirmLogout(BuildContext context, AuthProvider authProvider) {
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
@@ -144,10 +150,18 @@ class AccountManagementScreen extends StatelessWidget {
             onPressed: () => Navigator.pop(context),
           ),
           TextButton(
-            child: const Text("Đăng xuất"),
-            onPressed: () {
+            child: const Text("Đăng xuất", style: TextStyle(color: Colors.red)),
+            onPressed: () async {
+              // Đóng dialog xác nhận
               Navigator.pop(context);
-              Navigator.pop(context);
+              
+              // Gọi hàm logout trong AuthProvider
+              await authProvider.logout();
+              
+              // Điều hướng về trang login
+              if (context.mounted) {
+                context.go("/login");
+              }
             },
           ),
         ],
