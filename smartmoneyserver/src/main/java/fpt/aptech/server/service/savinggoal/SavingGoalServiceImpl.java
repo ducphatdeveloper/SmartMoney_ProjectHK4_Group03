@@ -302,6 +302,7 @@ public class SavingGoalServiceImpl implements SavingGoalService {
                 .goalName(goal.getGoalName())
                 .targetAmount(goal.getTargetAmount())
                 .currentAmount(goal.getCurrentAmount())
+                .beginDate(goal.getBeginDate())
                 .endDate(goal.getEndDate())
                 .goalStatus(goal.getGoalStatus())
                 .notified(goal.getNotified())

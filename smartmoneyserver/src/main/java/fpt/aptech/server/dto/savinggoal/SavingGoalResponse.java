@@ -14,6 +14,7 @@ public class SavingGoalResponse {
     private String goalName;
     private BigDecimal targetAmount;
     private BigDecimal currentAmount;
+    private LocalDate beginDate;    // Ngày bắt đầu (Flutter cần để hiển thị timeline)
     private LocalDate endDate;
     private Integer goalStatus;
     private Boolean notified;

@@ -252,6 +252,7 @@ public class TransactionServiceImpl implements TransactionService {
                             .reduce(BigDecimal.ZERO, BigDecimal::add);
 
                     return CategoryTransactionGroup.builder()
+                            .categoryId(cat.getId())
                             .categoryName(cat.getCtgName())
                             .categoryIconUrl(cat.getCtgIconUrl())
                             .categoryType(cat.getCtgType())

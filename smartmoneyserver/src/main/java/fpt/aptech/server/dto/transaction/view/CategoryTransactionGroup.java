@@ -11,6 +11,7 @@ import java.util.List;
 @Builder
 public record CategoryTransactionGroup(
     // Thông tin của nhóm (dùng cho header)
+    Integer categoryId,
     String categoryName,
     String categoryIconUrl,
     Boolean categoryType,

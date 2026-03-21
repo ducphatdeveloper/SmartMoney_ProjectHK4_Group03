@@ -16,17 +16,21 @@ public interface TransactionMapper {
      * Chuyển đổi từ Transaction (Entity) sang TransactionResponse (DTO).
      */
     @Mappings({
+        @Mapping(source = "wallet.id", target = "walletId"),
         @Mapping(source = "wallet.walletName", target = "walletName"),
         @Mapping(source = "wallet.goalImageUrl", target = "walletIconUrl"), // Icon Ví
 
+        @Mapping(source = "category.id", target = "categoryId"),
         @Mapping(source = "category.ctgName", target = "categoryName"),
         @Mapping(source = "category.ctgIconUrl", target = "categoryIconUrl"),
         @Mapping(source = "category.ctgType", target = "categoryType"),
 
+        @Mapping(source = "event.id", target = "eventId"),
         @Mapping(source = "event.eventName", target = "eventName"),
         
         @Mapping(source = "debt.id", target = "debtId"), // Map debtId
 
+        @Mapping(source = "savingGoal.id", target = "savingGoalId"),
         @Mapping(source = "savingGoal.goalName", target = "savingGoalName"),
         @Mapping(source = "savingGoal.goalImageUrl", target = "savingGoalIconUrl") // Icon SavingGoal
     })
