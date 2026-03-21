@@ -37,5 +37,7 @@ public record TransactionResponse(
 
     Integer savingGoalId, // ID Mục tiêu tiết kiệm (Flutter cần để pre-fill form sửa)
     String savingGoalName,
-    String savingGoalIconUrl // Icon của Mục tiêu tiết kiệm (nếu dùng thay ví)
+    String savingGoalIconUrl, // Icon của Mục tiêu tiết kiệm (nếu dùng thay ví)
+
+    Integer aiChatId // ID Chat AI (nếu giao dịch được tạo bởi AI)
 ) {}

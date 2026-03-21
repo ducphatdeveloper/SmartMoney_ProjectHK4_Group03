@@ -511,6 +511,21 @@ public class TransactionServiceImpl implements TransactionService {
         transaction.setWithPerson(request.withPerson());
         transaction.setReportable(request.reportable());
 
+        // Cập nhật sourceType nếu có
+        if (request.sourceType() != null && request.sourceType() >= 1 && request.sourceType() <= 5) {
+            transaction.setSourceType(request.sourceType());
+        }
+
+        // Cập nhật AI Conversation nếu có
+        if (request.aiChatId() != null) {
+            AIConversation aiConversation = aiConversationRepository.findById(request.aiChatId())
+                    .orElseThrow(() -> new IllegalArgumentException(
+                            "Cuộc hội thoại AI không tồn tại với ID: " + request.aiChatId()));
+            transaction.setAiConversation(aiConversation);
+        } else {
+            transaction.setAiConversation(null);
+        }
+
         // Bước 4: Xử lý thay đổi Danh mục
         Category targetCategory = transaction.getCategory();
         if (!Objects.equals(transaction.getCategory().getId(), request.categoryId())) {
