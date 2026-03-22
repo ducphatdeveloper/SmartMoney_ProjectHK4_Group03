@@ -1,0 +1,10 @@
+/// Request quên mật khẩu (gửi OTP qua email).
+/// Tương ứng: ForgotPasswordRequest.java (server)
+class ForgotPasswordRequest {
+  final String email;
+
+  const ForgotPasswordRequest({required this.email});
+
+  Map<String, dynamic> toJson() => {'email': email};
+}
+
