@@ -2,7 +2,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 
 import 'home_screen.dart';
-import 'package:smart_money/modules/Transaction/screens/transaction_screens.dart';
+import 'package:smart_money/modules/transaction/screens/transaction_list_screen.dart';
 import 'package:smart_money/modules/Transfer_transaction/screens/add_transaction_screens.dart';
 import 'package:smart_money/modules/Budget/screens/budget_screens.dart';
 import 'account_screen.dart';
@@ -20,7 +20,7 @@ class _MainNavigationState extends State<MainNavigation> {
 
   final screens = const [
     HomeScreen(),
-    TransactionBookScreen(transactions: []),
+    TransactionListScreen(),
     AddTransactionView(),
     BudgetScreen(),
     AccountScreen(),

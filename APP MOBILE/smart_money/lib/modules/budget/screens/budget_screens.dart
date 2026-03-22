@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
-import 'package:smart_money/modules/budget/models/budget_models.dart'; // Đã sửa thành chữ thường
+import 'package:smart_money/modules/budget/models/budget_response.dart';
 import 'package:smart_money/modules/budget/screens/add_budget_screens.dart';
 import 'package:smart_money/modules/budget/screens/budget_details_screens.dart';
-import 'package:smart_money/modules/transaction/models/transaction_models.dart';
+import 'package:smart_money/modules/transaction/models/view/transaction_response.dart';
 
 class BudgetScreen extends StatefulWidget {
   const BudgetScreen({super.key});
@@ -13,23 +13,29 @@ class BudgetScreen extends StatefulWidget {
 }
 
 class _BudgetScreenState extends State<BudgetScreen> {
-  List<BudgetModel> budgets = [];
+  List<BudgetResponse> budgets = [];
 
   /// 👉 GIẢ LẬP TỔNG TIỀN TỪ CÁC VÍ
   final double totalWalletAmount = 30000000;
 
   final transactions = [
-    TransactionModel(
-      id: '1',
-      categoryId: 'food',
+    TransactionResponse(
+      id: 1,
+      categoryId: 1,
       amount: 50000,
-      date: DateTime.now(),
+      transDate: DateTime.now(),
+      reportable: true,
+      sourceType: 1,
+      categoryType: false,
     ),
-    TransactionModel(
-      id: '2',
-      categoryId: 'food',
+    TransactionResponse(
+      id: 2,
+      categoryId: 1,
       amount: 70000,
-      date: DateTime.now(),
+      transDate: DateTime.now(),
+      reportable: true,
+      sourceType: 1,
+      categoryType: false,
     ),
   ];
 
@@ -155,9 +161,14 @@ class _BudgetScreenState extends State<BudgetScreen> {
 
     return Column(
       children: budgets.map((b) {
-        final spent = transactions
-            .where((t) => t.categoryId == b.categoryId)
-            .fold(0.0, (s, t) => s + t.amount);
+        // Nếu allCategories = true, lọc tất cả giao dịch
+        // Nếu allCategories = false, lọc theo categories list
+        final spent = b.allCategories ?? false
+            ? transactions.fold(0.0, (s, t) => s + t.amount)
+            : transactions
+                .where((t) => 
+                    b.categories.any((cat) => cat.id == t.categoryId))
+                .fold(0.0, (s, t) => s + t.amount);
 
         final percent = spent / b.amount;
 
@@ -169,8 +180,16 @@ class _BudgetScreenState extends State<BudgetScreen> {
             borderRadius: BorderRadius.circular(16),
           ),
           child: ListTile(
-            leading: CircleAvatar(child: Icon(b.icon)),
-            title: Text(b.name),
+            // 👇 Hiển thị icon từ category nếu có, nếu không dùng icon mặc định
+            leading: CircleAvatar(
+              child: b.primaryCategoryIconUrl != null
+                  ? Image.network(
+                      b.primaryCategoryIconUrl!,
+                      errorBuilder: (_, __, ___) => Icon(Icons.attach_money),
+                    )
+                  : Icon(Icons.attach_money),
+            ),
+            title: Text("Budget #${b.id}"),
             subtitle: Text(
               "${spent.toInt()} / ${b.amount.toInt()} đ",
               style: TextStyle(color: percent > 1 ? Colors.red : Colors.grey),
@@ -182,9 +201,12 @@ class _BudgetScreenState extends State<BudgetScreen> {
                 MaterialPageRoute(
                   builder: (_) => BudgetDetailScreen(
                     budget: b,
-                    transactions: transactions
-                        .where((t) => t.categoryId == b.categoryId)
-                        .toList(),
+                    transactions: (b.allCategories ?? false)
+                        ? transactions
+                        : transactions
+                            .where((t) => 
+                                b.categories.any((cat) => cat.id == t.categoryId))
+                            .toList(),
                   ),
                 ),
               );

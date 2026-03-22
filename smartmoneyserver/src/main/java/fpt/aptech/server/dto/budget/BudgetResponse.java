@@ -23,6 +23,10 @@ public class BudgetResponse {
     private Boolean repeating;
     private List<CategoryResponse> categories; // rỗng nếu allCategories=true
 
+    // ── Icon danh mục chính (Flutter hiển thị) ────────────────────────────────
+    private Integer primaryCategoryId;          // 1. ID danh mục chính (null nếu allCategories=true)
+    private String primaryCategoryIconUrl;      // 2. Icon URL danh mục chính (null nếu allCategories=true)
+
     // ── Trạng thái ───────────────────────────────────────────────────────────
     private boolean expired;            // endDate < today
 

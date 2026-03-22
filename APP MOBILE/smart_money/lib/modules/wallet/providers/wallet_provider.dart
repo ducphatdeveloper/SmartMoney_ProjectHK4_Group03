@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
-import '../models/wallet_model.dart';
+import '../models/wallet_response.dart';
 import '../services/wallet_service.dart';
 
 class WalletProvider extends ChangeNotifier {
 
   final WalletService _service = WalletService();
 
-  List<WalletModel> _wallets = [];
+  List<WalletResponse> _wallets = [];
 
-  List<WalletModel> get wallets => _wallets;
+  List<WalletResponse> get wallets => _wallets;
 
   bool isLoading = false;
 
@@ -34,14 +34,14 @@ class WalletProvider extends ChangeNotifier {
 
   // CREATE WALLET
   Future<void> addWallet(
-      WalletModel wallet,
+      Map<String, dynamic> walletData,
       String token
       ) async {
 
     try {
 
       final newWallet =
-      await _service.createWallet(wallet, token);
+      await _service.createWallet(walletData, token);
 
       _wallets.add(newWallet);
 

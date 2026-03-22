@@ -23,5 +23,20 @@ class DateRangeDTO {
       type: DateRangeType.fromString(json['type'] as String),
     );
   }
+
+  /// Tạo DateRangeDTO tùy chỉnh từ startDate + endDate do user chọn
+  factory DateRangeDTO.custom({
+    required DateTime startDate,
+    required DateTime endDate,
+  }) {
+    final startLabel = '${startDate.day.toString().padLeft(2, '0')}/${startDate.month.toString().padLeft(2, '0')}/${startDate.year}';
+    final endLabel = '${endDate.day.toString().padLeft(2, '0')}/${endDate.month.toString().padLeft(2, '0')}/${endDate.year}';
+    return DateRangeDTO(
+      label: '$startLabel - $endLabel',
+      startDate: startDate,
+      endDate: endDate,
+      type: DateRangeType.custom,
+    );
+  }
 }
 

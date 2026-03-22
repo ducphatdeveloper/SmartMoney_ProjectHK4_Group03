@@ -231,6 +231,11 @@ public class BudgetServiceImpl implements BudgetService {
 
     /**
      * Build BudgetResponse đầy đủ với các chỉ số tính toán.
+     * 
+     * 1. primaryCategoryId & primaryCategoryIconUrl: Lấy danh mục chính để Flutter hiển thị icon
+     *    - Nếu allCategories=false: Lấy danh mục đầu tiên từ categories set
+     *    - Nếu allCategories=true: Set null (Flutter sẽ dùng icon mặc định)
+     * 2. Tính tổng chi tiêu, số dư, và các chỉ số dự đoán
      */
     private BudgetResponse toBudgetResponse(Budget budget) {
         LocalDate today    = LocalDate.now();
@@ -270,6 +275,18 @@ public class BudgetServiceImpl implements BudgetService {
                 .map(categoryMapper::toDto)
                 .collect(Collectors.toList());
 
+        // ── Lấy icon danh mục chính cho Flutter ────────────────────────────────
+        // 1. Nếu allCategories=false: Lấy danh mục đầu tiên
+        // 2. Nếu allCategories=true: Set null
+        Integer primaryCategoryId = null;
+        String primaryCategoryIconUrl = null;
+
+        if (!catResponses.isEmpty() && !Boolean.TRUE.equals(budget.getAllCategories())) {
+            CategoryResponse firstCategory = catResponses.get(0);
+            primaryCategoryId = firstCategory.id();
+            primaryCategoryIconUrl = firstCategory.ctgIconUrl();
+        }
+
         return BudgetResponse.builder()
                 .id(budget.getId())
                 .amount(budget.getAmount())
@@ -279,6 +296,8 @@ public class BudgetServiceImpl implements BudgetService {
                 .walletName(budget.getWallet() != null ? budget.getWallet().getWalletName() : null)
                 .allCategories(budget.getAllCategories())
                 .repeating(budget.getRepeating())
+                .primaryCategoryId(primaryCategoryId)           // ← 1. ID danh mục chính
+                .primaryCategoryIconUrl(primaryCategoryIconUrl) // ← 2. Icon danh mục chính
                 .categories(catResponses)
                 .expired(expired)
                 .spentAmount(spent)
@@ -298,3 +317,4 @@ public class BudgetServiceImpl implements BudgetService {
         }
     }
 }
+

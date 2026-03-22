@@ -1,14 +1,12 @@
-import 'package:smart_money/modules/budget/models/budget_models.dart';
-import 'package:smart_money/modules/transaction/models/transaction_models.dart';
+import 'package:smart_money/modules/budget/models/budget_response.dart';
+import 'package:smart_money/modules/transaction/models/view/transaction_response.dart';
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
-import 'package:smart_money/modules/budget/models/budget_models.dart'; // Đã sửa thành chữ thường
 import 'package:smart_money/modules/budget/screens/edit_details_screens.dart';
-import 'package:smart_money/modules/transaction/models/transaction_models.dart';
 
 class BudgetDetailScreen extends StatefulWidget {
-  final BudgetModel budget;
-  final List<TransactionModel> transactions;
+  final BudgetResponse budget;
+  final List<TransactionResponse> transactions;
 
   const BudgetDetailScreen({
     super.key,
@@ -21,7 +19,7 @@ class BudgetDetailScreen extends StatefulWidget {
 }
 
 class _BudgetDetailScreenState extends State<BudgetDetailScreen> {
-  late BudgetModel budget;
+  late BudgetResponse budget;
 
   @override
   void initState() {
@@ -52,7 +50,7 @@ class _BudgetDetailScreenState extends State<BudgetDetailScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(budget.name),
+        title: Text("Budget #${budget.id}"),
         centerTitle: true,
         actions: [
           IconButton(icon: const Icon(Icons.edit), onPressed: _editBudget),
@@ -236,7 +234,7 @@ class _BudgetDetailScreenState extends State<BudgetDetailScreen> {
             child: ListTile(
               leading: const Icon(Icons.money),
               title: Text("${t.amount.toInt()} đ"),
-              subtitle: Text("${t.date.day}/${t.date.month}/${t.date.year}"),
+              subtitle: Text("${t.transDate.day}/${t.transDate.month}/${t.transDate.year}"),
             ),
           );
         }),
@@ -247,7 +245,7 @@ class _BudgetDetailScreenState extends State<BudgetDetailScreen> {
   // ================= EDIT =================
 
   void _editBudget() async {
-    final updated = await Navigator.push<BudgetModel>(
+    final updated = await Navigator.push<BudgetResponse>(
       context,
       MaterialPageRoute(builder: (_) => EditBudgetDetailScreen(budget: budget)),
     );

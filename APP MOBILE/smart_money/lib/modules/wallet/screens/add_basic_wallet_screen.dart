@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../models/wallet_model.dart';
 import '../providers/wallet_provider.dart';
 
 class AddBasicWalletScreen extends StatefulWidget {
@@ -36,12 +35,12 @@ class _AddBasicWalletScreenState extends State<AddBasicWalletScreen> {
               const token = "YOUR_TOKEN";
 
               await provider.addWallet(
-                WalletModel(
-                  walletName: nameController.text,
-                  balance: double.tryParse(balanceController.text) ?? 0,
-                  currencyCode: currency,
-                  reportable: !excludeFromTotal,
-                ),
+                {
+                  'walletName': nameController.text,
+                  'balance': double.tryParse(balanceController.text) ?? 0,
+                  'currencyCode': currency,
+                  'reportable': !excludeFromTotal,
+                },
                 token,
               );
 

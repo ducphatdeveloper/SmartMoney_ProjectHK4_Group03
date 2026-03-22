@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:smart_money/modules/budget/models/budget_models.dart'; // Đã sửa thành chữ thường
+import 'package:smart_money/modules/budget/models/budget_response.dart';
 
 class AddBudgetScreen extends StatefulWidget {
   const AddBudgetScreen({super.key});
@@ -9,35 +9,28 @@ class AddBudgetScreen extends StatefulWidget {
 }
 
 class _AddBudgetScreenState extends State<AddBudgetScreen> {
-  final nameCtrl = TextEditingController();
   final amountCtrl = TextEditingController();
 
-  IconData selectedIcon = Icons.fastfood;
-  bool showIcons = false;
-  bool isTotal = true;
   bool repeat = false;
 
   DateTimeRange? range;
 
-  final icons = [
-    Icons.fastfood,
-    Icons.shopping_cart,
-    Icons.directions_bus,
-    Icons.movie,
-    Icons.home,
-    Icons.favorite,
-  ];
-
   void save() {
-    final budget = BudgetModel(
-      id: DateTime.now().toString(),
-      name: nameCtrl.text.isEmpty ? "Ngân sách" : nameCtrl.text,
-      icon: selectedIcon,
-      amount: double.tryParse(amountCtrl.text) ?? 0,
-      startDate: range?.start ?? DateTime.now(),
-      endDate: range?.end ?? DateTime.now(),
-      categoryId: isTotal ? null : "food",
-      repeat: repeat,
+    final amount = double.tryParse(amountCtrl.text) ?? 0;
+    
+    if (amount <= 0 || range == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Vui lòng nhập số tiền và chọn thời gian")),
+      );
+      return;
+    }
+
+    final budget = BudgetResponse(
+      id: DateTime.now().millisecondsSinceEpoch,
+      amount: amount,
+      beginDate: range!.start,
+      endDate: range!.end,
+      repeating: repeat,
     );
 
     Navigator.pop(context, budget);
@@ -67,35 +60,6 @@ class _AddBudgetScreenState extends State<AddBudgetScreen> {
             child: Column(
               children: [
                 TextField(
-                  controller: nameCtrl,
-                  decoration: const InputDecoration(
-                    labelText: "Tên ngân sách",
-                    border: InputBorder.none,
-                  ),
-                ),
-                const Divider(),
-                ListTile(
-                  leading: CircleAvatar(child: Icon(selectedIcon)),
-                  title: const Text("Chọn biểu tượng"),
-                  onTap: () => setState(() => showIcons = !showIcons),
-                ),
-                if (showIcons)
-                  Wrap(
-                    spacing: 12,
-                    children: icons.map((icon) {
-                      return GestureDetector(
-                        onTap: () {
-                          setState(() {
-                            selectedIcon = icon;
-                            showIcons = false;
-                          });
-                        },
-                        child: CircleAvatar(child: Icon(icon)),
-                      );
-                    }).toList(),
-                  ),
-                const Divider(),
-                TextField(
                   controller: amountCtrl,
                   keyboardType: TextInputType.number,
                   decoration: const InputDecoration(
@@ -122,9 +86,9 @@ class _AddBudgetScreenState extends State<AddBudgetScreen> {
           const SizedBox(height: 16),
           _card(
             child: SwitchListTile(
-              value: isTotal,
-              onChanged: (v) => setState(() => isTotal = v),
-              title: const Text("Ngân sách tổng"),
+              value: repeat,
+              onChanged: (v) => setState(() => repeat = v),
+              title: const Text("Lặp lại hàng tháng"),
             ),
           ),
         ],

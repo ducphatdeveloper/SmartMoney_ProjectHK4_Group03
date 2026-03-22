@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import '../models/wallet_model.dart';
+import '../models/wallet_response.dart';
 
 class WalletService {
 
@@ -8,7 +8,7 @@ class WalletService {
       "http://10.0.2.2:8080/api/user/wallets";
 
   // GET WALLETS
-  Future<List<WalletModel>> getWallets(String token) async {
+  Future<List<WalletResponse>> getWallets(String token) async {
 
     final response = await http.get(
       Uri.parse(baseUrl),
@@ -25,7 +25,7 @@ class WalletService {
       List data = body['data'];
 
       return data
-          .map((e) => WalletModel.fromJson(e))
+          .map((e) => WalletResponse.fromJson(e))
           .toList();
 
     } else {
@@ -34,8 +34,8 @@ class WalletService {
   }
 
   // CREATE WALLET
-  Future<WalletModel> createWallet(
-      WalletModel wallet,
+  Future<WalletResponse> createWallet(
+      Map<String, dynamic> walletData,
       String token
       ) async {
 
@@ -45,7 +45,7 @@ class WalletService {
         "Authorization": "Bearer $token",
         "Content-Type": "application/json"
       },
-      body: jsonEncode(wallet.toJson()),
+      body: jsonEncode(walletData),
     );
 
     if (response.statusCode == 200 ||
@@ -53,7 +53,7 @@ class WalletService {
 
       final body = jsonDecode(response.body);
 
-      return WalletModel.fromJson(body['data']);
+      return WalletResponse.fromJson(body['data']);
 
     } else {
       throw Exception("Create wallet failed");

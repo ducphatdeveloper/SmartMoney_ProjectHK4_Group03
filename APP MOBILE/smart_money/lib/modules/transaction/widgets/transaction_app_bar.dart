@@ -1,0 +1,279 @@
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:smart_money/modules/transaction/providers/transaction_provider.dart';
+import 'package:smart_money/modules/transaction/dialogs/date_range_mode_dialog.dart';
+import 'package:smart_money/core/helpers/format_helper.dart';
+
+/// AppBar cho Transaction List Screen
+class TransactionAppBar extends StatelessWidget implements PreferredSizeWidget {
+  final VoidCallback onSearchPressed;
+
+  const TransactionAppBar({
+    super.key,
+    required this.onSearchPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AppBar(
+      backgroundColor: Colors.black87,
+      elevation: 0,
+      leading: IconButton(
+        icon: const Icon(Icons.info_outline, color: Colors.white70),
+        onPressed: () {},
+      ),
+      title: Consumer<TransactionProvider>(
+        builder: (context, provider, _) {
+          return _buildSourceDropdown(context, provider);
+        },
+      ),
+      centerTitle: true,
+      actions: [
+        IconButton(
+          icon: const Icon(Icons.search, color: Colors.white70),
+          onPressed: onSearchPressed,
+        ),
+        _buildPopupMenu(context),
+      ],
+    );
+  }
+
+  /// Dropdown button chọn ví/mục tiêu (dùng CachedNetworkImage + fallback icon)
+  Widget _buildSourceDropdown(BuildContext context, TransactionProvider provider) {
+    return GestureDetector(
+      onTap: () => _showSourceBottomSheet(context, provider),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          border: Border.all(color: Colors.white24),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        constraints: const BoxConstraints(maxWidth: 240),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Icon ví từ URL (PNG/SVG - dùng CachedNetworkImage)
+            if (provider.selectedSource.iconUrl != null && 
+                provider.selectedSource.iconUrl!.isNotEmpty)
+              CachedNetworkImage(
+                imageUrl: provider.selectedSource.iconUrl!,
+                width: 24,
+                height: 24,
+                fit: BoxFit.cover,
+                placeholder: (context, url) => const SizedBox(width: 24, height: 24),
+                errorWidget: (context, url, error) => 
+                    _buildDropdownDefaultIcon(provider.selectedSource.type),
+              )
+            else if (provider.selectedSource.type == 'all')
+              _buildDropdownDefaultIcon('all')
+            else
+              const SizedBox.shrink(),
+            
+            if (provider.selectedSource.iconUrl != null && 
+                provider.selectedSource.iconUrl!.isNotEmpty)
+              const SizedBox(width: 8)
+            else if (provider.selectedSource.type == 'all')
+              const SizedBox(width: 8)
+            else
+              const SizedBox.shrink(),
+            
+            // Tên ví
+            Flexible(
+              child: Text(
+                provider.selectedSource.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            const Icon(Icons.unfold_more, color: Colors.white70, size: 18),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Default icon nhỏ cho dropdown (khi URL fail hoặc "Tổng cộng")
+  Widget _buildDropdownDefaultIcon(String type) {
+    if (type == 'all') {
+      return const Icon(Icons.account_balance_wallet, color: Colors.green, size: 18);
+    } else if (type == 'saving_goal') {
+      return const Icon(Icons.savings, color: Colors.orange, size: 18);
+    } else {
+      return const Icon(Icons.account_balance_wallet, color: Colors.green, size: 18);
+    }
+  }
+
+
+  /// Menu 3 chấm
+  Widget _buildPopupMenu(BuildContext context) {
+    return PopupMenuButton<String>(
+      icon: const Icon(Icons.more_vert, color: Colors.white70),
+      color: Colors.grey[850],
+      onSelected: (value) async {
+        final provider = context.read<TransactionProvider>();
+        switch (value) {
+          case 'journal':
+            if (provider.isGroupedMode) await provider.toggleViewMode();
+            break;
+          case 'grouped':
+            if (!provider.isGroupedMode) await provider.toggleViewMode();
+            break;
+          case 'time_period':
+            showDialog(
+              context: context,
+              builder: (_) => const DateRangeModeDialog(),
+            );
+            break;
+          case 'adjust_balance':
+            // TODO: Navigate
+            break;
+          case 'transfer':
+            // TODO: Navigate
+            break;
+        }
+      },
+      itemBuilder: (context) => [
+        const PopupMenuItem(
+          value: 'journal',
+          child: Row(
+            children: [
+              Icon(Icons.view_list, color: Colors.white70, size: 20),
+              SizedBox(width: 12),
+              Text('Xem theo nhật ký', style: TextStyle(color: Colors.white)),
+            ],
+          ),
+        ),
+        const PopupMenuItem(
+          value: 'grouped',
+          child: Row(
+            children: [
+              Icon(Icons.category, color: Colors.white70, size: 20),
+              SizedBox(width: 12),
+              Text('Xem theo nhóm', style: TextStyle(color: Colors.white)),
+            ],
+          ),
+        ),
+        const PopupMenuDivider(),
+        const PopupMenuItem(
+          value: 'time_period',
+          child: Row(
+            children: [
+              Icon(Icons.date_range, color: Colors.white70, size: 20),
+              SizedBox(width: 12),
+              Text('Khoảng thời gian', style: TextStyle(color: Colors.white)),
+            ],
+          ),
+        ),
+        const PopupMenuDivider(),
+        const PopupMenuItem(
+          value: 'adjust_balance',
+          child: Row(
+            children: [
+              Icon(Icons.tune, color: Colors.white70, size: 20),
+              SizedBox(width: 12),
+              Text('Điều chỉnh số dư', style: TextStyle(color: Colors.white)),
+            ],
+          ),
+        ),
+        const PopupMenuItem(
+          value: 'transfer',
+          child: Row(
+            children: [
+              Icon(Icons.swap_horiz, color: Colors.white70, size: 20),
+              SizedBox(width: 12),
+              Text('Chuyển tiền đến ví khác', style: TextStyle(color: Colors.white)),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Bottom sheet chọn ví (dùng CachedNetworkImage + fallback icon)
+  void _showSourceBottomSheet(BuildContext context, TransactionProvider provider) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.grey[900],
+      builder: (context) {
+        return ListView.builder(
+          itemCount: provider.sourceItems.length,
+          itemBuilder: (context, index) {
+            final item = provider.sourceItems[index];
+            final isSelected = item.id == provider.selectedSource.id &&
+                item.type == provider.selectedSource.type;
+
+            return ListTile(
+              // Icon từ URL (PNG/SVG - dùng CachedNetworkImage + fallback icon)
+              leading: item.iconUrl != null && item.iconUrl!.isNotEmpty
+                  ? CachedNetworkImage(
+                      imageUrl: item.iconUrl!,
+                      width: 40,
+                      height: 40,
+                      fit: BoxFit.cover,
+                      placeholder: (context, url) => 
+                          _buildDefaultSourceIcon(item),
+                      errorWidget: (context, url, error) => 
+                          _buildDefaultSourceIcon(item),
+                    )
+                  : _buildDefaultSourceIcon(item),
+              title: Text(
+                item.name,
+                style: TextStyle(
+                  color: isSelected ? Colors.green : Colors.white,
+                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                ),
+              ),
+              subtitle: item.balance != null
+                  ? Text(
+                      FormatHelper.formatVND(item.balance),
+                      style: TextStyle(color: Colors.grey[500], fontSize: 12),
+                    )
+                  : null,
+              trailing: isSelected
+                  ? const Icon(Icons.check_circle, color: Colors.green)
+                  : null,
+              onTap: () {
+                provider.selectSource(item);
+                Navigator.pop(context);
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildDefaultSourceIcon(dynamic item) {
+    IconData iconData;
+    Color bgColor;
+
+    if (item.type == 'saving_goal') {
+      iconData = Icons.savings;
+      bgColor = Colors.orange.shade400;
+    } else {
+      iconData = Icons.account_balance_wallet;
+      bgColor = Colors.green.shade400;
+    }
+
+    return Container(
+      width: 40,
+      height: 40,
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Icon(iconData, color: Colors.white, size: 22),
+    );
+  }
+
+  @override
+  Size get preferredSize => const Size.fromHeight(kToolbarHeight);
+}
+

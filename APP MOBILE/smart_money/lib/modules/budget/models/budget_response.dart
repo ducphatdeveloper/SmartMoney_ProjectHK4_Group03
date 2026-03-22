@@ -13,6 +13,10 @@ class BudgetResponse {
   final bool? repeating;
   final List<CategoryResponse> categories;
 
+  // 👇 THÊM 2 FIELD NÀY: Lấy từ category chính để hiển thị icon
+  final int? primaryCategoryId;
+  final String? primaryCategoryIconUrl;
+
   final bool expired;
 
   final double spentAmount;
@@ -32,6 +36,8 @@ class BudgetResponse {
     this.allCategories,
     this.repeating,
     this.categories = const [],
+    this.primaryCategoryId,
+    this.primaryCategoryIconUrl,
     this.expired = false,
     this.spentAmount = 0,
     this.remainingAmount = 0,
@@ -55,6 +61,8 @@ class BudgetResponse {
               .map((e) => CategoryResponse.fromJson(e as Map<String, dynamic>))
               .toList()
           : [],
+      primaryCategoryId: json['primaryCategoryId'] as int?,
+      primaryCategoryIconUrl: json['primaryCategoryIconUrl'] as String?,
       expired: json['expired'] as bool? ?? false,
       spentAmount: (json['spentAmount'] as num?)?.toDouble() ?? 0,
       remainingAmount: (json['remainingAmount'] as num?)?.toDouble() ?? 0,

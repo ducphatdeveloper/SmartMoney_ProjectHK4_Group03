@@ -6,6 +6,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'core/routing/app_router.dart';
 import 'modules/auth/providers/auth_provider.dart';
 import 'modules/wallet/providers/wallet_provider.dart';
+import 'modules/transaction/providers/transaction_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -25,6 +26,7 @@ void main() async {
       providers: [
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => WalletProvider()),
+        ChangeNotifierProvider(create: (_) => TransactionProvider()),
       ],
       child: const SmartMoneyApp(),
     ),

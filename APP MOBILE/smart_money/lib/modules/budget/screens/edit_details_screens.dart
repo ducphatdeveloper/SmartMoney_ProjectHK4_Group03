@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:smart_money/modules/budget/models/budget_models.dart'; // Đã sửa thành chữ thường
+import 'package:smart_money/modules/budget/models/budget_response.dart';
 
 class EditBudgetDetailScreen extends StatefulWidget {
-  final BudgetModel budget;
+  final BudgetResponse budget;
 
   const EditBudgetDetailScreen({super.key, required this.budget});
 
@@ -11,11 +11,8 @@ class EditBudgetDetailScreen extends StatefulWidget {
 }
 
 class _EditBudgetDetailScreenState extends State<EditBudgetDetailScreen> {
-  late TextEditingController nameCtrl;
   late TextEditingController amountCtrl;
-  late TextEditingController noteCtrl;
 
-  late String categoryId;
   late DateTime startDate;
   late DateTime endDate;
 
@@ -23,23 +20,13 @@ class _EditBudgetDetailScreenState extends State<EditBudgetDetailScreen> {
   void initState() {
     super.initState();
 
-    nameCtrl = TextEditingController(text: widget.budget.name);
     amountCtrl = TextEditingController(
       text: widget.budget.amount.toInt().toString(),
     );
-    noteCtrl = TextEditingController(text: widget.budget.note ?? "");
 
-    /// 🔥 FIX NULL
-    categoryId =
-        (widget.budget.categoryId != null &&
-            widget.budget.categoryId!.isNotEmpty)
-        ? widget.budget.categoryId!
-        : "food";
+    startDate = widget.budget.beginDate;
 
-    startDate = widget.budget.startDate ?? DateTime.now();
-
-    endDate =
-        widget.budget.endDate ?? DateTime.now().add(const Duration(days: 30));
+    endDate = widget.budget.endDate;
   }
 
   void _pickDateRange() async {
@@ -61,21 +48,30 @@ class _EditBudgetDetailScreenState extends State<EditBudgetDetailScreen> {
   void _save() {
     final amount = double.tryParse(amountCtrl.text) ?? 0;
 
-    /// ===== 2️⃣ VALIDATION =====
-    if (nameCtrl.text.trim().isEmpty || amount <= 0) {
+    /// ===== VALIDATION =====
+    if (amount <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Tên & số tiền phải hợp lệ")),
+        const SnackBar(content: Text("Số tiền phải hợp lệ")),
       );
       return;
     }
 
-    final updated = widget.budget.copyWith(
-      name: nameCtrl.text.trim(),
+    final updated = BudgetResponse(
+      id: widget.budget.id,
       amount: amount,
-      categoryId: categoryId,
-      startDate: startDate,
+      beginDate: startDate,
       endDate: endDate,
-      note: noteCtrl.text.trim(),
+      walletId: widget.budget.walletId,
+      walletName: widget.budget.walletName,
+      allCategories: widget.budget.allCategories,
+      repeating: widget.budget.repeating,
+      categories: widget.budget.categories,
+      expired: widget.budget.expired,
+      spentAmount: widget.budget.spentAmount,
+      remainingAmount: widget.budget.remainingAmount,
+      dailyShouldSpend: widget.budget.dailyShouldSpend,
+      dailyActualSpend: widget.budget.dailyActualSpend,
+      projectedSpend: widget.budget.projectedSpend,
     );
 
     Navigator.pop(context, updated);
@@ -88,33 +84,11 @@ class _EditBudgetDetailScreenState extends State<EditBudgetDetailScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          /// ===== NAME =====
-          TextField(
-            controller: nameCtrl,
-            decoration: const InputDecoration(labelText: "Tên ngân sách"),
-          ),
-
-          const SizedBox(height: 12),
-
           /// ===== AMOUNT =====
           TextField(
             controller: amountCtrl,
             keyboardType: TextInputType.number,
             decoration: const InputDecoration(labelText: "Số tiền mục tiêu"),
-          ),
-
-          const SizedBox(height: 12),
-
-          /// ===== CATEGORY =====
-          DropdownButtonFormField<String>(
-            value: categoryId,
-            items: const [
-              DropdownMenuItem(value: "food", child: Text("Ăn uống")),
-              DropdownMenuItem(value: "shopping", child: Text("Mua sắm")),
-              DropdownMenuItem(value: "travel", child: Text("Du lịch")),
-            ],
-            onChanged: (v) => setState(() => categoryId = v!),
-            decoration: const InputDecoration(labelText: "Danh mục"),
           ),
 
           const SizedBox(height: 12),
@@ -131,14 +105,6 @@ class _EditBudgetDetailScreenState extends State<EditBudgetDetailScreen> {
             onTap: _pickDateRange,
           ),
 
-          const SizedBox(height: 12),
-
-          /// ===== NOTE =====
-          TextField(
-            controller: noteCtrl,
-            maxLines: 3,
-            decoration: const InputDecoration(labelText: "Ghi chú"),
-          ),
 
           const SizedBox(height: 24),
 
