@@ -1,0 +1,239 @@
+// ===========================================================
+// [2] CategoryProvider — Quản lý state module Danh mục
+// ===========================================================
+// Trách nhiệm:
+//   • Lưu trữ danh sách danh mục theo 3 tab (expense, income, debt)
+//   • Gọi CategoryService để CRUD
+//   • Thông báo UI khi dữ liệu thay đổi (notifyListeners)
+//
+// Cách dùng trong UI:
+//   final provider = Provider.of<CategoryProvider>(context);
+//   provider.loadByGroup("expense");
+// ===========================================================
+
+import 'package:flutter/foundation.dart';
+import 'package:smart_money/modules/category/models/category_response.dart';
+import 'package:smart_money/modules/category/models/category_request.dart';
+import 'package:smart_money/modules/category/services/category_service.dart';
+
+class CategoryProvider extends ChangeNotifier {
+
+  // =============================================
+  // [2.1] STATE — Danh sách danh mục theo từng tab
+  // =============================================
+
+  // Danh sách danh mục cho tab hiện tại
+  List<CategoryResponse> _categories = [];
+  List<CategoryResponse> get categories => _categories;
+
+  // Danh sách danh mục cha — dùng khi tạo/sửa danh mục con
+  List<CategoryResponse> _parentCategories = [];
+  List<CategoryResponse> get parentCategories => _parentCategories;
+
+  // Kết quả tìm kiếm — hiện khi user gõ thanh search
+  List<CategoryResponse> _searchResults = [];
+  List<CategoryResponse> get searchResults => _searchResults;
+
+  // Tab đang chọn: "expense" | "income" | "debt"
+  String _currentGroup = 'expense';
+  String get currentGroup => _currentGroup;
+
+  // Trạng thái loading — hiện vòng xoay khi đang gọi API
+  bool _isLoading = false;
+  bool get isLoading => _isLoading;
+
+  // Thông báo lỗi — hiện SnackBar khi API lỗi
+  String? _errorMessage;
+  String? get errorMessage => _errorMessage;
+
+  // Thông báo thành công — hiện SnackBar khi tạo/sửa/xóa OK
+  String? _successMessage;
+  String? get successMessage => _successMessage;
+
+  // =============================================
+  // [2.2] LOAD — Lấy danh sách theo nhóm (3 tab)
+  // =============================================
+  // Gọi khi: Mở màn hình, chuyển tab, sau khi tạo/sửa/xóa
+  // API: GET /api/categories?group=expense
+  Future<void> loadByGroup(String group) async {
+    // Bước 1: Bật loading, xóa lỗi cũ
+    _isLoading = true;
+    _errorMessage = null;
+    _currentGroup = group; // lưu tab đang chọn
+    notifyListeners();
+
+    // Bước 2: Gọi API qua CategoryService
+    final response = await CategoryService.getByGroup(group);
+
+    // Bước 3: Xử lý kết quả
+    if (response.success && response.data != null) {
+      _categories = response.data!; // gán danh sách
+    } else {
+      _categories = [];
+      _errorMessage = response.message; // lỗi từ server (tiếng Việt)
+    }
+
+    // Bước 4: Tắt loading, thông báo UI cập nhật
+    _isLoading = false;
+    notifyListeners();
+  }
+
+  // =============================================
+  // [2.3] SEARCH — Tìm kiếm danh mục
+  // =============================================
+  // Gọi khi: User gõ vào thanh search
+  // API: GET /api/categories/search?name=Ăn
+  Future<void> searchCategories(String? keyword) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    final response = await CategoryService.search(keyword);
+
+    if (response.success && response.data != null) {
+      _searchResults = response.data!;
+    } else {
+      _searchResults = [];
+      _errorMessage = response.message;
+    }
+
+    _isLoading = false;
+    notifyListeners();
+  }
+
+  // =============================================
+  // [2.4] LOAD PARENTS — Lấy danh mục cha
+  // =============================================
+  // Gọi khi: Mở bottom sheet chọn nhóm cha (tạo/sửa danh mục con)
+  // API: GET /api/categories/parents?type=false
+  // ctgType: true = Thu nhập, false = Chi tiêu
+  Future<void> loadParents(bool ctgType) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    final response = await CategoryService.getParents(ctgType);
+
+    if (response.success && response.data != null) {
+      _parentCategories = response.data!;
+    } else {
+      _parentCategories = [];
+      _errorMessage = response.message;
+    }
+
+    _isLoading = false;
+    notifyListeners();
+  }
+
+  // =============================================
+  // [2.5] CREATE — Tạo danh mục mới
+  // =============================================
+  // API: POST /api/categories
+  // [FIX-3] Dùng _extractErrorMessage để xử lý cả 2 dạng lỗi từ server
+  Future<bool> createCategory(CategoryRequest request) async {
+    _isLoading = true;
+    _errorMessage = null;
+    _successMessage = null;
+    notifyListeners();
+
+    final response = await CategoryService.create(request);
+
+    if (response.success) {
+      _successMessage = response.message; // "Tạo danh mục thành công"
+      await loadByGroup(_currentGroup); // reload danh sách
+      return true;
+    } else {
+      // [FIX-3] Gom lỗi field-level validation thành string đọc được
+      _errorMessage = _extractErrorMessage(response);
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  // =============================================
+  // [2.6] UPDATE — Cập nhật danh mục
+  // =============================================
+  // API: PUT /api/categories/{id}
+  Future<bool> updateCategory(int id, CategoryRequest request) async {
+    _isLoading = true;
+    _errorMessage = null;
+    _successMessage = null;
+    notifyListeners();
+
+    final response = await CategoryService.update(id, request);
+
+    if (response.success) {
+      _successMessage = response.message; // "Cập nhật danh mục thành công"
+      await loadByGroup(_currentGroup);
+      return true;
+    } else {
+      _errorMessage = _extractErrorMessage(response); // [FIX-3]
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  // =============================================
+  // [2.7] DELETE — Xóa danh mục
+  // =============================================
+  // API: DELETE /api/categories/{id}
+  Future<bool> deleteCategory(int id) async {
+    _isLoading = true;
+    _errorMessage = null;
+    _successMessage = null;
+    notifyListeners();
+
+    final response = await CategoryService.delete(id);
+
+    if (response.success) {
+      _successMessage = response.message; // "Xóa danh mục thành công"
+      await loadByGroup(_currentGroup);
+      return true;
+    } else {
+      _errorMessage = response.message;
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  // =============================================
+  // [2.8] CLEAR — Xóa thông báo lỗi/thành công
+  // =============================================
+  void clearMessages() {
+    _errorMessage = null;
+    _successMessage = null;
+  }
+
+  // =============================================
+  // [2.9] HELPER — Trích xuất message lỗi từ response
+  // =============================================
+  // [FIX-3] Backend trả 2 dạng lỗi:
+  //   Dạng 1 — IllegalArgumentException (400):
+  //     { "success": false, "message": "Danh mục 'X' đã tồn tại.", "data": null }
+  //     → Dùng response.message trực tiếp
+  //
+  //   Dạng 2 — @Valid validation fail (400):
+  //     { "success": false, "message": "Dữ liệu không hợp lệ",
+  //       "data": { "ctgName": "Tên không được trống", "ctgType": "..." } }
+  //     → data là Map<String, String> chứa field errors
+  //     → Gom thành 1 string hiển thị
+  String _extractErrorMessage(dynamic response) {
+    // Thử đọc data — nếu là Map thì là lỗi validation theo field
+    try {
+      final raw = response.data;
+      if (raw is Map && raw.isNotEmpty) {
+        // Gom lỗi từng field: "Tên không được trống\nLoại không được trống"
+        return raw.values.join('\n');
+      }
+    } catch (_) {
+      // data null hoặc không phải Map → bỏ qua
+    }
+
+    // Fallback: message chính từ server (IllegalArgumentException, RuntimeException)
+    return response.message ?? "Có lỗi xảy ra";
+  }
+}
+

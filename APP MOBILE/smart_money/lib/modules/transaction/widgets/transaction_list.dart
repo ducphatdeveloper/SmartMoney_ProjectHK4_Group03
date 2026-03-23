@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:smart_money/core/helpers/format_helper.dart';
+import 'package:smart_money/modules/transaction/models/view/transaction_response.dart';
 import 'package:smart_money/modules/transaction/providers/transaction_provider.dart';
-import 'package:smart_money/modules/transaction/widgets/transaction_item_widget.dart';
-import 'package:smart_money/modules/transaction/widgets/transaction_date_group.dart';
+import 'package:smart_money/modules/transaction/screens/transaction_edit_screen.dart';
+import 'package:smart_money/modules/transaction/widgets/transaction_day_group.dart';
+import 'package:smart_money/modules/transaction/widgets/transaction_detail_sheet.dart';
 
 /// Widget danh sách giao dịch (Journal hoặc Grouped mode)
 class TransactionListView extends StatelessWidget {
@@ -23,7 +25,7 @@ class TransactionListView extends StatelessWidget {
   }
 }
 
-/// Chế độ Nhật ký (gom theo ngày)
+/// Chế độ Nhật ký (gom theo ngày) — dùng TransactionDayGroup [3.5]
 class TransactionJournalList extends StatelessWidget {
   const TransactionJournalList({super.key});
 
@@ -42,59 +44,96 @@ class TransactionJournalList extends StatelessWidget {
           itemBuilder: (context, index) {
             final group = provider.journalGroups[index];
 
-            return Column(
-              children: [
-                // Tiêu đề nhóm ngày
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            group.date.day.toString(),
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          Text(
-                            group.displayDateLabel,
-                            style: TextStyle(
-                              color: Colors.grey[500],
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
-                      ),
-                      Text(
-                        FormatHelper.formatVND(group.netAmount),
-                        style: TextStyle(
-                          color: group.netAmount >= 0 ? Colors.greenAccent : Colors.orange.shade600,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                // Danh sách giao dịch
-                ...group.transactions.map((transaction) {
-                  return TransactionItemWidget(
-                    transaction: transaction,
-                    onTap: () {
-                      // TODO: Navigate to transaction detail
-                    },
-                  );
-                }),
-              ],
+            // Dùng TransactionDayGroup [3.5] — widget nhóm theo ngày mới
+            return TransactionDayGroup(
+              date: group.date,
+              displayDateLabel: group.displayDateLabel,
+              transactions: group.transactions,
+              netAmount: group.netAmount,
+              onTapTransaction: (tx) => _showDetailSheet(context, tx),
             );
           },
         );
       },
+    );
+  }
+
+  /// Hiện bottom sheet chi tiết giao dịch
+  void _showDetailSheet(BuildContext context, TransactionResponse transaction) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => TransactionDetailSheet(
+        transaction: transaction,
+        onEdit: () {
+          Navigator.pop(context); // đóng sheet trước
+          _navigateToEdit(context, transaction);
+        },
+        onDelete: () {
+          Navigator.pop(context); // đóng sheet trước
+          _confirmDelete(context, transaction);
+        },
+      ),
+    );
+  }
+
+  /// Navigate sang màn sửa giao dịch
+  void _navigateToEdit(BuildContext context, TransactionResponse transaction) async {
+    final result = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => TransactionEditScreen(transaction: transaction),
+      ),
+    );
+
+    // Nếu sửa thành công → provider đã tự reload trong updateTransaction
+    if (result == true) {
+      // UI tự cập nhật qua Consumer
+    }
+  }
+
+  /// Xác nhận xóa giao dịch
+  void _confirmDelete(BuildContext context, TransactionResponse transaction) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.grey[900],
+        title: const Text('Xóa giao dịch', style: TextStyle(color: Colors.white)),
+        content: const Text(
+          'Bạn có chắc muốn xóa giao dịch này?',
+          style: TextStyle(color: Colors.grey),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Hủy', style: TextStyle(color: Colors.grey)),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(ctx); // đóng dialog
+              final provider = Provider.of<TransactionProvider>(context, listen: false);
+              final success = await provider.deleteTransaction(transaction.id);
+              if (success && context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Đã xóa giao dịch'),
+                    backgroundColor: Colors.green,
+                  ),
+                );
+              } else if (!success && context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(provider.errorMessage ?? 'Có lỗi xảy ra'),
+                    backgroundColor: Colors.red,
+                  ),
+                );
+              }
+            },
+            child: const Text('Xóa', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
     );
   }
 
@@ -127,13 +166,10 @@ class TransactionGroupedList extends StatelessWidget {
           return _buildEmptyState(Icons.category);
         }
 
-        // 👇 Tạo map displayDateLabel từ journalGroups
-        // Backend đã gửi displayDateLabel sẵn, chỉ cần lấy ra
+        // Tạo map displayDateLabel từ journalGroups
         final dateLabelsMap = <String, String>{};
         for (final journalGroup in provider.journalGroups) {
-          // Key: ngày (YYYY-MM-DD format từ DateTime)
           final dateKey = journalGroup.date.toString().split(' ')[0];
-          // Value: displayDateLabel từ backend (VD: "Chủ Nhật, 15/03/2026")
           dateLabelsMap[dateKey] = journalGroup.displayDateLabel;
         }
 
@@ -143,9 +179,6 @@ class TransactionGroupedList extends StatelessWidget {
           itemCount: provider.groupedCategories.length,
           itemBuilder: (context, index) {
             final group = provider.groupedCategories[index];
-            
-            // 👇 Gom giao dịch theo ngày, lấy displayDateLabel từ map
-            final transactionsByDate = _groupByDate(group.transactions, dateLabelsMap);
 
             return Container(
               margin: const EdgeInsets.symmetric(vertical: 4),
@@ -189,12 +222,29 @@ class TransactionGroupedList extends StatelessWidget {
                   ],
                 ),
                 children: [
-                  // 👇 Hiển thị displayDateLabel + giao dịch
-                  ...transactionsByDate.entries.map((entry) {
-                    return TransactionDateGroup(
-                      dateLabel: entry.key,
-                      transactions: entry.value,
-                      onTransactionTap: (transaction) {},
+                  // Hiển thị từng giao dịch trong nhóm — bấm vào mở detail sheet
+                  ...group.transactions.map((transaction) {
+                    return ListTile(
+                      leading: const Icon(Icons.receipt_outlined, color: Colors.grey, size: 20),
+                      title: Text(
+                        transaction.note ?? transaction.categoryName ?? '',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(color: Colors.white, fontSize: 14),
+                      ),
+                      subtitle: Text(
+                        FormatHelper.formatDisplayDate(transaction.transDate),
+                        style: TextStyle(color: Colors.grey[500], fontSize: 12),
+                      ),
+                      trailing: Text(
+                        FormatHelper.formatVND(transaction.amount),
+                        style: TextStyle(
+                          color: transaction.categoryType ? Colors.green : Colors.red,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      onTap: () => _showDetailSheet(context, transaction),
                     );
                   }),
                 ],
@@ -206,32 +256,63 @@ class TransactionGroupedList extends StatelessWidget {
     );
   }
 
-  // 👇 Gom giao dịch theo ngày
-  Map<String, List<dynamic>> _groupByDate(
-    List<dynamic> transactions,
-    Map<String, String> dateLabelsMap,
-  ) {
-    final Map<String, List<dynamic>> grouped = {};
+  /// Hiện bottom sheet chi tiết giao dịch
+  void _showDetailSheet(BuildContext context, TransactionResponse transaction) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => TransactionDetailSheet(
+        transaction: transaction,
+        onEdit: () {
+          Navigator.pop(context);
+          _navigateToEdit(context, transaction);
+        },
+        onDelete: () {
+          Navigator.pop(context);
+          _confirmDelete(context, transaction);
+        },
+      ),
+    );
+  }
 
-    // Bước 1: Gom transaction theo ngày
-    for (var transaction in transactions) {
-      final transDate = transaction.transDate as DateTime;
-      final dateKey = transDate.toString().split(' ')[0]; // "2026-03-15"
-      
-      if (!grouped.containsKey(dateKey)) {
-        grouped[dateKey] = [];
-      }
-      grouped[dateKey]!.add(transaction);
-    }
+  /// Navigate sang màn sửa
+  void _navigateToEdit(BuildContext context, TransactionResponse transaction) async {
+    await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => TransactionEditScreen(transaction: transaction),
+      ),
+    );
+  }
 
-    // Bước 2: Chuyển key thành displayDateLabel từ backend
-    final result = <String, List<dynamic>>{};
-    for (final entry in grouped.entries) {
-      // Lấy displayDateLabel từ map (backend gửi), nếu không có thì dùng dateKey
-      final displayLabel = dateLabelsMap[entry.key] ?? entry.key;
-      result[displayLabel] = entry.value;
-    }
-    return result;
+  /// Xác nhận xóa
+  void _confirmDelete(BuildContext context, TransactionResponse transaction) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.grey[900],
+        title: const Text('Xóa giao dịch', style: TextStyle(color: Colors.white)),
+        content: const Text(
+          'Bạn có chắc muốn xóa giao dịch này?',
+          style: TextStyle(color: Colors.grey),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Hủy', style: TextStyle(color: Colors.grey)),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              final provider = Provider.of<TransactionProvider>(context, listen: false);
+              await provider.deleteTransaction(transaction.id);
+            },
+            child: const Text('Xóa', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildDefaultIcon() {
@@ -262,4 +343,3 @@ class TransactionGroupedList extends StatelessWidget {
     );
   }
 }
-

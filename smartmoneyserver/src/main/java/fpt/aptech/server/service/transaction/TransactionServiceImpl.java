@@ -684,7 +684,14 @@ public class TransactionServiceImpl implements TransactionService {
 
         // Bước 3: Cộng/trừ currentAmount
         if (Boolean.TRUE.equals(isIncome)) {
-            goal.setCurrentAmount(goal.getCurrentAmount().add(amount));      // Nạp → Cộng
+            // Kiểm tra: Số tiền nạp vào không được vượt quá target_amount
+            BigDecimal newAmount = goal.getCurrentAmount().add(amount);
+            if (newAmount.compareTo(goal.getTargetAmount()) > 0) {
+                throw new IllegalArgumentException(
+                        String.format("Số tiền nạp vào mục tiêu '%s' sẽ vượt quá số tiền mục tiêu (Mục tiêu: %s đ, Hiện có: %s đ).",
+                                goal.getGoalName(), goal.getTargetAmount().toPlainString(), goal.getCurrentAmount().toPlainString()));
+            }
+            goal.setCurrentAmount(newAmount); // Nạp → Cộng
         } else {
             // 3.1 Kiểm tra số dư Mục tiêu (Rút tiền không được vượt quá số hiện có)
             if (goal.getCurrentAmount().compareTo(amount) < 0) {

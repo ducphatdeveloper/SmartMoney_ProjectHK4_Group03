@@ -1,0 +1,251 @@
+// ===========================================================
+// [4] Màn hình 1: Danh sách Danh mục (CategoryListScreen)
+// ===========================================================
+// Giao diện chính của module Category
+// Layout:
+//   • AppBar: "Nhóm" + icon tìm kiếm
+//   • TabBar: 3 tab — Khoản chi | Khoản thu | Vay/Nợ
+//   • Body: CategoryTabContent cho mỗi tab
+//
+// Flow:
+//   1. initState → load danh mục tab đầu tiên (expense)
+//   2. Chuyển tab → load danh mục theo group tương ứng
+//   3. Bấm "Nhóm mới" → navigate sang CategoryCreateScreen
+//   4. Bấm vào danh mục → navigate sang CategoryEditScreen
+// ===========================================================
+
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:smart_money/modules/category/providers/category_provider.dart';
+import 'package:smart_money/modules/category/models/category_response.dart';
+import 'package:smart_money/modules/category/widgets/category_tab_content.dart';
+import 'category_create_screen.dart';
+import 'category_edit_screen.dart';
+import 'category_search_screen.dart'; // màn hình tìm kiếm
+
+class CategoryListScreen extends StatefulWidget {
+  /// Khi true: bấm vào danh mục → pop trả CategoryResponse (dùng cho chọn nhóm khi tạo giao dịch)
+  /// Khi false: bấm vào danh mục → navigate sang edit (hành vi mặc định)
+  final bool isSelectMode;
+
+  /// Tab ban đầu khi mở ở select mode: 'expense' | 'income' | 'debt'
+  final String? initialTab;
+
+  const CategoryListScreen({
+    super.key,
+    this.isSelectMode = false,
+    this.initialTab,
+  });
+
+  @override
+  State<CategoryListScreen> createState() => _CategoryListScreenState();
+}
+
+class _CategoryListScreenState extends State<CategoryListScreen>
+    with SingleTickerProviderStateMixin {
+
+  // TabController cho 3 tab
+  late TabController _tabController;
+
+  // Map index tab → tên group gửi lên API
+  final List<String> _tabGroups = ['expense', 'income', 'debt'];
+
+  // =============================================
+  // [4.1] initState — khởi tạo tab + load dữ liệu ban đầu
+  // =============================================
+  @override
+  void initState() {
+    super.initState();
+
+    // Xác định tab ban đầu từ initialTab
+    int initialIndex = 0;
+    if (widget.initialTab != null) {
+      final idx = _tabGroups.indexOf(widget.initialTab!);
+      if (idx >= 0) initialIndex = idx;
+    }
+
+    // Bước 1: Tạo TabController 3 tab
+    _tabController = TabController(length: 3, vsync: this, initialIndex: initialIndex);
+
+    // Bước 2: Lắng nghe khi chuyển tab → load danh mục theo group
+    _tabController.addListener(_onTabChanged);
+
+    // Bước 3: Load danh mục tab ban đầu
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final provider = Provider.of<CategoryProvider>(context, listen: false);
+      provider.loadByGroup(_tabGroups[initialIndex]);
+    });
+  }
+
+  // =============================================
+  // [4.2] _onTabChanged — xử lý khi chuyển tab
+  // =============================================
+  void _onTabChanged() {
+    // Chỉ xử lý khi tab thực sự đổi (tránh gọi 2 lần)
+    if (!_tabController.indexIsChanging) return;
+
+    final group = _tabGroups[_tabController.index]; // lấy group name
+    final provider = Provider.of<CategoryProvider>(context, listen: false);
+    provider.loadByGroup(group); // gọi API load danh mục theo group
+  }
+
+  // =============================================
+  // [4.3] dispose — giải phóng tài nguyên
+  // =============================================
+  @override
+  void dispose() {
+    _tabController.removeListener(_onTabChanged);
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  // =============================================
+  // [4.3b] _navigateToSearch — mở màn hình tìm kiếm
+  // =============================================
+  void _navigateToSearch() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const CategorySearchScreen()),
+    );
+
+    // Luôn reload tab hiện tại khi quay về (có thể đã sửa/xóa từ search)
+    if (mounted) {
+      final provider = Provider.of<CategoryProvider>(context, listen: false);
+      provider.loadByGroup(_tabGroups[_tabController.index]);
+    }
+  }
+
+  // =============================================
+  // [4.4] _navigateToCreate — mở màn hình tạo mới
+  // =============================================
+  void _navigateToCreate() async {
+    // Lấy ctgType từ tab đang chọn (expense → false, income → true)
+    final currentGroup = _tabGroups[_tabController.index];
+    final ctgType = currentGroup == 'income'; // true = Thu, false = Chi
+
+    // Navigate sang CategoryCreateScreen
+    final result = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => CategoryCreateScreen(defaultCtgType: ctgType),
+      ),
+    );
+
+    // Nếu tạo thành công (result == true) → reload danh sách
+    if (result == true && mounted) {
+      final provider = Provider.of<CategoryProvider>(context, listen: false);
+      provider.loadByGroup(_tabGroups[_tabController.index]);
+    }
+  }
+
+  // =============================================
+  // [4.5] _onCategoryTap — xử lý khi bấm vào danh mục
+  // =============================================
+  void _onCategoryTap(CategoryResponse category) {
+    if (widget.isSelectMode) {
+      // Select mode → trả category về cho screen gọi (TransactionCreateScreen)
+      Navigator.pop(context, category);
+    } else {
+      // Normal mode → mở edit
+      _navigateToEdit(category);
+    }
+  }
+
+  // =============================================
+  // [4.5b] _navigateToEdit — mở màn hình chỉnh sửa
+  // =============================================
+  void _navigateToEdit(CategoryResponse category) async {
+    // Danh mục hệ thống (account == null trên server) → kiểm tra quyền ở server
+    // Ở đây vẫn cho navigate, server sẽ trả lỗi nếu không có quyền
+
+    final result = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => CategoryEditScreen(category: category),
+      ),
+    );
+
+    // Nếu sửa/xóa thành công → reload
+    if (result == true && mounted) {
+      final provider = Provider.of<CategoryProvider>(context, listen: false);
+      provider.loadByGroup(_tabGroups[_tabController.index]);
+    }
+  }
+
+  // =============================================
+  // [4.6] build — giao diện chính
+  // =============================================
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        title: Text(widget.isSelectMode ? "Chọn nhóm" : "Nhóm"),
+        backgroundColor: Colors.black,
+        centerTitle: true,
+        leading: const BackButton(),
+        actions: [
+          // Icon tìm kiếm — chỉ hiện ở normal mode
+          if (!widget.isSelectMode)
+            IconButton(
+              icon: const Icon(Icons.search, color: Colors.white),
+              onPressed: _navigateToSearch,
+            ),
+        ],
+
+        // ===== TabBar 3 tab =====
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(50),
+          child: Container(
+            margin: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFF2C2C2E),
+              borderRadius: BorderRadius.circular(25),
+            ),
+            child: TabBar(
+              controller: _tabController,
+              indicator: BoxDecoration(
+                color: Colors.grey,
+                borderRadius: BorderRadius.circular(25),
+              ),
+              labelColor: Colors.white,
+              unselectedLabelColor: Colors.grey,
+              dividerColor: Colors.transparent,
+              tabs: const [
+                Tab(text: "Khoản chi"),
+                Tab(text: "Khoản thu"),
+                Tab(text: "Vay/Nợ"),
+              ],
+            ),
+          ),
+        ),
+      ),
+
+      // ===== Body: TabBarView với 3 tab =====
+      body: TabBarView(
+        controller: _tabController,
+        children: [
+          // Tab 1: Khoản chi
+          CategoryTabContent(
+            group: 'expense',
+            onAddNew: widget.isSelectMode ? null : _navigateToCreate,
+            onTapCategory: _onCategoryTap,
+          ),
+          // Tab 2: Khoản thu
+          CategoryTabContent(
+            group: 'income',
+            onAddNew: widget.isSelectMode ? null : _navigateToCreate,
+            onTapCategory: _onCategoryTap,
+          ),
+          // Tab 3: Vay/Nợ — không có nút "Nhóm mới"
+          CategoryTabContent(
+            group: 'debt',
+            onAddNew: null, // không cho tạo mới ở tab Vay/Nợ
+            onTapCategory: _onCategoryTap,
+          ),
+        ],
+      ),
+    );
+  }
+}
+

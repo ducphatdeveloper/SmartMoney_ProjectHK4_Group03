@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:smart_money/modules/category/screens/category_screens.dart';
+import 'package:smart_money/modules/category/screens/category_list_screen.dart';
 import 'package:smart_money/modules/event/screen/event_screen.dart';
 import 'package:smart_money/modules/wallet/screens/wallet_screen.dart';
 
@@ -47,7 +47,7 @@ class AccountScreen extends StatelessWidget {
               onTap: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => const CategoryScreen()),
+                  MaterialPageRoute(builder: (_) => const CategoryListScreen()),
                 );
               }
           ),

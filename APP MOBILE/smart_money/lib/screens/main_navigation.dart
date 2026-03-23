@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 
 import 'home_screen.dart';
 import 'package:smart_money/modules/transaction/screens/transaction_list_screen.dart';
-import 'package:smart_money/modules/Transfer_transaction/screens/add_transaction_screens.dart';
+import 'package:smart_money/modules/transaction/screens/transaction_create_screen.dart';
 import 'package:smart_money/modules/Budget/screens/budget_screens.dart';
 import 'account_screen.dart';
 
@@ -21,7 +21,7 @@ class _MainNavigationState extends State<MainNavigation> {
   final screens = const [
     HomeScreen(),
     TransactionListScreen(),
-    AddTransactionView(),
+    SizedBox(), // placeholder — nút + mở TransactionCreateScreen bằng Navigator
     BudgetScreen(),
     AccountScreen(),
   ];
@@ -58,16 +58,22 @@ class _MainNavigationState extends State<MainNavigation> {
         ),
       ),
 
-      /// FLOATING BUTTON
+      /// FLOATING BUTTON — mở form tạo giao dịch mới
       floatingActionButton: FloatingActionButton(
 
         backgroundColor: Colors.green,
         elevation: 8,
 
-        onPressed: () {
-          setState(() {
-            index = 2;
-          });
+        onPressed: () async {
+          // Mở màn hình tạo giao dịch — nhận result khi pop
+          final result = await Navigator.push<bool>(
+            context,
+            MaterialPageRoute(builder: (_) => const TransactionCreateScreen()),
+          );
+          // Nếu tạo thành công (result=true) → refresh provider nếu cần
+          if (result == true && mounted) {
+            // Provider sẽ tự reload khi createTransaction thành công
+          }
         },
 
         child: const Icon(

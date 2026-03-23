@@ -1,18 +1,24 @@
-/// [2.3] Service gọi API Transaction từ backend.
-/// 
-/// Trách nhiệm:
-///   • Fetch danh sách giao dịch theo nhật ký (journal view) — grouped by date
-///   • Fetch danh sách giao dịch theo nhóm (grouped view) — grouped by category
-///   • Fetch báo cáo giao dịch (report) — tổng hợp theo category/wallet/period
-/// 
-/// Hai view mode chính:
-///   1. Journal: Group by date (DailyTransactionGroup) — hiện netAmount per day
-///   2. Grouped: Group by category (CategoryTransactionGroup) — hiện totalAmount per category
-///
-/// API Endpoints:
-///   • GET /api/transactions/journal → DailyTransactionGroup[]
-///   • GET /api/transactions/grouped → CategoryTransactionGroup[]
-///   • GET /api/transactions/report → TransactionReportResponse (không dùng trong v1)
+// ===========================================================
+// [1] TransactionService — Gọi API giao dịch từ Spring Boot
+// ===========================================================
+// Trách nhiệm:
+//   • Là lớp DUY NHẤT gọi HTTP cho module Transaction
+//   • Tất cả method là static — gọi trực tiếp không cần instance
+//   • Không chứa logic UI, không setState, không BuildContext
+//
+// Gọi từ:
+//   • TransactionProvider → gọi tất cả hàm bên dưới
+//
+// API liên quan:
+//   • GET    /api/transactions/journal           — xem nhật ký (gom theo ngày)
+//   • GET    /api/transactions/grouped           — xem theo nhóm (gom theo danh mục)
+//   • GET    /api/transactions/report/summary    — báo cáo tóm tắt
+//   • GET    /api/transactions/{id}              — xem chi tiết 1 giao dịch
+//   • POST   /api/transactions                   — tạo giao dịch mới
+//   • POST   /api/transactions/search            — tìm kiếm nâng cao
+//   • PUT    /api/transactions/{id}              — cập nhật giao dịch
+//   • DELETE /api/transactions/{id}              — xóa giao dịch
+// ===========================================================
 
 import 'package:smart_money/core/helpers/api_handler.dart';
 import 'package:smart_money/core/models/api_response.dart';
@@ -20,112 +26,76 @@ import 'package:smart_money/core/constants/app_constants.dart';
 import 'package:smart_money/modules/transaction/models/view/daily_transaction_group.dart';
 import 'package:smart_money/modules/transaction/models/view/category_transaction_group.dart';
 import 'package:smart_money/modules/transaction/models/view/transaction_response.dart';
+import 'package:smart_money/modules/transaction/models/request/transaction_request.dart';
+import 'package:smart_money/modules/transaction/models/request/transaction_search_request.dart';
 import 'package:smart_money/modules/transaction/models/report/transaction_report_response.dart';
 
 class TransactionService {
-  // Sử dụng baseUrl từ AppConstants thay vì hardcoded localhost
-  static String get _baseUrl => AppConstants.baseUrl;
+  // URL gốc lấy từ AppConstants — KHÔNG hardcode
+  static String get _base => AppConstants.transactionsBase;
 
-  // ===== 1. JOURNAL - Gom nhóm theo ngày =====
+  // -----------------------------------------------------------
+  // [1.1] JOURNAL — Lấy danh sách gom theo ngày (chế độ Nhật ký)
+  // -----------------------------------------------------------
+  // Gọi khi: Mở màn hình / đổi khoảng thời gian / đổi ví
+  // API: GET /api/transactions/journal?range=CUSTOM&startDate=...&endDate=...
+  // Tham số:
+  //   • startDate / endDate: khoảng thời gian cần lấy
+  //   • walletId: lọc theo ví (null = tất cả)
+  //   • savingGoalId: lọc theo mục tiêu tiết kiệm (null = tất cả)
+  // Trả về: List<DailyTransactionGroup> — đã gom theo ngày, có netAmount
   static Future<ApiResponse<List<DailyTransactionGroup>>> getJournalTransactions({
     required DateTime startDate,
     required DateTime endDate,
     int? walletId,
     int? savingGoalId,
   }) async {
-    final params = <String, dynamic>{
-      'range': 'CUSTOM',
-      'startDate': startDate.toIso8601String(),
-      'endDate': endDate.toIso8601String(),
-    };
+    // Bước 1: Build query params
+    final params = _buildDateParams(startDate, endDate, walletId, savingGoalId);
+    final url = '$_base/journal?$params';
 
-    if (walletId != null) {
-      params['walletId'] = walletId;
-    }
-    if (savingGoalId != null) {
-      params['savingGoalId'] = savingGoalId;
-    }
-
-    final queryString = params.entries
-        .map((e) => '${e.key}=${Uri.encodeComponent(e.value.toString())}')
-        .join('&');
-    final url = '$_baseUrl/transactions/journal?$queryString';
-
+    // Bước 2: Gọi API và parse kết quả
     return ApiHandler.get<List<DailyTransactionGroup>>(
       url,
-      fromJson: (json) {
-        if (json is List) {
-          return json
-              .map((e) => DailyTransactionGroup.fromJson(e as Map<String, dynamic>))
-              .toList();
-        }
-        return [];
-      },
+      fromJson: (json) => _parseDailyGroupList(json),
     );
   }
 
-  // ===== 2. GROUPED - Gom nhóm theo danh mục =====
+  // -----------------------------------------------------------
+  // [1.2] GROUPED — Lấy danh sách gom theo danh mục (chế độ Nhóm)
+  // -----------------------------------------------------------
+  // Gọi khi: User chọn "Xem theo nhóm" từ menu 3 chấm
+  // API: GET /api/transactions/grouped?range=CUSTOM&startDate=...&endDate=...
+  // Trả về: List<CategoryTransactionGroup> — gom theo category, có totalAmount
   static Future<ApiResponse<List<CategoryTransactionGroup>>> getGroupedTransactions({
     required DateTime startDate,
     required DateTime endDate,
     int? walletId,
     int? savingGoalId,
   }) async {
-    final params = <String, dynamic>{
-      'range': 'CUSTOM',
-      'startDate': startDate.toIso8601String(),
-      'endDate': endDate.toIso8601String(),
-    };
-
-    if (walletId != null) {
-      params['walletId'] = walletId;
-    }
-    if (savingGoalId != null) {
-      params['savingGoalId'] = savingGoalId;
-    }
-
-    final queryString = params.entries
-        .map((e) => '${e.key}=${Uri.encodeComponent(e.value.toString())}')
-        .join('&');
-    final url = '$_baseUrl/transactions/grouped?$queryString';
+    final params = _buildDateParams(startDate, endDate, walletId, savingGoalId);
+    final url = '$_base/grouped?$params';
 
     return ApiHandler.get<List<CategoryTransactionGroup>>(
       url,
-      fromJson: (json) {
-        if (json is List) {
-          return json
-              .map((e) => CategoryTransactionGroup.fromJson(e as Map<String, dynamic>))
-              .toList();
-        }
-        return [];
-      },
+      fromJson: (json) => _parseCategoryGroupList(json),
     );
   }
 
-  // ===== 3. REPORT - Lấy báo cáo tóm tắt =====
-  static Future<ApiResponse<TransactionReportResponse>> getTransactionReport({
+  // -----------------------------------------------------------
+  // [1.3] REPORT — Lấy báo cáo tóm tắt thu/chi
+  // -----------------------------------------------------------
+  // Gọi khi: User bấm "Xem báo cáo cho giai đoạn này"
+  // API: GET /api/transactions/report/summary
+  // Trả về: TransactionReportResponse (totalIncome, totalExpense, balance...)
+  static Future<ApiResponse<TransactionReportResponse>> getReport({
     required DateTime startDate,
     required DateTime endDate,
     int? walletId,
     int? savingGoalId,
   }) async {
-    final params = <String, dynamic>{
-      'range': 'CUSTOM',
-      'startDate': startDate.toIso8601String(),
-      'endDate': endDate.toIso8601String(),
-    };
-
-    if (walletId != null) {
-      params['walletId'] = walletId;
-    }
-    if (savingGoalId != null) {
-      params['savingGoalId'] = savingGoalId;
-    }
-
-    final queryString = params.entries
-        .map((e) => '${e.key}=${Uri.encodeComponent(e.value.toString())}')
-        .join('&');
-    final url = '$_baseUrl/transactions/report/summary?$queryString';
+    final params = _buildDateParams(startDate, endDate, walletId, savingGoalId);
+    final url = '$_base/report/summary?$params';
 
     return ApiHandler.get<TransactionReportResponse>(
       url,
@@ -133,12 +103,142 @@ class TransactionService {
     );
   }
 
-  // ===== 4. GET SINGLE TRANSACTION =====
-  static Future<ApiResponse<TransactionResponse>> getTransactionById(int id) async {
+  // -----------------------------------------------------------
+  // [1.4] GET BY ID — Lấy chi tiết 1 giao dịch
+  // -----------------------------------------------------------
+  // Gọi khi: User bấm vào 1 giao dịch trong danh sách
+  // API: GET /api/transactions/{id}
+  // Trả về: TransactionResponse
+  static Future<ApiResponse<TransactionResponse>> getById(int id) async {
     return ApiHandler.get<TransactionResponse>(
-      '$_baseUrl/transactions/$id',
+      '$_base/$id',
       fromJson: (json) => TransactionResponse.fromJson(json as Map<String, dynamic>),
     );
   }
-}
 
+  // -----------------------------------------------------------
+  // [1.5] CREATE — Tạo giao dịch mới
+  // -----------------------------------------------------------
+  // Gọi khi: User bấm "Lưu" ở TransactionCreateScreen
+  // API: POST /api/transactions
+  // Body: TransactionRequest (amount, categoryId, walletId/goalId, note, transDate...)
+  // Trả về: TransactionResponse (giao dịch vừa tạo)
+  // Lỗi server có thể trả:
+  //   • "Số tiền phải lớn hơn 0" (400 — validate amount)
+  //   • "Không tìm thấy ví" (400 — walletId không tồn tại)
+  //   • "Không tìm thấy danh mục" (400 — categoryId không tồn tại)
+  //   • "Dữ liệu không hợp lệ" (400 — @Valid fail, data là Map field errors)
+  static Future<ApiResponse<TransactionResponse>> create(TransactionRequest request) async {
+    return ApiHandler.post<TransactionResponse>(
+      _base, // POST /api/transactions
+      body: request.toJson(),
+      fromJson: (json) => TransactionResponse.fromJson(json as Map<String, dynamic>),
+    );
+  }
+
+  // -----------------------------------------------------------
+  // [1.6] UPDATE — Cập nhật giao dịch
+  // -----------------------------------------------------------
+  // Gọi khi: User bấm "Lưu" ở TransactionEditScreen
+  // API: PUT /api/transactions/{id}
+  // Lỗi server:
+  //   • "Bạn không có quyền sửa giao dịch này." (403)
+  //   • "Giao dịch không tồn tại." (400)
+  static Future<ApiResponse<TransactionResponse>> update(int id, TransactionRequest request) async {
+    return ApiHandler.put<TransactionResponse>(
+      '$_base/$id', // PUT /api/transactions/23
+      body: request.toJson(),
+      fromJson: (json) => TransactionResponse.fromJson(json as Map<String, dynamic>),
+    );
+  }
+
+  // -----------------------------------------------------------
+  // [1.7] DELETE — Xóa giao dịch (soft delete)
+  // -----------------------------------------------------------
+  // Gọi khi: User xác nhận xóa ở dialog
+  // API: DELETE /api/transactions/{id}
+  // Lỗi server:
+  //   • "Bạn không có quyền xóa giao dịch này." (403)
+  //   • "Giao dịch không tồn tại." (400)
+  static Future<ApiResponse<void>> delete(int id) async {
+    return ApiHandler.delete<void>(
+      '$_base/$id', // DELETE /api/transactions/23
+    );
+  }
+
+  // -----------------------------------------------------------
+  // [1.8] SEARCH — Tìm kiếm giao dịch nâng cao
+  // -----------------------------------------------------------
+  // Gọi khi: User bấm "Tìm" ở màn hình tìm kiếm
+  // API: POST /api/transactions/search
+  // Body: TransactionSearchRequest (minAmount, maxAmount, walletId, categoryIds...)
+  // Trả về: List<TransactionResponse>
+  static Future<ApiResponse<List<TransactionResponse>>> search(TransactionSearchRequest request) async {
+    return ApiHandler.post<List<TransactionResponse>>(
+      '$_base/search',
+      body: request.toJson(),
+      fromJson: (json) => _parseTransactionList(json),
+    );
+  }
+
+  // -----------------------------------------------------------
+  // [1.9] Helper — Build query params cho date range
+  // -----------------------------------------------------------
+  static String _buildDateParams(
+    DateTime startDate,
+    DateTime endDate,
+    int? walletId,
+    int? savingGoalId,
+  ) {
+    final params = <String, dynamic>{
+      'range': 'CUSTOM',
+      'startDate': startDate.toIso8601String(),
+      'endDate': endDate.toIso8601String(),
+    };
+
+    // Thêm walletId nếu đang lọc theo ví
+    if (walletId != null) params['walletId'] = walletId;
+    // Thêm savingGoalId nếu đang lọc theo mục tiêu tiết kiệm
+    if (savingGoalId != null) params['savingGoalId'] = savingGoalId;
+
+    return params.entries
+        .map((e) => '${e.key}=${Uri.encodeComponent(e.value.toString())}')
+        .join('&');
+  }
+
+  // -----------------------------------------------------------
+  // [1.10] Helper — Parse List<DailyTransactionGroup> từ JSON
+  // -----------------------------------------------------------
+  static List<DailyTransactionGroup> _parseDailyGroupList(dynamic json) {
+    if (json is List) {
+      return json
+          .map((e) => DailyTransactionGroup.fromJson(e as Map<String, dynamic>))
+          .toList();
+    }
+    return []; // trả rỗng nếu server không trả List
+  }
+
+  // -----------------------------------------------------------
+  // [1.11] Helper — Parse List<CategoryTransactionGroup> từ JSON
+  // -----------------------------------------------------------
+  static List<CategoryTransactionGroup> _parseCategoryGroupList(dynamic json) {
+    if (json is List) {
+      return json
+          .map((e) => CategoryTransactionGroup.fromJson(e as Map<String, dynamic>))
+          .toList();
+    }
+    return [];
+  }
+
+  // -----------------------------------------------------------
+  // [1.12] Helper — Parse List<TransactionResponse> từ JSON
+  // -----------------------------------------------------------
+  static List<TransactionResponse> _parseTransactionList(dynamic json) {
+    if (json is List) {
+      return json
+          .map((e) => TransactionResponse.fromJson(e as Map<String, dynamic>))
+          .toList();
+    }
+    return [];
+  }
+}
