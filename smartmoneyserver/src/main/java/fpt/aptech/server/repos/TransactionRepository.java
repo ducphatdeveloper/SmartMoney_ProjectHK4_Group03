@@ -14,20 +14,20 @@ import org.springframework.stereotype.Repository;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Optional;
+import java.util.Optional; //<< Nam
 import java.util.Set;
 
 @Repository
 public interface TransactionRepository extends JpaRepository<Transaction, Long>,
         JpaSpecificationExecutor<Transaction> {
 
+    Optional<Transaction> findByIdAndAccount_Id(Long id, Integer accountId); // << Nam
+
     // =================================================================================
     // 1. CÁC HÀM CRUD CƠ BẢN (Kế thừa từ JpaRepository)
     // =================================================================================
     // - save(Transaction t): Tạo mới (Create) hoặc Cập nhật (Update)
     // - findById(Long id): Xem chi tiết (Read Detail)
-    Optional<Transaction> findByIdAndAccount_Id(Long id, Integer accountId);
-
     // - deleteById(Long id): Xóa cứng (Hard Delete) - Ít dùng, thường dùng Soft Delete
     // - findAll(Specification s): Tìm kiếm nâng cao (Search Advanced) - Kế thừa từ JpaSpecificationExecutor
 
@@ -35,7 +35,7 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
     // 2. CÁC HÀM LẤY DỮ LIỆU (READ / VIEW)
     // =================================================================================
 
-    // [VIEW] Lấy danh sách giao dịch theo bộ lọc (Dùng cho cả Báo cáo và Nhật ký)
+    /// [VIEW] Lấy danh sách giao dịch theo bộ lọc (Dùng cho cả Báo cáo và Nhật ký)
     @Query("SELECT t FROM Transaction t " +
             "WHERE t.account.id = :accountId " +                  // Lọc theo tài khoản
             "  AND t.transDate BETWEEN :startDate AND :endDate " + // Trong khoảng thời gian
@@ -54,7 +54,7 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
     // 3. CÁC HÀM BÁO CÁO & THỐNG KÊ (REPORT)
     // =================================================================================
 
-    // [REPORT] Thống kê tổng tiền theo từng danh mục (Biểu đồ tròn)
+    /// [REPORT] Thống kê tổng tiền theo từng danh mục (Biểu đồ tròn)
     @Query("SELECT new fpt.aptech.server.dto.transaction.report.CategoryReportDTO(" +
             "    c.ctgName, " +       // Tên danh mục
             "    SUM(t.amount), " +   // Tổng tiền
@@ -81,7 +81,7 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
             @Param("savingGoalId") Integer savingGoalId
     );
 
-    // [REPORT] Tính số dư đầu kỳ (Opening Balance)
+    /// [REPORT] Tính số dư đầu kỳ (Opening Balance)
     @Query("SELECT SUM(" +
             "    CASE WHEN c.ctgType = true THEN t.amount ELSE -t.amount END" + // Thu thì cộng, Chi thì trừ
             ") " +
@@ -98,7 +98,7 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
             @Param("savingGoalId") Integer savingGoalId
     );
 
-    // [REPORT] Thống kê thu/chi theo từng ngày (Biểu đồ cột/đường)
+    /// [REPORT] Thống kê thu/chi theo từng ngày (Biểu đồ cột/đường)
     // Spring Boot 3.5.x dùng Hibernate 6 → JPQL hỗ trợ CAST(x AS date) chuẩn JPA 3.1
     // Không cần native query, giữ nguyên DailyTrendDTO record constructor
     @Query("SELECT new fpt.aptech.server.dto.transaction.report.DailyTrendDTO(" +
@@ -129,7 +129,7 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
     // 4. CÁC HÀM CHO NGÂN SÁCH (BUDGET)
     // =================================================================================
 
-    // [BUDGET] Tính tổng chi tiêu thực tế cho một ngân sách
+    /// [BUDGET] Tính tổng chi tiêu thực tế cho một ngân sách
     @Query("SELECT SUM(t.amount) " +
             "FROM Transaction t " +
             "JOIN t.category c " +
@@ -142,14 +142,14 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
             @Param("accountId") Integer accountId,
             @Param("startDate") LocalDateTime startDate,
             @Param("endDate") LocalDateTime endDate,
-            @Param("walletId") List<Integer> walletId,
+            @Param("walletId") Integer walletId,
             @Param("allCategories") Boolean allCategories,
             @Param("categoryIds") Set<Integer> categoryIds
     );
 
-    // [BUDGET] Lấy danh sách giao dịch CHI thuộc ngân sách (cho GET /api/budgets/{id}/transactions)
-    // - allCategories=true  → lấy tất cả giao dịch chi trong khoảng thời gian + ví của ngân sách
-    // - allCategories=false → lọc thêm theo danh sách categoryIds
+    /// [BUDGET] Lấy danh sách giao dịch CHI thuộc ngân sách (cho GET /api/budgets/{id}/transactions)
+    /// - allCategories=true  → lấy tất cả giao dịch chi trong khoảng thời gian + ví của ngân sách
+    /// - allCategories=false → lọc thêm theo danh sách categoryIds
     @Query("SELECT t FROM Transaction t " +
             "JOIN t.category c " +
             "WHERE t.account.id = :accountId " +
@@ -171,7 +171,7 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
     // 5. CÁC HÀM CHO SỰ KIỆN (EVENT)
     // =================================================================================
 
-    // [EVENT] Tính tổng thu và tổng chi cho một sự kiện.
+    /// [EVENT] Tính tổng thu và tổng chi cho một sự kiện.
     @Query("SELECT new fpt.aptech.server.dto.transaction.report.TransactionTotalDTO(" +
             "   SUM(CASE WHEN c.ctgType = true THEN t.amount ELSE 0 END), " +  // Tổng thu
             "   SUM(CASE WHEN c.ctgType = false THEN t.amount ELSE 0 END) " + // Tổng chi
@@ -180,17 +180,17 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
             "WHERE t.event.id = :eventId")
     TransactionTotalDTO getTotalsByEventId(@Param("eventId") Integer eventId);
 
-    // [EVENT] Set event_id = null cho tất cả giao dịch thuộc một sự kiện.
-    // Dùng khi người dùng chọn "Chỉ xóa sự kiện".
+    /// [EVENT] Set event_id = null cho tất cả giao dịch thuộc một sự kiện.
+    /// Dùng khi người dùng chọn "Chỉ xóa sự kiện".
     @Modifying
     @Query("UPDATE Transaction t SET t.event = null WHERE t.event.id = :eventId")
     void setEventIdToNullByEventId(@Param("eventId") Integer eventId);
 
-    // [EVENT] Lấy danh sách giao dịch theo eventId (cho trang XEM GIAO DỊCH)
+    /// [EVENT] Lấy danh sách giao dịch theo eventId (cho trang XEM GIAO DỊCH)
     @Query("SELECT t FROM Transaction t WHERE t.event.id = :eventId ORDER BY t.transDate DESC")
     List<Transaction> findAllByEventId(@Param("eventId") Integer eventId);
 
-    // [EVENT] Xóa cứng giao dịch theo eventId (cho nút XÓA CẢ HAI)
+    /// [EVENT] Xóa cứng giao dịch theo eventId (cho nút XÓA CẢ HAI)
     @Modifying
     @Query("DELETE FROM Transaction t WHERE t.event.id = :eventId")
     void deleteAllByEventId(@Param("eventId") Integer eventId);
@@ -199,23 +199,16 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
     // 6. CÁC HÀM CHO SỔ NỢ (DEBT)
     // =================================================================================
 
-    // [DEBT] Lấy danh sách giao dịch theo debtId (lịch sử trả/thu nợ)
+    /// [DEBT] Lấy danh sách giao dịch theo debtId (lịch sử trả/thu nợ)
     @Query("SELECT t FROM Transaction t WHERE t.debt.id = :debtId ORDER BY t.transDate DESC")
     List<Transaction> findAllByDebtId(@Param("debtId") Integer debtId);
 
-    // [DEBT] Set debt_id = null khi xóa debt (giữ lại giao dịch)
+    /// [DEBT] Set debt_id = null khi xóa debt (giữ lại giao dịch)
     @Modifying
     @Query("UPDATE Transaction t SET t.debt = null WHERE t.debt.id = :debtId")
     void setDebtIdToNullByDebtId(@Param("debtId") Integer debtId);
-    // ADMIN: Thống kê tổng quan theo danh mục toàn hệ thống
-    @Query("SELECT t.category.ctgName, SUM(t.amount), t.category.ctgType, t.category.ctgIconUrl " +
-            "FROM Transaction t " +
-            "WHERE t.transDate BETWEEN :startDate AND :endDate " +
-            "GROUP BY t.category.ctgName, t.category.ctgType, t.category.ctgIconUrl")
-    List<Object[]> getGlobalCategoryStats(@Param("startDate") LocalDateTime startDate,
-                                          @Param("endDate") LocalDateTime endDate);
-    
-    // [DEBT] Tính tổng amount theo debtId và danh sách categoryId
+
+    /// [DEBT] Tính tổng amount theo debtId và danh sách categoryId
     /// Dùng cho recalculateDebt() — tính totalAmount và paidAmount
     @Query("SELECT COALESCE(SUM(t.amount), 0) FROM Transaction t " +
             "WHERE t.debt.id = :debtId " +
@@ -223,4 +216,12 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
     BigDecimal sumAmountByDebtIdAndCategoryIds(
             @Param("debtId") Integer debtId,
             @Param("categoryIds") List<Integer> categoryIds);
+
+    // ADMIN: Thống kê tổng quan theo danh mục toàn hệ thống ( Code của NAM )
+    @Query("SELECT t.category.ctgName, SUM(t.amount), t.category.ctgType, t.category.ctgIconUrl " +
+            "FROM Transaction t " +
+            "WHERE t.transDate BETWEEN :startDate AND :endDate " +
+            "GROUP BY t.category.ctgName, t.category.ctgType, t.category.ctgIconUrl")
+    List<Object[]> getGlobalCategoryStats(@Param("startDate") LocalDateTime startDate,
+                                          @Param("endDate") LocalDateTime endDate);
 }
