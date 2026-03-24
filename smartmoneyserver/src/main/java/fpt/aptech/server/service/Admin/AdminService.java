@@ -14,4 +14,9 @@ public interface AdminService {
     void unlockAccount(Integer id);
     Map<String, Object> getStats();
     List<Notification> getAdminNotifications(Integer adminId);
+    // Thống kê giao dịch toàn hệ thống (Pie chart)
+    Map<String, Object> getSystemTransactionStats(String rangeMode);
+    long countOnlineUsers();
+    // Thống kê ngân sách vượt mức (Overspent budgets)
+    List<Map<String, Object>> getSystemOverspentBudgets(String rangeMode);
 }

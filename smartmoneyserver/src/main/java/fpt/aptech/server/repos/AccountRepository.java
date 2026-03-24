@@ -3,9 +3,12 @@ package fpt.aptech.server.repos;
 import fpt.aptech.server.entity.Account;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -27,6 +30,11 @@ public interface AccountRepository extends JpaRepository<Account, Integer>, JpaS
 
     // Tìm danh sách tài khoản theo Role Code (VD: Lấy tất cả Admin)
     List<Account> findByRole_RoleCode(String roleCode);
+
+    // Đếm số người hoạt động trong khoảng thời gian (dựa trên bảng UserDevice)
+    @Query("SELECT COUNT(DISTINCT a) FROM Account a JOIN UserDevice ud ON ud.account.id = a.id " +
+            "WHERE ud.lastActive >= :activeLimit AND ud.loggedIn = true")
+    long countOnlineUsers(@Param("activeLimit") LocalDateTime activeLimit);
 
     @Query("SELECT new map(MONTH(a.createdAt) as month, YEAR(a.createdAt) as year, COUNT(a) as count) " +
             "FROM Account a " +

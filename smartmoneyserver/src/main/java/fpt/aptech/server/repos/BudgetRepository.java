@@ -42,4 +42,8 @@ public interface BudgetRepository extends JpaRepository<Budget, Integer> {
     /// Tìm budgets cần renew: repeating=true và đã hết hạn (endDate < today)
     @Query("SELECT b FROM Budget b WHERE b.repeating = true AND b.endDate < :today")
     List<Budget> findExpiredRepeatingBudgets(@Param("today") LocalDate today);
+    // ADMIN: Tìm tất cả budget có hiệu lực trong khoảng thời gian (để check quá hạn mức)
+    @Query("SELECT b FROM Budget b WHERE b.beginDate <= :endDate AND b.endDate >= :startDate")
+    List<Budget> findAllActiveBudgetsInRange(@Param("startDate") LocalDate startDate,
+                                             @Param("endDate") LocalDate endDate);
 }

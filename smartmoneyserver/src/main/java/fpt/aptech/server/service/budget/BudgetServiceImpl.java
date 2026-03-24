@@ -249,9 +249,14 @@ public class BudgetServiceImpl implements BudgetService {
         LocalDateTime endDt       = end.atTime(23, 59, 59);
         Set<Integer>  categoryIds = resolveCategoryIds(budget);
 
-        BigDecimal spent = transactionRepository.sumExpenseForBudget(
-                budget.getAccount().getId(), startDt, endDt,
-                walletId, budget.getAllCategories(), categoryIds);
+        // Thay thế sumExpenseForBudget bằng việc lấy danh sách giao dịch và tự tính tổng
+        List<Transaction> transactions = transactionRepository.findTransactionsForBudget(
+                budget.getAccount().getId(), startDt, endDt, walletId, budget.getAllCategories(), categoryIds);
+
+        BigDecimal spent = transactions.stream()
+                .map(Transaction::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
         if (spent == null) spent = BigDecimal.ZERO;
 
         BigDecimal remaining = budget.getAmount().subtract(spent);
@@ -317,4 +322,3 @@ public class BudgetServiceImpl implements BudgetService {
         }
     }
 }
-
