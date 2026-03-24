@@ -3,12 +3,15 @@ package fpt.aptech.server.service.Admin;
 import fpt.aptech.server.dto.AccountDto;
 import fpt.aptech.server.dto.PageResponse;
 import fpt.aptech.server.entity.Account;
+import fpt.aptech.server.entity.Budget;
 import fpt.aptech.server.entity.Notification;
 import fpt.aptech.server.entity.UserDevice;
 import fpt.aptech.server.enums.notification.NotificationType;
 import fpt.aptech.server.repos.AccountRepository;
+import fpt.aptech.server.repos.BudgetRepository;
 import fpt.aptech.server.repos.UserDeviceRepository;
 import fpt.aptech.server.repos.TransactionRepository;
+import fpt.aptech.server.service.UserActivityService;
 import fpt.aptech.server.service.notification.NotificationService;
 import fpt.aptech.server.service.notification.NotificationContent;
 import fpt.aptech.server.service.notification.NotificationMessages;
@@ -21,7 +24,11 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -36,6 +43,8 @@ public class AdminServiceImp implements AdminService {
     private final UserDeviceRepository userDeviceRepository;
     private final NotificationService notificationService;
     private final TransactionRepository transactionRepository;
+    private final BudgetRepository budgetRepository;
+    private final UserActivityService userActivityService;
 
     @Override
     public PageResponse<AccountDto> getUsers(String search, Boolean locked, String onlineStatus, Pageable pageable) {
@@ -154,5 +163,105 @@ public class AdminServiceImp implements AdminService {
     @Override
     public List<Notification> getAdminNotifications(Integer adminId) {
         return notificationService.getMyNotifications(adminId);
+    }
+
+    @Override
+    public Map<String, Object> getSystemTransactionStats(String rangeMode) {
+        LocalDateTime startDate, endDate;
+        LocalDate today = LocalDate.now();
+
+        // 1. Xác định khoảng thời gian
+        if ("DAILY".equalsIgnoreCase(rangeMode)) {
+            startDate = today.atStartOfDay();
+            endDate = today.atTime(LocalTime.MAX);
+        } else { // Default: MONTHLY
+            startDate = today.with(TemporalAdjusters.firstDayOfMonth()).atStartOfDay();
+            endDate = today.with(TemporalAdjusters.lastDayOfMonth()).atTime(LocalTime.MAX);
+        }
+        // 2. Gọi Repo lấy dữ liệu tổng hợp
+        List<Object[]> rawStats = transactionRepository.getGlobalCategoryStats(startDate, endDate);
+
+        // 3. Xử lý dữ liệu
+        BigDecimal totalIncome = BigDecimal.ZERO;
+        BigDecimal totalExpense = BigDecimal.ZERO;
+        List<Map<String, Object>> categoryStats = new ArrayList<>();
+
+        for (Object[] row : rawStats) {
+            String ctgName = (String) row[0];
+            BigDecimal amount = (BigDecimal) row[1];
+            Boolean ctgType = (Boolean) row[2]; // true=Thu, false=Chi
+            String ctgIconUrl = (String) row[3];
+
+            if (Boolean.TRUE.equals(ctgType)) {
+                totalIncome = totalIncome.add(amount);
+            } else {
+                totalExpense = totalExpense.add(amount);
+            }
+            Map<String, Object> item = new HashMap<>();
+            item.put("categoryName", ctgName);
+            item.put("amount", amount);
+            item.put("type", Boolean.TRUE.equals(ctgType) ? "INCOME" : "EXPENSE");
+            item.put("iconUrl", ctgIconUrl);
+            categoryStats.add(item);
+        }
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("totalIncome", totalIncome);
+        result.put("totalExpense", totalExpense);
+        result.put("breakdown", categoryStats);
+        result.put("range", rangeMode);
+
+        return result;
+    }
+
+    @Override
+    public List<Map<String, Object>> getSystemOverspentBudgets(String rangeMode) {
+        LocalDate startDate, endDate;
+        LocalDate today = LocalDate.now();
+
+        // 1. Xác định khoảng thời gian
+        if ("DAILY".equalsIgnoreCase(rangeMode)) {
+            startDate = today;
+            endDate = today;
+        } else { // Default: MONTHLY
+            startDate = today.with(TemporalAdjusters.firstDayOfMonth());
+            endDate = today.with(TemporalAdjusters.lastDayOfMonth());
+        }
+
+        // 2. Lấy tất cả budget active trong khoảng thời gian này
+        List<Budget> budgets = budgetRepository.findAllActiveBudgetsInRange(startDate, endDate);
+        List<Map<String, Object>> overspentList = new ArrayList<>();
+        // 3. Tính toán chi tiêu cho từng budget
+        for (Budget budget : budgets) {
+            // Tái sử dụng query sumExpenseForBudget có sẵn trong TransactionRepository (theo Blueprint)
+            BigDecimal spentAmount = transactionRepository.sumExpenseForBudget(
+                    budget.getAccount().getId(),
+                    budget.getBeginDate().atStartOfDay(),
+                    budget.getEndDate().atTime(LocalTime.MAX),
+                    budget.getCategories().stream().map(c -> c.getId()).toList(),
+                    false, // Bổ sung tham số thứ 5: deleted = false
+                    null   // Bổ sung tham số thứ 6: debtId (hoặc tham số lọc khác) = null
+            );
+            if (spentAmount == null) spentAmount = BigDecimal.ZERO;
+
+            // 4. Nếu tiêu vượt quá hạn mức -> thêm vào list báo cáo
+            if (spentAmount.compareTo(budget.getAmount()) > 0) {
+                Map<String, Object> info = new HashMap<>();
+                info.put("userEmail", budget.getAccount().getAccEmail());
+                info.put("budgetName", budget.getCategories().isEmpty() ? "Tất cả danh mục" : budget.getCategories().iterator().next().getCtgName());
+                info.put("limitAmount", budget.getAmount());
+                info.put("spentAmount", spentAmount);
+                info.put("overAmount", spentAmount.subtract(budget.getAmount()));
+                info.put("endDate", budget.getEndDate());
+
+                overspentList.add(info);
+            }
+        }
+        return overspentList;
+    }
+    @Override
+    public long countOnlineUsers() {
+        // Lấy số lượng user active trong 5 phút gần nhất từ bộ nhớ
+        return userActivityService.countOnlineUsers(5);
     }
 }

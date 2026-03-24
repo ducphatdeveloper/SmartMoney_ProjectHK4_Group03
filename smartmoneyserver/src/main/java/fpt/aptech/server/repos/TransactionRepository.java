@@ -14,18 +14,21 @@ import org.springframework.stereotype.Repository;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional; //<< Nam
 import java.util.Set;
 
 @Repository
 public interface TransactionRepository extends JpaRepository<Transaction, Long>,
         JpaSpecificationExecutor<Transaction> {
 
+    Optional<Transaction> findByIdAndAccount_Id(Long id, Integer accountId); // << Nam
+
     // =================================================================================
     // 1. CÁC HÀM CRUD CƠ BẢN (Kế thừa từ JpaRepository)
     // =================================================================================
     // - save(Transaction t): Tạo mới (Create) hoặc Cập nhật (Update)
-    // - findById(Integer id): Xem chi tiết (Read Detail)
-    // - deleteById(Integer id): Xóa cứng (Hard Delete) - Ít dùng, thường dùng Soft Delete
+    // - findById(Long id): Xem chi tiết (Read Detail)
+    // - deleteById(Long id): Xóa cứng (Hard Delete) - Ít dùng, thường dùng Soft Delete
     // - findAll(Specification s): Tìm kiếm nâng cao (Search Advanced) - Kế thừa từ JpaSpecificationExecutor
 
     // =================================================================================
@@ -213,4 +216,12 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
     BigDecimal sumAmountByDebtIdAndCategoryIds(
             @Param("debtId") Integer debtId,
             @Param("categoryIds") List<Integer> categoryIds);
+
+    // ADMIN: Thống kê tổng quan theo danh mục toàn hệ thống ( Code của NAM )
+    @Query("SELECT t.category.ctgName, SUM(t.amount), t.category.ctgType, t.category.ctgIconUrl " +
+            "FROM Transaction t " +
+            "WHERE t.transDate BETWEEN :startDate AND :endDate " +
+            "GROUP BY t.category.ctgName, t.category.ctgType, t.category.ctgIconUrl")
+    List<Object[]> getGlobalCategoryStats(@Param("startDate") LocalDateTime startDate,
+                                          @Param("endDate") LocalDateTime endDate);
 }

@@ -1,28 +1,41 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { adminApi, authApi, userApi } from '../server/api';
+import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Tooltip, Legend, ArcElement } from 'chart.js';
+import { Bar } from 'react-chartjs-2';
+
+// Register ChartJS components
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Tooltip, Legend, ArcElement);
 
 const AdminDashboard = () => {
+    // --- STATE ---
+    const [activeTab, setActiveTab] = useState('overview'); // 'overview' | 'users'
+    
+    // Data State
+    const [stats, setStats] = useState({ totalUsers: 0, totalTransactions: 0, activeDevices: 0, newUsersByMonth: [] });
     const [users, setUsers] = useState([]);
-    const [stats, setStats] = useState({ totalUsers: 0, totalTransactions: 0, activeDevices: 0 });
-    const [currentUser, setCurrentUser] = useState(null);
+    const [transactionStats, setTransactionStats] = useState(null);
+    const [overspentBudgets, setOverspentBudgets] = useState([]);
+    const [notifications, setNotifications] = useState([]);
+    
+    // Filter/Pagination State
     const [searchTerm, setSearchTerm] = useState('');
     const [filterLocked, setFilterLocked] = useState('');
     const [filterOnline, setFilterOnline] = useState('');
     const [page, setPage] = useState(0);
     const [totalPages, setTotalPages] = useState(0);
-    const [loading, setLoading] = useState(false);
+    const [rangeMode, setRangeMode] = useState('MONTHLY');
     
-    // State cho modal xác nhận
+    // UI State
+    const [loading, setLoading] = useState(false);
+    const [currentUser, setCurrentUser] = useState(null);
+    const [showNotifications, setShowNotifications] = useState(false);
     const [confirmModal, setConfirmModal] = useState({ show: false, userId: null, isLocked: false });
 
-    // State cho thông báo
-    const [notifications, setNotifications] = useState([]);
-    const [showNotifications, setShowNotifications] = useState(false);
-    
     const navigate = useNavigate();
 
-    // Hàm đăng xuất
+    // --- API CALLS ---
+    
     const handleLogout = useCallback(async (reason = '') => {
         try {
             await authApi.logout('web-browser');
@@ -39,48 +52,58 @@ const AdminDashboard = () => {
         try {
             const res = await adminApi.getStats();
             if (res.data) setStats(res.data);
-        } catch (err) {
-            console.error("Lỗi tải thống kê", err);
-        }
+            
+            // Gọi thêm API lấy số user online thực (dựa trên active time)
+            const onlineRes = await adminApi.getOnlineUsers();
+            if (onlineRes.data.success) {
+                setStats(prev => ({ ...prev, activeDevices: onlineRes.data.data }));
+            }
+        } catch (err) { console.error(err); }
     };
+
+    const fetchTransactionStats = useCallback(async () => {
+        try {
+            const res = await adminApi.getSystemTransactionStats(rangeMode);
+            // Cấu trúc trả về là ApiResponse -> lấy res.data.data
+            setTransactionStats(res.data.data);
+            
+            const resBudget = await adminApi.getSystemOverspentBudgets(rangeMode);
+            // Cấu trúc trả về là ApiResponse -> lấy res.data.data
+            setOverspentBudgets(resBudget.data.data || []);
+        } catch (err) { console.error(err); }
+    }, [rangeMode]);
 
     const fetchNotifications = async (adminId) => {
         try {
             const res = await adminApi.getAdminNotifications(adminId);
             setNotifications(res.data || []);
-        } catch (err) {
-            console.error("Lỗi tải thông báo", err);
-        }
+        } catch (err) { console.error(err); }
     };
 
-    // Hàm fetchUsers được cập nhật để hỗ trợ tải ngầm (isBackground = true thì không hiện loading)
     const fetchUsers = useCallback(async (isBackground = false) => {
         if (!isBackground) setLoading(true);
         try {
-            // Chuẩn bị params khớp với AdminController
             const params = {
-                page: page,
-                size: 8,
-                search: searchTerm || null, // Gửi null nếu rỗng
-                locked: filterLocked === '' ? null : (filterLocked === 'true'), // Convert sang Boolean hoặc null
-                onlineStatus: filterOnline === '' ? null : filterOnline // Gửi null nếu rỗng
+                page, size: 8,
+                // Cắt khoảng trắng và chuyển thành null nếu rỗng
+                search: searchTerm && searchTerm.trim() !== '' ? searchTerm.trim() : null,
+                // Chuyển đổi chính xác chuỗi sang boolean hoặc null
+                locked: filterLocked === 'true' ? true : (filterLocked === 'false' ? false : null),
+                // Nếu filterOnline là chuỗi rỗng thì gửi null
+                online: filterOnline === 'true' ? true : (filterOnline === 'false' ? false : null)
             };
-            
             const res = await adminApi.getUsers(params);
             setUsers(res.data.content || []);
             setTotalPages(res.data.totalPages || 0);
-        } catch (err) {
-            console.error("Lỗi tải danh sách người dùng", err);
-        } finally {
-            if (!isBackground) setLoading(false);
-        }
+        } catch (err) { console.error(err); } 
+        finally { if (!isBackground) setLoading(false); }
     }, [page, searchTerm, filterLocked, filterOnline]);
+
+    // --- EFFECTS ---
 
     useEffect(() => {
         const storedUser = JSON.parse(localStorage.getItem('user'));
         const token = localStorage.getItem('accessToken');
-
-        // Các vai trò được phép truy cập trang admin
         const authorizedRoles = ["Quản trị viên", "ROLE_ADMIN", "ADMIN_SYSTEM_ALL"];
 
         if (!token || !storedUser || !authorizedRoles.includes(storedUser.roleName)) {
@@ -89,394 +112,357 @@ const AdminDashboard = () => {
         }
         setCurrentUser(storedUser);
         fetchStats();
-        
-        // Lấy thông báo nếu có ID
-        if (storedUser.id) {
-            fetchNotifications(storedUser.id);
+        fetchTransactionStats(); // Load initial stats
+        if (storedUser.userId || storedUser.id) {
+             fetchNotifications(storedUser.userId || storedUser.id);
         }
-    }, [navigate]);
+    }, [navigate, fetchTransactionStats]);
 
-    // Effect 1: Debounce khi search/filter thay đổi (Hiện loading)
     useEffect(() => {
         const delayDebounceFn = setTimeout(() => {
-            fetchUsers(false); // false = hiện loading
+            if (activeTab === 'users') fetchUsers(false);
         }, 500);
-
         return () => clearTimeout(delayDebounceFn);
-    }, [fetchUsers]);
+    }, [fetchUsers, activeTab]);
 
-    // Effect 2: Tự động refresh dữ liệu mỗi 5 giây (Polling)
     useEffect(() => {
         const checkAccountStatus = async () => {
             try {
-                // Gọi API lấy profile để check trạng thái mới nhất của chính Admin
                 const res = await userApi.getProfile();
-                
-                // Nếu API trả về thông tin user và user bị khóa
-                if (res.data && res.data.locked) {
-                    handleLogout("Tài khoản quản trị của bạn đã bị khóa.");
-                }
+                if (res.data && res.data.locked) handleLogout("Tài khoản bị khóa.");
             } catch (error) {
-                // Nếu gặp lỗi 401 (Unauthorized) hoặc 403 (Forbidden) -> Token hết hạn hoặc bị chặn
                 if (error.response && (error.response.status === 401 || error.response.status === 403)) {
-                    handleLogout("Phiên đăng nhập hết hạn hoặc tài khoản đã bị khóa.");
+                    handleLogout("Phiên đăng nhập hết hạn.");
                 }
             }
         };
-
         const interval = setInterval(() => {
-            fetchUsers(true); // true = chạy ngầm, không hiện loading
-            fetchStats();     // Cập nhật cả thống kê số lượng online
-            checkAccountStatus(); // Kiểm tra trạng thái tài khoản Admin
-        }, 5000); // 5 giây
-
-        return () => clearInterval(interval);
-    }, [fetchUsers, handleLogout]);
-
-    const openConfirmModal = (userId, isLocked) => {
-        setConfirmModal({ show: true, userId, isLocked });
-    };
-
-    const closeConfirmModal = () => {
-        setConfirmModal({ ...confirmModal, show: false });
-    };
-
-    const handleConfirmAction = async () => {
-        const { userId, isLocked } = confirmModal;
-        try {
-            if (isLocked) {
-                await adminApi.unlockUser(userId);
-            } else {
-                await adminApi.lockUser(userId);
-            }
-            fetchUsers(false);
             fetchStats();
-        } catch (err) {
-            alert("Thao tác thất bại. Vui lòng thử lại.");
-        } finally {
-            closeConfirmModal();
-        }
-    };
+            if (activeTab === 'users') fetchUsers(true);
+            checkAccountStatus();
+        }, 5000);
+        return () => clearInterval(interval);
+    }, [fetchUsers, handleLogout, activeTab]);
 
-    const handleLogoutClick = async () => {
-        try {
-            await authApi.logout('web-browser');
-        } catch (err) {
-            console.error(err);
-        } finally {
-            localStorage.clear();
-            navigate('/login');
-        }
-    };
+    // --- HANDLERS ---
 
-    // Xử lý click vào thẻ thống kê để lọc nhanh
     const handleCardClick = (type) => {
+        setActiveTab('users');
         if (type === 'TOTAL') {
-            setFilterOnline('');
+            setFilterOnline(''); setFilterLocked(''); setSearchTerm('');
+        } else if (type === 'ONLINE') {
+            setFilterOnline('true');
             setFilterLocked('');
             setSearchTerm('');
-        } else if (type === 'ONLINE') {
-            setFilterOnline('online');
         }
         setPage(0);
-        // Cuộn xuống bảng
-        document.getElementById('user-management-section')?.scrollIntoView({ behavior: 'smooth' });
     };
 
-    // Format ngày tháng
-    const formatDate = (dateString) => {
-        if (!dateString) return '';
-        return new Date(dateString).toLocaleString('vi-VN', {
-            day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit'
-        });
+    const confirmAction = async () => {
+        const { userId, isLocked } = confirmModal;
+        try {
+            isLocked ? await adminApi.unlockUser(userId) : await adminApi.lockUser(userId);
+            fetchUsers(false);
+            fetchStats();
+        } catch (err) { alert("Thao tác thất bại."); }
+        finally { setConfirmModal({ ...confirmModal, show: false }); }
     };
 
-    return (
-        <div className="min-vh-100 bg-light">
-            {/* Navbar */}
-            <nav className="navbar navbar-expand-lg navbar-dark bg-dark px-4 shadow-sm sticky-top">
-                <span className="navbar-brand fw-bold text-info">
-                    <i className="bi bi-shield-lock me-2"></i>ADMIN PORTAL
-                </span>
-                <div className="ms-auto d-flex align-items-center">
-                    
-                    {/* Notification Bell */}
-                    <div className="position-relative me-4">
-                        <button 
-                            className="btn btn-link text-white p-0 position-relative"
-                            onClick={() => setShowNotifications(!showNotifications)}
-                            style={{ textDecoration: 'none' }}
-                        >
-                            <i className="bi bi-bell fs-5"></i>
+    const formatDate = (d) => d ? new Date(d).toLocaleString('vi-VN') : '';
+
+    // --- CHART CONFIG ---
+    const breakdown = transactionStats?.breakdown || [];
+    const totalAmount = breakdown.reduce((acc, item) => acc + item.amount, 0);
+    
+    const barChartData = {
+        labels: breakdown.map(item => item.categoryName),
+        datasets: [
+            {
+                label: 'Tỷ lệ (%)',
+                data: breakdown.map(item => totalAmount > 0 ? ((item.amount / totalAmount) * 100).toFixed(1) : 0),
+                backgroundColor: breakdown.map(item => item.type === 'INCOME' ? 'rgba(25, 135, 84, 0.6)' : 'rgba(220, 53, 69, 0.6)'),
+                borderColor: breakdown.map(item => item.type === 'INCOME' ? '#198754' : '#dc3545'),
+                borderWidth: 1
+            }
+        ]
+    };
+    
+    // Options cho Bar chart (thay vì Line)
+    const chartOptions = {
+        responsive: true,
+        plugins: {
+            legend: { display: false },
+            title: { display: true, text: `Tỷ lệ dòng tiền ${rangeMode === 'WEEKLY' ? 'Tuần này' : rangeMode === 'MONTHLY' ? 'Tháng này' : 'Năm nay'}` },
+            tooltip: {
+                callbacks: {
+                    label: function(context) {
+                        const percentage = context.raw; // Giá trị %
+                        const amount = breakdown[context.dataIndex]?.amount || 0;
+                        return `${percentage}% (${amount.toLocaleString('vi-VN')}đ)`;
+                    }
+                }
+            }
+        },
+        scales: {
+            y: {
+                ticks: {
+                    callback: function(value) {
+                        return value + "%";
+                    }
+                }
+            }
+        }
+    };
+
+    // --- RENDERERS ---
+
+    const Sidebar = () => (
+        <div className="d-flex flex-column flex-shrink-0 p-3 text-white bg-dark" style={{ width: '260px', height: '100vh', position: 'sticky', top: 0 }}>
+            <div className="d-flex align-items-center mb-3 mb-md-0 me-md-auto text-white text-decoration-none px-2">
+                <i className="bi bi-wallet2 fs-4 me-2 text-info"></i>
+                <span className="fs-5 fw-bold">Admin Portal</span>
+            </div>
+            <hr />
+            <ul className="nav nav-pills flex-column mb-auto">
+                <li className="nav-item mb-1">
+                    <button onClick={() => setActiveTab('overview')} className={`nav-link w-100 text-start text-white ${activeTab === 'overview' ? 'active bg-primary' : ''}`}>
+                        <i className="bi bi-speedometer2 me-2"></i> Tổng quan
+                    </button>
+                </li>
+                <li className="nav-item mb-1">
+                    <button onClick={() => setActiveTab('users')} className={`nav-link w-100 text-start text-white ${activeTab === 'users' ? 'active bg-primary' : ''}`}>
+                        <i className="bi bi-people me-2"></i> Người dùng
+                    </button>
+                </li>
+            </ul>
+            <hr />
+            <div className="dropdown">
+                <div className="d-flex align-items-center text-white text-decoration-none dropdown-toggle" id="dropdownUser1" data-bs-toggle="dropdown" aria-expanded="false">
+                    <div className="rounded-circle bg-secondary d-flex justify-content-center align-items-center me-2" style={{width: 32, height: 32}}>
+                        <i className="bi bi-person-fill"></i>
+                    </div>
+                    <strong>{currentUser?.roleName || 'Admin'}</strong>
+                </div>
+            </div>
+        </div>
+    );
+
+    const Topbar = () => (
+        <nav className="navbar navbar-expand-lg navbar-light bg-white border-bottom shadow-sm px-4 py-2 sticky-top">
+            <div className="d-flex w-100 justify-content-between align-items-center">
+                <h5 className="mb-0 fw-bold text-secondary">
+                    {activeTab === 'overview' ? 'Dashboard Overview' : 'User Management'}
+                </h5>
+                <div className="d-flex align-items-center">
+                     {/* Notifications */}
+                     <div className="position-relative me-4">
+                        <button className="btn btn-light rounded-circle position-relative shadow-sm" onClick={() => setShowNotifications(!showNotifications)}>
+                            <i className="bi bi-bell"></i>
                             {notifications.length > 0 && (
-                                <span className="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style={{ fontSize: '0.6rem' }}>
+                                <span className="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style={{fontSize: '0.6rem'}}>
                                     {notifications.length}
                                 </span>
                             )}
                         </button>
-
-                        {/* Notification Dropdown */}
+                        {/* Dropdown Content */}
                         {showNotifications && (
-                            <div className="position-absolute end-0 mt-3 bg-white shadow-lg rounded overflow-hidden" style={{ width: '320px', zIndex: 1050, right: '-10px' }}>
-                                <div className="d-flex justify-content-between align-items-center px-3 py-2 bg-light border-bottom">
-                                    <h6 className="mb-0 fw-bold text-dark">Thông báo</h6>
-                                    <span className="badge bg-primary rounded-pill">{notifications.length} mới</span>
-                                </div>
-                                <div style={{ maxHeight: '350px', overflowY: 'auto' }}>
-                                    {notifications.length === 0 ? (
-                                        <div className="text-center py-4 text-muted">
-                                            <i className="bi bi-bell-slash display-6 d-block mb-2"></i>
-                                            <small>Không có thông báo nào</small>
-                                        </div>
-                                    ) : (
-                                        <ul className="list-group list-group-flush">
-                                            {notifications.map((notif, index) => (
-                                                <li key={index} className="list-group-item list-group-item-action px-3 py-3 border-bottom">
-                                                    <div className="d-flex w-100 justify-content-between mb-1">
-                                                        <strong className="text-primary small mb-1">Hệ thống</strong>
-                                                        <small className="text-muted" style={{ fontSize: '0.7rem' }}>
-                                                            {formatDate(notif.createdDate || notif.createdAt)}
-                                                        </small>
-                                                    </div>
-                                                    <p className="mb-0 small text-dark">{notif.message || notif.content}</p>
-                                                </li>
-                                            ))}
-                                        </ul>
-                                    )}
-                                </div>
-                                <div className="text-center py-2 bg-light border-top">
-                                    <button className="btn btn-link btn-sm text-decoration-none" onClick={() => setShowNotifications(false)}>Đóng</button>
+                            <div className="position-absolute end-0 mt-3 bg-white shadow-lg rounded border" style={{ width: '320px', zIndex: 1050 }}>
+                                <div className="p-2 border-bottom fw-bold bg-light rounded-top">Thông báo hệ thống</div>
+                                <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
+                                    {notifications.length === 0 ? <p className="text-center text-muted m-3 small">Không có thông báo mới</p> : 
+                                        notifications.map((n, i) => (
+                                            <div key={i} className="p-2 border-bottom small hover-bg-light">
+                                                <div className="fw-bold text-primary">{formatDate(n.createdAt)}</div>
+                                                <div>{n.message || n.content}</div>
+                                            </div>
+                                        ))
+                                    }
                                 </div>
                             </div>
                         )}
                     </div>
-
-                    {/* User Info */}
-                    <div className="text-end me-3 d-none d-md-block border-end pe-3 border-secondary">
-                        <small className="text-muted d-block text-uppercase" style={{ fontSize: '0.65rem' }}>{currentUser?.roleName}</small>
-                        <span className="text-white fw-medium">{currentUser?.accEmail}</span>
-                    </div>
-                    <button onClick={handleLogoutClick} className="btn btn-outline-danger btn-sm border-0 ms-2">
-                        <i className="bi bi-power fs-5"></i>
+                    
+                    <button onClick={() => handleLogout()} className="btn btn-outline-danger btn-sm d-flex align-items-center gap-2">
+                        <i className="bi bi-box-arrow-right"></i> Đăng xuất
                     </button>
                 </div>
-            </nav>
+            </div>
+        </nav>
+    );
 
-            <div className="container-fluid py-4 px-lg-5">
-                {/* Stats Cards */}
-                <div className="row g-4 mb-4">
-                    <div className="col-md-6 col-lg-3">
-                        <div 
-                            className="card border-0 shadow-sm bg-primary text-white h-100" 
-                            onClick={() => handleCardClick('TOTAL')}
-                            style={{ cursor: 'pointer', transition: 'transform 0.2s' }}
-                            onMouseOver={(e) => e.currentTarget.style.transform = 'scale(1.02)'}
-                            onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}
-                            title="Nhấn để xem tất cả người dùng (Role User)"
-                        >
-                            <div className="card-body">
-                                <div className="d-flex justify-content-between align-items-center">
-                                    <div>
-                                        <h6 className="text-white-50 text-uppercase mb-1">Tổng người dùng (User)</h6>
-                                        <h3 className="fw-bold mb-0">{stats.totalUsers || 0}</h3>
-                                    </div>
-                                    <i className="bi bi-people fs-1 opacity-50"></i>
-                                </div>
+    const OverviewTab = () => (
+        <div className="container-fluid py-4">
+             {/* Stats Cards */}
+             <div className="row g-4 mb-4">
+                <div className="col-md-4">
+                    <div className="card shadow-sm border-0 bg-primary text-white h-100" onClick={() => handleCardClick('TOTAL')} style={{cursor: 'pointer'}}>
+                        <div className="card-body d-flex justify-content-between align-items-center">
+                            <div>
+                                <div className="small text-white-50 text-uppercase">Tổng User</div>
+                                <div className="display-6 fw-bold">{stats.totalUsers}</div>
                             </div>
-                        </div>
-                    </div>
-                    <div className="col-md-6 col-lg-3">
-                        <div 
-                            className="card border-0 shadow-sm bg-success text-white h-100"
-                            onClick={() => handleCardClick('ONLINE')}
-                            style={{ cursor: 'pointer', transition: 'transform 0.2s' }}
-                            onMouseOver={(e) => e.currentTarget.style.transform = 'scale(1.02)'}
-                            onMouseOut={(e) => e.currentTarget.style.transform = 'scale(1)'}
-                            title="Nhấn để lọc người dùng đang Online"
-                        >
-                            <div className="card-body">
-                                <div className="d-flex justify-content-between align-items-center">
-                                    <div>
-                                        <h6 className="text-white-50 text-uppercase mb-1">Người dùng đang online</h6>
-                                        <h3 className="fw-bold mb-0">{stats.activeDevices || 0}</h3>
-                                    </div>
-                                    <i className="bi bi-phone fs-1 opacity-50"></i>
-                                </div>
-                            </div>
+                            <i className="bi bi-people fs-1 opacity-25"></i>
                         </div>
                     </div>
                 </div>
+                <div className="col-md-4">
+                    <div className="card shadow-sm border-0 bg-success text-white h-100" onClick={() => handleCardClick('ONLINE')} style={{cursor: 'pointer'}}>
+                        <div className="card-body d-flex justify-content-between align-items-center">
+                            <div>
+                                <div className="small text-white-50 text-uppercase">Người dùng đang online</div>
+                                <div className="display-6 fw-bold">{stats.activeDevices}</div>
+                            </div>
+                            <i className="bi bi-wifi fs-1 opacity-25"></i>
+                        </div>
+                    </div>
+                </div>
+                <div className="col-md-4">
+                    <div className="card shadow-sm border-0 bg-info text-white h-100">
+                        <div className="card-body d-flex justify-content-between align-items-center">
+                            <div>
+                                <div className="small text-white-50 text-uppercase">Giao dịch hệ thống</div>
+                                <div className="display-6 fw-bold">{stats.totalTransactions || 0}</div>
+                            </div>
+                            <i className="bi bi-receipt fs-1 opacity-25"></i>
+                        </div>
+                    </div>
+                </div>
+             </div>
 
-                {/* User Management */}
-                <div className="card border-0 shadow-sm" id="user-management-section">
-                    <div className="card-header bg-white py-3 border-0">
-                        <div className="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
-                            <h5 className="mb-0 fw-bold text-dark"><i className="bi bi-person-lines-fill me-2"></i>Quản lý người dùng</h5>
-                            
-                            <div className="d-flex gap-2">
-                                <select 
-                                    className="form-select form-select-sm w-auto shadow-sm"
-                                    value={filterOnline}
-                                    onChange={(e) => { setFilterOnline(e.target.value); setPage(0); }}
-                                >
-                                    <option value="">Tất cả kết nối</option>
-                                    <option value="online">Online</option>
-                                    <option value="offline">Offline</option>
-                                </select>
-
-                                <select 
-                                    className="form-select form-select-sm w-auto shadow-sm"
-                                    value={filterLocked}
-                                    onChange={(e) => { setFilterLocked(e.target.value); setPage(0); }}
-                                >
-                                    <option value="">Tất cả trạng thái</option>
-                                    <option value="false">Đang hoạt động</option>
-                                    <option value="true">Đã khóa</option>
-                                </select>
-                                <div className="input-group input-group-sm shadow-sm" style={{ maxWidth: '300px' }}>
-                                    <span className="input-group-text bg-white border-end-0 text-muted"><i className="bi bi-search"></i></span>
-                                    <input
-                                        type="text"
-                                        className="form-control border-start-0 ps-0"
-                                        placeholder="Tìm email, số điện thoại..."
-                                        value={searchTerm}
-                                        onChange={(e) => { setSearchTerm(e.target.value); setPage(0); }}
-                                    />
-                                </div>
+             {/* Charts & Budget */}
+             <div className="row g-4">
+                <div className="col-lg-8">
+                    <div className="card shadow-sm border-0 h-100">
+                        <div className="card-header bg-white border-0 py-3 d-flex justify-content-between align-items-center">
+                            <h6 className="mb-0 fw-bold">Phân tích dòng tiền hệ thống</h6>
+                            <div className="btn-group btn-group-sm">
+                                {['WEEKLY', 'MONTHLY', 'YEARLY'].map(m => (
+                                    <button key={m} className={`btn ${rangeMode === m ? 'btn-primary' : 'btn-outline-secondary'}`} 
+                                            onClick={() => setRangeMode(m)}>{m === 'WEEKLY' ? 'Tuần' : m === 'MONTHLY' ? 'Tháng' : 'Năm'}</button>
+                                ))}
                             </div>
                         </div>
+                        <div className="card-body">
+                             {transactionStats ? <Bar data={barChartData} options={chartOptions} /> 
+                                               : <div className="text-center py-5">Đang tải biểu đồ...</div>}
+                        </div>
                     </div>
-
-                    <div className="table-responsive">
-                        <table className="table table-hover align-middle mb-0">
-                            <thead className="table-light">
-                                <tr>
-                                    <th className="ps-4">ID</th>
-                                    <th>Email</th>
-                                    <th>Số điện thoại</th>
-                                    <th>Trạng thái</th>
-                                    <th>Online</th>
-                                    <th className="text-end pe-4">Hành động</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {loading ? (
-                                    <tr><td colSpan="6" className="text-center py-4 text-muted">Đang tải dữ liệu...</td></tr>
-                                ) : users.length === 0 ? (
-                                    <tr><td colSpan="6" className="text-center py-4 text-muted">Không tìm thấy người dùng nào.</td></tr>
-                                ) : (
-                                    users.map(u => (
-                                        <tr key={u.id}>
-                                            <td className="ps-4 text-muted small">#{u.id}</td>
-                                            <td className="fw-medium">{u.accEmail}</td>
-                                            <td>{u.accPhone || <span className="text-muted fst-italic">Chưa cập nhật</span>}</td>
-                                            <td>
-                                                {u.locked ? (
-                                                    <span className="badge bg-danger-subtle text-danger border border-danger-subtle px-3 rounded-pill">
-                                                        <i className="bi bi-lock-fill me-1"></i>Đã khóa
-                                                    </span>
-                                                ) : (
-                                                    <span className="badge bg-success-subtle text-success border border-success-subtle px-3 rounded-pill">
-                                                        <i className="bi bi-check-circle-fill me-1"></i>Hoạt động
-                                                    </span>
-                                                )}
-                                            </td>
-                                            <td>
-                                                {u.online ? (
-                                                    <span className="badge bg-success border border-success px-2 rounded-pill">
-                                                        <i className="bi bi-wifi me-1"></i>Online
-                                                    </span>
-                                                ) : (
-                                                    <span className="badge bg-secondary border border-secondary px-2 rounded-pill opacity-75">
-                                                        <i className="bi bi-wifi-off me-1"></i>Offline
-                                                    </span>
-                                                )}
-                                            </td>
-                                            <td className="text-end pe-4">
-                                                {u.locked ? (
-                                                    <button 
-                                                        className="btn btn-sm btn-outline-success border-0 fw-medium"
-                                                        onClick={() => openConfirmModal(u.id, true)}
-                                                        title="Mở khóa tài khoản"
-                                                    >
-                                                        <i className="bi bi-unlock me-1"></i>Mở khóa
-                                                    </button>
-                                                ) : (
-                                                    <button 
-                                                        className="btn btn-sm btn-outline-danger border-0 fw-medium"
-                                                        onClick={() => openConfirmModal(u.id, false)}
-                                                        title="Khóa tài khoản"
-                                                    >
-                                                        <i className="bi bi-lock me-1"></i>Khóa
-                                                    </button>
-                                                )}
-                                            </td>
-                                        </tr>
-                                    ))
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
-
-                    {/* Pagination */}
-                    {totalPages > 1 && (
-                        <div className="card-footer bg-white border-0 py-3">
-                            <nav>
-                                <ul className="pagination justify-content-center mb-0">
-                                    <li className={`page-item ${page === 0 ? 'disabled' : ''}`}>
-                                        <button className="page-link border-0 rounded-circle mx-1" onClick={() => setPage(p => Math.max(0, p - 1))}>
-                                            <i className="bi bi-chevron-left"></i>
-                                        </button>
-                                    </li>
-                                    {[...Array(totalPages)].map((_, i) => (
-                                        <li key={i} className={`page-item ${page === i ? 'active' : ''}`}>
-                                            <button 
-                                                className={`page-link border-0 rounded-circle mx-1 ${page === i ? 'bg-primary text-white shadow-sm' : 'text-dark'}`}
-                                                onClick={() => setPage(i)}
-                                            >
-                                                {i + 1}
-                                            </button>
+                </div>
+                <div className="col-lg-4">
+                    <div className="card shadow-sm border-0 h-100">
+                        <div className="card-header bg-white border-0 py-3">
+                            <h6 className="mb-0 fw-bold text-danger">Cảnh báo ngân sách</h6>
+                        </div>
+                        <div className="card-body p-0 overflow-auto" style={{maxHeight: '400px'}}>
+                            {overspentBudgets.length === 0 ? <div className="text-center text-muted py-4 small">Không có ngân sách vượt mức</div> : 
+                                <ul className="list-group list-group-flush">
+                                    {overspentBudgets.map((b, i) => (
+                                        <li key={i} className="list-group-item d-flex justify-content-between align-items-center px-4 py-3">
+                                            <div>
+                                                <div className="fw-bold text-dark">{b.categoryName}</div>
+                                                <div className="small text-muted">{b.userEmail}</div>
+                                            </div>
+                                            <span className="badge bg-danger rounded-pill">-{b.overAmount?.toLocaleString()}đ</span>
                                         </li>
                                     ))}
-                                    <li className={`page-item ${page === totalPages - 1 ? 'disabled' : ''}`}>
-                                        <button className="page-link border-0 rounded-circle mx-1" onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}>
-                                            <i className="bi bi-chevron-right"></i>
-                                        </button>
-                                    </li>
                                 </ul>
-                            </nav>
+                            }
                         </div>
-                    )}
+                    </div>
+                </div>
+             </div>
+        </div>
+    );
+
+    const UsersTab = () => (
+        <div className="container-fluid py-4">
+             <div className="card shadow-sm border-0">
+                <div className="card-header bg-white py-3 border-0 d-flex flex-wrap gap-2 justify-content-between align-items-center">
+                    <div className="d-flex gap-2">
+                        <input type="text" className="form-control form-control-sm" placeholder="Tìm kiếm user..." 
+                               value={searchTerm} onChange={e => {setSearchTerm(e.target.value); setPage(0);}} style={{width: '200px'}} />
+                        <select className="form-select form-select-sm" style={{width: '130px'}} value={filterLocked} onChange={e => {setFilterLocked(e.target.value); setPage(0);}}>
+                            <option value="">Trạng thái</option>
+                            <option value="false">Hoạt động</option>
+                            <option value="true">Đã khóa</option>
+                        </select>
+                        <select className="form-select form-select-sm" style={{width: '130px'}} value={filterOnline} onChange={e => {setFilterOnline(e.target.value); setPage(0);}}>
+                            <option value="">Kết nối</option>
+                            <option value="true">Online</option>
+                            <option value="false">Offline</option>
+                        </select>
+                    </div>
+                    <div className="small text-muted">Hiển thị {users.length} kết quả</div>
+                </div>
+                <div className="table-responsive">
+                    <table className="table table-hover align-middle mb-0">
+                        <thead className="table-light">
+                            <tr>
+                                <th className="ps-4">ID</th>
+                                <th>Email</th>
+                                <th>SĐT</th>
+                                <th>Trạng thái</th>
+                                <th>Kết nối</th>
+                                <th className="text-end pe-4">Thao tác</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {loading ? <tr><td colSpan="6" className="text-center py-5">Đang tải...</td></tr> : 
+                             users.length === 0 ? <tr><td colSpan="6" className="text-center py-5">Không tìm thấy dữ liệu</td></tr> :
+                             users.map(u => (
+                                 <tr key={u.id}>
+                                     <td className="ps-4 fw-bold text-muted">#{u.id}</td>
+                                     <td>{u.accEmail}</td>
+                                     <td>{u.accPhone || '-'}</td>
+                                     <td>{u.locked ? <span className="badge bg-danger-subtle text-danger">Đã khóa</span> : <span className="badge bg-success-subtle text-success">Hoạt động</span>}</td>
+                                     <td>{u.online ? <span className="badge bg-success">Online</span> : <span className="badge bg-secondary">Offline</span>}</td>
+                                     <td className="text-end pe-4">
+                                         <button className={`btn btn-sm ${u.locked ? 'btn-outline-success' : 'btn-outline-danger'} border-0`}
+                                                 onClick={() => setConfirmModal({show: true, userId: u.id, isLocked: u.locked})}>
+                                             <i className={`bi ${u.locked ? 'bi-unlock' : 'bi-lock'}`}></i>
+                                         </button>
+                                     </td>
+                                 </tr>
+                             ))
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                {totalPages > 1 && (
+                    <div className="card-footer bg-white border-0 py-3 d-flex justify-content-center">
+                         <button className="btn btn-sm btn-outline-secondary me-2" disabled={page===0} onClick={() => setPage(p => p-1)}><i className="bi bi-chevron-left"></i></button>
+                         <span className="align-self-center small mx-2">Trang {page+1} / {totalPages}</span>
+                         <button className="btn btn-sm btn-outline-secondary ms-2" disabled={page===totalPages-1} onClick={() => setPage(p => p+1)}><i className="bi bi-chevron-right"></i></button>
+                    </div>
+                )}
+             </div>
+        </div>
+    );
+
+    return (
+        <div className="d-flex min-vh-100 bg-light">
+            <Sidebar />
+            <div className="flex-grow-1 d-flex flex-column" style={{height: '100vh', overflow: 'hidden'}}>
+                <Topbar />
+                <div className="flex-grow-1 overflow-auto bg-light">
+                    {activeTab === 'overview' && <OverviewTab />}
+                    {activeTab === 'users' && <UsersTab />}
                 </div>
             </div>
 
-            {/* Confirmation Modal */}
+            {/* Confirm Modal */}
             {confirmModal.show && (
-                <div className="modal fade show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }} tabIndex="-1" role="dialog">
+                <div className="modal fade show d-block" style={{backgroundColor: 'rgba(0,0,0,0.5)'}}>
                     <div className="modal-dialog modal-dialog-centered">
-                        <div className="modal-content border-0 shadow">
-                            <div className="modal-header border-bottom-0">
-                                <h5 className="modal-title fw-bold">Xác nhận hành động</h5>
-                                <button type="button" className="btn-close" onClick={closeConfirmModal}></button>
-                            </div>
-                            <div className="modal-body text-center py-4">
-                                <div className="mb-3">
-                                    <i className={`bi ${confirmModal.isLocked ? 'bi-unlock-fill text-success' : 'bi-lock-fill text-danger'} display-4`}></i>
+                        <div className="modal-content shadow border-0">
+                            <div className="modal-body text-center p-4">
+                                <i className={`bi ${confirmModal.isLocked ? 'bi-unlock-fill text-success' : 'bi-lock-fill text-danger'} display-1 mb-3`}></i>
+                                <h5 className="fw-bold mb-3">{confirmModal.isLocked ? 'Mở khóa tài khoản?' : 'Khóa tài khoản?'}</h5>
+                                <p className="text-muted mb-4">Hành động này sẽ {confirmModal.isLocked ? 'cho phép người dùng truy cập lại' : 'ngăn chặn người dùng truy cập'} hệ thống.</p>
+                                <div className="d-flex justify-content-center gap-2">
+                                    <button className="btn btn-light px-4" onClick={() => setConfirmModal({...confirmModal, show: false})}>Hủy</button>
+                                    <button className={`btn ${confirmModal.isLocked ? 'btn-success' : 'btn-danger'} px-4`} onClick={confirmAction}>Xác nhận</button>
                                 </div>
-                                <p className="mb-0 fs-5">
-                                    Bạn có chắc chắn muốn <span className="fw-bold">{confirmModal.isLocked ? 'mở khóa' : 'khóa'}</span> tài khoản này không?
-                                </p>
-                                <p className="text-muted small mt-2">Hành động này sẽ cập nhật trạng thái truy cập của người dùng.</p>
-                            </div>
-                            <div className="modal-footer border-top-0 justify-content-center pb-4">
-                                <button type="button" className="btn btn-light px-4 me-2" onClick={closeConfirmModal}>Hủy bỏ</button>
-                                <button 
-                                    type="button" 
-                                    className={`btn ${confirmModal.isLocked ? 'btn-success' : 'btn-danger'} px-4`}
-                                    onClick={handleConfirmAction}
-                                >
-                                    Đồng ý
-                                </button>
                             </div>
                         </div>
                     </div>

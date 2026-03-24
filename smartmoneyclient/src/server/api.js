@@ -55,6 +55,21 @@ export const adminApi = {
 
     // GET /api/admin/notifications/{adminId}
     getAdminNotifications: (adminId) => api.get(`/admin/notifications/${adminId}`),
+
+    // GET /api/admin/system/transaction-stats
+    // Params: rangeMode (String: "MONTHLY" | "WEEKLY" | "YEARLY")
+    getSystemTransactionStats: (rangeMode = "MONTHLY") => api.get('/admin/system/transaction-stats', {
+        params: { rangeMode }
+    }),
+
+    // GET /api/admin/system/overspent-budgets
+    // Params: rangeMode (String: "MONTHLY" | "WEEKLY" | "YEARLY")
+    getSystemOverspentBudgets: (rangeMode = "MONTHLY") => api.get('/admin/system/overspent-budgets', {
+        params: { rangeMode }
+    }),
+
+    // GET /api/admin/analytics/online-users
+    getOnlineUsers: () => api.get('/admin/analytics/online-users'),
 };
 
 // --- USER API ---
