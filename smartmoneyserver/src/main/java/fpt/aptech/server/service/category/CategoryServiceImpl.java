@@ -4,7 +4,6 @@ import fpt.aptech.server.dto.category.CategoryRequest;
 import fpt.aptech.server.dto.category.CategoryResponse;
 import fpt.aptech.server.entity.Account;
 import fpt.aptech.server.entity.Category;
-import fpt.aptech.server.entity.Transaction;
 import fpt.aptech.server.mapper.category.CategoryMapper;
 import fpt.aptech.server.repos.AccountRepository;
 import fpt.aptech.server.repos.CategoryRepository;
@@ -87,87 +86,72 @@ public class CategoryServiceImpl implements CategoryService {
     }
 
     /**
-     * Xóa danh mục - HYBRID (Hỗ trợ cả 2 chế độ).
+     * Xóa danh mục - HYBRID (Hỗ trợ MERGE và DELETE_ALL).
      * 
      * LOGIC:
-     * 1. Validate quyền sở hữu của danh mục cần xóa.
-     * 2. Nếu actionType = "MERGE": Gộp giao dịch cha + con sang mục mới, xóa danh mục.
-     * 3. Nếu actionType = "DELETE_ALL" (hoặc null): Xóa sạch giao dịch cha + con, xóa danh mục.
+     * 1. Kiểm tra quyền sở hữu danh mục.
+     * 2. Xử lý Giao dịch (Transactions): Hoàn tiền ví -> (Gộp hoặc Xóa giao dịch).
+     * 3. Xóa Danh mục: Sử dụng deleteAllInBatch để xóa các danh mục con trước, 
+     *    nhằm đảm bảo tính toàn vẹn dữ liệu (FK constraint) trước khi xóa danh mục cha.
      * 
-     * @param actionType "MERGE" (gộp giao dịch) hoặc "DELETE_ALL" (xóa sạch) - mặc định DELETE_ALL nếu null
-     * @param newCategoryId ID mục nhận gộp (bắt buộc nếu actionType = MERGE)
+     * ⚠️ LƯU Ý: Không thay đổi object trong childCategories trước khi gọi deleteAllInBatch,
+     *    vì nó chạy bằng query thuần (không dọn dẹp Hibernate Session).
      */
     @Override
     @Transactional
     public void deleteCategoryWithOptions(Integer categoryId, Integer accountId, String actionType, Integer newCategoryId) {
-        // 1. Validate danh mục cần xóa & quyền sở hữu
         Category category = getOwnedCategory(categoryId, accountId);
-
-        // 2. Lấy danh sách danh mục con
         List<Category> childCategories = categoryRepository.findByParent_IdAndAccount_Id(categoryId, accountId);
-
-        // 3. Xác định kiểu xóa (mặc định: DELETE_ALL)
         String action = (actionType != null) ? actionType.toUpperCase() : "DELETE_ALL";
 
         if ("MERGE".equals(action)) {
-            // ═══════════════════════════════════════════════════════════════════════════
-            // LOGIC GỘP (MERGE): Gộp giao dịch sang mục mới rồi xóa danh mục
-            // ═══════════════════════════════════════════════════════════════════════════
-
-            // 3.1. Validate mục nhận gộp
-            if (newCategoryId == null) {
-                throw new IllegalArgumentException("Thiếu tham số: ID mục nhận gộp (newCategoryId)");
-            }
-
+            if (newCategoryId == null) throw new IllegalArgumentException("Thiếu tham số: newCategoryId");
             Category targetCategory = getOwnedCategory(newCategoryId, accountId);
 
-            // 3.2. Validate: Mục cần xóa và mục nhận phải cùng loại (Thu/Chi)
             if (!category.getCtgType().equals(targetCategory.getCtgType())) {
-                throw new IllegalArgumentException(
-                        "Không thể gộp danh mục chi sang danh mục thu (hoặc ngược lại). " +
-                        "Vui lòng chọn danh mục cùng loại."
-                );
+                throw new IllegalArgumentException("Không thể gộp khác loại (Thu/Chi).");
             }
-
-            // 3.3. Validate: Không được gộp vào chính nó
             if (categoryId.equals(newCategoryId)) {
-                throw new IllegalArgumentException("Không thể gộp danh mục sang chính nó.");
+                throw new IllegalArgumentException("Không thể gộp vào chính nó.");
             }
 
-            // 3.4. Di chuyển giao dịch của danh mục CHA sang mục nhận
-            transactionRepository.updateCategoryForUserTransactions(categoryId, newCategoryId, accountId);
+            // --- PHẢI LÀM THEO THỨ TỰ NÀY ---
 
-            // 3.5. Di chuyển giao dịch của danh mục CON sang mục nhận
+            // A. Hoàn tiền cho CHA và TOÀN BỘ CON (Khi chúng vẫn còn gắn với Category cũ)
+            transactionService.revertAllTransactionBalancesForCategoryNoFetch(categoryId, accountId);
+            for (Category child : childCategories) {
+                transactionService.revertAllTransactionBalancesForCategoryNoFetch(child.getId(), accountId);
+            }
+
+            // B. Sau khi hoàn tiền xong, mới đổi Category ID sang mục mới
+            transactionRepository.updateCategoryForUserTransactions(categoryId, newCategoryId, accountId);
             for (Category child : childCategories) {
                 transactionRepository.updateCategoryForUserTransactions(child.getId(), newCategoryId, accountId);
             }
 
-            // 3.6. Hoàn tiền: Vì giao dịch đã chuyển sang mục mới, cần hoàn tiền mục cũ
-            transactionService.revertAllTransactionBalancesForCategoryNoFetch(categoryId, accountId);
-            for (Category child : childCategories) {
-                transactionService.revertAllTransactionBalancesForCategoryNoFetch(child.getId(), accountId);
-            }
-
         } else {
-            // ═══════════════════════════════════════════════════════════════════════════
-            // LOGIC XÓA SẠCH (DELETE_ALL): Xóa luôn giao dịch, không gộp
-            // ═══════════════════════════════════════════════════════════════════════════
-
-            // 3.1. Hoàn tiền + Xóa giao dịch của danh mục CON
+            // LOGIC XÓA SẠCH (DELETE_ALL)
             for (Category child : childCategories) {
                 transactionService.revertAllTransactionBalancesForCategoryNoFetch(child.getId(), accountId);
                 transactionRepository.deleteAllByCategoryIdAndAccountId(child.getId(), accountId);
             }
-
-            // 3.2. Hoàn tiền + Xóa giao dịch của danh mục CHA
             transactionService.revertAllTransactionBalancesForCategoryNoFetch(categoryId, accountId);
             transactionRepository.deleteAllByCategoryIdAndAccountId(categoryId, accountId);
         }
 
-        // 4. Xóa danh mục khỏi DB (Con trước, cha sau để tránh FK constraint)
+        // --- XÓA DỮ LIỆU: CON TRƯỚC, CHA SAU (Tránh lỗi FK) ---
+
+        // 4. Xóa danh mục con
         if (!childCategories.isEmpty()) {
-            categoryRepository.deleteAllInBatch(childCategories);
+            // Dùng deleteAll để Hibernate đồng bộ lifecycle của các thực thể (tránh TransientObjectException).
+            // deleteAll sẽ xóa từng entity thông qua Persistence Context, đảm bảo các quan hệ trong bộ nhớ
+            // được cập nhật đúng trước khi xóa cha.
+            categoryRepository.deleteAll(childCategories);
+            // Ép đồng bộ xuống DB ngay để đảm bảo trạng thái nhất quán (tùy chọn nhưng an toàn).
+            categoryRepository.flush();
         }
+
+        // 5. Cuối cùng xóa danh mục cha
         categoryRepository.delete(category);
     }
 

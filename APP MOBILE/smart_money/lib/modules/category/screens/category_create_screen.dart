@@ -23,10 +23,13 @@
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:smart_money/modules/category/providers/category_provider.dart';
 import 'package:smart_money/modules/category/models/category_request.dart';
 import 'package:smart_money/modules/category/models/category_response.dart';
+import 'package:smart_money/modules/category/models/icon_dto.dart';
 import 'package:smart_money/modules/category/widgets/parent_category_sheet.dart';
+import 'package:smart_money/modules/category/screens/icon_picker_screen.dart';
 
 class CategoryCreateScreen extends StatefulWidget {
   // Loại mặc định khi mở từ tab Chi (false) hoặc Thu (true)
@@ -52,6 +55,9 @@ class _CategoryCreateScreenState extends State<CategoryCreateScreen> {
 
   // Danh mục cha đã chọn (null = tạo danh mục gốc)
   CategoryResponse? _selectedParent;
+
+  // Icon đã chọn từ IconPickerScreen (null = dùng mặc định)
+  IconDto? _selectedIcon;
 
   // Đang gửi request (disable nút Lưu khi đang gọi API)
   bool _isSaving = false;
@@ -109,6 +115,27 @@ class _CategoryCreateScreenState extends State<CategoryCreateScreen> {
   }
 
   // =============================================
+  // [5.4b] _openIconPicker — mở màn hình chọn icon
+  // =============================================
+  void _openIconPicker() async {
+    final result = await Navigator.push<IconDto>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => IconPickerScreen(
+          currentIconFileName: _selectedIcon?.fileName,
+        ),
+      ),
+    );
+
+    // Nếu user chọn icon → cập nhật state
+    if (result != null && mounted) {
+      setState(() {
+        _selectedIcon = result;
+      });
+    }
+  }
+
+  // =============================================
   // [5.5] _saveCategory — gọi API tạo danh mục
   // =============================================
   void _saveCategory() async {
@@ -128,7 +155,7 @@ class _CategoryCreateScreenState extends State<CategoryCreateScreen> {
     final request = CategoryRequest(
       ctgName: name,
       ctgType: _ctgType,
-      ctgIconUrl: null, // TODO: cho user chọn icon (hiện dùng mặc định)
+      ctgIconUrl: _selectedIcon?.fileName, // fileName từ icon picker (null = mặc định)
       parentId: _selectedParent?.id, // null nếu tạo danh mục gốc
     );
 
@@ -182,16 +209,27 @@ class _CategoryCreateScreenState extends State<CategoryCreateScreen> {
             // ===== [A] Row 1: Icon + Tên nhóm =====
             Row(
               children: [
-                // Icon danh mục (bấm để chọn — TODO)
+                // Icon danh mục (bấm để chọn icon từ server)
                 GestureDetector(
-                  onTap: () {
-                    // TODO: mở picker chọn icon
-                  },
-                  child: CircleAvatar(
-                    radius: 24,
-                    backgroundColor: Colors.grey.shade800,
-                    child: const Icon(Icons.category, color: Colors.white, size: 24),
-                  ),
+                  onTap: _openIconPicker,
+                  child: _selectedIcon != null
+                      ? CircleAvatar(
+                          radius: 24,
+                          backgroundColor: Colors.grey.shade800,
+                          child: CachedNetworkImage(
+                            imageUrl: _selectedIcon!.url,
+                            width: 36,
+                            height: 36,
+                            fit: BoxFit.contain,
+                            placeholder: (_, __) => const Icon(Icons.category, color: Colors.white, size: 24),
+                            errorWidget: (_, __, ___) => const Icon(Icons.category, color: Colors.white, size: 24),
+                          ),
+                        )
+                      : CircleAvatar(
+                          radius: 24,
+                          backgroundColor: Colors.grey.shade800,
+                          child: const Icon(Icons.category, color: Colors.white, size: 24),
+                        ),
                 ),
                 const SizedBox(width: 16),
                 // TextField nhập tên

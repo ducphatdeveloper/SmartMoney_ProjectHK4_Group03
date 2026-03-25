@@ -78,15 +78,40 @@ class _CategoryListScreenState extends State<CategoryListScreen>
   }
 
   // =============================================
+  // [4.1b] didChangeAppLifecycleState — xử lý khi quay lại app
+  // =============================================
+  // Khi user quay lại từ screen khác (transaction list, etc.)
+  // → Clear cache toàn bộ → reload data lần đầu tiên vào tab
+  // Lợi ích: Đảm bảo dữ liệu luôn fresh, không bị dính cache stale
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && mounted) {
+      // Khi user quay lại app từ background → xóa cache
+      final provider = Provider.of<CategoryProvider>(context, listen: false);
+      provider.clearCache();
+      // Load lại tab hiện tại (sẽ gọi API do cache được xóa)
+      provider.loadByGroup(_tabGroups[_tabController.index]);
+    }
+  }
+
+  // =============================================
   // [4.2] _onTabChanged — xử lý khi chuyển tab
   // =============================================
+  // Logic:
+  //   • Nếu tab đã từng load (có cache) → hiện cache (mượt, 0 lag)
+  //   • Nếu tab chưa load → gọi API (lần đầu)
+  //   • Không gọi API mỗi khi chuyển tab → tránh lag
   void _onTabChanged() {
     // Chỉ xử lý khi tab thực sự đổi (tránh gọi 2 lần)
     if (!_tabController.indexIsChanging) return;
 
-    final group = _tabGroups[_tabController.index]; // lấy group name
+    final group = _tabGroups[_tabController.index];
     final provider = Provider.of<CategoryProvider>(context, listen: false);
-    provider.loadByGroup(group); // gọi API load danh mục theo group
+    
+    // Gọi loadByGroup mà không force refresh
+    // → Nếu đã cache trước đó → dùng cache (mượt)
+    // → Nếu chưa cache → gọi API lần đầu
+    provider.loadByGroup(group, forceRefresh: false);
   }
 
   // =============================================
@@ -111,7 +136,7 @@ class _CategoryListScreenState extends State<CategoryListScreen>
     // Luôn reload tab hiện tại khi quay về (có thể đã sửa/xóa từ search)
     if (mounted) {
       final provider = Provider.of<CategoryProvider>(context, listen: false);
-      provider.loadByGroup(_tabGroups[_tabController.index]);
+      provider.loadByGroup(_tabGroups[_tabController.index], forceRefresh: true);
     }
   }
 
@@ -134,7 +159,7 @@ class _CategoryListScreenState extends State<CategoryListScreen>
     // Nếu tạo thành công (result == true) → reload danh sách
     if (result == true && mounted) {
       final provider = Provider.of<CategoryProvider>(context, listen: false);
-      provider.loadByGroup(_tabGroups[_tabController.index]);
+      provider.loadByGroup(_tabGroups[_tabController.index], forceRefresh: true);
     }
   }
 
@@ -168,7 +193,7 @@ class _CategoryListScreenState extends State<CategoryListScreen>
     // Nếu sửa/xóa thành công → reload
     if (result == true && mounted) {
       final provider = Provider.of<CategoryProvider>(context, listen: false);
-      provider.loadByGroup(_tabGroups[_tabController.index]);
+      provider.loadByGroup(_tabGroups[_tabController.index], forceRefresh: true);
     }
   }
 
@@ -193,57 +218,70 @@ class _CategoryListScreenState extends State<CategoryListScreen>
             ),
         ],
 
-        // ===== TabBar 3 tab =====
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(50),
-          child: Container(
-            margin: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: const Color(0xFF2C2C2E),
-              borderRadius: BorderRadius.circular(25),
-            ),
-            child: TabBar(
-              controller: _tabController,
-              indicator: BoxDecoration(
-                color: Colors.grey,
-                borderRadius: BorderRadius.circular(25),
-              ),
-              labelColor: Colors.white,
-              unselectedLabelColor: Colors.grey,
-              dividerColor: Colors.transparent,
-              tabs: const [
-                Tab(text: "Khoản chi"),
-                Tab(text: "Khoản thu"),
-                Tab(text: "Vay/Nợ"),
-              ],
+        // ===== TabBar 3 tab — chia đều, line trắng dưới tab đang chọn =====
+        bottom: TabBar(
+          controller: _tabController,
+          // Indicator: line trắng bên dưới tab đang chọn
+          indicatorColor: Colors.white,
+          indicatorWeight: 3,
+          indicatorSize: TabBarIndicatorSize.tab,
+          // Tab đang chọn: nền xanh lá, chữ trắng
+          labelColor: Colors.white,
+          labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+          // Tab không chọn: chữ xám
+          unselectedLabelColor: Colors.grey,
+          unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.normal, fontSize: 14),
+          dividerColor: Colors.transparent,
+          // Nền cho tab đang chọn — dùng BoxDecoration qua indicator
+          indicator: const BoxDecoration(
+            color: Color(0xFF4CAF50), // nền xanh lá cho tab đang chọn
+            border: Border(
+              bottom: BorderSide(color: Colors.white, width: 3),
             ),
           ),
+          tabs: const [
+            Tab(text: "Khoản chi"),
+            Tab(text: "Khoản thu"),
+            Tab(text: "Vay/Nợ"),
+          ],
         ),
       ),
 
       // ===== Body: TabBarView với 3 tab =====
-      body: TabBarView(
-        controller: _tabController,
-        children: [
-          // Tab 1: Khoản chi
-          CategoryTabContent(
-            group: 'expense',
-            onAddNew: widget.isSelectMode ? null : _navigateToCreate,
-            onTapCategory: _onCategoryTap,
-          ),
-          // Tab 2: Khoản thu
-          CategoryTabContent(
-            group: 'income',
-            onAddNew: widget.isSelectMode ? null : _navigateToCreate,
-            onTapCategory: _onCategoryTap,
-          ),
-          // Tab 3: Vay/Nợ — không có nút "Nhóm mới"
-          CategoryTabContent(
-            group: 'debt',
-            onAddNew: null, // không cho tạo mới ở tab Vay/Nợ
-            onTapCategory: _onCategoryTap,
-          ),
-        ],
+      body: RefreshIndicator(
+        onRefresh: () async {
+          // Khi user pull-to-refresh → clear cache + load tab hiện tại
+          final provider = Provider.of<CategoryProvider>(context, listen: false);
+          provider.clearCache();
+          await provider.loadByGroup(_tabGroups[_tabController.index]);
+        },
+        child: TabBarView(
+          controller: _tabController,
+          // 1. Physics: PageScrollPhysics → cuộn như page (mượt)
+          // 2. Drag từ phải sang trái → chuyển tab → list lướt từ phải sang trái
+          // 3. Drag từ trái sang phải → chuyển tab → list lướt từ trái sang phải
+          physics: const PageScrollPhysics(),
+          children: [
+            // Tab 1: Khoản chi
+            CategoryTabContent(
+              group: 'expense',
+              onAddNew: widget.isSelectMode ? null : _navigateToCreate,
+              onTapCategory: _onCategoryTap,
+            ),
+            // Tab 2: Khoản thu
+            CategoryTabContent(
+              group: 'income',
+              onAddNew: widget.isSelectMode ? null : _navigateToCreate,
+              onTapCategory: _onCategoryTap,
+            ),
+            // Tab 3: Vay/Nợ — không có nút "Nhóm mới"
+            CategoryTabContent(
+              group: 'debt',
+              onAddNew: null, // không cho tạo mới ở tab Vay/Nợ
+              onTapCategory: _onCategoryTap,
+            ),
+          ],
+        ),
       ),
     );
   }

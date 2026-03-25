@@ -1,9 +1,11 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import 'home_screen.dart';
 import 'package:smart_money/modules/transaction/screens/transaction_list_screen.dart';
 import 'package:smart_money/modules/transaction/screens/transaction_create_screen.dart';
+import 'package:smart_money/modules/transaction/providers/transaction_provider.dart';
 import 'package:smart_money/modules/Budget/screens/budget_screens.dart';
 import 'account_screen.dart';
 
@@ -65,10 +67,18 @@ class _MainNavigationState extends State<MainNavigation> {
         elevation: 8,
 
         onPressed: () async {
-          // Mở màn hình tạo giao dịch — nhận result khi pop
+          // Lấy ví đang chọn ở dropdown để truyền sang màn tạo giao dịch
+          final txProvider = context.read<TransactionProvider>();
+          final currentSource = txProvider.selectedSource;
+
+          // Mở màn hình tạo giao dịch — truyền ví đang chọn làm mặc định
           final result = await Navigator.push<bool>(
             context,
-            MaterialPageRoute(builder: (_) => const TransactionCreateScreen()),
+            MaterialPageRoute(
+              builder: (_) => TransactionCreateScreen(
+                initialSourceItem: currentSource,
+              ),
+            ),
           );
           // Nếu tạo thành công (result=true) → refresh provider nếu cần
           if (result == true && mounted) {

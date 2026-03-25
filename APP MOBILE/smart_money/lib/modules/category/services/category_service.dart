@@ -16,6 +16,7 @@ import 'package:smart_money/core/models/api_response.dart';
 import 'package:smart_money/core/constants/app_constants.dart';
 import 'package:smart_money/modules/category/models/category_response.dart';
 import 'package:smart_money/modules/category/models/category_request.dart';
+import 'package:smart_money/modules/category/models/icon_dto.dart';
 
 class CategoryService {
 
@@ -162,6 +163,33 @@ class CategoryService {
           .toList();
     }
     return []; // trả rỗng nếu json không phải List
+  }
+
+  // -----------------------------------------------------------
+  // [1.10] Lấy danh sách icon từ Cloudinary qua backend
+  // -----------------------------------------------------------
+  // Backend: GET /api/icons
+  // Response: ApiResponse<List<IconDto>>
+  // Dùng khi: User chọn icon cho category mới hoặc đổi icon
+  static Future<ApiResponse<List<IconDto>>> getIcons() async {
+    final url = AppConstants.iconsBase; // /api/icons
+
+    return ApiHandler.get<List<IconDto>>(
+      url,
+      fromJson: (json) => _parseIconList(json),
+    );
+  }
+
+  // -----------------------------------------------------------
+  // [1.11] Helper nội bộ — Parse List<IconDto> từ JSON
+  // -----------------------------------------------------------
+  static List<IconDto> _parseIconList(dynamic json) {
+    if (json is List) {
+      return json
+          .map((item) => IconDto.fromJson(item as Map<String, dynamic>))
+          .toList();
+    }
+    return [];
   }
 }
 

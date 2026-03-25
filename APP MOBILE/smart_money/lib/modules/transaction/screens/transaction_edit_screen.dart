@@ -73,6 +73,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
   bool _isSaving = false;                        // đang gửi request — disable nút Lưu/Xóa
   String _pendingOperator = '';                   // toán tử đang chờ (+, -, ×, ÷)
   double _previousValue = 0;                     // giá trị trước toán tử
+  bool _waitingForNextNumber = false;             // [FIX-4] true = vừa bấm toán tử, chờ user nhập số mới
 
   // FocusNodes để theo dõi focus text field → ẩn/hiện calculator keyboard
   final _noteFocusNode = FocusNode();
@@ -374,9 +375,11 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
           _amountStr = '0';
           _pendingOperator = '';
           _previousValue = 0;
+          _waitingForNextNumber = false;
           break;
 
         case '⌫':
+          if (_waitingForNextNumber) break;
           if (_amountStr.length > 1) {
             _amountStr = _amountStr.substring(0, _amountStr.length - 1);
           } else {
@@ -385,14 +388,18 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
           break;
 
         case '000':
-          if (_amountStr != '0') {
+          if (_waitingForNextNumber) {
+            _waitingForNextNumber = false;
+          } else if (_amountStr != '0') {
             _amountStr += '000';
           }
           break;
 
         case '.':
-          // [FIX] Chỉ cho thêm 1 dấu chấm duy nhất
-          if (!_amountStr.contains('.')) {
+          if (_waitingForNextNumber) {
+            _amountStr = '0.';
+            _waitingForNextNumber = false;
+          } else if (!_amountStr.contains('.')) {
             _amountStr += '.';
           }
           break;
@@ -401,8 +408,8 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
         case '-':
         case '×':
         case '÷':
-          // [FIX] Nếu đang có toán tử chờ → tính kết quả trung gian trước
-          if (_pendingOperator.isNotEmpty && _amountStr != '0') {
+          // [FIX-4] Giữ hiển thị số hiện tại, chỉ chờ user nhập số mới
+          if (_pendingOperator.isNotEmpty && !_waitingForNextNumber) {
             final current = double.tryParse(_amountStr) ?? 0;
             _previousValue = _calcResult(_previousValue, current, _pendingOperator);
             _amountStr = _formatCalcResult(_previousValue);
@@ -410,21 +417,25 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
             _previousValue = double.tryParse(_amountStr) ?? 0;
           }
           _pendingOperator = key;
-          _amountStr = '0';
+          _waitingForNextNumber = true;
           break;
 
         case '>':
-          if (_pendingOperator.isNotEmpty) {
+          if (_pendingOperator.isNotEmpty && !_waitingForNextNumber) {
             final current = double.tryParse(_amountStr) ?? 0;
             final result = _calcResult(_previousValue, current, _pendingOperator);
             _amountStr = _formatCalcResult(result);
             _pendingOperator = '';
             _previousValue = 0;
+            _waitingForNextNumber = false;
           }
           break;
 
         default:
-          if (_amountStr == '0') {
+          if (_waitingForNextNumber) {
+            _amountStr = key;
+            _waitingForNextNumber = false;
+          } else if (_amountStr == '0') {
             _amountStr = key;
           } else {
             _amountStr += key;

@@ -45,7 +45,10 @@ import 'package:smart_money/modules/category/screens/category_list_screen.dart';
 import 'package:smart_money/core/helpers/format_helper.dart';
 
 class TransactionCreateScreen extends StatefulWidget {
-  const TransactionCreateScreen({super.key});
+  // Ví mặc định — truyền từ dropdown đang chọn ở TransactionListScreen
+  final SourceItem? initialSourceItem;
+
+  const TransactionCreateScreen({super.key, this.initialSourceItem});
 
   @override
   State<TransactionCreateScreen> createState() => _TransactionCreateScreenState();
@@ -71,6 +74,7 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
   bool _isSaving = false;                        // đang gửi request — disable nút Lưu
   String _pendingOperator = '';                   // toán tử đang chờ (+, -, ×, ÷)
   double _previousValue = 0;                     // giá trị trước toán tử
+  bool _waitingForNextNumber = false;             // [FIX-4] true = vừa bấm toán tử, chờ user nhập số mới
 
   // FocusNodes để theo dõi focus text field → ẩn/hiện calculator keyboard
   final _noteFocusNode = FocusNode();
@@ -85,6 +89,12 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
     super.initState();
     _noteFocusNode.addListener(_onFocusChanged);
     _withPersonFocusNode.addListener(_onFocusChanged);
+
+    // [FIX-1] Nếu có ví mặc định từ dropdown → pre-fill
+    // Bỏ qua "Tổng cộng" (type='all') vì tạo giao dịch cần ví cụ thể
+    if (widget.initialSourceItem != null && widget.initialSourceItem!.type != 'all') {
+      _selectedSourceItem = widget.initialSourceItem;
+    }
   }
 
   void _onFocusChanged() {
@@ -263,14 +273,16 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
     setState(() {
       switch (key) {
         case 'C':
-          // Reset về 0
+          // Reset tất cả về 0
           _amountStr = '0';
           _pendingOperator = '';
           _previousValue = 0;
+          _waitingForNextNumber = false;
           break;
 
         case '⌫':
-          // Xóa ký tự cuối
+          // Xóa ký tự cuối — nếu đang chờ nhập số mới thì bỏ qua
+          if (_waitingForNextNumber) break;
           if (_amountStr.length > 1) {
             _amountStr = _amountStr.substring(0, _amountStr.length - 1);
           } else {
@@ -279,15 +291,21 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
           break;
 
         case '000':
-          // Thêm 000
-          if (_amountStr != '0') {
+          // Thêm 000 — nếu đang chờ nhập số mới thì bắt đầu từ 000 (= 0)
+          if (_waitingForNextNumber) {
+            _waitingForNextNumber = false;
+            // 000 khi bắt đầu = 0, không thay đổi
+          } else if (_amountStr != '0') {
             _amountStr += '000';
           }
           break;
 
         case '.':
           // [FIX] Chỉ cho thêm 1 dấu chấm duy nhất
-          if (!_amountStr.contains('.')) {
+          if (_waitingForNextNumber) {
+            _amountStr = '0.';
+            _waitingForNextNumber = false;
+          } else if (!_amountStr.contains('.')) {
             _amountStr += '.';
           }
           break;
@@ -296,37 +314,42 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
         case '-':
         case '×':
         case '÷':
-          // [FIX] Nếu đang có toán tử chờ VÀ user đã nhập số mới
-          // → tính kết quả trung gian trước khi lưu toán tử mới
-          // VD: 100 + 50 + → tính 100+50=150 trước, rồi chờ toán tử mới
-          if (_pendingOperator.isNotEmpty && _amountStr != '0') {
+          // [FIX-4] Bấm toán tử:
+          //   1. Nếu đã có toán tử chờ VÀ user đã nhập số mới → tính trung gian
+          //   2. Lưu toán tử mới → chờ user nhập số tiếp theo
+          //   3. KHÔNG reset _amountStr ngay — giữ hiển thị để user thấy
+          if (_pendingOperator.isNotEmpty && !_waitingForNextNumber) {
+            // User đã nhập số mới sau toán tử trước → tính kết quả trung gian
             final current = double.tryParse(_amountStr) ?? 0;
             _previousValue = _calcResult(_previousValue, current, _pendingOperator);
-            // Hiện kết quả trung gian để user thấy (VD: 150)
             _amountStr = _formatCalcResult(_previousValue);
           } else {
+            // Lần đầu bấm toán tử hoặc bấm toán tử liên tiếp
             _previousValue = double.tryParse(_amountStr) ?? 0;
           }
           _pendingOperator = key;
-          // Reset amountStr SAU khi user bắt đầu nhập số tiếp theo
-          // (không reset ngay để user thấy kết quả trung gian)
-          _amountStr = '0';
+          _waitingForNextNumber = true; // chờ user nhập số mới, giữ _amountStr hiển thị
           break;
 
         case '>':
-          // Tính kết quả biểu thức cuối cùng
-          if (_pendingOperator.isNotEmpty) {
+          // Tính kết quả cuối cùng (nút =)
+          if (_pendingOperator.isNotEmpty && !_waitingForNextNumber) {
             final current = double.tryParse(_amountStr) ?? 0;
             final result = _calcResult(_previousValue, current, _pendingOperator);
             _amountStr = _formatCalcResult(result);
             _pendingOperator = '';
             _previousValue = 0;
+            _waitingForNextNumber = false;
           }
           break;
 
         default:
           // Bấm số 0-9
-          if (_amountStr == '0') {
+          if (_waitingForNextNumber) {
+            // [FIX-4] User bắt đầu nhập số mới sau toán tử
+            _amountStr = key; // thay thế hoàn toàn
+            _waitingForNextNumber = false;
+          } else if (_amountStr == '0') {
             _amountStr = key; // thay thế số 0 đầu
           } else {
             _amountStr += key; // nối thêm

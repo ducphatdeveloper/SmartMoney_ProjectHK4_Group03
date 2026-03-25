@@ -30,7 +30,9 @@ import 'package:provider/provider.dart';
 import 'package:smart_money/modules/category/providers/category_provider.dart';
 import 'package:smart_money/modules/category/models/category_request.dart';
 import 'package:smart_money/modules/category/models/category_response.dart';
+import 'package:smart_money/modules/category/models/icon_dto.dart';
 import 'package:smart_money/modules/category/widgets/parent_category_sheet.dart';
+import 'package:smart_money/modules/category/screens/icon_picker_screen.dart';
 import 'package:smart_money/core/helpers/icon_helper.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
@@ -62,6 +64,11 @@ class _CategoryEditScreenState extends State<CategoryEditScreen> {
   // [FIX-2] Tên cha hiển thị trên UI
   String? _parentDisplayName;
 
+  // Icon đã chọn (fileName) — khởi tạo từ category hiện tại, đổi khi user chọn icon mới
+  String? _selectedIconFileName;
+  // URL hiển thị — dùng khi user chọn icon mới từ picker
+  String? _selectedIconUrl;
+
   bool _isSaving = false;   // đang gửi request cập nhật — disable nút Lưu
   bool _isDeleting = false; // đang gửi request xóa — disable nút Xóa
 
@@ -78,6 +85,9 @@ class _CategoryEditScreenState extends State<CategoryEditScreen> {
 
     // Bước 2: [FIX-1] Gán parentId ban đầu từ server
     _effectiveParentId = widget.category.parentId;
+
+    // Bước 2b: Gán icon ban đầu từ category hiện tại
+    _selectedIconFileName = widget.category.ctgIconUrl;
 
     // Bước 3: [FIX-2] Nếu có cha, load tên cha để hiển thị
     if (widget.category.parentId != null) {
@@ -157,6 +167,28 @@ class _CategoryEditScreenState extends State<CategoryEditScreen> {
   }
 
   // =============================================
+  // [6.4b] _openIconPicker — mở màn hình chọn icon
+  // =============================================
+  void _openIconPicker() async {
+    final result = await Navigator.push<IconDto>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => IconPickerScreen(
+          currentIconFileName: _selectedIconFileName,
+        ),
+      ),
+    );
+
+    // Nếu user chọn icon mới → cập nhật state
+    if (result != null && mounted) {
+      setState(() {
+        _selectedIconFileName = result.fileName; // lưu tên file để gửi lên server
+        _selectedIconUrl = result.url;            // URL để hiển thị ngay
+      });
+    }
+  }
+
+  // =============================================
   // [6.5] _updateCategory — gọi API cập nhật
   // =============================================
   Future<void> _updateCategory() async {
@@ -172,7 +204,7 @@ class _CategoryEditScreenState extends State<CategoryEditScreen> {
     final request = CategoryRequest(
       ctgName: name,
       ctgType: _ctgType,
-      ctgIconUrl: widget.category.ctgIconUrl,
+      ctgIconUrl: _selectedIconFileName, // icon đã chọn (hoặc icon gốc nếu chưa đổi)
       parentId: _effectiveParentId,
     );
 
@@ -367,9 +399,7 @@ class _CategoryEditScreenState extends State<CategoryEditScreen> {
             Row(
               children: [
                 GestureDetector(
-                  onTap: () {
-                    // TODO: mở icon picker
-                  },
+                  onTap: _openIconPicker,
                   child: _buildCategoryIcon(),
                 ),
                 const SizedBox(width: 16),
@@ -552,15 +582,22 @@ class _CategoryEditScreenState extends State<CategoryEditScreen> {
   // =============================================
   // _buildCategoryIcon — hiển thị icon từ Cloudinary
   // =============================================
+  // Ưu tiên: icon vừa chọn mới (_selectedIconUrl) > icon gốc (widget.category.ctgIconUrl)
   Widget _buildCategoryIcon() {
-    final cloudinaryUrl = IconHelper.buildCloudinaryUrl(widget.category.ctgIconUrl);
+    // Nếu user vừa chọn icon mới → dùng URL trực tiếp từ picker
+    String? displayUrl = _selectedIconUrl;
     
-    if (cloudinaryUrl != null && cloudinaryUrl.isNotEmpty) {
+    // Nếu chưa chọn icon mới → dùng icon gốc (convert từ fileName)
+    if (displayUrl == null) {
+      displayUrl = IconHelper.buildCloudinaryUrl(_selectedIconFileName);
+    }
+    
+    if (displayUrl != null && displayUrl.isNotEmpty) {
       return CircleAvatar(
         radius: 24,
         backgroundColor: Colors.grey.shade800,
         child: CachedNetworkImage(
-          imageUrl: cloudinaryUrl,
+          imageUrl: displayUrl,
           width: 40,
           height: 40,
           fit: BoxFit.cover,

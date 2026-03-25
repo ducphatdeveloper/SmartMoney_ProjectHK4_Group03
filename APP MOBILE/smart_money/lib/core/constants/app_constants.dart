@@ -98,4 +98,7 @@ class AppConstants {
 
   // --- Utils (date-ranges cho thanh trượt màn hình transaction) ---
   static String get utilDateRanges        => "$baseUrl/utils/date-ranges";
+
+  // --- Icons (lấy danh sách icon từ Cloudinary) ---
+  static String get iconsBase             => "$baseUrl/icons";
 }

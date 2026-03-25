@@ -51,13 +51,38 @@ class CategoryProvider extends ChangeNotifier {
   String? get successMessage => _successMessage;
 
   // =============================================
+  // [2.1b] CACHE — Lưu danh mục của mỗi group
+  // =============================================
+  // Dùng để tránh gọi API mỗi khi chuyển tab
+  // Key: "expense" | "income" | "debt"
+  // Value: Danh sách CategoryResponse đã load
+  final Map<String, List<CategoryResponse>> _cachedByGroup = {};
+
+  // =============================================
   // [2.2] LOAD — Lấy danh sách theo nhóm (3 tab)
   // =============================================
-  // Gọi khi: Mở màn hình, chuyển tab, sau khi tạo/sửa/xóa
+  // Logic:
+  //   1. Nếu đã cache → hiện cache luôn (mượt, không lag)
+  //   2. Sau đó background load từ API (optional refresh)
+  //   3. Nếu chưa cache → load từ API (lần đầu mở tab)
+  //
+  // Gọi khi: Mở màn hình, chuyển tab lần đầu, sau khi tạo/sửa/xóa
   // API: GET /api/categories?group=expense
-  Future<void> loadByGroup(String group) async {
-    // Bước 1: Bật loading, xóa lỗi cũ
-    _isLoading = true;
+  Future<void> loadByGroup(String group, {bool forceRefresh = false}) async {
+    // Bước 0: Nếu đã cache và không force refresh → dùng cache
+    if (!forceRefresh && _cachedByGroup.containsKey(group)) {
+      _categories = _cachedByGroup[group]!;
+      _currentGroup = group;
+      _isLoading = false;
+      _errorMessage = null;
+      notifyListeners();
+      return;
+    }
+
+    // Bước 1: Bật loading, xóa lỗi cũ (chỉ lần đầu không có cache)
+    if (!_cachedByGroup.containsKey(group)) {
+      _isLoading = true;
+    }
     _errorMessage = null;
     _currentGroup = group; // lưu tab đang chọn
     notifyListeners();
@@ -65,9 +90,10 @@ class CategoryProvider extends ChangeNotifier {
     // Bước 2: Gọi API qua CategoryService
     final response = await CategoryService.getByGroup(group);
 
-    // Bước 3: Xử lý kết quả
+    // Bước 3: Xử lý kết quả + cache
     if (response.success && response.data != null) {
-      _categories = response.data!; // gán danh sách
+      _categories = response.data!;
+      _cachedByGroup[group] = response.data!; // lưu cache
     } else {
       _categories = [];
       _errorMessage = response.message; // lỗi từ server (tiếng Việt)
@@ -76,6 +102,21 @@ class CategoryProvider extends ChangeNotifier {
     // Bước 4: Tắt loading, thông báo UI cập nhật
     _isLoading = false;
     notifyListeners();
+  }
+
+  // =============================================
+  // [2.2b] CLEAR CACHE — Xóa cache khi quay lại screen
+  // =============================================
+  // Logic:
+  //   • Dùng khi user quay lại từ create/edit/delete hoặc screen khác
+  //   • Xóa toàn bộ cache → lần load tiếp theo sẽ gọi API (fresh data)
+  //   • Tránh dính cache stale khi dữ liệu thay đổi từ nơi khác
+  void clearCache() {
+    _cachedByGroup.clear();
+    _categories = [];
+    _currentGroup = 'expense';
+    _isLoading = false;
+    _errorMessage = null;
   }
 
   // =============================================

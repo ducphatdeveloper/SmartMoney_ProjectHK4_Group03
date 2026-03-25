@@ -1,0 +1,36 @@
+### =================================================================
+### SMARTMONEY - ICON API TEST
+### User test: minh.pham@gmail.com (acc_id=6)
+### =================================================================
+
+### [0] AUTH - Đăng nhập lấy Token
+# Lấy token để có thể gọi các API được bảo vệ
+POST http://localhost:9999/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "minh.pham@gmail.com",
+  "password": "Test@123",
+  "deviceToken": "device_token_test_icon_api",
+  "deviceType": "Postman",
+  "deviceName": "Test Client for Icons"
+}
+
+> {%
+    client.global.set("auth_token", response.body.data.accessToken);
+%}
+
+### =================================================================
+### [1] GET ALL ICONS - Lấy danh sách tất cả icon từ Cloudinary
+### =================================================================
+
+### [1.1] Lấy danh sách icon
+# Kỳ vọng: 200 OK, và body chứa một danh sách các URL (https://...)
+# Lần đầu tiên chạy sẽ hơi chậm do phải gọi Cloudinary.
+# Các lần sau sẽ nhanh hơn do lấy từ cache.
+GET http://localhost:9999/api/icons
+Authorization: Bearer {{auth_token}}
+
+### [1.2] Lỗi: Gọi API không có token
+# Kỳ vọng: 401 Unauthorized hoặc 403 Forbidden
+GET http://localhost:9999/api/icons

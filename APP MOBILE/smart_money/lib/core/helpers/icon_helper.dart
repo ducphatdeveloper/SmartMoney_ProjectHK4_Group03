@@ -19,16 +19,27 @@ class IconHelper {
   // =============================================
   // [1] Chuyển tên file → URL Cloudinary đầy đủ
   // =============================================
-  // VD: "icon_food.png" → "https://res.cloudinary.com/.../icon_food.png"
-  // VD: null → null
-  // VD: "https://..." → giữ nguyên (phòng trường hợp backend trả URL đầy đủ)
+  // Logic:
+  //   • Nếu null hoặc rỗng → null
+  //   • Nếu đã là URL (startsWith 'http') → giữ nguyên (từ API /api/icons)
+  //   • Nếu chỉ là filename (VD: "icon_food.png") → nối với base Cloudinary (backup từ old backend)
+  //
+  // VD:
+  //   • null → null
+  //   • "icon_food.png" → "https://res.cloudinary.com/.../icon_food.png"
+  //   • "https://res.cloudinary.com/.../icon_food.png" → "https://res.cloudinary.com/.../icon_food.png"
+  //
+  // Lợi ích:
+  //   • Hỗ trợ cả 2 cách: URL từ API hoặc filename từ database cũ
+  //   • Tự động detect loại input → không cần biết đầu vào là gì
+  //   • Nếu backend thay URL base, chỉ cần update _cloudinaryBase
   static String? buildCloudinaryUrl(String? iconName) {
     if (iconName == null || iconName.trim().isEmpty) return null;
 
-    // Nếu đã là URL đầy đủ → giữ nguyên
+    // Nếu đã là URL đầy đủ (từ API /api/icons) → giữ nguyên
     if (iconName.startsWith('http')) return iconName;
 
-    // Nối tên file với base Cloudinary
+    // Nếu chỉ là filename → nối với base Cloudinary
     return '$_cloudinaryBase/$iconName';
   }
 
