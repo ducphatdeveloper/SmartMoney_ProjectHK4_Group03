@@ -81,3 +81,451 @@ Content-Type: application/json
 # Thay ID 100 bằng ID danh mục bạn muốn xóa
 DELETE http://localhost:9999/api/categories/100
 Authorization: Bearer {{auth_token}}
+
+================================================================================
+### ===== XÓA DANH MỤC - TEST CASES (NEW LOGIC) =====
+================================================================================
+
+### 12. Lấy danh sách danh mục nhận gộp (Loại Chi tiêu - false)
+# Dùng khi user chọn "MERGE" - hiển thị danh mục nào để gộp vào
+GET http://localhost:9999/api/categories/merge-targets?type=false
+Authorization: Bearer {{auth_token}}
+
+> {%
+    if (response.status === 200 && response.body.data.length > 0) {
+        client.global.set("merge_target_id", response.body.data[0].id);
+        client.log("Danh mục nhận gộp (ID): " + response.body.data[0].id);
+    }
+%}
+
+### 13. Lấy danh sách danh mục nhận gộp (Loại Thu nhập - true)
+GET http://localhost:9999/api/categories/merge-targets?type=true
+Authorization: Bearer {{auth_token}}
+
+### 14. Tạo danh mục test để xóa (Gốc - rỗng)
+# Danh mục này sẽ được xóa ở test case 15 (empty delete)
+POST http://localhost:9999/api/categories
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "ctgName": "Test Delete Empty Category",
+  "ctgType": false,
+  "ctgIconUrl": "icon_test_delete.svg",
+  "parentId": null
+}
+
+> {%
+    if (response.status === 201) {
+        client.global.set("empty_category_id", response.body.data.id);
+        client.log("Danh mục test xóa (empty) - ID: " + response.body.data.id);
+    }
+%}
+
+### 15. XÓA danh mục rỗng (Không có con, không có giao dịch)
+# Expected: 200 OK - Xóa thành công
+DELETE http://localhost:9999/api/categories/{{empty_category_id}}
+Authorization: Bearer {{auth_token}}
+
+> {%
+    client.test("Delete empty category - Status 200", function() {
+        client.assert(response.status === 200, "Should be 200 OK");
+    });
+    client.test("Delete empty category - Success message", function() {
+        client.assert(response.body.success === true);
+        client.assert(response.body.message.includes("thành công"));
+    });
+%}
+
+### 16. Tạo danh mục cha test có con
+POST http://localhost:9999/api/categories
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "ctgName": "Parent Category Test",
+  "ctgType": false,
+  "ctgIconUrl": "icon_parent.svg",
+  "parentId": null
+}
+
+> {%
+    if (response.status === 201) {
+        client.global.set("parent_category_id", response.body.data.id);
+        client.log("Parent category ID: " + response.body.data.id);
+    }
+%}
+
+### 17. Tạo danh mục con test (Thuộc parent ở step 16)
+POST http://localhost:9999/api/categories
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "ctgName": "Child Category Test",
+  "ctgType": false,
+  "ctgIconUrl": "icon_child.svg",
+  "parentId": {{parent_category_id}}
+}
+
+> {%
+    if (response.status === 201) {
+        client.global.set("child_category_id", response.body.data.id);
+        client.log("Child category ID: " + response.body.data.id);
+    }
+%}
+
+### 18. XÓA danh mục có con (Should FAIL)
+# Expected: 400 Bad Request - "Danh mục này đang có các danh mục con..."
+DELETE http://localhost:9999/api/categories/{{parent_category_id}}
+Authorization: Bearer {{auth_token}}
+
+> {%
+    client.test("Delete parent with children - Status 400", function() {
+        client.assert(response.status === 400, "Should be 400 Bad Request");
+    });
+    client.test("Delete parent with children - Error message", function() {
+        client.assert(response.body.message.includes("danh mục con"));
+    });
+%}
+
+### 19. Xóa danh mục con trước (Clean up)
+DELETE http://localhost:9999/api/categories/{{child_category_id}}
+Authorization: Bearer {{auth_token}}
+
+### 20. Xóa danh mục cha sau (Khi đã rỗng)
+DELETE http://localhost:9999/api/categories/{{parent_category_id}}
+Authorization: Bearer {{auth_token}}
+
+================================================================================
+### ===== XÓA DANH MỤC CÓ GIAO DỊCH - TEST CASES (MERGE & DELETE_ALL) =====
+================================================================================
+
+### 21. Tạo ví test để tạo giao dịch
+POST http://localhost:9999/api/wallets
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "walletName": "Test Wallet Delete Category",
+  "walletType": "CASH",
+  "balance": 1000.00,
+  "currency": "VND"
+}
+
+> {%
+    if (response.status === 201) {
+        client.global.set("test_wallet_id", response.body.data.id);
+        client.log("✅ Ví test tạo thành công - ID: " + response.body.data.id);
+    }
+%}
+
+### 22. Tạo danh mục test (Sẽ có giao dịch)
+POST http://localhost:9999/api/categories
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "ctgName": "Category With Transactions",
+  "ctgType": false,
+  "ctgIconUrl": "icon_category_txn.svg",
+  "parentId": null
+}
+
+> {%
+    if (response.status === 201) {
+        client.global.set("txn_category_id", response.body.data.id);
+        client.log("✅ Danh mục test tạo thành công - ID: " + response.body.data.id);
+    }
+%}
+
+### 23. Tạo giao dịch trong danh mục test (Giao dịch 1)
+POST http://localhost:9999/api/transactions
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "categoryId": {{txn_category_id}},
+  "walletId": {{test_wallet_id}},
+  "amount": 50000,
+  "description": "Test transaction 1",
+  "transDate": "2026-03-25T10:00:00",
+  "reportable": true
+}
+
+> {%
+    if (response.status === 201) {
+        client.log("✅ Giao dịch 1 tạo thành công - ID: " + response.body.data.id);
+    }
+%}
+
+### 24. Tạo giao dịch trong danh mục test (Giao dịch 2)
+POST http://localhost:9999/api/transactions
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "categoryId": {{txn_category_id}},
+  "walletId": {{test_wallet_id}},
+  "amount": 30000,
+  "description": "Test transaction 2",
+  "transDate": "2026-03-25T11:00:00",
+  "reportable": true
+}
+
+> {%
+    if (response.status === 201) {
+        client.log("✅ Giao dịch 2 tạo thành công - ID: " + response.body.data.id);
+    }
+%}
+
+### 25. XÓA danh mục có giao dịch (Không có actionType - Should FAIL)
+# Expected: 400 Lỗi - "Danh mục này có X giao dịch. Vui lòng chọn hành động: MERGE hoặc DELETE_ALL"
+DELETE http://localhost:9999/api/categories/{{txn_category_id}}
+Authorization: Bearer {{auth_token}}
+
+> {%
+    client.test("Xóa danh mục có giao dịch - Status 400", function() {
+        client.assert(response.status === 400, "Phải trả về 400 Bad Request");
+    });
+    client.test("Xóa danh mục có giao dịch - Yêu cầu chọn hành động", function() {
+        client.assert(response.body.message.includes("giao dịch"), "Message phải chứa 'giao dịch'");
+        client.assert(response.body.message.includes("MERGE") || response.body.message.includes("DELETE_ALL"), "Message phải chứa hành động");
+    });
+%}
+
+### 26. XÓA danh mục với actionType=MERGE (Gộp giao dịch sang danh mục khác)
+# Expected: 200 OK - Giao dịch được chuyển sang merge_target_id, danh mục cũ bị xóa
+DELETE http://localhost:9999/api/categories/{{txn_category_id}}?actionType=MERGE&newCategoryId={{merge_target_id}}
+Authorization: Bearer {{auth_token}}
+
+> {%
+    client.test("MERGE - Status 200", function() {
+        client.assert(response.status === 200, "Phải trả về 200 OK");
+    });
+    client.test("MERGE - Message thành công", function() {
+        client.assert(response.body.success === true, "success phải là true");
+        client.assert(response.body.message.includes("thành công"), "Message phải chứa 'thành công'");
+    });
+    client.log("✅ Gộp danh mục thành công - Giao dịch đã chuyển sang danh mục " + {{merge_target_id}});
+%}
+
+### 27. Tạo danh mục test khác (Để test DELETE_ALL)
+POST http://localhost:9999/api/categories
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "ctgName": "Category For Delete All",
+  "ctgType": false,
+  "ctgIconUrl": "icon_delete_all.svg",
+  "parentId": null
+}
+
+> {%
+    if (response.status === 201) {
+        client.global.set("delete_all_category_id", response.body.data.id);
+        client.log("✅ Danh mục để test DELETE_ALL tạo thành công - ID: " + response.body.data.id);
+    }
+%}
+
+### 28. Tạo giao dịch trong danh mục delete_all test
+POST http://localhost:9999/api/transactions
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "categoryId": {{delete_all_category_id}},
+  "walletId": {{test_wallet_id}},
+  "amount": 100000,
+  "description": "Test transaction for DELETE_ALL",
+  "transDate": "2026-03-25T14:00:00",
+  "reportable": true
+}
+
+> {%
+    if (response.status === 201) {
+        client.log("✅ Giao dịch tạo trong danh mục DELETE_ALL - ID: " + response.body.data.id);
+    }
+%}
+
+### 29. Ghi lại wallet balance trước khi DELETE_ALL (Để verify hoàn tiền)
+GET http://localhost:9999/api/wallets/{{test_wallet_id}}
+Authorization: Bearer {{auth_token}}
+
+> {%
+    if (response.status === 200) {
+        client.global.set("wallet_balance_before_delete", response.body.data.balance);
+        client.log("💰 Số dư ví TRƯỚC xóa: " + response.body.data.balance);
+    }
+%}
+
+### 30. XÓA danh mục với actionType=DELETE_ALL (Hoàn tiền + Xóa giao dịch)
+# Expected: 200 OK - Giao dịch bị xóa, wallet balance được hoàn tiền
+DELETE http://localhost:9999/api/categories/{{delete_all_category_id}}?actionType=DELETE_ALL
+Authorization: Bearer {{auth_token}}
+
+> {%
+    client.test("DELETE_ALL - Status 200", function() {
+        client.assert(response.status === 200, "Phải trả về 200 OK");
+    });
+    client.test("DELETE_ALL - Message thành công", function() {
+        client.assert(response.body.success === true, "success phải là true");
+        client.assert(response.body.message.includes("thành công"), "Message phải chứa 'thành công'");
+    });
+    client.log("✅ Xóa danh mục + giao dịch thành công");
+%}
+
+### 31. Verify wallet balance sau khi DELETE_ALL (Phải hoàn tiền)
+GET http://localhost:9999/api/wallets/{{test_wallet_id}}
+Authorization: Bearer {{auth_token}}
+
+> {%
+    if (response.status === 200) {
+        client.global.set("wallet_balance_after_delete", response.body.data.balance);
+        client.log("💰 Số dư ví SAU xóa: " + response.body.data.balance);
+        client.test("DELETE_ALL - Hoàn tiền đúng", function() {
+            // Nếu giao dịch là chi (ctgType=false) thì balance phải tăng 100000
+            // Nếu giao dịch là thu (ctgType=true) thì balance phải giảm 100000
+            // Trong test case này: giao dịch chi nên balance = before + 100000
+            let beforeBalance = client.global.get("wallet_balance_before_delete");
+            let afterBalance = response.body.data.balance;
+            let expectedBalance = beforeBalance + 100000;
+            client.assert(afterBalance === expectedBalance,
+                         "Balance phải hoàn tiền chính xác: " + expectedBalance + " (thực tế: " + afterBalance + ")");
+            client.log("✅ Hoàn tiền: " + beforeBalance + " → " + afterBalance + " (cộng 100000)");
+        });
+    }
+%}
+
+================================================================================
+### ===== CÁC TRƯỜNG HỢP LỖI / TEST BẢO MẬT =====
+================================================================================
+
+### 32. Xóa danh mục không tồn tại (Should FAIL)
+# Expected: 404 Không tìm thấy
+DELETE http://localhost:9999/api/categories/999999
+Authorization: Bearer {{auth_token}}
+
+> {%
+    client.test("Xóa danh mục không tồn tại - Status 404", function() {
+        client.assert(response.status === 404, "Phải trả về 404 Not Found");
+    });
+    client.log("✅ Kiểm tra: Danh mục không tồn tại → 404");
+%}
+
+### 33. Xóa danh mục với invalid actionType (Should FAIL)
+# Expected: 400 Lỗi - "Hành động không hợp lệ: 'INVALID'. Vui lòng chọn: MERGE hoặc DELETE_ALL."
+DELETE http://localhost:9999/api/categories/5?actionType=INVALID
+Authorization: Bearer {{auth_token}}
+
+> {%
+    client.test("Hành động không hợp lệ - Status 400", function() {
+        client.assert(response.status === 400, "Phải trả về 400 Bad Request");
+    });
+    client.test("Hành động không hợp lệ - Message lỗi", function() {
+        client.assert(response.body.message.includes("không hợp lệ"), "Message phải chứa 'không hợp lệ'");
+    });
+    client.log("✅ Kiểm tra: actionType không hợp lệ → 400 + message tiếng Việt");
+%}
+
+### 34. Xóa danh mục với actionType=MERGE nhưng không có newCategoryId (Should FAIL)
+# Expected: 400 Lỗi - "Khi chọn MERGE, bạn phải cung cấp newCategoryId..."
+DELETE http://localhost:9999/api/categories/5?actionType=MERGE
+Authorization: Bearer {{auth_token}}
+
+> {%
+    client.test("MERGE thiếu newCategoryId - Status 400", function() {
+        client.assert(response.status === 400, "Phải trả về 400 Bad Request");
+    });
+    client.test("MERGE thiếu newCategoryId - Message lỗi", function() {
+        client.assert(response.body.message.includes("newCategoryId"), "Message phải chứa 'newCategoryId'");
+    });
+    client.log("✅ Kiểm tra: MERGE thiếu newCategoryId → 400 + message tiếng Việt");
+%}
+
+### 35. Xóa danh mục với actionType=MERGE vào chính nó (Should FAIL)
+# Expected: 400 Lỗi - "Không thể gộp một danh mục vào chính nó..."
+DELETE http://localhost:9999/api/categories/5?actionType=MERGE&newCategoryId=5
+Authorization: Bearer {{auth_token}}
+
+> {%
+    client.test("MERGE vào chính nó - Status 400", function() {
+        client.assert(response.status === 400, "Phải trả về 400 Bad Request");
+    });
+    client.test("MERGE vào chính nó - Message lỗi", function() {
+        client.assert(response.body.message.includes("chính nó"), "Message phải chứa 'chính nó'");
+    });
+    client.log("✅ Kiểm tra: MERGE vào chính nó → 400 + message tiếng Việt");
+%}
+
+### 36. Xóa danh mục với MERGE vào danh mục không tồn tại (Should FAIL)
+# Expected: 400 Lỗi - "Danh mục nhận giao dịch không tồn tại..."
+DELETE http://localhost:9999/api/categories/5?actionType=MERGE&newCategoryId=999999
+Authorization: Bearer {{auth_token}}
+
+> {%
+    client.test("MERGE vào danh mục không tồn tại - Status 400", function() {
+        client.assert(response.status === 400, "Phải trả về 400 Bad Request");
+    });
+    client.test("MERGE vào danh mục không tồn tại - Message lỗi", function() {
+        client.assert(response.body.message.includes("không tồn tại"), "Message phải chứa 'không tồn tại'");
+    });
+    client.log("✅ Kiểm tra: MERGE vào danh mục không tồn tại → 400 + message tiếng Việt");
+%}
+
+### 37. Tạo danh mục loại Thu nhập để test MERGE type mismatch
+POST http://localhost:9999/api/categories
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "ctgName": "Income Category For Type Mismatch Test",
+  "ctgType": true,
+  "ctgIconUrl": "icon_income.svg",
+  "parentId": null
+}
+
+> {%
+    if (response.status === 201) {
+        client.global.set("income_category_for_test", response.body.data.id);
+        client.log("✅ Danh mục Thu nhập test tạo - ID: " + response.body.data.id);
+    }
+%}
+
+### 38. Tạo danh mục loại Chi tiêu để test MERGE type mismatch
+POST http://localhost:9999/api/categories
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "ctgName": "Expense Category For Type Mismatch Test",
+  "ctgType": false,
+  "ctgIconUrl": "icon_expense.svg",
+  "parentId": null
+}
+
+> {%
+    if (response.status === 201) {
+        client.global.set("expense_category_for_type_mismatch", response.body.data.id);
+        client.log("✅ Danh mục Chi tiêu test tạo - ID: " + response.body.data.id);
+    }
+%}
+
+### 39. Xóa danh mục Chi tiêu với MERGE vào danh mục Thu nhập (Type Mismatch - Should FAIL)
+# Expected: 400 Lỗi - "Không thể gộp danh mục 'Khoản Chi' vào danh mục 'Khoản Thu'..."
+DELETE http://localhost:9999/api/categories/{{expense_category_for_type_mismatch}}?actionType=MERGE&newCategoryId={{income_category_for_test}}
+Authorization: Bearer {{auth_token}}
+
+> {%
+    client.test("MERGE type mismatch (Chi→Thu) - Status 400", function() {
+        client.assert(response.status === 400, "Phải trả về 400 Bad Request");
+    });
+    client.test("MERGE type mismatch (Chi→Thu) - Message lỗi", function() {
+        client.assert(response.body.message.includes("loại danh mục"), "Message phải chứa 'loại danh mục'");
+    });
+    client.log("✅ Kiểm tra: MERGE Chi vào Thu → 400 + message tiếng Việt");
+%}
+
+================================================================================
+

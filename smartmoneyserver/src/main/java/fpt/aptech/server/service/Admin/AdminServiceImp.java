@@ -238,9 +238,9 @@ public class AdminServiceImp implements AdminService {
                     budget.getAccount().getId(),
                     budget.getBeginDate().atStartOfDay(),
                     budget.getEndDate().atTime(LocalTime.MAX),
-                    budget.getCategories().stream().map(c -> c.getId()).toList(),
-                    false, // Bổ sung tham số thứ 5: deleted = false
-                    null   // Bổ sung tham số thứ 6: debtId (hoặc tham số lọc khác) = null
+                    budget.getWallet() != null ? budget.getWallet().getId() : null, // walletId
+                    budget.getAllCategories(),
+                    budget.getCategories().stream().map(c -> c.getId()).collect(Collectors.toSet()) // categoryIds
             );
             if (spentAmount == null) spentAmount = BigDecimal.ZERO;
 

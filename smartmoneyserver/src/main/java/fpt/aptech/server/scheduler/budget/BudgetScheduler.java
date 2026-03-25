@@ -21,7 +21,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
-import java.util.Collections;
+//import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -80,7 +80,8 @@ public class BudgetScheduler {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void checkAndNotify(Budget budget) {
         Set<Integer> categoryIds = resolveCategoryIds(budget);
-        List<Integer> walletId = Collections.singletonList(budget.getWallet() != null ? budget.getWallet().getId() : null);
+        Integer walletId = budget.getWallet() != null ? budget.getWallet().getId() : null;
+        //List<Integer> walletId = Collections.singletonList(budget.getWallet() != null ? budget.getWallet().getId() : null); // Budget trong he thong chi thuoc null hoac 1 vi ko sai dongg nay
 
         BigDecimal spent = transactionRepository.sumExpenseForBudget(
                 budget.getAccount().getId(),

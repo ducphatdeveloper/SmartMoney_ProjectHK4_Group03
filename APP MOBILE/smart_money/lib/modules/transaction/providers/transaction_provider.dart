@@ -26,6 +26,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:smart_money/core/enums/date_range_type.dart';
 import 'package:smart_money/core/models/date_range_dto.dart';
+import 'package:smart_money/core/helpers/icon_helper.dart';
 import 'package:smart_money/modules/transaction/models/source_item.dart';
 import 'package:smart_money/modules/transaction/models/view/daily_transaction_group.dart';
 import 'package:smart_money/modules/transaction/models/view/category_transaction_group.dart';
@@ -503,11 +504,14 @@ class TransactionProvider extends ChangeNotifier {
       // Bước 3: Thêm wallets vào list
       if ((walletsResponse.success ?? false) && walletsResponse.data != null) {
         for (var wallet in walletsResponse.data!) {
+          // Convert filename.png → Cloudinary URL
+          final walletIcon = IconHelper.buildCloudinaryUrl(wallet.goalImageUrl);
+          
           _sourceItems.add(
             SourceItem.fromWallet(
               id: wallet.id,
               name: wallet.walletName,
-              iconUrl: wallet.goalImageUrl,
+              iconUrl: walletIcon,
               balance: wallet.balance,
             ),
           );
@@ -517,11 +521,14 @@ class TransactionProvider extends ChangeNotifier {
       // Bước 4: Thêm mục tiêu tiết kiệm vào list
       if ((goalsResponse.success ?? false) && goalsResponse.data != null) {
         for (var goal in goalsResponse.data!) {
+          // Convert filename.png → Cloudinary URL
+          final goalIcon = IconHelper.buildCloudinaryUrl(goal.imageUrl);
+          
           _sourceItems.add(
             SourceItem.fromSavingGoal(
               id: goal.id,
               name: goal.goalName,
-              iconUrl: goal.imageUrl,
+              iconUrl: goalIcon,
               balance: goal.currentAmount,
             ),
           );

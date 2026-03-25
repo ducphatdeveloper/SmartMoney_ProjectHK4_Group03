@@ -1,8 +1,8 @@
 package fpt.aptech.server.service.transaction;
 
+import fpt.aptech.server.dto.transaction.report.CategoryReportDTO;
 import fpt.aptech.server.dto.transaction.report.DailyTrendDTO;
 import fpt.aptech.server.dto.transaction.report.FinancialReportResponse;
-import fpt.aptech.server.dto.transaction.report.CategoryReportDTO;
 import fpt.aptech.server.dto.transaction.report.TransactionReportResponse;
 import fpt.aptech.server.dto.transaction.request.TransactionRequest;
 import fpt.aptech.server.dto.transaction.request.TransactionSearchRequest;
@@ -610,11 +610,60 @@ public class TransactionServiceImpl implements TransactionService {
     }
 
     // =================================================================================
-    // 5. PHƯƠNG THỨC PHỤ (PRIVATE HELPERS)
+    // 5. HỖ TRỢ HÀM (HELPER)
     // =================================================================================
 
     /**
-     * [5.1] Xử lý giao dịch liên quan đến Ví.
+     * [5.1] Hoàn tiền về ví hoặc mục tiêu khi xóa/gộp giao dịch.
+     * - Một giao dịch chỉ thuộc về 1 loại: Ví HOẶC Mục tiêu (không phải cả 2).
+     * - Xác định hướng hoàn tiền dựa trên category.ctgType.
+     */
+    @Override
+    @Transactional
+    public void revertTransactionBalance(Transaction transaction) {
+        if (transaction == null) {
+            return;
+        }
+
+        // 1. Xác định hướng hoàn tiền (tùy vào loại danh mục: thu hay chi)
+        // Dùng Boolean.TRUE.equals() để xử lý null-safe (tránh NullPointerException)
+        boolean isIncome = transaction.getCategory() != null
+                && Boolean.TRUE.equals(transaction.getCategory().getCtgType());
+
+        // 2. Nếu giao dịch liên kết Ví
+        if (transaction.getWallet() != null) {
+            Wallet wallet = transaction.getWallet();
+
+            // 3. Hoàn tiền về ví
+            if (isIncome) {
+                // Giao dịch là THU → hoàn tiền = trừ số dư ví
+                wallet.setBalance(wallet.getBalance().subtract(transaction.getAmount()));
+            } else {
+                // Giao dịch là CHI → hoàn tiền = cộng số dư ví
+                wallet.setBalance(wallet.getBalance().add(transaction.getAmount()));
+            }
+
+            walletRepository.save(wallet);
+        }
+        // 4. ELSE IF: Nếu giao dịch liên kết Mục tiêu tiết kiệm (không xử lý cả Wallet+Goal)
+        else if (transaction.getSavingGoal() != null) {
+            SavingGoal goal = transaction.getSavingGoal();
+
+            // 5. Hoàn tiền về mục tiêu (linh hoạt theo isIncome)
+            if (isIncome) {
+                // Nạp vào mục tiêu (THU) → hoàn tiền = trừ số tiền mục tiêu
+                goal.setCurrentAmount(goal.getCurrentAmount().subtract(transaction.getAmount()));
+            } else {
+                // Rút từ mục tiêu (CHI) → hoàn tiền = cộng số tiền mục tiêu
+                goal.setCurrentAmount(goal.getCurrentAmount().add(transaction.getAmount()));
+            }
+
+            savingGoalRepository.save(goal);
+        }
+    }
+
+    /**
+     * [5.2] Xử lý giao dịch liên quan đến Ví.
      * Bước 1 — Tìm ví và kiểm tra quyền sở hữu.
      * Bước 2 — Gán ví vào transaction.
      * Bước 3 — Cộng/trừ số dư.
@@ -664,7 +713,7 @@ public class TransactionServiceImpl implements TransactionService {
     }
 
     /**
-     * [5.2] Xử lý giao dịch liên quan đến Mục tiêu tiết kiệm.
+     * [5.3] Xử lý giao dịch liên quan đến Mục tiêu tiết kiệm.
      * Bước 1 — Tìm mục tiêu và kiểm tra quyền.
      * Bước 2 — Gán mục tiêu vào transaction.
      * Bước 3 — Cộng/trừ currentAmount.
@@ -702,33 +751,6 @@ public class TransactionServiceImpl implements TransactionService {
             goal.setCurrentAmount(goal.getCurrentAmount().subtract(amount)); // Rút → Trừ
         }
         savingGoalRepository.save(goal);
-    }
-
-    /**
-     * [5.3] Hoàn lại số tiền giao dịch cũ vào Ví hoặc Mục tiêu.
-     * Dùng khi Update (trước khi apply mới) hoặc Delete.
-     */
-    private void revertTransactionBalance(Transaction transaction) {
-        BigDecimal amount  = transaction.getAmount();
-        Boolean isIncome   = transaction.getCategory().getCtgType();
-
-        if (transaction.getWallet() != null) {
-            Wallet wallet = transaction.getWallet();
-            if (Boolean.TRUE.equals(isIncome)) {
-                wallet.setBalance(wallet.getBalance().subtract(amount)); // Hoàn tác cộng
-            } else {
-                wallet.setBalance(wallet.getBalance().add(amount));      // Hoàn tác trừ
-            }
-            walletRepository.save(wallet);
-        } else if (transaction.getSavingGoal() != null) {
-            SavingGoal goal = transaction.getSavingGoal();
-            if (Boolean.TRUE.equals(isIncome)) {
-                goal.setCurrentAmount(goal.getCurrentAmount().subtract(amount));
-            } else {
-                goal.setCurrentAmount(goal.getCurrentAmount().add(amount));
-            }
-            savingGoalRepository.save(goal);
-        }
     }
 
     /**
@@ -778,5 +800,25 @@ public class TransactionServiceImpl implements TransactionService {
                 transaction.setDebt(debt);
             }
         }
+    }
+
+    /**
+     * [5.5] TRIỂN KHAI: Hoàn tiền hàng loạt trực tiếp dưới Database.
+     * Logic: Quét toàn bộ tTransactions -> Phân loại Thu/Chi -> SUM amount theo từng Wallet/Goal
+     * -> Cập nhật trực tiếp vào tWallets và tSavingGoals.
+     * * ƯU ĐIỂM:
+     * - Hiệu năng cực cao (1 lệnh SQL thay vì vòng lặp N lệnh).
+     * - An toàn tuyệt đối với cơ chế quản lý Entity của Hibernate (No Detached/Transient error).
+     */
+    @Override
+    @Transactional
+    public void revertAllTransactionBalancesForCategoryNoFetch(Integer categoryId, Integer accountId) {
+        // Cập nhật lại số dư ví (Xử lý cả 2 loại danh mục: Thu và Chi)
+        transactionRepository.revertWalletBalanceForIncomeCategory(categoryId, accountId);
+        transactionRepository.revertWalletBalanceForExpenseCategory(categoryId, accountId);
+
+        // Cập nhật lại số tiền mục tiêu tiết kiệm
+        transactionRepository.revertGoalBalanceForIncomeCategory(categoryId, accountId);
+        transactionRepository.revertGoalBalanceForExpenseCategory(categoryId, accountId);
     }
 }

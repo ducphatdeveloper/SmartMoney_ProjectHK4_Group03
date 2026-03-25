@@ -176,9 +176,13 @@ class CategoryProvider extends ChangeNotifier {
   }
 
   // =============================================
-  // [2.7] DELETE — Xóa danh mục
+  // [2.7] DELETE — Xóa danh mục (không truyền actionType)
   // =============================================
   // API: DELETE /api/categories/{id}
+  // ⚠️ Khi actionType = null → Backend mặc định DELETE_ALL
+  //    → Xóa sạch giao dịch (con + cha) + xóa danh mục (con + cha) → luôn thành công
+  // ⚠️ Hiện tại không dùng — UI gọi deleteCategoryWithOptions() thay thế
+  //    để truyền actionType rõ ràng (DELETE_ALL hoặc MERGE)
   Future<bool> deleteCategory(int id) async {
     _isLoading = true;
     _errorMessage = null;
@@ -188,7 +192,7 @@ class CategoryProvider extends ChangeNotifier {
     final response = await CategoryService.delete(id);
 
     if (response.success) {
-      _successMessage = response.message; // "Xóa danh mục thành công"
+      _successMessage = response.message; // "Xóa danh mục thành công" (cả cha + con)
       await loadByGroup(_currentGroup);
       return true;
     } else {
@@ -200,7 +204,71 @@ class CategoryProvider extends ChangeNotifier {
   }
 
   // =============================================
-  // [2.8] CLEAR — Xóa thông báo lỗi/thành công
+  // [2.8] LOAD MERGE TARGETS — Lấy danh mục nhận gộp
+  // =============================================
+  // Gọi khi: User chọn MERGE → cần hiện danh sách danh mục cùng loại
+  // API: GET /api/categories/merge-targets?type=true|false
+  // excludeId: loại bỏ danh mục đang xóa ra khỏi danh sách
+  List<CategoryResponse> _mergeTargets = [];
+  List<CategoryResponse> get mergeTargets => _mergeTargets;
+
+  Future<void> loadMergeTargets(bool ctgType, {int? excludeId}) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    final response = await CategoryService.getMergeTargets(ctgType);
+
+    if (response.success && response.data != null) {
+      // Loại bỏ danh mục đang xóa ra khỏi danh sách chọn
+      _mergeTargets = response.data!
+          .where((c) => c.id != excludeId)
+          .toList();
+    } else {
+      _mergeTargets = [];
+      _errorMessage = response.message;
+    }
+
+    _isLoading = false;
+    notifyListeners();
+  }
+
+  // =============================================
+  // [2.9] DELETE WITH OPTIONS — Xóa + MERGE hoặc DELETE_ALL
+  // =============================================
+  // API: DELETE /api/categories/{id}?actionType=MERGE&newCategoryId=5
+  //   hoặc: DELETE /api/categories/{id}?actionType=DELETE_ALL
+  // Gọi khi: Danh mục có giao dịch → user đã chọn hành động
+  Future<bool> deleteCategoryWithOptions({
+    required int id,
+    required String actionType,
+    int? newCategoryId,
+  }) async {
+    _isLoading = true;
+    _errorMessage = null;
+    _successMessage = null;
+    notifyListeners();
+
+    final response = await CategoryService.deleteWithOptions(
+      id: id,
+      actionType: actionType,
+      newCategoryId: newCategoryId,
+    );
+
+    if (response.success) {
+      _successMessage = response.message; // "Xóa danh mục thành công"
+      await loadByGroup(_currentGroup); // reload danh sách
+      return true;
+    } else {
+      _errorMessage = response.message;
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  // =============================================
+  // [2.10] CLEAR — Xóa thông báo lỗi/thành công
   // =============================================
   void clearMessages() {
     _errorMessage = null;
@@ -208,7 +276,7 @@ class CategoryProvider extends ChangeNotifier {
   }
 
   // =============================================
-  // [2.9] HELPER — Trích xuất message lỗi từ response
+  // [2.11] HELPER — Trích xuất message lỗi từ response
   // =============================================
   // [FIX-3] Backend trả 2 dạng lỗi:
   //   Dạng 1 — IllegalArgumentException (400):

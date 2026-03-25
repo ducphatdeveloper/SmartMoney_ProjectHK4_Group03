@@ -27,6 +27,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:smart_money/modules/transaction/providers/transaction_provider.dart';
 import 'package:smart_money/modules/transaction/models/request/transaction_request.dart';
 import 'package:smart_money/modules/transaction/models/view/transaction_response.dart';
@@ -38,6 +39,7 @@ import 'package:smart_money/modules/transaction/widgets/transaction_category_row
 import 'package:smart_money/modules/category/models/category_response.dart';
 import 'package:smart_money/modules/category/screens/category_list_screen.dart';
 import 'package:smart_money/core/helpers/format_helper.dart';
+import 'package:smart_money/core/helpers/icon_helper.dart';
 
 class TransactionEditScreen extends StatefulWidget {
   final TransactionResponse transaction; // giao dịch cần sửa
@@ -327,21 +329,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
                 _selectedSourceItem?.type == item.type;
 
             return ListTile(
-              leading: Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: item.type == 'saving_goal'
-                      ? Colors.orange.shade400
-                      : Colors.green.shade400,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(
-                  item.type == 'saving_goal' ? Icons.savings : Icons.account_balance_wallet,
-                  color: Colors.white,
-                  size: 22,
-                ),
-              ),
+              leading: _buildSourceIcon(item),
               title: Text(
                 item.name,
                 maxLines: 1,
@@ -593,6 +581,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
   }
 
   // ----- Widget: Row chọn ví -----
+  // ----- Widget: Row chọn ví -----
   Widget _buildWalletRow() {
     return GestureDetector(
       onTap: _showSourceBottomSheet,
@@ -600,13 +589,22 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Row(
           children: [
-            Icon(
-              _selectedSourceItem?.type == 'saving_goal'
-                  ? Icons.savings
-                  : Icons.account_balance_wallet_outlined,
-              color: Colors.grey,
-              size: 20,
-            ),
+            // Icon ví đã chọn (hoặc placeholder)
+            _selectedSourceItem != null
+                ? _buildSourceIcon(_selectedSourceItem!)
+                : Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade800,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(
+                      Icons.account_balance_wallet_outlined,
+                      color: Colors.grey,
+                      size: 20,
+                    ),
+                  ),
             const SizedBox(width: 12),
             Expanded(
               child: Text(
@@ -923,5 +921,52 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
       ),
     );
   }
-}
 
+  // =============================================
+  // _buildSourceIcon — hiển thị icon wallet/savinggoal
+  // =============================================
+  Widget _buildSourceIcon(SourceItem item) {
+    final cloudinaryUrl = IconHelper.buildCloudinaryUrl(item.iconUrl);
+    
+    if (cloudinaryUrl != null && cloudinaryUrl.isNotEmpty) {
+      return CachedNetworkImage(
+        imageUrl: cloudinaryUrl,
+        width: 40,
+        height: 40,
+        fit: BoxFit.cover,
+        imageBuilder: (context, imageProvider) {
+          return Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(8),
+              image: DecorationImage(image: imageProvider, fit: BoxFit.cover),
+            ),
+          );
+        },
+        placeholder: (_, __) => _buildDefaultSourceIcon(item.type),
+        errorWidget: (_, __, ___) => _buildDefaultSourceIcon(item.type),
+      );
+    }
+    
+    return _buildDefaultSourceIcon(item.type);
+  }
+
+  Widget _buildDefaultSourceIcon(String type) {
+    return Container(
+      width: 40,
+      height: 40,
+      decoration: BoxDecoration(
+        color: type == 'saving_goal'
+            ? Colors.orange.shade400
+            : Colors.green.shade400,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Icon(
+        type == 'saving_goal' ? Icons.savings : Icons.account_balance_wallet,
+        color: Colors.white,
+        size: 22,
+      ),
+    );
+  }
+}

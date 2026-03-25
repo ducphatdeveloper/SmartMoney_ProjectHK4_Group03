@@ -217,6 +217,97 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
             @Param("debtId") Integer debtId,
             @Param("categoryIds") List<Integer> categoryIds);
 
+    // =================================================================================
+    // 7. CÁC HÀM CHO DANH MỤC (CATEGORY)
+    // =================================================================================
+
+    /// [CATEGORY] Đếm số giao dịch thuộc một danh mục của một user
+    long countByCategoryIdAndAccountId(Integer categoryId, Integer accountId);
+
+    /// [CATEGORY] Lấy tất cả giao dịch thuộc một danh mục của một user (để hoàn tiền)
+    List<Transaction> findAllByCategoryIdAndAccountId(Integer categoryId, Integer accountId);
+
+    /// [CATEGORY] Cập nhật hàng loạt: chuyển các giao dịch từ danh mục cũ sang danh mục mới
+    @Modifying
+    @Query("UPDATE Transaction t SET t.category.id = :newCategoryId WHERE t.category.id = :oldCategoryId AND t.account.id = :accountId")
+    void updateCategoryForUserTransactions(
+            @Param("oldCategoryId") Integer oldCategoryId,
+            @Param("newCategoryId") Integer newCategoryId,
+            @Param("accountId") Integer accountId
+    );
+
+    /// [CATEGORY] Xóa hàng loạt các giao dịch thuộc một danh mục
+    @Modifying
+    @Query("DELETE FROM Transaction t WHERE t.category.id = :categoryId AND t.account.id = :accountId")
+    void deleteAllByCategoryIdAndAccountId(
+            @Param("categoryId") Integer categoryId,
+            @Param("accountId") Integer accountId
+    );
+
+    // =================================================================================
+    // 8. CÁC HÀM HOÀN TIỀN KHI XÓA DANH MỤC (NATIVE SQL ĐỂ TRÁNH TRANSIENT EXCEPTION)
+    // =================================================================================
+
+    // 8.1 Hoàn tiền VÍ (Giao dịch THU -> Trừ tiền)
+    @Modifying
+    @Query(value = "UPDATE tWallets " +
+            "SET balance = balance - ( " +
+            "   SELECT COALESCE(SUM(t.amount), 0) FROM tTransactions t " +
+            "   JOIN tCategories c ON t.ctg_id = c.id " +
+            "   WHERE t.ctg_id = :categoryId AND c.ctg_type = 1 AND t.wallet_id = tWallets.id AND t.acc_id = :accountId " +
+            ") " +
+            "WHERE id IN ( " +
+            "   SELECT DISTINCT wallet_id FROM tTransactions " +
+            "   WHERE ctg_id = :categoryId AND wallet_id IS NOT NULL AND acc_id = :accountId " +
+            ")", nativeQuery = true)
+    void revertWalletBalanceForIncomeCategory(@Param("categoryId") Integer categoryId, @Param("accountId") Integer accountId);
+
+    // 8.2 Hoàn tiền VÍ (Giao dịch CHI -> Cộng tiền)
+    @Modifying
+    @Query(value = "UPDATE tWallets " +
+            "SET balance = balance + ( " +
+            "   SELECT COALESCE(SUM(t.amount), 0) FROM tTransactions t " +
+            "   JOIN tCategories c ON t.ctg_id = c.id " +
+            "   WHERE t.ctg_id = :categoryId AND c.ctg_type = 0 AND t.wallet_id = tWallets.id AND t.acc_id = :accountId " +
+            ") " +
+            "WHERE id IN ( " +
+            "   SELECT DISTINCT wallet_id FROM tTransactions " +
+            "   WHERE ctg_id = :categoryId AND wallet_id IS NOT NULL AND acc_id = :accountId " +
+            ")", nativeQuery = true)
+    void revertWalletBalanceForExpenseCategory(@Param("categoryId") Integer categoryId, @Param("accountId") Integer accountId);
+
+    // 8.3 Hoàn tiền MỤC TIÊU (Giao dịch THU -> Trừ tiền)
+    @Modifying
+    @Query(value = "UPDATE tSavingGoals " +
+            "SET current_amount = current_amount - ( " +
+            "   SELECT COALESCE(SUM(t.amount), 0) FROM tTransactions t " +
+            "   JOIN tCategories c ON t.ctg_id = c.id " +
+            "   WHERE t.ctg_id = :categoryId AND c.ctg_type = 1 AND t.goal_id = tSavingGoals.id AND t.acc_id = :accountId " +
+            ") " +
+            "WHERE id IN ( " +
+            "   SELECT DISTINCT goal_id FROM tTransactions " +
+            "   WHERE ctg_id = :categoryId AND goal_id IS NOT NULL AND acc_id = :accountId " +
+            ")", nativeQuery = true)
+    void revertGoalBalanceForIncomeCategory(@Param("categoryId") Integer categoryId, @Param("accountId") Integer accountId);
+
+    // 8.4 Hoàn tiền MỤC TIÊU (Giao dịch CHI -> Cộng tiền)
+    @Modifying
+    @Query(value = "UPDATE tSavingGoals " +
+            "SET current_amount = current_amount + ( " +
+            "   SELECT COALESCE(SUM(t.amount), 0) FROM tTransactions t " +
+            "   JOIN tCategories c ON t.ctg_id = c.id " +
+            "   WHERE t.ctg_id = :categoryId AND c.ctg_type = 0 AND t.goal_id = tSavingGoals.id AND t.acc_id = :accountId " +
+            ") " +
+            "WHERE id IN ( " +
+            "   SELECT DISTINCT goal_id FROM tTransactions " +
+            "   WHERE ctg_id = :categoryId AND goal_id IS NOT NULL AND acc_id = :accountId " +
+            ")", nativeQuery = true)
+    void revertGoalBalanceForExpenseCategory(@Param("categoryId") Integer categoryId, @Param("accountId") Integer accountId);
+
+    // =================================================================================
+    // 9. CÁC HÀM CHO ADMIN (ADMIN)
+    // =================================================================================
+
     // ADMIN: Thống kê tổng quan theo danh mục toàn hệ thống ( Code của NAM )
     @Query("SELECT t.category.ctgName, SUM(t.amount), t.category.ctgType, t.category.ctgIconUrl " +
             "FROM Transaction t " +

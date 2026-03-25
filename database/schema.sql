@@ -1,4 +1,4 @@
-﻿-- ================================================================================================================================
+-- ================================================================================================================================
 -- DATABASE: SmartMoney
 -- AUTHOR DATABASE: Phạm Đức Phát 
 -- CREATED: 2026 
@@ -40,7 +40,7 @@
 --    │ THUẬT NGỮ      │ Ý NGHĨA & VÍ DỤ                            │
 --    ├─────────────────┼─────────────────────────────────────────────┤
 --    │ CONSTANTS      │ Giá trị cố định DB (CHECK constraint)       │
---    │                 │ VD: CHECK (source_type BETWEEN 1 AND 4)    │
+--    │                 │ VD: CHECK (source_type BETWEEN 1 AND 5)    │
 --    ├─────────────────┼─────────────────────────────────────────────┤
 --    │ ENUM (Java)    │ Hằng số Backend (package: com.smartmoney.enum)│
 --    │                 │ VD: TransactionType.INCOME (DB value = 1)  │
@@ -659,7 +659,7 @@ CREATE TABLE tCategories (
     -- DATA COLUMNS
     ctg_name NVARCHAR(100) NOT NULL,             -- Tên danh mục (VD: "Ăn uống", "Lương")
     ctg_type BIT NOT NULL,                       -- 0: Chi tiêu | 1: Thu nhập
-    ctg_icon_url VARCHAR(2048) NULL,             -- Icon SVG hoặc URL (VD: "icon_food.svg")
+    ctg_icon_url VARCHAR(2048) NULL,             -- Icon SVG hoặc URL (VD: "icon_food.png")
     
     -- CONSTRAINTS
     CONSTRAINT FK_Categories_Account FOREIGN KEY (acc_id) REFERENCES tAccounts(id),
@@ -697,34 +697,34 @@ GO
 -- ==========================================================
 -- 1.1 NHÓM CHI TIÊU (EXPENSE = 0)
 INSERT INTO tCategories (acc_id, parent_id, ctg_name, ctg_type, ctg_icon_url) VALUES  
- (NULL, NULL, N'Ăn uống', 0, 'icon_food.svg')
-,(NULL, NULL, N'Bảo hiểm', 0, 'icon_insurance.svg')
-,(NULL, NULL, N'Các chi phí khác', 0, 'icon_other_expense.svg')
-,(NULL, NULL, N'Đầu tư', 0, 'icon_invest.svg')
-,(NULL, NULL, N'Di chuyển', 0, 'icon_transport.svg')
-,(NULL, NULL, N'Gia đình', 0, 'icon_family.svg')
-,(NULL, NULL, N'Giải trí', 0, 'icon_entertainment.svg')
-,(NULL, NULL, N'Giáo dục', 0, 'icon_education.svg')
-,(NULL, NULL, N'Hoá đơn & Tiện ích', 0, 'icon_utilities.svg')
-,(NULL, NULL, N'Mua sắm', 0, 'icon_shopping.svg')
-,(NULL, NULL, N'Quà tặng & Quyên góp', 0, 'icon_gift.svg')
-,(NULL, NULL, N'Sức khỏe', 0, 'icon_health.svg')
-,(NULL, NULL, N'Tiền chuyển đi', 0, 'icon_transfer_out.svg')
-,(NULL, NULL, N'Trả lãi', 0, 'icon_interest_pay.svg');
+ (NULL, NULL, N'Ăn uống', 0, 'icon_food.png')
+,(NULL, NULL, N'Bảo hiểm', 0, 'icon_insurance.png')
+,(NULL, NULL, N'Các chi phí khác', 0, 'icon_other_expense.png')
+,(NULL, NULL, N'Đầu tư', 0, 'icon_invest.png')
+,(NULL, NULL, N'Di chuyển', 0, 'icon_transport.png')
+,(NULL, NULL, N'Gia đình', 0, 'icon_family.png')
+,(NULL, NULL, N'Giải trí', 0, 'icon_entertainment.png')
+,(NULL, NULL, N'Giáo dục', 0, 'icon_education.png')
+,(NULL, NULL, N'Hoá đơn & Tiện ích', 0, 'icon_utilities.png')
+,(NULL, NULL, N'Mua sắm', 0, 'icon_shopping.png')
+,(NULL, NULL, N'Quà tặng & Quyên góp', 0, 'icon_gift.png')
+,(NULL, NULL, N'Sức khỏe', 0, 'icon_health.png')
+,(NULL, NULL, N'Tiền chuyển đi', 0, 'icon_transfer_out.png')
+,(NULL, NULL, N'Trả lãi', 0, 'icon_interest_pay.png');
 
 -- 1.2 NHÓM THU NHẬP (INCOME = 1)
 INSERT INTO tCategories (acc_id, parent_id, ctg_name, ctg_type, ctg_icon_url) VALUES  
- (NULL, NULL, N'Lương', 1, 'icon_salary.svg')
-,(NULL, NULL, N'Thu lãi', 1, 'icon_interest_receive.svg')
-,(NULL, NULL, N'Thu nhập khác', 1, 'icon_other_income.svg')
-,(NULL, NULL, N'Tiền chuyển đến', 1, 'icon_transfer_in.svg');
+ (NULL, NULL, N'Lương', 1, 'icon_salary.png')
+,(NULL, NULL, N'Thu lãi', 1, 'icon_interest_receive.png')
+,(NULL, NULL, N'Thu nhập khác', 1, 'icon_other_income.png')
+,(NULL, NULL, N'Tiền chuyển đến', 1, 'icon_transfer_in.png');
 
 -- 1.3 NHÓM VAY / NỢ
 INSERT INTO tCategories (acc_id, parent_id, ctg_name, ctg_type, ctg_icon_url) VALUES  
- (NULL, NULL, N'Cho vay', 0, 'icon_loan_out.svg')
-,(NULL, NULL, N'Đi vay', 1, 'icon_loan_in.svg')
-,(NULL, NULL, N'Thu nợ', 1, 'icon_debt_collection.svg')
-,(NULL, NULL, N'Trả nợ', 0, 'icon_debt_repayment.svg');
+ (NULL, NULL, N'Cho vay', 0, 'icon_loan_out.png')
+,(NULL, NULL, N'Đi vay', 1, 'icon_loan_in.png')
+,(NULL, NULL, N'Thu nợ', 1, 'icon_debt_collection.png')
+,(NULL, NULL, N'Trả nợ', 0, 'icon_debt_repayment.png');
 GO -- Kết thúc phiên làm việc 1 để SQL lưu ID các nhóm Cha
 
 -- ==========================================================
@@ -734,25 +734,25 @@ GO -- Kết thúc phiên làm việc 1 để SQL lưu ID các nhóm Cha
 INSERT INTO tCategories (acc_id, parent_id, ctg_name, ctg_type, ctg_icon_url)
 SELECT NULL, p.id, v.new_name, p.ctg_type, v.icon
 FROM (VALUES  
-    (N'Di chuyển', N'Bảo dưỡng xe', 'icon_car_repair.svg'),
-    (N'Gia đình', N'Dịch vụ gia đình', 'icon_home_service.svg'),
-    (N'Gia đình', N'Sửa & trang trí nhà', 'icon_home_decor.svg'),
-    (N'Gia đình', N'Vật nuôi', 'icon_pets.svg'),
-    (N'Giải trí', N'Dịch vụ trực tuyến', 'icon_online_service.svg'),
-    (N'Giải trí', N'Vui - chơi', 'icon_travel.svg'),
-    (N'Hoá đơn & Tiện ích', N'Hoá đơn điện', 'icon_electricity.svg'),
-    (N'Hoá đơn & Tiện ích', N'Hoá đơn điện thoại', 'icon_phone_bill.svg'),
-    (N'Hoá đơn & Tiện ích', N'Hoá đơn gas', 'icon_gas.svg'),
-    (N'Hoá đơn & Tiện ích', N'Hoá đơn internet', 'icon_internet.svg'),
-    (N'Hoá đơn & Tiện ích', N'Hoá đơn nước', 'icon_water.svg'),
-    (N'Hoá đơn & Tiện ích', N'Hoá đơn tiện ích khác', 'icon_other_bill.svg'),
-    (N'Hoá đơn & Tiện ích', N'Hoá đơn TV', 'icon_tv.svg'),
-    (N'Hoá đơn & Tiện ích', N'Thuê nhà', 'icon_rent.svg'),
-    (N'Mua sắm', N'Đồ dùng cá nhân', 'icon_personal_item.svg'),
-    (N'Mua sắm', N'Đồ gia dụng', 'icon_home_appliance.svg'),
-    (N'Mua sắm', N'Làm đẹp', 'icon_beauty.svg'),
-    (N'Sức khỏe', N'Khám sức khoẻ', 'icon_medical.svg'),
-    (N'Sức khỏe', N'Thể dục thể thao', 'icon_sport.svg')
+    (N'Di chuyển', N'Bảo dưỡng xe', 'icon_car_repair.png'),
+    (N'Gia đình', N'Dịch vụ gia đình', 'icon_home_service.png'),
+    (N'Gia đình', N'Sửa & trang trí nhà', 'icon_home_decor.png'),
+    (N'Gia đình', N'Vật nuôi', 'icon_pets.png'),
+    (N'Giải trí', N'Dịch vụ trực tuyến', 'icon_online_service.png'),
+    (N'Giải trí', N'Vui - chơi', 'icon_travel.png'),
+    (N'Hoá đơn & Tiện ích', N'Hoá đơn điện', 'icon_electricity.png'),
+    (N'Hoá đơn & Tiện ích', N'Hoá đơn điện thoại', 'icon_phone_bill.png'),
+    (N'Hoá đơn & Tiện ích', N'Hoá đơn gas', 'icon_gas.png'),
+    (N'Hoá đơn & Tiện ích', N'Hoá đơn internet', 'icon_internet.png'),
+    (N'Hoá đơn & Tiện ích', N'Hoá đơn nước', 'icon_water.png'),
+    (N'Hoá đơn & Tiện ích', N'Hoá đơn tiện ích khác', 'icon_other_bill.png'),
+    (N'Hoá đơn & Tiện ích', N'Hoá đơn TV', 'icon_tv.png'),
+    (N'Hoá đơn & Tiện ích', N'Thuê nhà', 'icon_rent.png'),
+    (N'Mua sắm', N'Đồ dùng cá nhân', 'icon_personal_item.png'),
+    (N'Mua sắm', N'Đồ gia dụng', 'icon_home_appliance.png'),
+    (N'Mua sắm', N'Làm đẹp', 'icon_beauty.png'),
+    (N'Sức khỏe', N'Khám sức khoẻ', 'icon_medical.png'),
+    (N'Sức khỏe', N'Thể dục thể thao', 'icon_sport.png')
 ) AS v(parent_name, new_name, icon)
 JOIN tCategories p ON p.ctg_name = v.parent_name AND p.parent_id IS NULL;
 GO
@@ -787,32 +787,32 @@ GO
 
 -- DỮ LIỆU MẪU: Ví
 INSERT INTO tWallets (acc_id, wallet_name, balance, currency, notified, reportable, goal_image_url) VALUES 
-(1, N'Tiền mặt', 5000000, 'VND', 1, 1, 'https://api.dicebear.com/7.x/icons/svg?seed=cash'),
-(1, N'Vietcombank', 15000000, 'VND', 1, 1, 'https://api.dicebear.com/7.x/icons/svg?seed=bank1'),
-(2, N'Ví MoMo', 2500000, 'VND', 1, 1, 'https://api.dicebear.com/7.x/icons/svg?seed=momo'),
-(2, N'Techcombank', 8000000, 'VND', 1, 1, 'https://api.dicebear.com/7.x/icons/svg?seed=bank2'),
-(3, N'Tiền mặt', 3200000, 'VND', 1, 1, 'https://api.dicebear.com/7.x/icons/svg?seed=cash2'),
-(3, N'BIDV', 12000000, 'VND', 1, 1, 'https://api.dicebear.com/7.x/icons/svg?seed=bank3'),
-(19, N'ZaloPay', 1800000, 'VND', 1, 1, 'https://api.dicebear.com/7.x/icons/svg?seed=zalopay'),
-(4, N'Agribank', 20000000, 'VND', 1, 1, 'https://api.dicebear.com/7.x/icons/svg?seed=bank4'),
-(5, N'Ví tiết kiệm', 50000000, 'VND', 0, 0, 'https://api.dicebear.com/7.x/icons/svg?seed=saving'),
-(6, N'MB Bank', 6500000, 'VND', 1, 1, 'https://api.dicebear.com/7.x/icons/svg?seed=bank5'),
-(6, N'VNPay', 900000, 'VND', 1, 1, 'https://api.dicebear.com/7.x/icons/svg?seed=vnpay'),
-(7, N'ACB', 18000000, 'VND', 1, 1, 'https://api.dicebear.com/7.x/icons/svg?seed=bank6'),
-(20, N'Ví du lịch', 10000000, 'VND', 1, 1, 'https://api.dicebear.com/7.x/icons/svg?seed=travel'),
-(20, N'VPBank', 7200000, 'VND', 1, 1, 'https://api.dicebear.com/7.x/icons/svg?seed=bank7'),
-(9, N'Tiền mặt', 4500000, 'VND', 1, 1, 'https://api.dicebear.com/7.x/icons/svg?seed=cash3'),
-(10, N'SHB', 9800000, 'VND', 1, 1, 'https://api.dicebear.com/7.x/icons/svg?seed=bank8'),
-(10, N'Ví mua sắm', 3000000, 'VND', 1, 1, 'https://api.dicebear.com/7.x/icons/svg?seed=shopping'),
-(11, N'TPBank', 11000000, 'VND', 1, 1, 'https://api.dicebear.com/7.x/icons/svg?seed=bank9'),
-(12, N'Ví khẩn cấp', 5000000, 'VND', 0, 0, 'https://api.dicebear.com/7.x/icons/svg?seed=emergency'),
-(12, N'Sacombank', 14500000, 'VND', 1, 1, 'https://api.dicebear.com/7.x/icons/svg?seed=bank10'),
-(8, N'Tiền mặt', 2800000, 'VND', 1, 1, 'https://api.dicebear.com/7.x/icons/svg?seed=cash4'),
-(14, N'HDBank', 16000000, 'VND', 1, 1, 'https://api.dicebear.com/7.x/icons/svg?seed=bank11'),
-(15, N'Ví học phí', 25000000, 'VND', 1, 1, 'https://api.dicebear.com/7.x/icons/svg?seed=education'),
-(16, N'OCB', 8500000, 'VND', 1, 1, 'https://api.dicebear.com/7.x/icons/svg?seed=bank12'),
-(17, N'Ví đầu tư', 30000000, 'VND', 0, 0, 'https://api.dicebear.com/7.x/icons/svg?seed=invest'),
-(18, N'VietinBank', 13200000, 'VND', 1, 1, 'https://api.dicebear.com/7.x/icons/svg?seed=bank13');
+(1, N'Tiền mặt', 5000000, 'VND', 1, 1, 'wallet.png'),
+(1, N'Vietcombank', 15000000, 'VND', 1, 1, 'wallet.png'),
+(2, N'Ví MoMo', 2500000, 'VND', 1, 1, 'wallet.png'),
+(2, N'Techcombank', 8000000, 'VND', 1, 1, 'wallet.png'),
+(3, N'Tiền mặt', 3200000, 'VND', 1, 1, 'wallet.png'),
+(3, N'BIDV', 12000000, 'VND', 1, 1, 'wallet.png'),
+(19, N'ZaloPay', 1800000, 'VND', 1, 1, 'wallet.png'),
+(4, N'Agribank', 20000000, 'VND', 1, 1, 'wallet.png'),
+(5, N'Ví tiết kiệm', 50000000, 'VND', 0, 0, 'wallet.png'),
+(6, N'MB Bank', 6500000, 'VND', 1, 1, 'wallet.png'),
+(6, N'VNPay', 900000, 'VND', 1, 1, 'wallet.png'),
+(7, N'ACB', 18000000, 'VND', 1, 1, 'wallet.png'),
+(20, N'Ví du lịch', 10000000, 'VND', 1, 1, 'wallet.png'),
+(20, N'VPBank', 7200000, 'VND', 1, 1, 'wallet.png'),
+(9, N'Tiền mặt', 4500000, 'VND', 1, 1, 'wallet.png'),
+(10, N'SHB', 9800000, 'VND', 1, 1, 'wallet.png'),
+(10, N'Ví mua sắm', 3000000, 'VND', 1, 1, 'wallet.png'),
+(11, N'TPBank', 11000000, 'VND', 1, 1, 'wallet.png'),
+(12, N'Ví khẩn cấp', 5000000, 'VND', 0, 0, 'wallet.png'),
+(12, N'Sacombank', 14500000, 'VND', 1, 1, 'wallet.png'),
+(8, N'Tiền mặt', 2800000, 'VND', 1, 1, 'wallet.png'),
+(14, N'HDBank', 16000000, 'VND', 1, 1, 'wallet.png'),
+(15, N'Ví học phí', 25000000, 'VND', 1, 1, 'wallet.png'),
+(16, N'OCB', 8500000, 'VND', 1, 1, 'wallet.png'),
+(17, N'Ví đầu tư', 30000000, 'VND', 0, 0, 'wallet.png'),
+(18, N'VietinBank', 13200000, 'VND', 1, 1, 'wallet.png');
 GO
 
 -- ======================================================================
@@ -857,75 +857,75 @@ GO
 
 -- DỮ LIỆU MẪU: Mục tiêu tiết kiệm
 INSERT INTO tSavingGoals (acc_id, goal_name, target_amount, current_amount, begin_date, end_date, goal_status, notified, reportable, finished, goal_image_url, currency) VALUES 
-(1, N'Quỹ khẩn cấp', 50000000, 30000000, '2024-01-15', '2026-12-31', 1, 1, 1, 0, 'https://api.dicebear.com/7.x/icons/svg?seed=emergency', 'VND'),
-(1, N'Mua nhà', 2000000000, 500000000, '2023-06-01', '2028-12-31', 1, 1, 1, 0, 'https://api.dicebear.com/7.x/icons/svg?seed=house', 'VND'),
-(2, N'Mua iPhone 15', 25000000, 5000000, '2025-03-10', '2027-12-31', 1, 1, 1, 0, 'https://api.dicebear.com/7.x/icons/svg?seed=iphone', 'VND'),
-(2, N'Du lịch Nhật Bản', 40000000, 15000000, '2025-01-20', '2026-06-30', 1, 1, 1, 0, 'https://api.dicebear.com/7.x/icons/svg?seed=japan', 'VND'),
-(3, N'Heo đất màu vàng', 10000000, 8500000, '2024-08-01', '2026-08-01', 1, 1, 1, 0, 'https://api.dicebear.com/7.x/icons/svg?seed=piggy', 'VND'),
-(3, N'Tiền khám bệnh', 15000000, 12000000, '2024-05-15', '2026-12-31', 1, 1, 1, 0, 'https://api.dicebear.com/7.x/icons/svg?seed=health', 'VND'),
-(5, N'Mua xe máy SH', 90000000, 45000000, '2024-11-01', '2026-10-31', 1, 1, 1, 0, 'https://api.dicebear.com/7.x/icons/svg?seed=motorbike', 'VND'),
-(5, N'Quỹ cưới', 200000000, 80000000, '2024-02-14', '2027-02-14', 1, 1, 1, 0, 'https://api.dicebear.com/7.x/icons/svg?seed=wedding', 'VND'),
-(6, N'Mua laptop Dell XPS 15', 45000000, 25000000, '2025-02-01', '2026-05-31', 1, 1, 1, 0, 'https://api.dicebear.com/7.x/icons/svg?seed=laptop', 'VND'),
-(7, N'Tiết kiệm học tập', 30000000, 18000000, '2024-09-01', '2027-06-30', 1, 1, 1, 0, 'https://api.dicebear.com/7.x/icons/svg?seed=education', 'VND'),
-(8, N'Mua đất', 500000000, 150000000, '2024-01-01', '2029-12-31', 1, 1, 1, 0, 'https://api.dicebear.com/7.x/icons/svg?seed=land', 'VND'),
-(9, N'Quỹ khẩn cấp', 40000000, 25000000, '2024-07-01', '2026-06-30', 1, 1, 1, 0, 'https://api.dicebear.com/7.x/icons/svg?seed=emergency2', 'VND'),
-(10, N'Mua nhẫn cưới', 50000000, 35000000, '2024-12-01', '2026-11-30', 1, 1, 1, 0, 'https://api.dicebear.com/7.x/icons/svg?seed=ring', 'VND'),
-(10, N'Kỳ nghỉ Châu Âu', 80000000, 30000000, '2025-01-01', '2027-05-31', 1, 1, 1, 0, 'https://api.dicebear.com/7.x/icons/svg?seed=europe', 'VND'),
-(11, N'Mua ô tô', 400000000, 120000000, '2024-03-15', '2028-03-15', 1, 1, 1, 0, 'https://api.dicebear.com/7.x/icons/svg?seed=car', 'VND'),
-(12, N'Quỹ sửa nhà', 100000000, 45000000, '2024-10-01', '2026-09-30', 1, 1, 1, 0, 'https://api.dicebear.com/7.x/icons/svg?seed=renovation', 'VND'),
-(13, N'Mua iPad Pro', 28000000, 10000000, '2025-04-01', '2026-12-31', 1, 1, 1, 0, 'https://api.dicebear.com/7.x/icons/svg?seed=ipad', 'VND'),
-(14, N'Tiền sinh nhật con', 20000000, 15000000, '2024-06-01', '2026-08-15', 1, 1, 1, 0, 'https://api.dicebear.com/7.x/icons/svg?seed=birthday', 'VND'),
-(15, N'Học Thạc sĩ', 150000000, 60000000, '2024-01-10', '2028-12-31', 1, 1, 1, 0, 'https://api.dicebear.com/7.x/icons/svg?seed=master', 'VND'),
-(16, N'Mua AirPods Pro', 6000000, 4500000, '2025-03-01', '2026-03-31', 1, 1, 1, 0, 'https://api.dicebear.com/7.x/icons/svg?seed=airpods', 'VND'),
-(17, N'Đầu tư chứng khoán', 100000000, 70000000, '2024-02-01', '2027-12-31', 1, 1, 1, 0, 'https://api.dicebear.com/7.x/icons/svg?seed=stock', 'VND'),
-(18, N'Mua đồng hồ', 45000000, 20000000, '2025-01-05', '2026-12-31', 1, 1, 1, 0, 'https://api.dicebear.com/7.x/icons/svg?seed=watch', 'VND'),
-(19, N'Quỹ khởi nghiệp', 200000000, 50000000, '2024-04-01', '2027-12-31', 1, 1, 1, 0, 'https://api.dicebear.com/7.x/icons/svg?seed=startup', 'VND'),
-(20, N'Mua máy ảnh', 55000000, 35000000, '2024-11-15', '2026-06-30', 1, 1, 1, 0, 'https://api.dicebear.com/7.x/icons/svg?seed=camera', 'VND'),
-(4, N'Quỹ hưu trí', 500000000, 100000000, '2023-01-01', '2030-12-31', 1, 1, 1, 0, 'https://api.dicebear.com/7.x/icons/svg?seed=retirement', 'VND'),
-(4, N'Quỹ giáo dục con', 300000000, 150000000, '2023-09-01', '2028-08-31', 1, 1, 1, 0, 'https://api.dicebear.com/7.x/icons/svg?seed=school', 'VND'),
-(11, N'Khóa học AWS Solutions Architect', 18000000, 8000000, '2025-02-10', '2026-08-31', 1, 1, 1, 0, 'https://api.dicebear.com/7.x/icons/svg?seed=aws', 'VND'),
-(13, N'Chuyến du ngoạn Maldives', 65000000, 22000000, '2025-03-15', '2026-12-31', 1, 1, 1, 0, 'https://api.dicebear.com/7.x/icons/svg?seed=maldives', 'VND'),
-(15, N'Quỹ phát triển kỹ năng lập trình', 25000000, 12000000, '2024-10-01', '2027-03-31', 1, 1, 1, 0, 'https://api.dicebear.com/7.x/icons/svg?seed=coding', 'VND'),
-(17, N'Mua MacBook Pro M3', 52000000, 28000000, '2025-01-20', '2026-09-30', 1, 1, 1, 0, 'https://api.dicebear.com/7.x/icons/svg?seed=macbook', 'VND'),
-(6, N'Quỹ đăng ký ChatGPT Plus & Claude Pro', 12000000, 3500000, '2025-01-01', '2026-12-31', 1, 1, 1, 0, 'https://api.dicebear.com/7.x/icons/svg?seed=ai', 'VND'),
-(8, N'Quỹ mua license JetBrains', 8000000, 4200000, '2024-11-01', '2026-06-30', 1, 1, 1, 0, 'https://api.dicebear.com/7.x/icons/svg?seed=jetbrains', 'VND'),
-(12, N'Quỹ nâng cấp VPS & Domain', 15000000, 6800000, '2024-08-15', '2027-12-31', 1, 1, 1, 0, 'https://api.dicebear.com/7.x/icons/svg?seed=server', 'VND'),
-(14, N'Quỹ sức khỏe tinh thần (sau khi bị AI thay thế)', 30000000, 8000000, '2024-06-01', '2028-12-31', 1, 1, 1, 0, 'https://api.dicebear.com/7.x/icons/svg?seed=mental', 'VND'),
-(16, N'Quỹ học chuyển nghề (phòng thân)', 50000000, 15000000, '2024-09-01', '2027-06-30', 1, 1, 1, 0, 'https://api.dicebear.com/7.x/icons/svg?seed=career', 'VND'),
-(18, N'Quỹ mua API credits (OpenAI, Anthropic)', 20000000, 9500000, '2025-02-01', '2026-12-31', 1, 1, 1, 0, 'https://api.dicebear.com/7.x/icons/svg?seed=api', 'VND'),
+(1, N'Quỹ khẩn cấp', 50000000, 30000000, '2024-01-15', '2026-12-31', 1, 1, 1, 0, 'savinggoal.png', 'VND'),
+(1, N'Mua nhà', 2000000000, 500000000, '2023-06-01', '2028-12-31', 1, 1, 1, 0, 'savinggoal.png', 'VND'),
+(2, N'Mua iPhone 15', 25000000, 5000000, '2025-03-10', '2027-12-31', 1, 1, 1, 0, 'savinggoal.png', 'VND'),
+(2, N'Du lịch Nhật Bản', 40000000, 15000000, '2025-01-20', '2026-06-30', 1, 1, 1, 0, 'savinggoal.png', 'VND'),
+(3, N'Heo đất màu vàng', 10000000, 8500000, '2024-08-01', '2026-08-01', 1, 1, 1, 0, 'savinggoal.png', 'VND'),
+(3, N'Tiền khám bệnh', 15000000, 12000000, '2024-05-15', '2026-12-31', 1, 1, 1, 0, 'savinggoal.png', 'VND'),
+(5, N'Mua xe máy SH', 90000000, 45000000, '2024-11-01', '2026-10-31', 1, 1, 1, 0, 'savinggoal.png', 'VND'),
+(5, N'Quỹ cưới', 200000000, 80000000, '2024-02-14', '2027-02-14', 1, 1, 1, 0, 'savinggoal.png', 'VND'),
+(6, N'Mua laptop Dell XPS 15', 45000000, 25000000, '2025-02-01', '2026-05-31', 1, 1, 1, 0, 'savinggoal.png', 'VND'),
+(7, N'Tiết kiệm học tập', 30000000, 18000000, '2024-09-01', '2027-06-30', 1, 1, 1, 0, 'savinggoal.png', 'VND'),
+(8, N'Mua đất', 500000000, 150000000, '2024-01-01', '2029-12-31', 1, 1, 1, 0, 'savinggoal.png', 'VND'),
+(9, N'Quỹ khẩn cấp', 40000000, 25000000, '2024-07-01', '2026-06-30', 1, 1, 1, 0, 'savinggoal.png', 'VND'),
+(10, N'Mua nhẫn cưới', 50000000, 35000000, '2024-12-01', '2026-11-30', 1, 1, 1, 0, 'savinggoal.png', 'VND'),
+(10, N'Kỳ nghỉ Châu Âu', 80000000, 30000000, '2025-01-01', '2027-05-31', 1, 1, 1, 0, 'savinggoal.png', 'VND'),
+(11, N'Mua ô tô', 400000000, 120000000, '2024-03-15', '2028-03-15', 1, 1, 1, 0, 'savinggoal.png', 'VND'),
+(12, N'Quỹ sửa nhà', 100000000, 45000000, '2024-10-01', '2026-09-30', 1, 1, 1, 0, 'savinggoal.png', 'VND'),
+(13, N'Mua iPad Pro', 28000000, 10000000, '2025-04-01', '2026-12-31', 1, 1, 1, 0, 'savinggoal.png', 'VND'),
+(14, N'Tiền sinh nhật con', 20000000, 15000000, '2024-06-01', '2026-08-15', 1, 1, 1, 0, 'savinggoal.png', 'VND'),
+(15, N'Học Thạc sĩ', 150000000, 60000000, '2024-01-10', '2028-12-31', 1, 1, 1, 0, 'savinggoal.png', 'VND'),
+(16, N'Mua AirPods Pro', 6000000, 4500000, '2025-03-01', '2026-03-31', 1, 1, 1, 0, 'savinggoal.png', 'VND'),
+(17, N'Đầu tư chứng khoán', 100000000, 70000000, '2024-02-01', '2027-12-31', 1, 1, 1, 0, 'savinggoal.png', 'VND'),
+(18, N'Mua đồng hồ', 45000000, 20000000, '2025-01-05', '2026-12-31', 1, 1, 1, 0, 'savinggoal.png', 'VND'),
+(19, N'Quỹ khởi nghiệp', 200000000, 50000000, '2024-04-01', '2027-12-31', 1, 1, 1, 0, 'savinggoal.png', 'VND'),
+(20, N'Mua máy ảnh', 55000000, 35000000, '2024-11-15', '2026-06-30', 1, 1, 1, 0, 'savinggoal.png', 'VND'),
+(4, N'Quỹ hưu trí', 500000000, 100000000, '2023-01-01', '2030-12-31', 1, 1, 1, 0, 'savinggoal.png', 'VND'),
+(4, N'Quỹ giáo dục con', 300000000, 150000000, '2023-09-01', '2028-08-31', 1, 1, 1, 0, 'savinggoal.png', 'VND'),
+(11, N'Khóa học AWS Solutions Architect', 18000000, 8000000, '2025-02-10', '2026-08-31', 1, 1, 1, 0, 'savinggoal.png', 'VND'),
+(13, N'Chuyến du ngoạn Maldives', 65000000, 22000000, '2025-03-15', '2026-12-31', 1, 1, 1, 0, 'savinggoal.png', 'VND'),
+(15, N'Quỹ phát triển kỹ năng lập trình', 25000000, 12000000, '2024-10-01', '2027-03-31', 1, 1, 1, 0, 'savinggoal.png', 'VND'),
+(17, N'Mua MacBook Pro M3', 52000000, 28000000, '2025-01-20', '2026-09-30', 1, 1, 1, 0, 'savinggoal.png', 'VND'),
+(6, N'Quỹ đăng ký ChatGPT Plus & Claude Pro', 12000000, 3500000, '2025-01-01', '2026-12-31', 1, 1, 1, 0, 'savinggoal.png', 'VND'),
+(8, N'Quỹ mua license JetBrains', 8000000, 4200000, '2024-11-01', '2026-06-30', 1, 1, 1, 0, 'savinggoal.png', 'VND'),
+(12, N'Quỹ nâng cấp VPS & Domain', 15000000, 6800000, '2024-08-15', '2027-12-31', 1, 1, 1, 0, 'savinggoal.png', 'VND'),
+(14, N'Quỹ sức khỏe tinh thần (sau khi bị AI thay thế)', 30000000, 8000000, '2024-06-01', '2028-12-31', 1, 1, 1, 0, 'savinggoal.png', 'VND'),
+(16, N'Quỹ học chuyển nghề (phòng thân)', 50000000, 15000000, '2024-09-01', '2027-06-30', 1, 1, 1, 0, 'savinggoal.png', 'VND'),
+(18, N'Quỹ mua API credits (OpenAI, Anthropic)', 20000000, 9500000, '2025-02-01', '2026-12-31', 1, 1, 1, 0, 'savinggoal.png', 'VND'),
 -- ══════════════════════════════════════════════════════════════════════
 -- STATUS 2: Completed (Đã hoàn thành)
 -- Logic: current_amount = target_amount, finished = 1, end_date đã qua
 -- ══════════════════════════════════════════════════════════════════════
-(1,  N'Mua iPhone 14 Pro',          20000000, 20000000, '2024-01-01', '2024-12-31', 2, 1, 1, 1, 'https://api.dicebear.com/7.x/icons/svg?seed=iphone14',   'VND'),
+(1,  N'Mua iPhone 14 Pro',          20000000, 20000000, '2024-01-01', '2024-12-31', 2, 1, 1, 1, 'savinggoal.png',   'VND'),
 -- ✅ Đã tiết kiệm đủ 20tr, hoàn thành trước hạn
 
-(3,  N'Mua xe đạp thể thao',         8000000,  8000000, '2024-03-01', '2025-06-30', 2, 1, 1, 1, 'https://api.dicebear.com/7.x/icons/svg?seed=bicycle',    'VND'),
+(3,  N'Mua xe đạp thể thao',         8000000,  8000000, '2024-03-01', '2025-06-30', 2, 1, 1, 1, 'savinggoal.png',    'VND'),
 -- ✅ Đã đạt mục tiêu, finished
 
-(8,  N'Quỹ du lịch Thái Lan',       25000000, 25000000, '2024-05-01', '2025-12-31', 2, 1, 1, 1, 'https://api.dicebear.com/7.x/icons/svg?seed=thailand',   'VND'),
+(8,  N'Quỹ du lịch Thái Lan',       25000000, 25000000, '2024-05-01', '2025-12-31', 2, 1, 1, 1, 'savinggoal.png',   'VND'),
 -- ✅ Hoàn thành đúng hạn
 
-(12, N'Mua máy ảnh Sony A7III',      40000000, 40000000, '2023-06-01', '2025-01-31', 2, 1, 1, 1, 'https://api.dicebear.com/7.x/icons/svg?seed=sony',       'VND'),
+(12, N'Mua máy ảnh Sony A7III',      40000000, 40000000, '2023-06-01', '2025-01-31', 2, 1, 1, 1, 'savinggoal.png',       'VND'),
 -- ✅ Hoàn thành sớm
 
-(20, N'Học khóa Flutter nâng cao',    5000000,  5000000, '2025-01-01', '2025-08-31', 2, 1, 1, 1, 'https://api.dicebear.com/7.x/icons/svg?seed=flutter',    'VND'),
+(20, N'Học khóa Flutter nâng cao',    5000000,  5000000, '2025-01-01', '2025-08-31', 2, 1, 1, 1, 'savinggoal.png',    'VND'),
 -- ✅ Hoàn thành
 
 -- ══════════════════════════════════════════════════════════════════════
 -- STATUS 3: Cancelled (Đã hủy)
 -- Logic: finished = 1, current_amount < target_amount (bỏ dở giữa chừng)
 -- ══════════════════════════════════════════════════════════════════════
-(2,  N'Mua PS5',                     16000000,  4500000, '2024-02-01', '2025-03-31', 3, 0, 0, 1, 'https://api.dicebear.com/7.x/icons/svg?seed=ps5',        'VND'),
+(2,  N'Mua PS5',                     16000000,  4500000, '2024-02-01', '2025-03-31', 3, 0, 0, 1, 'savinggoal.png',        'VND'),
 -- ❌ Hủy vì đổi ý không mua nữa, đã rút tiền ra
 
-(5,  N'Du lịch Hàn Quốc',           60000000, 12000000, '2024-06-01', '2025-12-31', 3, 0, 0, 1, 'https://api.dicebear.com/7.x/icons/svg?seed=korea',      'VND'),
+(5,  N'Du lịch Hàn Quốc',           60000000, 12000000, '2024-06-01', '2025-12-31', 3, 0, 0, 1, 'savinggoal.png',      'VND'),
 -- ❌ Hủy vì kế hoạch thay đổi
 
-(9,  N'Mua tủ lạnh side-by-side',   18000000,  3000000, '2024-09-01', '2025-06-30', 3, 0, 0, 1, 'https://api.dicebear.com/7.x/icons/svg?seed=fridge',     'VND'),
+(9,  N'Mua tủ lạnh side-by-side',   18000000,  3000000, '2024-09-01', '2025-06-30', 3, 0, 0, 1, 'savinggoal.png',     'VND'),
 -- ❌ Hủy vì mượn được tiền người thân
 
-(16, N'Mua SmartTV 65 inch',        22000000,  8000000, '2024-04-01', '2025-09-30', 3, 0, 1, 1, 'https://api.dicebear.com/7.x/icons/svg?seed=tv',         'VND'),
+(16, N'Mua SmartTV 65 inch',        22000000,  8000000, '2024-04-01', '2025-09-30', 3, 0, 1, 1, 'savinggoal.png',         'VND'),
 -- ❌ Hủy vì mua loại khác rẻ hơn
 
 -- ══════════════════════════════════════════════════════════════════════
@@ -934,15 +934,15 @@ INSERT INTO tSavingGoals (acc_id, goal_name, target_amount, current_amount, begi
 -- ══════════════════════════════════════════════════════════════════════
 
 -- CASE A: Sẽ bị Scheduler đóng (finished sẽ = 1 sau khi scheduler chạy)
-(1,  N'Quỹ sửa xe ô tô',            15000000,  6000000, '2024-08-01', '2025-12-31', 1, 1, 1, 0, 'https://api.dicebear.com/7.x/icons/svg?seed=carfix',    'VND'),
-(7,  N'Quỹ học IELTS',              12000000,  5000000, '2024-07-01', '2025-11-30', 1, 1, 1, 0, 'https://api.dicebear.com/7.x/icons/svg?seed=ielts',     'VND'),
-(18, N'Mua ghế gaming DXRacer',      9000000,  4000000, '2025-02-01', '2026-02-28', 1, 1, 1, 0, 'https://api.dicebear.com/7.x/icons/svg?seed=gaming',    'VND'),
+(1,  N'Quỹ sửa xe ô tô',            15000000,  6000000, '2024-08-01', '2025-12-31', 1, 1, 1, 0, 'savinggoal.png',    'VND'),
+(7,  N'Quỹ học IELTS',              12000000,  5000000, '2024-07-01', '2025-11-30', 1, 1, 1, 0, 'savinggoal.png',     'VND'),
+(18, N'Mua ghế gaming DXRacer',      9000000,  4000000, '2025-02-01', '2026-02-28', 1, 1, 1, 0, 'savinggoal.png',    'VND'),
 
 -- CASE B: Quá hạn nhưng user vẫn muốn tiếp tục (finished = 0 giữ nguyên)
 -- → Scheduler detect ra, chuyển status=4 nhưng KHÔNG set finished=1
-(4,  N'Mua máy lọc không khí',       8000000,  2500000, '2024-10-01', '2025-10-31', 1, 1, 1, 0, 'https://api.dicebear.com/7.x/icons/svg?seed=airfilter', 'VND'),
-(10, N'Mua bàn làm việc ergonomic',  6000000,  1800000, '2025-01-01', '2025-12-31', 1, 1, 1, 0, 'https://api.dicebear.com/7.x/icons/svg?seed=desk',      'VND'),
-(13, N'Quỹ đám cưới bạn thân',      10000000,  3000000, '2025-03-01', '2026-01-31', 1, 1, 1, 0, 'https://api.dicebear.com/7.x/icons/svg?seed=friend',    'VND');
+(4,  N'Mua máy lọc không khí',       8000000,  2500000, '2024-10-01', '2025-10-31', 1, 1, 1, 0, 'savinggoal.png', 'VND'),
+(10, N'Mua bàn làm việc ergonomic',  6000000,  1800000, '2025-01-01', '2025-12-31', 1, 1, 1, 0, 'savinggoal.png',      'VND'),
+(13, N'Quỹ đám cưới bạn thân',      10000000,  3000000, '2025-03-01', '2026-01-31', 1, 1, 1, 0, 'savinggoal.png',    'VND');
 GO
 
 -- ======================================================================
@@ -958,7 +958,7 @@ CREATE TABLE tEvents (
     
     -- DATA COLUMNS
     event_name NVARCHAR(200) NOT NULL,           -- VD: "Đám cưới", "Du lịch Đà Lạt"
-    event_icon_url NVARCHAR(2048) DEFAULT 'icon_event_default.svg',
+    event_icon_url NVARCHAR(2048) DEFAULT 'icon_event_default.png',
     begin_date DATE DEFAULT GETDATE(),           -- Ngày bắt đầu sự kiện
     end_date DATE NOT NULL,                      -- Ngày kết thúc sự kiện
     finished BIT DEFAULT 0,                   -- 0: Đang diễn ra | 1: Đã kết thúc
@@ -981,27 +981,27 @@ GO
 
 -- DỮ LIỆU MẪU: Sự kiện
 INSERT INTO tEvents (acc_id, event_name, begin_date, end_date, finished, event_icon_url, currency) VALUES 
-(1, N'Du lịch Đà Lạt', '2025-12-20', '2025-12-25', 0, 'https://api.dicebear.com/7.x/icons/svg?seed=dalat', 'VND'),
-(1, N'Tết Nguyên Đán 2026', '2026-01-28', '2026-02-03', 0, 'https://api.dicebear.com/7.x/icons/svg?seed=tet', 'VND'),
-(2, N'Du lịch Đà Nẵng', '2025-08-15', '2029-08-30', 0, 'https://api.dicebear.com/7.x/icons/svg?seed=danang', 'VND'),
-(3, N'Sinh nhật 25 tuổi', '2026-03-15', '2026-03-15', 0, 'https://api.dicebear.com/7.x/icons/svg?seed=birthday', 'VND'),
-(4, N'Đám cưới anh Tuấn', '2026-05-10', '2026-05-10', 0, 'https://api.dicebear.com/7.x/icons/svg?seed=wedding', 'VND'),
-(5, N'Họp lớp 10 năm', '2026-07-20', '2026-07-20', 0, 'https://api.dicebear.com/7.x/icons/svg?seed=reunion', 'VND'),
-(6, N'Dự án tốt nghiệp', '2025-02-01', '2026-06-30', 0, 'https://api.dicebear.com/7.x/icons/svg?seed=thesis', 'VND'),
-(7, N'Khóa học React Native', '2025-03-01', '2025-08-31', 0, 'https://api.dicebear.com/7.x/icons/svg?seed=course', 'VND'),
-(8, N'Du lịch Phú Quốc', '2026-04-10', '2026-04-15', 0, 'https://api.dicebear.com/7.x/icons/svg?seed=phuquoc', 'VND'),
-(9, N'Thi chứng chỉ AWS', '2026-06-01', '2026-06-30', 0, 'https://api.dicebear.com/7.x/icons/svg?seed=aws', 'VND'),
-(10, N'Lễ hội âm nhạc', '2026-09-12', '2026-09-13', 0, 'https://api.dicebear.com/7.x/icons/svg?seed=festival', 'VND'),
-(11, N'Hackathon FPT 2026', '2026-10-15', '2026-10-17', 0, 'https://api.dicebear.com/7.x/icons/svg?seed=hackathon', 'VND'),
-(12, N'Chuyến về quê Tết', '2027-01-25', '2027-02-05', 0, 'https://api.dicebear.com/7.x/icons/svg?seed=hometown', 'VND'),
-(13, N'Workshop Spring Boot', '2025-05-10', '2025-05-12', 0, 'https://api.dicebear.com/7.x/icons/svg?seed=workshop', 'VND'),
-(14, N'Đi teambuilding công ty', '2026-08-20', '2026-08-22', 0, 'https://api.dicebear.com/7.x/icons/svg?seed=teambuilding', 'VND'),
-(15, N'Mua sắm Black Friday', '2025-11-28', '2025-11-30', 0, 'https://api.dicebear.com/7.x/icons/svg?seed=blackfriday', 'VND'),
-(16, N'Du lịch Sapa', '2026-12-10', '2026-12-15', 0, 'https://api.dicebear.com/7.x/icons/svg?seed=sapa', 'VND'),
-(17, N'Tham gia DevFest 2026', '2026-11-05', '2026-11-06', 0, 'https://api.dicebear.com/7.x/icons/svg?seed=devfest', 'VND'),
-(18, N'Khám sức khỏe định kỳ', '2026-03-01', '2026-03-31', 0, 'https://api.dicebear.com/7.x/icons/svg?seed=health', 'VND'),
-(19, N'Sửa nhà', '2025-06-01', '2025-09-30', 0, 'https://api.dicebear.com/7.x/icons/svg?seed=renovation', 'VND'),
-(20, N'Kỳ nghỉ hè gia đình', '2026-07-01', '2026-07-10', 0, 'https://api.dicebear.com/7.x/icons/svg?seed=vacation', 'VND');
+(1, N'Du lịch Đà Lạt', '2025-12-20', '2025-12-25', 0, 'icon_event_default.png', 'VND'),
+(1, N'Tết Nguyên Đán 2026', '2026-01-28', '2026-02-03', 0, 'icon_event_default.png', 'VND'),
+(2, N'Du lịch Đà Nẵng', '2025-08-15', '2029-08-30', 0, 'icon_event_default.png', 'VND'),
+(3, N'Sinh nhật 25 tuổi', '2026-03-15', '2026-03-15', 0, 'icon_event_default.png', 'VND'),
+(4, N'Đám cưới anh Tuấn', '2026-05-10', '2026-05-10', 0, 'icon_event_default.png', 'VND'),
+(5, N'Họp lớp 10 năm', '2026-07-20', '2026-07-20', 0, 'icon_event_default.png', 'VND'),
+(6, N'Dự án tốt nghiệp', '2025-02-01', '2026-06-30', 0, 'icon_event_default.png', 'VND'),
+(7, N'Khóa học React Native', '2025-03-01', '2025-08-31', 0, 'icon_event_default.png', 'VND'),
+(8, N'Du lịch Phú Quốc', '2026-04-10', '2026-04-15', 0, 'icon_event_default.png', 'VND'),
+(9, N'Thi chứng chỉ AWS', '2026-06-01', '2026-06-30', 0, 'icon_event_default.png', 'VND'),
+(10, N'Lễ hội âm nhạc', '2026-09-12', '2026-09-13', 0, 'icon_event_default.png', 'VND'),
+(11, N'Hackathon FPT 2026', '2026-10-15', '2026-10-17', 0, 'icon_event_default.png', 'VND'),
+(12, N'Chuyến về quê Tết', '2027-01-25', '2027-02-05', 0, 'icon_event_default.png', 'VND'),
+(13, N'Workshop Spring Boot', '2025-05-10', '2025-05-12', 0, 'icon_event_default.png', 'VND'),
+(14, N'Đi teambuilding công ty', '2026-08-20', '2026-08-22', 0, 'icon_event_default.png', 'VND'),
+(15, N'Mua sắm Black Friday', '2025-11-28', '2025-11-30', 0, 'icon_event_default.png', 'VND'),
+(16, N'Du lịch Sapa', '2026-12-10', '2026-12-15', 0, 'icon_event_default.png', 'VND'),
+(17, N'Tham gia DevFest 2026', '2026-11-05', '2026-11-06', 0, 'icon_event_default.png', 'VND'),
+(18, N'Khám sức khỏe định kỳ', '2026-03-01', '2026-03-31', 0, 'icon_event_default.png', 'VND'),
+(19, N'Sửa nhà', '2025-06-01', '2025-09-30', 0, 'icon_event_default.png', 'VND'),
+(20, N'Kỳ nghỉ hè gia đình', '2026-07-01', '2026-07-10', 0, 'icon_event_default.png', 'VND');
 GO
 
 -- ======================================================================
@@ -1469,7 +1469,7 @@ CREATE TABLE tTransactions (
         NOT (wallet_id IS NOT NULL AND goal_id IS NOT NULL)
     ),
     CONSTRAINT FK_Transactions_Account FOREIGN KEY (acc_id) REFERENCES tAccounts(id),
-    CONSTRAINT FK_Transactions_Category FOREIGN KEY (ctg_id) REFERENCES tCategories(id),
+    CONSTRAINT FK_Transactions_Category FOREIGN KEY (ctg_id) REFERENCES tCategories(id) ON DELETE CASCADE,
     CONSTRAINT FK_Transactions_Wallet FOREIGN KEY (wallet_id) REFERENCES tWallets(id) ON DELETE CASCADE,
     CONSTRAINT FK_Transactions_Event FOREIGN KEY (event_id) REFERENCES tEvents(id),
     CONSTRAINT FK_Transactions_Debt FOREIGN KEY (debt_id) REFERENCES tDebts(id),

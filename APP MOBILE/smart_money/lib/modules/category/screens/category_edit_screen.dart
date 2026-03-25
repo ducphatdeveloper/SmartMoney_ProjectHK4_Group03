@@ -31,6 +31,8 @@ import 'package:smart_money/modules/category/providers/category_provider.dart';
 import 'package:smart_money/modules/category/models/category_request.dart';
 import 'package:smart_money/modules/category/models/category_response.dart';
 import 'package:smart_money/modules/category/widgets/parent_category_sheet.dart';
+import 'package:smart_money/core/helpers/icon_helper.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 class CategoryEditScreen extends StatefulWidget {
   final CategoryResponse category; // danh mục cần sửa
@@ -194,17 +196,24 @@ class _CategoryEditScreenState extends State<CategoryEditScreen> {
   }
 
   // =============================================
-  // [6.6] _deleteCategory — xóa (có confirm dialog)
+  // [6.6] _deleteCategory — Xóa danh mục (DELETE_ALL)
   // =============================================
+  // Backend Controller: DELETE /api/categories/{id}?actionType=DELETE_ALL
+  // Backend Service (deleteCategoryWithOptions):
+  //   - actionType = null → mặc định DELETE_ALL
+  //   - Cascade: xóa giao dịch con → xóa giao dịch cha → xóa danh mục con → xóa cha
+  //   - getOwnedCategory() chặn danh mục hệ thống (account=null)
+  // Flutter: Truyền actionType=DELETE_ALL rõ ràng cho an toàn
   Future<void> _deleteCategory() async {
-    // Bước 1: Hiện dialog xác nhận trước khi xóa
+    // Bước 1: Confirm xóa
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF1C1C1E),
         title: const Text("Xóa danh mục", style: TextStyle(color: Colors.white)),
         content: Text(
-          'Bạn có chắc muốn xóa "${widget.category.ctgName}"?',
+          'Bạn có chắc muốn xóa "${widget.category.ctgName}"?\n'
+          'Danh mục con và giao dịch liên quan sẽ bị xóa theo.',
           style: const TextStyle(color: Colors.grey),
         ),
         actions: [
@@ -222,25 +231,88 @@ class _CategoryEditScreenState extends State<CategoryEditScreen> {
 
     if (confirmed != true || !mounted) return;
 
+    // Bước 2: Gọi API xóa với actionType=DELETE_ALL rõ ràng
     setState(() => _isDeleting = true);
 
     final provider = Provider.of<CategoryProvider>(context, listen: false);
-    final success = await provider.deleteCategory(widget.category.id);
+    final success = await provider.deleteCategoryWithOptions(
+      id: widget.category.id,
+      actionType: "DELETE_ALL",
+    );
 
-    // Bước 2: Gọi API xóa
     setState(() => _isDeleting = false);
-
-    // Bước 3: Xử lý kết quả — lỗi thường gặp: 403 khi xóa danh mục hệ thống
-
     if (!mounted) return;
 
+    // Bước 3: Kết quả
     if (success) {
       _showSnackBar(provider.successMessage ?? "Xóa thành công");
       Navigator.pop(context, true);
     } else {
+      // Lỗi: 403 hệ thống, 404 không tìm thấy, ...
       _showSnackBar(provider.errorMessage ?? "Không thể xóa", isError: true);
     }
   }
+
+  // =============================================
+  // [6.6.2] Sheet chọn danh mục nhận gộp (MERGE)
+  // =============================================
+  // API: GET /api/categories/merge-targets?type={ctgType}
+  // Lọc: cùng loại (Thu/Chi), loại bỏ chính nó
+  // User chọn xong → gọi DELETE?actionType=MERGE&newCategoryId=X
+  Future<void> _showMergeCategorySheet() async {
+    final provider = Provider.of<CategoryProvider>(context, listen: false);
+
+    // Bước 1: Load danh sách danh mục nhận gộp
+    await provider.loadMergeTargets(
+      widget.category.ctgType ?? false,
+      excludeId: widget.category.id,
+    );
+    if (!mounted) return;
+
+    // Bước 2: Kiểm tra danh sách rỗng
+    if (provider.mergeTargets.isEmpty) {
+      _showSnackBar("Không có danh mục nào cùng loại để gộp", isError: true);
+      return;
+    }
+
+    // Bước 3: Mở BottomSheet chọn danh mục nhận
+    final selected = await showModalBottomSheet<CategoryResponse?>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => DraggableScrollableSheet(
+        initialChildSize: 0.5,
+        maxChildSize: 0.8,
+        minChildSize: 0.3,
+        builder: (_, __) => _MergeTargetSheet(
+          targets: provider.mergeTargets,
+          categoryName: widget.category.ctgName,
+        ),
+      ),
+    );
+
+    if (selected == null || !mounted) return; // user đóng sheet không chọn
+
+    // Bước 4: Gọi API gộp
+    setState(() => _isDeleting = true);
+
+    final success = await provider.deleteCategoryWithOptions(
+      id: widget.category.id,
+      actionType: "MERGE",
+      newCategoryId: selected.id,
+    );
+
+    setState(() => _isDeleting = false);
+    if (!mounted) return;
+
+    if (success) {
+      _showSnackBar(provider.successMessage ?? "Gộp danh mục thành công");
+      Navigator.pop(context, true); // quay về list
+    } else {
+      _showSnackBar(provider.errorMessage ?? "Không thể gộp danh mục", isError: true);
+    }
+  }
+
 
   // =============================================
   // [6.7] Helper — hiện SnackBar
@@ -265,6 +337,27 @@ class _CategoryEditScreenState extends State<CategoryEditScreen> {
         title: const Text("Chỉnh sửa nhóm"),
         backgroundColor: Colors.black,
         centerTitle: true,
+        actions: [
+          // Nút xóa ở bên phải appbar (icon thùng rác)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Center(
+              child: GestureDetector(
+                onTap: _isDeleting ? null : _deleteCategory,
+                child: _isDeleting
+                    ? const SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(
+                          color: Colors.red,
+                          strokeWidth: 2,
+                        ),
+                      )
+                    : const Icon(Icons.delete_outline, color: Colors.red, size: 24),
+              ),
+            ),
+          ),
+        ],
       ),
       body: Padding(
         padding: const EdgeInsets.all(16),
@@ -277,11 +370,7 @@ class _CategoryEditScreenState extends State<CategoryEditScreen> {
                   onTap: () {
                     // TODO: mở icon picker
                   },
-                  child: CircleAvatar(
-                    radius: 24,
-                    backgroundColor: Colors.grey.shade800,
-                    child: const Icon(Icons.category, color: Colors.white, size: 24),
-                  ),
+                  child: _buildCategoryIcon(),
                 ),
                 const SizedBox(width: 16),
                 Expanded(
@@ -403,7 +492,28 @@ class _CategoryEditScreenState extends State<CategoryEditScreen> {
               ),
             ),
 
-            const Spacer(),
+            const SizedBox(height: 12),
+
+            // ===== [C.1] Nút GỘP NHÓM =====
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: OutlinedButton(
+                onPressed: _isDeleting ? null : _showMergeCategorySheet,
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: Colors.blue),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(25),
+                  ),
+                ),
+                child: const Text(
+                  "GỘP NHÓM",
+                  style: TextStyle(color: Colors.blue, fontSize: 16),
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 16),
 
             // ===== [D] Button "Lưu" =====
             SizedBox(
@@ -430,33 +540,128 @@ class _CategoryEditScreenState extends State<CategoryEditScreen> {
             const SizedBox(height: 12),
 
             // ===== [E] Button "Xóa" =====
-            SizedBox(
-              width: double.infinity,
-              height: 50,
-              child: OutlinedButton.icon(
-                onPressed: _isDeleting ? null : _deleteCategory,
-                icon: _isDeleting
-                    ? const SizedBox(
-                        width: 20, height: 20,
-                        child: CircularProgressIndicator(color: Colors.red, strokeWidth: 2),
-                      )
-                    : const Icon(Icons.delete, color: Colors.red),
-                label: const Text(
-                  "Xóa danh mục",
-                  style: TextStyle(color: Colors.red, fontSize: 16),
-                ),
-                style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: Colors.red),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(25),
-                  ),
-                ),
-              ),
-            ),
+            // (Đã được chuyển sang icon thùng rác ở AppBar bên phải)
 
             const SizedBox(height: 16),
           ],
         ),
+      ),
+    );
+  }
+
+  // =============================================
+  // _buildCategoryIcon — hiển thị icon từ Cloudinary
+  // =============================================
+  Widget _buildCategoryIcon() {
+    final cloudinaryUrl = IconHelper.buildCloudinaryUrl(widget.category.ctgIconUrl);
+    
+    if (cloudinaryUrl != null && cloudinaryUrl.isNotEmpty) {
+      return CircleAvatar(
+        radius: 24,
+        backgroundColor: Colors.grey.shade800,
+        child: CachedNetworkImage(
+          imageUrl: cloudinaryUrl,
+          width: 40,
+          height: 40,
+          fit: BoxFit.cover,
+          placeholder: (_, __) => const Icon(Icons.category, color: Colors.white, size: 24),
+          errorWidget: (_, __, ___) => const Icon(Icons.category, color: Colors.white, size: 24),
+        ),
+      );
+    }
+    
+    return CircleAvatar(
+      radius: 24,
+      backgroundColor: Colors.grey.shade800,
+      child: const Icon(Icons.category, color: Colors.white, size: 24),
+    );
+  }
+}
+
+// ===========================================================
+// [6.9] Widget nội bộ: Sheet chọn danh mục nhận gộp
+// ===========================================================
+// Hiện khi: User chọn "Gộp giao dịch" từ dialog [6.6.1]
+// Layout: giống ParentCategorySheet nhưng không có option "Không có"
+// Return: CategoryResponse đã chọn (hoặc null nếu đóng sheet)
+class _MergeTargetSheet extends StatelessWidget {
+  // Danh sách danh mục cùng loại có thể nhận gộp
+  final List<CategoryResponse> targets;
+  // Tên danh mục đang bị xóa — hiển thị trong tiêu đề
+  final String categoryName;
+
+  const _MergeTargetSheet({
+    required this.targets,
+    required this.categoryName,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: Color(0xFF1C1C1E),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // ----- Thanh tiêu đề -----
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    "Gộp giao dịch từ \"$categoryName\" vào:",
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                GestureDetector(
+                  onTap: () => Navigator.pop(context), // đóng sheet, không chọn
+                  child: const Icon(Icons.close, color: Colors.grey),
+                ),
+              ],
+            ),
+          ),
+
+          const Divider(height: 1, color: Colors.grey),
+
+          // ----- Danh sách danh mục nhận gộp -----
+          Flexible(
+            child: ListView.separated(
+              shrinkWrap: true,
+              itemCount: targets.length,
+              separatorBuilder: (_, __) => const Divider(height: 1, color: Colors.grey),
+              itemBuilder: (context, index) {
+                final target = targets[index];
+
+                return ListTile(
+                  leading: CircleAvatar(
+                    backgroundColor: Colors.grey.shade800,
+                    child: const Icon(Icons.category, color: Colors.white, size: 20),
+                  ),
+                  title: Text(
+                    target.ctgName,
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                  // Hiển thị loại (Thu/Chi) nhỏ bên dưới
+                  subtitle: Text(
+                    target.ctgType == true ? "Khoản thu" : "Khoản chi",
+                    style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                  ),
+                  onTap: () => Navigator.pop(context, target), // trả về danh mục đã chọn
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
   }

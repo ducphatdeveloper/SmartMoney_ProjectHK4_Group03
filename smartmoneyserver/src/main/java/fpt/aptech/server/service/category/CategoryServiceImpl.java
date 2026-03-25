@@ -4,9 +4,12 @@ import fpt.aptech.server.dto.category.CategoryRequest;
 import fpt.aptech.server.dto.category.CategoryResponse;
 import fpt.aptech.server.entity.Account;
 import fpt.aptech.server.entity.Category;
+import fpt.aptech.server.entity.Transaction;
 import fpt.aptech.server.mapper.category.CategoryMapper;
 import fpt.aptech.server.repos.AccountRepository;
 import fpt.aptech.server.repos.CategoryRepository;
+import fpt.aptech.server.repos.TransactionRepository;
+import fpt.aptech.server.service.transaction.TransactionService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,11 +22,154 @@ import java.util.Objects;
 @RequiredArgsConstructor
 public class CategoryServiceImpl implements CategoryService {
 
-    private static final String DEFAULT_CATEGORY_ICON_FILENAME = "icon_default_category.svg";
+    private static final String DEFAULT_CATEGORY_ICON_FILENAME = "icon_default_category.png";
 
     private final CategoryRepository categoryRepository;
     private final AccountRepository accountRepository;
     private final CategoryMapper categoryMapper;
+
+    // ... inject thêm TransactionService
+    private final TransactionService transactionService; // Hoặc TransactionServiceImpl -- phuc vu cho xoa va gop category
+    private final TransactionRepository transactionRepository; // phuc vu cho xoa va gop category
+
+    /**
+     * [HELPER] Lấy danh mục do user sở hữu (không phải hệ thống) với quyền kiểm soát toàn bộ (edit/delete).
+     * <p>
+     * Logic:
+     * - Nếu danh mục không tồn tại → throw IllegalArgumentException
+     * - Nếu danh mục là hệ thống (account=null) → throw IllegalStateException
+     * - Nếu danh mục không phải của user này → throw SecurityException
+     * - Nếu tất cả check pass → return Category (an toàn để edit/delete)
+     *
+     * @param categoryId ID danh mục cần validate
+     * @param accountId  ID tài khoản user
+     * @return Category entity (đã được validate quyền sở hữu)
+     */
+    private Category getOwnedCategory(Integer categoryId, Integer accountId) {
+        // 1. Dùng Query để lấy Category lên (chỉ cần ID là đủ)
+        Category category = categoryRepository.findById(categoryId)
+                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy danh mục với ID: " + categoryId));
+
+        // 2. Chặn danh mục hệ thống (Thứ tự này quan trọng để báo lỗi đúng loại)
+        if (category.getAccount() == null) {
+            throw new IllegalStateException("Không thể xóa/sửa danh mục mặc định của hệ thống.");
+        }
+
+        // 3. Kiểm tra quyền sở hữu (Security)
+        if (!category.getAccount().getId().equals(accountId)) {
+            throw new SecurityException("Bạn không có quyền thao tác danh mục này!");
+        }
+
+        return category;
+    }
+
+    /**
+     * [HELPER] Lấy danh sách danh mục nhận gộp theo loại (Thu/Chi) + filter theo accountId.
+     * <p>
+     * Dùng khi user chọn MERGE: hiển thị danh sách danh mục cùng loại để user chọn danh mục nhận.
+     *
+     * @param accountId ID tài khoản user
+     * @param ctgType   true (Thu), false (Chi)
+     * @return Danh sách danh mục cùng loại có thể nhận gộp
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public List<CategoryResponse> getCategoriesForMerge(Integer accountId, Boolean ctgType) {
+        List<Category> entities;
+        if (ctgType) { // Nếu là Khoản Thu
+            List<String> incomeExclusions = List.of("Đi vay", "Thu nợ");
+            entities = categoryRepository.findAllIncomeCategories(accountId, incomeExclusions);
+        } else { // Nếu là Khoản Chi
+            List<String> expenseExclusions = List.of("Cho vay", "Trả nợ");
+            entities = categoryRepository.findAllExpenseCategories(accountId, expenseExclusions);
+        }
+        return categoryMapper.toDtoList(entities);
+    }
+
+    /**
+     * Xóa danh mục - HYBRID (Hỗ trợ cả 2 chế độ).
+     * 
+     * LOGIC:
+     * 1. Validate quyền sở hữu của danh mục cần xóa.
+     * 2. Nếu actionType = "MERGE": Gộp giao dịch cha + con sang mục mới, xóa danh mục.
+     * 3. Nếu actionType = "DELETE_ALL" (hoặc null): Xóa sạch giao dịch cha + con, xóa danh mục.
+     * 
+     * @param actionType "MERGE" (gộp giao dịch) hoặc "DELETE_ALL" (xóa sạch) - mặc định DELETE_ALL nếu null
+     * @param newCategoryId ID mục nhận gộp (bắt buộc nếu actionType = MERGE)
+     */
+    @Override
+    @Transactional
+    public void deleteCategoryWithOptions(Integer categoryId, Integer accountId, String actionType, Integer newCategoryId) {
+        // 1. Validate danh mục cần xóa & quyền sở hữu
+        Category category = getOwnedCategory(categoryId, accountId);
+
+        // 2. Lấy danh sách danh mục con
+        List<Category> childCategories = categoryRepository.findByParent_IdAndAccount_Id(categoryId, accountId);
+
+        // 3. Xác định kiểu xóa (mặc định: DELETE_ALL)
+        String action = (actionType != null) ? actionType.toUpperCase() : "DELETE_ALL";
+
+        if ("MERGE".equals(action)) {
+            // ═══════════════════════════════════════════════════════════════════════════
+            // LOGIC GỘP (MERGE): Gộp giao dịch sang mục mới rồi xóa danh mục
+            // ═══════════════════════════════════════════════════════════════════════════
+
+            // 3.1. Validate mục nhận gộp
+            if (newCategoryId == null) {
+                throw new IllegalArgumentException("Thiếu tham số: ID mục nhận gộp (newCategoryId)");
+            }
+
+            Category targetCategory = getOwnedCategory(newCategoryId, accountId);
+
+            // 3.2. Validate: Mục cần xóa và mục nhận phải cùng loại (Thu/Chi)
+            if (!category.getCtgType().equals(targetCategory.getCtgType())) {
+                throw new IllegalArgumentException(
+                        "Không thể gộp danh mục chi sang danh mục thu (hoặc ngược lại). " +
+                        "Vui lòng chọn danh mục cùng loại."
+                );
+            }
+
+            // 3.3. Validate: Không được gộp vào chính nó
+            if (categoryId.equals(newCategoryId)) {
+                throw new IllegalArgumentException("Không thể gộp danh mục sang chính nó.");
+            }
+
+            // 3.4. Di chuyển giao dịch của danh mục CHA sang mục nhận
+            transactionRepository.updateCategoryForUserTransactions(categoryId, newCategoryId, accountId);
+
+            // 3.5. Di chuyển giao dịch của danh mục CON sang mục nhận
+            for (Category child : childCategories) {
+                transactionRepository.updateCategoryForUserTransactions(child.getId(), newCategoryId, accountId);
+            }
+
+            // 3.6. Hoàn tiền: Vì giao dịch đã chuyển sang mục mới, cần hoàn tiền mục cũ
+            transactionService.revertAllTransactionBalancesForCategoryNoFetch(categoryId, accountId);
+            for (Category child : childCategories) {
+                transactionService.revertAllTransactionBalancesForCategoryNoFetch(child.getId(), accountId);
+            }
+
+        } else {
+            // ═══════════════════════════════════════════════════════════════════════════
+            // LOGIC XÓA SẠCH (DELETE_ALL): Xóa luôn giao dịch, không gộp
+            // ═══════════════════════════════════════════════════════════════════════════
+
+            // 3.1. Hoàn tiền + Xóa giao dịch của danh mục CON
+            for (Category child : childCategories) {
+                transactionService.revertAllTransactionBalancesForCategoryNoFetch(child.getId(), accountId);
+                transactionRepository.deleteAllByCategoryIdAndAccountId(child.getId(), accountId);
+            }
+
+            // 3.2. Hoàn tiền + Xóa giao dịch của danh mục CHA
+            transactionService.revertAllTransactionBalancesForCategoryNoFetch(categoryId, accountId);
+            transactionRepository.deleteAllByCategoryIdAndAccountId(categoryId, accountId);
+        }
+
+        // 4. Xóa danh mục khỏi DB (Con trước, cha sau để tránh FK constraint)
+        if (!childCategories.isEmpty()) {
+            categoryRepository.deleteAllInBatch(childCategories);
+        }
+        categoryRepository.delete(category);
+    }
 
     /**
      * Lấy danh sách danh mục theo nhóm (Expense, Income, Debt).
@@ -109,8 +255,8 @@ public class CategoryServiceImpl implements CategoryService {
             entities = categoryRepository.findIncomeParents(accountId, "Lương");
         } else { // Nếu là Khoản Chi
             List<String> excludedNames = List.of(
-                "Các chi phí khác", "Tiền chuyển đi", "Trả lãi",
-                "Cho vay", "Đi vay", "Thu nợ", "Trả nợ"
+                    "Các chi phí khác", "Tiền chuyển đi", "Trả lãi",
+                    "Cho vay", "Đi vay", "Thu nợ", "Trả nợ"
             );
             entities = categoryRepository.findExpenseParents(accountId, excludedNames);
         }
@@ -187,29 +333,44 @@ public class CategoryServiceImpl implements CategoryService {
     @Override
     @Transactional
     public CategoryResponse updateCategory(Integer categoryId, CategoryRequest request, Integer accountId) {
-        // 1. Tìm danh mục cần cập nhật
-        Category category = categoryRepository.findById(categoryId)
-                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy danh mục với ID: " + categoryId));
+        // 1. Tìm danh mục cần cập nhật và validate quyền
+        Category category = getOwnedCategory(categoryId, accountId);
 
-        // 2. Validate quyền sở hữu
-        if (category.getAccount() == null || !category.getAccount().getId().equals(accountId)) {
-            throw new SecurityException("Bạn không có quyền sửa danh mục này.");
-        }
-
-        // 3. Validate trùng tên (chỉ khi tên thay đổi)
+        // 2. Validate trùng tên (chỉ khi tên thay đổi) - Phân biệt Gốc/Con
         if (!Objects.equals(category.getCtgName(), request.ctgName())) {
-            // TODO: Logic check trùng tên khi update cũng cần phân biệt Gốc/Con tương tự như Create
-            if (categoryRepository.existsByCtgNameAndAccount_IdAndParentIsNull(request.ctgName(), accountId)) {
-                throw new IllegalArgumentException("Tên danh mục '" + request.ctgName() + "' đã được sử dụng.");
+            // Xác định cha "hiệu lực" (effective parent)
+            // - Nếu request có truyền parentId → dùng cái mới
+            // - Nếu request không truyền parentId → giữ nguyên cha cũ (hoặc null nếu là gốc)
+            Integer effectiveParentId = request.parentId() != null
+                    ? request.parentId()
+                    : (category.getParent() != null ? category.getParent().getId() : null);
+
+            if (effectiveParentId != null) {
+                // Là danh mục CON: check trùng tên trong cùng cha
+                if (categoryRepository.existsByCtgNameAndParent_IdAndAccount_Id(request.ctgName(), effectiveParentId, accountId)) {
+                    Category parent = categoryRepository.findById(effectiveParentId).orElse(null);
+                    String parentName = (parent != null) ? parent.getCtgName() : "";
+                    throw new IllegalArgumentException("Danh mục '" + request.ctgName() + "' đã tồn tại trong mục '" + parentName + "'.");
+                }
+            } else {
+                // Là danh mục GỐC: check trùng tên với danh mục gốc của user
+                if (categoryRepository.existsByCtgNameAndAccount_IdAndParentIsNull(request.ctgName(), accountId)) {
+                    throw new IllegalArgumentException("Danh mục gốc '" + request.ctgName() + "' đã tồn tại.");
+                }
+                // Check trùng tên với danh mục gốc của HỆ THỐNG
+                if (categoryRepository.existsByCtgNameAndAccountIsNullAndParentIsNull(request.ctgName())) {
+                    throw new IllegalArgumentException("Không thể tạo danh mục gốc trùng tên với danh mục của hệ thống.");
+                }
             }
         }
 
-        // 4. Cập nhật các trường từ request
+        // 3. Cập nhật các trường từ request
         category.setCtgName(request.ctgName());
         category.setCtgType(request.ctgType());
         category.setCtgIconUrl(request.ctgIconUrl());
 
-        // 5. Cập nhật danh mục cha (nếu có)
+        // 4. Cập nhật danh mục cha (nếu request gửi parentId)
+        // Nếu request không gửi parentId, sẽ giữ nguyên cha cũ (không thay đổi quan hệ)
         if (request.parentId() != null) {
             Category parent = categoryRepository.findById(request.parentId())
                     .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy danh mục cha với ID: " + request.parentId()));
@@ -219,41 +380,13 @@ public class CategoryServiceImpl implements CategoryService {
                 throw new SecurityException("Không có quyền sử dụng danh mục cha này.");
             }
             category.setParent(parent);
-        } else {
-            category.setParent(null); // Cho phép bỏ cha
         }
+        // Nếu request.parentId() == null → không cập nhật quan hệ cha, giữ nguyên cái cũ
 
-        // 6. Lưu lại (JPA tự hiểu đây là update vì category đã có ID)
+        // 5. Lưu lại (JPA tự hiểu đây là update vì category đã có ID)
         Category updatedCategory = categoryRepository.save(category);
 
-        // 7. Trả về DTO
+        // 6. Trả về DTO
         return categoryMapper.toDto(updatedCategory);
-    }
-
-    /**
-     * Xóa danh mục.
-     * - Validate quyền sở hữu.
-     * - (TODO) Validate ràng buộc giao dịch.
-     */
-    @Override
-    @Transactional
-    public void deleteCategory(Integer categoryId, Integer accountId) {
-        // 1. Tìm danh mục cần xóa
-        Category category = categoryRepository.findById(categoryId)
-                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy danh mục với ID: " + categoryId));
-
-        // 2. Kiểm tra quyền sở hữu (Không cho xóa danh mục hệ thống)
-        if (category.getAccount() == null || !category.getAccount().getId().equals(accountId)) {
-            throw new SecurityException("Bạn không có quyền xóa danh mục này.");
-        }
-
-        // 3. Kiểm tra ràng buộc (Ví dụ: có giao dịch nào đang dùng không?)
-        // TODO: Cần thêm hàm trong TransactionRepository: boolean existsByCategory_Id(Integer categoryId);
-        // if (transactionRepository.existsByCategory_Id(categoryId)) {
-        //     throw new DataIntegrityViolationException("Không thể xóa danh mục đã có giao dịch.");
-        // }
-
-        // 4. Xóa (Hard Delete)
-        categoryRepository.deleteById(categoryId);
     }
 }

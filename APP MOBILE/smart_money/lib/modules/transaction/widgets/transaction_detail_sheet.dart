@@ -29,6 +29,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:smart_money/core/helpers/format_helper.dart';
+import 'package:smart_money/core/helpers/icon_helper.dart';
 import 'package:smart_money/modules/transaction/models/view/transaction_response.dart';
 
 class TransactionDetailSheet extends StatelessWidget {
@@ -107,16 +108,68 @@ class TransactionDetailSheet extends StatelessWidget {
 
           // ===== Row tên ví =====
           if (transaction.walletName != null)
-            _buildInfoRow(
-              icon: Icons.account_balance_wallet_outlined,
-              label: transaction.walletName!,
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Row(
+                children: [
+                  // Icon ví
+                  SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: IconHelper.buildWalletIcon(
+                      iconUrl: transaction.walletIconUrl,
+                      size: 20,
+                      placeholder: Icon(
+                        Icons.account_balance_wallet_outlined,
+                        color: Colors.grey[500],
+                        size: 20,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      transaction.walletName!,
+                      style: const TextStyle(color: Colors.white, fontSize: 14),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
             ),
 
           // ===== Row tên mục tiêu tiết kiệm (nếu là saving goal) =====
           if (transaction.savingGoalName != null)
-            _buildInfoRow(
-              icon: Icons.savings_outlined,
-              label: transaction.savingGoalName!,
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Row(
+                children: [
+                  // Icon saving goal
+                  SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: IconHelper.buildSavingGoalIcon(
+                      iconUrl: transaction.savingGoalIconUrl,
+                      size: 20,
+                      placeholder: Icon(
+                        Icons.savings_outlined,
+                        color: Colors.grey[500],
+                        size: 20,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      transaction.savingGoalName!,
+                      style: const TextStyle(color: Colors.white, fontSize: 14),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
             ),
 
           // ===== Row ghi chú (ẩn nếu null) =====
@@ -227,10 +280,12 @@ class TransactionDetailSheet extends StatelessWidget {
   Widget _buildCategoryAvatar() {
     final isIncome = transaction.categoryType;
 
-    // Có icon URL → load từ mạng
-    if (transaction.categoryIconUrl != null && transaction.categoryIconUrl!.isNotEmpty) {
+    // Sử dụng IconHelper để display icon từ URL Cloudinary
+    final categoryUrl = IconHelper.buildCloudinaryUrl(transaction.categoryIconUrl);
+    
+    if (categoryUrl != null && categoryUrl.isNotEmpty) {
       return CachedNetworkImage(
-        imageUrl: transaction.categoryIconUrl!,
+        imageUrl: categoryUrl,
         width: 64,
         height: 64,
         imageBuilder: (context, imageProvider) {

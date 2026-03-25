@@ -4,6 +4,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:smart_money/modules/transaction/providers/transaction_provider.dart';
 import 'package:smart_money/modules/transaction/dialogs/date_range_mode_dialog.dart';
 import 'package:smart_money/core/helpers/format_helper.dart';
+import 'package:smart_money/core/helpers/icon_helper.dart';
 
 /// AppBar cho Transaction List Screen
 class TransactionAppBar extends StatelessWidget implements PreferredSizeWidget {
@@ -53,22 +54,8 @@ class TransactionAppBar extends StatelessWidget implements PreferredSizeWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Icon ví từ URL (PNG/SVG - dùng CachedNetworkImage)
-            if (provider.selectedSource.iconUrl != null && 
-                provider.selectedSource.iconUrl!.isNotEmpty)
-              CachedNetworkImage(
-                imageUrl: provider.selectedSource.iconUrl!,
-                width: 24,
-                height: 24,
-                fit: BoxFit.cover,
-                placeholder: (context, url) => const SizedBox(width: 24, height: 24),
-                errorWidget: (context, url, error) => 
-                    _buildDropdownDefaultIcon(provider.selectedSource.type),
-              )
-            else if (provider.selectedSource.type == 'all')
-              _buildDropdownDefaultIcon('all')
-            else
-              const SizedBox.shrink(),
+            // Icon ví từ URL — convert filename thành Cloudinary URL nếu cần
+            _buildDropdownIcon(provider.selectedSource.iconUrl, provider.selectedSource.type),
             
             if (provider.selectedSource.iconUrl != null && 
                 provider.selectedSource.iconUrl!.isNotEmpty)
@@ -97,6 +84,24 @@ class TransactionAppBar extends StatelessWidget implements PreferredSizeWidget {
         ),
       ),
     );
+  }
+
+  /// Build icon cho dropdown — convert URL nếu cần
+  Widget _buildDropdownIcon(String? iconUrl, String type) {
+    final cloudinaryUrl = IconHelper.buildCloudinaryUrl(iconUrl);
+    
+    if (cloudinaryUrl != null && cloudinaryUrl.isNotEmpty) {
+      return CachedNetworkImage(
+        imageUrl: cloudinaryUrl,
+        width: 24,
+        height: 24,
+        fit: BoxFit.cover,
+        placeholder: (context, url) => const SizedBox(width: 24, height: 24),
+        errorWidget: (context, url, error) => _buildDropdownDefaultIcon(type),
+      );
+    }
+    
+    return _buildDropdownDefaultIcon(type);
   }
 
   /// Default icon nhỏ cho dropdown (khi URL fail hoặc "Tổng cộng")
@@ -210,19 +215,8 @@ class TransactionAppBar extends StatelessWidget implements PreferredSizeWidget {
                 item.type == provider.selectedSource.type;
 
             return ListTile(
-              // Icon từ URL (PNG/SVG - dùng CachedNetworkImage + fallback icon)
-              leading: item.iconUrl != null && item.iconUrl!.isNotEmpty
-                  ? CachedNetworkImage(
-                      imageUrl: item.iconUrl!,
-                      width: 40,
-                      height: 40,
-                      fit: BoxFit.cover,
-                      placeholder: (context, url) => 
-                          _buildDefaultSourceIcon(item),
-                      errorWidget: (context, url, error) => 
-                          _buildDefaultSourceIcon(item),
-                    )
-                  : _buildDefaultSourceIcon(item),
+              // Icon từ URL — convert filename thành Cloudinary URL nếu cần
+              leading: _buildSourceSheetIcon(item),
               title: Text(
                 item.name,
                 style: TextStyle(
@@ -248,6 +242,24 @@ class TransactionAppBar extends StatelessWidget implements PreferredSizeWidget {
         );
       },
     );
+  }
+
+  /// Build icon cho sheet — convert URL nếu cần
+  Widget _buildSourceSheetIcon(dynamic item) {
+    final cloudinaryUrl = IconHelper.buildCloudinaryUrl(item.iconUrl);
+    
+    if (cloudinaryUrl != null && cloudinaryUrl.isNotEmpty) {
+      return CachedNetworkImage(
+        imageUrl: cloudinaryUrl,
+        width: 40,
+        height: 40,
+        fit: BoxFit.cover,
+        placeholder: (context, url) => _buildDefaultSourceIcon(item),
+        errorWidget: (context, url, error) => _buildDefaultSourceIcon(item),
+      );
+    }
+    
+    return _buildDefaultSourceIcon(item);
   }
 
   Widget _buildDefaultSourceIcon(dynamic item) {

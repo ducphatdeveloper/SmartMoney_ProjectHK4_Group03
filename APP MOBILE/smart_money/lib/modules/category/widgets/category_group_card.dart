@@ -9,6 +9,7 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:smart_money/modules/category/models/category_response.dart';
+import 'package:smart_money/core/helpers/icon_helper.dart';
 
 class CategoryGroupCard extends StatelessWidget {
   // Danh mục cha
@@ -93,12 +94,14 @@ class CategoryGroupCard extends StatelessWidget {
 
   // ----- Build icon: load từ URL, fallback placeholder -----
   Widget _buildIcon(String? iconUrl) {
-    // Nếu có URL và là link http → load từ mạng
-    if (iconUrl != null && iconUrl.startsWith('http')) {
+    // Convert filename thành Cloudinary URL đầy đủ
+    final cloudinaryUrl = IconHelper.buildCloudinaryUrl(iconUrl);
+    
+    if (cloudinaryUrl != null && cloudinaryUrl.isNotEmpty) {
       return CircleAvatar(
         backgroundColor: Colors.grey.shade800,
         child: CachedNetworkImage(
-          imageUrl: iconUrl,
+          imageUrl: cloudinaryUrl,
           width: 24,
           height: 24,
           placeholder: (_, __) => const Icon(Icons.category, color: Colors.grey, size: 20),
@@ -107,7 +110,7 @@ class CategoryGroupCard extends StatelessWidget {
       );
     }
 
-    // Fallback: icon mặc định khi chưa có URL hoặc là file local (svg)
+    // Fallback: icon mặc định khi chưa có URL hoặc rỗng
     return CircleAvatar(
       backgroundColor: Colors.grey.shade800,
       child: const Icon(Icons.category, color: Colors.white, size: 20),

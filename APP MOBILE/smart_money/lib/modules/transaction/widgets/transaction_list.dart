@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:smart_money/core/helpers/format_helper.dart';
+import 'package:smart_money/core/helpers/icon_helper.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:smart_money/modules/transaction/models/view/transaction_response.dart';
 import 'package:smart_money/modules/transaction/providers/transaction_provider.dart';
 import 'package:smart_money/modules/transaction/screens/transaction_edit_screen.dart';
@@ -185,16 +187,8 @@ class TransactionGroupedList extends StatelessWidget {
               child: ExpansionTile(
                 title: Row(
                   children: [
-                    // Icon danh mục
-                    if (group.categoryIconUrl != null)
-                      Image.network(
-                        group.categoryIconUrl!,
-                        width: 40,
-                        height: 40,
-                        errorBuilder: (_, __, ___) => _buildDefaultIcon(),
-                      )
-                    else
-                      _buildDefaultIcon(),
+                    // Icon danh mục — convert filename thành Cloudinary URL
+                    _buildCategoryIcon(group.categoryIconUrl, group.categoryType ?? false),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
@@ -325,6 +319,33 @@ class TransactionGroupedList extends StatelessWidget {
       ),
       child: const Icon(Icons.category, color: Colors.white),
     );
+  }
+
+  // ----- Build category icon từ filename → Cloudinary URL -----
+  Widget _buildCategoryIcon(String? iconUrl, bool categoryType) {
+    final cloudinaryUrl = IconHelper.buildCloudinaryUrl(iconUrl);
+    
+    if (cloudinaryUrl != null && cloudinaryUrl.isNotEmpty) {
+      return CachedNetworkImage(
+        imageUrl: cloudinaryUrl,
+        width: 40,
+        height: 40,
+        imageBuilder: (context, imageProvider) {
+          return Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(8),
+              image: DecorationImage(image: imageProvider, fit: BoxFit.cover),
+            ),
+          );
+        },
+        placeholder: (_, __) => _buildDefaultIcon(),
+        errorWidget: (_, __, ___) => _buildDefaultIcon(),
+      );
+    }
+    
+    return _buildDefaultIcon();
   }
 
   Widget _buildEmptyState(IconData icon) {

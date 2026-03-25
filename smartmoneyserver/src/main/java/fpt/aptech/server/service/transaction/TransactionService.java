@@ -1,14 +1,15 @@
 package fpt.aptech.server.service.transaction;
 
+import fpt.aptech.server.dto.transaction.report.CategoryReportDTO;
 import fpt.aptech.server.dto.transaction.report.DailyTrendDTO;
 import fpt.aptech.server.dto.transaction.report.FinancialReportResponse;
-import fpt.aptech.server.dto.transaction.report.CategoryReportDTO;
 import fpt.aptech.server.dto.transaction.report.TransactionReportResponse;
 import fpt.aptech.server.dto.transaction.request.TransactionRequest;
 import fpt.aptech.server.dto.transaction.request.TransactionSearchRequest;
 import fpt.aptech.server.dto.transaction.view.CategoryTransactionGroup;
 import fpt.aptech.server.dto.transaction.view.DailyTransactionGroup;
 import fpt.aptech.server.dto.transaction.view.TransactionResponse;
+import fpt.aptech.server.entity.Transaction;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -59,4 +60,11 @@ public interface TransactionService {
     TransactionResponse updateTransaction(Long transactionId, TransactionRequest request, Integer accountId);
 
     void deleteTransaction(Long transactionId, Integer accountId);
+
+    // ================= 5. HỖ TRỢ HÀM (HELPER) =================
+    // [HELPER] Hoàn tiền về ví khi xóa hoặc gộp giao dịch ( chỉ hoạt động với ít giao dịch )
+
+    void revertTransactionBalance(Transaction transaction);
+    // [HELPER] Hoàn tiền hàng loạt bằng Native SQL khi xóa Category
+    void revertAllTransactionBalancesForCategoryNoFetch(Integer categoryId, Integer accountId);
 }

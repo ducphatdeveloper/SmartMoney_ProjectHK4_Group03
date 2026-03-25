@@ -11,6 +11,7 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:smart_money/modules/category/models/category_response.dart';
+import 'package:smart_money/core/helpers/icon_helper.dart';
 
 class TransactionCategoryRow extends StatelessWidget {
 
@@ -58,19 +59,23 @@ class TransactionCategoryRow extends StatelessWidget {
   // ----- Helper: Build icon danh mục -----
   Widget _buildIcon() {
     if (selected != null && selected!.ctgIconUrl != null && selected!.ctgIconUrl!.isNotEmpty) {
-      // Đã chọn + có icon URL → load từ network
-      return CircleAvatar(
-        radius: 20,
-        backgroundColor: Colors.grey[800],
-        child: CachedNetworkImage(
-          imageUrl: selected!.ctgIconUrl!,
-          width: 28,
-          height: 28,
-          fit: BoxFit.cover,
-          placeholder: (_, __) => const Icon(Icons.category, color: Colors.grey, size: 20),
-          errorWidget: (_, __, ___) => const Icon(Icons.category, color: Colors.grey, size: 20),
-        ),
-      );
+      // Đã chọn + có icon → build Cloudinary URL và load từ network
+      final categoryUrl = IconHelper.buildCloudinaryUrl(selected!.ctgIconUrl);
+      
+      if (categoryUrl != null && categoryUrl.isNotEmpty) {
+        return CircleAvatar(
+          radius: 20,
+          backgroundColor: Colors.grey[800],
+          child: CachedNetworkImage(
+            imageUrl: categoryUrl,
+            width: 28,
+            height: 28,
+            fit: BoxFit.cover,
+            placeholder: (_, __) => const Icon(Icons.category, color: Colors.grey, size: 20),
+            errorWidget: (_, __, ___) => const Icon(Icons.category, color: Colors.grey, size: 20),
+          ),
+        );
+      }
     }
 
     // Chưa chọn hoặc không có icon → placeholder xám

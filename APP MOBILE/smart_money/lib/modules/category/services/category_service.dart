@@ -103,12 +103,14 @@ class CategoryService {
   }
 
   // -----------------------------------------------------------
-  // [1.6] Xóa danh mục
+  // [1.6] Xóa danh mục (không truyền actionType)
   // -----------------------------------------------------------
-  // Backend: CategoryController.deleteCategory()
-  // Lỗi:
-  //   • "Bạn không có quyền xóa danh mục này." (403)
-  //   • "Không tìm thấy danh mục với ID: X" (400)
+  // Backend: DELETE /api/categories/{id}
+  // ⚠️ Khi actionType = null → Backend mặc định DELETE_ALL
+  //    → Xóa sạch giao dịch (con + cha) + xóa danh mục (con + cha)
+  //    → Luôn thành công (nếu danh mục hợp lệ + không phải hệ thống)
+  // ⚠️ Hiện tại không dùng trực tiếp — dùng deleteWithOptions() thay thế
+  //    để truyền actionType rõ ràng (DELETE_ALL hoặc MERGE)
   static Future<ApiResponse<void>> delete(int id) async {
     final url = '$_base/$id'; // VD: /api/categories/25
 
@@ -116,7 +118,42 @@ class CategoryService {
   }
 
   // -----------------------------------------------------------
-  // [1.7] Helper nội bộ — Parse List<CategoryResponse> từ JSON
+  // [1.7] Xóa danh mục với tùy chọn (MERGE hoặc DELETE_ALL)
+  // -----------------------------------------------------------
+  // Backend: DELETE /api/categories/{id}?actionType=MERGE&newCategoryId=5
+  // actionType: "MERGE" (gộp giao dịch) hoặc "DELETE_ALL" (xóa giao dịch + hoàn tiền)
+  // newCategoryId: ID danh mục nhận giao dịch (chỉ dùng khi MERGE)
+  static Future<ApiResponse<void>> deleteWithOptions({
+    required int id,
+    required String actionType,
+    int? newCategoryId,
+  }) async {
+    // Build URL với query params
+    String url = '$_base/$id?actionType=$actionType';
+    if (newCategoryId != null) {
+      url += '&newCategoryId=$newCategoryId';
+    }
+
+    return ApiHandler.delete<void>(url);
+  }
+
+  // -----------------------------------------------------------
+  // [1.8] Lấy danh sách danh mục nhận gộp (merge targets)
+  // -----------------------------------------------------------
+  // Backend: GET /api/categories/merge-targets?type=true|false
+  // Dùng khi: User chọn MERGE → cần chọn danh mục nhận giao dịch
+  // ctgType: true = Thu nhập, false = Chi tiêu (phải cùng loại)
+  static Future<ApiResponse<List<CategoryResponse>>> getMergeTargets(bool ctgType) async {
+    final url = '$_base/merge-targets?type=$ctgType';
+
+    return ApiHandler.get<List<CategoryResponse>>(
+      url,
+      fromJson: (json) => _parseList(json),
+    );
+  }
+
+  // -----------------------------------------------------------
+  // [1.9] Helper nội bộ — Parse List<CategoryResponse> từ JSON
   // -----------------------------------------------------------
   static List<CategoryResponse> _parseList(dynamic json) {
     if (json is List) {

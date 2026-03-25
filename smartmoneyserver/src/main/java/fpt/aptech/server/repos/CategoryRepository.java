@@ -83,4 +83,23 @@ public interface CategoryRepository extends JpaRepository<Category, Integer> {
     List<Category> findChildrenForBudget(
             @Param("parentId") Integer parentId,
             @Param("accountId") Integer accountId);
+
+    // =================================================================================
+    // HÀM CHO XÓA DANH MỤC (DELETE)
+    // =================================================================================
+    
+    /// [DELETE] Kiểm tra xem danh mục cha có danh mục con nào không.
+    /// Lưu ý: parent là @ManyToOne relationship, nên dùng parent_Id (dấu gạch dưới để truy cập ID của parent).
+    /// Thêm filter account_id để security: chỉ check con của chính user đó hoặc danh mục hệ thống.
+    @Query("SELECT CASE WHEN COUNT(c) > 0 THEN true ELSE false END FROM Category c " +
+           "WHERE c.parent.id = :parentId " +
+           "  AND (c.account IS NULL OR c.account.id = :accountId)")
+    boolean existsByParent_Id(@Param("parentId") Integer parentId, @Param("accountId") Integer accountId);
+
+    /// [DELETE] Lấy tất cả danh mục con của một danh mục cha (dùng cho CASCADE DELETE).
+    /// Chỉ lấy con của chính user đó hoặc danh mục hệ thống.
+    @Query("SELECT c FROM Category c " +
+           "WHERE c.parent.id = :parentId " +
+           "  AND (c.account IS NULL OR c.account.id = :accountId)")
+    List<Category> findByParent_IdAndAccount_Id(@Param("parentId") Integer parentId, @Param("accountId") Integer accountId);
 }

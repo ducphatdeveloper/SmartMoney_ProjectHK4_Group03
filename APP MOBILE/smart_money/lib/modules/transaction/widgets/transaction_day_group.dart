@@ -16,6 +16,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:smart_money/core/helpers/format_helper.dart';
+import 'package:smart_money/core/helpers/icon_helper.dart';
 import 'package:smart_money/modules/transaction/models/view/transaction_response.dart';
 
 class TransactionDayGroup extends StatelessWidget {
@@ -186,9 +187,12 @@ class TransactionDayGroup extends StatelessWidget {
 
   // ===== Widget: Icon category =====
   Widget _buildCategoryIcon(TransactionResponse tx) {
-    if (tx.categoryIconUrl != null && tx.categoryIconUrl!.isNotEmpty) {
+    // Convert filename thành Cloudinary URL đầy đủ
+    final cloudinaryUrl = IconHelper.buildCloudinaryUrl(tx.categoryIconUrl);
+    
+    if (cloudinaryUrl != null && cloudinaryUrl.isNotEmpty) {
       return CachedNetworkImage(
-        imageUrl: tx.categoryIconUrl!,
+        imageUrl: cloudinaryUrl,
         width: 40,
         height: 40,
         imageBuilder: (context, imageProvider) {
