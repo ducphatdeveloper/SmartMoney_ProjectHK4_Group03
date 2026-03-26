@@ -663,7 +663,7 @@ CREATE TABLE tCategories (
     
     -- CONSTRAINTS
     CONSTRAINT FK_Categories_Account FOREIGN KEY (acc_id) REFERENCES tAccounts(id),
-    CONSTRAINT FK_Categories_Parent FOREIGN KEY (parent_id) REFERENCES tCategories(id) ON DELETE CASCADE -- Thêm dòng này vào -- Tự tham chiếu
+    CONSTRAINT FK_Categories_Parent FOREIGN KEY (parent_id) REFERENCES tCategories(id) -- Tự tham chiếu
 );
 GO
 
