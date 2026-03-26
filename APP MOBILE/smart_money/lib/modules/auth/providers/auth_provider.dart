@@ -10,6 +10,7 @@ import '../../../core/services/auth_service.dart';
 import '../../../core/helpers/token_helper.dart';
 import '../models/login_request.dart';
 import '../models/auth_response.dart';
+import '../models/register_request.dart';
 
 class AuthProvider extends ChangeNotifier {
   final AuthService _authService = getIt<AuthService>();
@@ -115,6 +116,36 @@ class AuthProvider extends ChangeNotifier {
       }
     } catch (e) {
       _currentUser = null;
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<bool> register(String? email, String? phone, String password, String confirmPassword) async {
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      final request = RegisterRequest(
+        accEmail: email,
+        accPhone: phone,
+        password: password,
+        confirmPassword: confirmPassword,
+      );
+
+      final response = await _authService.register(request);
+
+      if (response.success) {
+        _isLoading = false;
+        notifyListeners();
+        return true;
+      } else {
+        _isLoading = false;
+        notifyListeners();
+        return false;
+      }
+    } catch (e) {
       _isLoading = false;
       notifyListeners();
       return false;
