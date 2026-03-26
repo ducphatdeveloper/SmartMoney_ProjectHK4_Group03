@@ -296,11 +296,49 @@ public class TransactionServiceImpl implements TransactionService {
             List<Predicate> predicates = new ArrayList<>();
             predicates.add(cb.equal(root.get("account").get("id"), accountId));
 
+            // Wallet / SavingGoal (giữ nguyên logic cũ)
             if (request.walletId() != null) {
                 predicates.add(cb.equal(root.get("wallet").get("id"), request.walletId()));
             } else if (request.savingGoalId() != null) {
                 predicates.add(cb.equal(root.get("savingGoal").get("id"), request.savingGoalId()));
             }
+
+            // Note (tìm kiếm tương đối)
+            if (request.note() != null) {
+                predicates.add(cb.like(root.get("note"), "%" + request.note() + "%"));
+            }
+
+            // WithPerson (tìm kiếm tương đối)
+            if (request.withPerson() != null) {
+                predicates.add(cb.like(root.get("withPerson"), "%" + request.withPerson() + "%"));
+            }
+
+            // Khoảng thời gian
+            if (request.startDate() != null) {
+                predicates.add(cb.greaterThanOrEqualTo(root.get("transDate"), request.startDate()));
+            }
+            if (request.endDate() != null) {
+                predicates.add(cb.lessThanOrEqualTo(root.get("transDate"), request.endDate()));
+            }
+
+            // Danh mục
+            if (request.categoryIds() != null && !request.categoryIds().isEmpty()) {
+                predicates.add(root.get("category").get("id").in(request.categoryIds()));
+            }
+
+            // Khoảng tiền
+            if (request.minAmount() != null) {
+                predicates.add(cb.greaterThanOrEqualTo(root.get("amount"), request.minAmount()));
+            }
+            if (request.maxAmount() != null) {
+                predicates.add(cb.lessThanOrEqualTo(root.get("amount"), request.maxAmount()));
+            }
+
+            // Sắp xếp theo ngày giảm dần
+            if (query != null) {
+                query.orderBy(cb.desc(root.get("transDate")));
+            }
+
             return cb.and(predicates.toArray(new Predicate[0]));
         };
 

@@ -10,6 +10,7 @@ import 'package:smart_money/modules/transaction/widgets/transaction_balance_disp
 import 'package:smart_money/modules/transaction/widgets/transaction_date_slider.dart';
 import 'package:smart_money/modules/transaction/widgets/transaction_summary.dart';
 import 'package:smart_money/modules/transaction/widgets/transaction_list.dart';
+import 'package:smart_money/modules/transaction/screens/transaction_search_screen.dart';
 
 class TransactionListScreen extends StatefulWidget {
   const TransactionListScreen({super.key});
@@ -41,7 +42,11 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
     return Scaffold(
       appBar: TransactionAppBar(
         onSearchPressed: () {
-          // TODO: Implement search
+          // Mở màn hình tìm kiếm giao dịch
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const TransactionSearchScreen()),
+          );
         },
       ),
       body: Consumer<TransactionProvider>(
