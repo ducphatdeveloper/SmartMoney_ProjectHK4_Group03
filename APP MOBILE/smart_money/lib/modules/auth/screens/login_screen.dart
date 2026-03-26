@@ -321,6 +321,22 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                         ),
 
+                        const SizedBox(height: 20),
+
+                        /// REGISTER LINK
+                        TextButton(
+                          onPressed: () {
+                            context.go("/register");
+                          },
+                          child: const Text(
+                            "Don't have an account? Register",
+                            style: TextStyle(
+                              color: Colors.blue,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+
                       ]
 
 

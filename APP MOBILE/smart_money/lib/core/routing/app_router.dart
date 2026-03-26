@@ -1,5 +1,5 @@
 import 'package:go_router/go_router.dart';
-
+import '../../modules/auth/screens/register_screen.dart';
 import '../../screens/splash_screen.dart';
 import '../../modules/auth/screens/login_screen.dart';
 import '../../screens/main_navigation.dart';
@@ -20,9 +20,10 @@ class AppRouter {
       final isLoggedIn = accessToken != null && accessToken.isNotEmpty;
 
       final isGoingToLogin = state.matchedLocation == "/login";
+      final isGoingToRegister = state.matchedLocation == "/register";
 
       // Đang chưa login mà đòi vào trang khác -> Bắt về login
-      if (!isLoggedIn && !isGoingToLogin) {
+      if (!isLoggedIn && !isGoingToLogin && !isGoingToRegister) {
         return "/login";
       }
 
@@ -43,6 +44,10 @@ class AppRouter {
       GoRoute(
         path: "/login",
         builder: (context, state) => const LoginScreen(),
+      ),
+      GoRoute(
+        path: '/register',
+        builder: (context, state) => const RegisterScreen(),
       ),
       GoRoute(
         path: "/main",
