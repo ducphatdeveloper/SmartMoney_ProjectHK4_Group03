@@ -1,62 +1,91 @@
-import 'dart:convert';
-import 'package:http/http.dart' as http;
+import '../../../core/constants/app_constants.dart';
+import '../../../core/helpers/api_handler.dart';
+import '../../../core/models/api_response.dart';
+
+import '../models/wallet_request.dart';
 import '../models/wallet_response.dart';
 
 class WalletService {
 
-  static const String baseUrl =
-      "http://10.0.2.2:8080/api/user/wallets";
+  // ================= LIST =================
+  Future<List<WalletResponse>> getWallets({String? search}) async {
 
-  // GET WALLETS
-  Future<List<WalletResponse>> getWallets(String token) async {
+    String url = AppConstants.walletsBase;
 
-    final response = await http.get(
-      Uri.parse(baseUrl),
-      headers: {
-        "Authorization": "Bearer $token",
-        "Content-Type": "application/json"
-      },
+    if (search != null && search.isNotEmpty) {
+      url += "?search=${Uri.encodeComponent(search)}";
+    }
+
+    final response = await ApiHandler.get<List<WalletResponse>>(
+      url,
+      fromJson: (data) => (data as List)
+          .map((e) => WalletResponse.fromJson(e))
+          .toList(),
     );
 
-    if (response.statusCode == 200) {
+    if (!response.success) throw Exception(response.message);
 
-      final body = jsonDecode(response.body);
-
-      List data = body['data'];
-
-      return data
-          .map((e) => WalletResponse.fromJson(e))
-          .toList();
-
-    } else {
-      throw Exception("Failed to load wallets");
-    }
+    return response.data ?? [];
   }
 
-  // CREATE WALLET
-  Future<WalletResponse> createWallet(
-      Map<String, dynamic> walletData,
-      String token
-      ) async {
 
-    final response = await http.post(
-      Uri.parse(baseUrl),
-      headers: {
-        "Authorization": "Bearer $token",
-        "Content-Type": "application/json"
-      },
-      body: jsonEncode(walletData),
+  // ================= DETAIL =================
+  Future<WalletResponse> getWalletDetail(int id) async {
+
+    final response = await ApiHandler.get<WalletResponse>(
+      "${AppConstants.walletsBase}/$id",
+      fromJson: (data) => WalletResponse.fromJson(data),
     );
 
-    if (response.statusCode == 200 ||
-        response.statusCode == 201) {
+    if (!response.success) throw Exception(response.message);
+    return response.data!;
+  }
 
-      final body = jsonDecode(response.body);
+  // ================= CREATE =================
+  Future<WalletResponse> createWallet(WalletRequest request) async {
 
-      return WalletResponse.fromJson(body['data']);
+    final response = await ApiHandler.post<WalletResponse>(
+      AppConstants.walletsBase,
+      body: request.toJson(),
+      fromJson: (data) => WalletResponse.fromJson(data),
+    );
 
-    } else {
-      throw Exception("Create wallet failed");
-    }
+    if (!response.success) throw Exception(response.message);
+
+    return response.data!;
+  }
+
+  // ================= UPDATE =================
+  Future<void> updateWallet(int id, WalletRequest request) async {
+
+    final response = await ApiHandler.put(
+      "${AppConstants.walletsBase}/$id",
+      body: request.toJson(),
+    );
+
+    if (!response.success) throw Exception(response.message);
+  }
+
+  // ================= DELETE =================
+  Future<void> deleteWallet(int id) async {
+
+    final response = await ApiHandler.delete(
+      "${AppConstants.walletsBase}/$id",
+    );
+
+    if (!response.success) throw Exception(response.message);
+  }
+
+  // ================= TOTAL =================
+  Future<double> getTotalBalance() async {
+
+    final response = await ApiHandler.get<double>(
+      "${AppConstants.walletsBase}/total-balance",
+      fromJson: (data) => (data['totalBalance'] as num).toDouble(),
+    );
+
+    if (!response.success) throw Exception(response.message);
+    return response.data!;
   }
 }
+
