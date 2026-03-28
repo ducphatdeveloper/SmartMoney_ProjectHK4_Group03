@@ -99,4 +99,10 @@ public class NotificationServiceImp implements NotificationService {
             notificationRepository.save(notification);
         }
     }
+
+    @Override
+    public List<Notification> getNotificationsByType(NotificationType type) {
+        // Gọi repository để lấy thông báo theo notifyType và sắp xếp mới nhất lên đầu
+        return notificationRepository.findAllByNotifyTypeOrderByScheduledTimeDesc(type);
+    }
 }

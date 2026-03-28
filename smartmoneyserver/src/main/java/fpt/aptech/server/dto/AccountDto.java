@@ -6,6 +6,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Data
 @NoArgsConstructor
@@ -24,6 +25,10 @@ public class AccountDto {
     // Thêm trạng thái online
     private boolean isOnline;
     private LocalDateTime lastActive;
+    // Thông tin bổ sung
+    private int onlineDevicesCount;
+    private List<String> onlinePlatforms;
+
 
     // Constructor giúp chuyển đổi từ Account entity sang AccountDto một cách dễ dàng
     public AccountDto(Account account) {

@@ -11,6 +11,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 
@@ -24,59 +25,45 @@ public class AdminController {
     // 1. Quản lý người dùng - Lấy danh sách & Lọc (Khớp với fetchUsers ở React)
     @GetMapping("/users")
     @PreAuthorize("hasRole('ROLE_ADMIN') or hasAuthority('ADMIN_SYSTEM_ALL')")
-    public ResponseEntity<PageResponse<AccountDto>> getUsers(
+    public ResponseEntity<ApiResponse<PageResponse<AccountDto>>> getUsers(
             @RequestParam(required = false) String search,
             @RequestParam(required = false) Boolean locked,
-            @RequestParam(required = false) Boolean online, // React gửi true/false/null
+            @RequestParam(required = false) String onlineStatus,
             Pageable pageable) {
-
-        // Chuyển đổi Boolean từ React thành String cho Service logic
-        String onlineStatus = null;
-        if (Boolean.TRUE.equals(online)) {
-            onlineStatus = "ONLINE";
-        } else if (Boolean.FALSE.equals(online)) {
-            onlineStatus = "OFFLINE";
-        }
-
-        return ResponseEntity.ok(adminService.getUsers(search, locked, onlineStatus, pageable));
+        return ResponseEntity.ok(ApiResponse.success(adminService.getUsers(search, locked, onlineStatus, pageable)));
     }
 
     // 2. Khóa tài khoản (Khớp với confirmAction ở React)
     @PutMapping("/users/{id}/lock")
     @PreAuthorize("hasRole('ROLE_ADMIN') or hasAuthority('ADMIN_SYSTEM_ALL')")
-    public ResponseEntity<ApiResponse<Void>> lockAccount(@PathVariable Integer id) {
-        // Lưu ý: Nếu Service yêu cầu adminId, cần lấy từ SecurityContext.
-        // Ở đây giả định Service chỉ cần userId hoặc tự lấy context.
+    public ResponseEntity<ApiResponse<String>> lockAccount(@PathVariable Integer id) {
         adminService.lockAccount(id);
-        return ResponseEntity.ok(ApiResponse.success("Khóa tài khoản thành công"));
+        return ResponseEntity.ok(ApiResponse.success("Tài khoản đã bị khóa và tất cả phiên đăng nhập đã được thu hồi"));
     }
 
     // 3. Mở khóa tài khoản (Khớp với confirmAction ở React)
     @PutMapping("/users/{id}/unlock")
     @PreAuthorize("hasRole('ROLE_ADMIN') or hasAuthority('ADMIN_SYSTEM_ALL')")
-    public ResponseEntity<ApiResponse<Void>> unlockAccount(@PathVariable Integer id) {
+    public ResponseEntity<ApiResponse<String>> unlockAccount(@PathVariable Integer id) {
         adminService.unlockAccount(id);
-        return ResponseEntity.ok(ApiResponse.success("Mở khóa tài khoản thành công"));
+        return ResponseEntity.ok(ApiResponse.success("Tài khoản đã được mở khóa thành công"));
     }
 
-    // 4. Thống kê tổng quan (Khớp với fetchStats ở React)
-    // React mong đợi object thuần: { totalUsers: ..., totalTransactions: ... }
+    // 4. Widget tổng quan (Dashboard Overview) - Fix lỗi 404 bằng cách map đúng /stats
     @GetMapping("/stats")
     @PreAuthorize("hasRole('ROLE_ADMIN') or hasAuthority('ADMIN_SYSTEM_ALL')")
-    public ResponseEntity<Map<String, Object>> getStats() {
-        return ResponseEntity.ok(adminService.getStats());
+    public ResponseEntity<ApiResponse<Map<String, Object>>> getStats() {
+        return ResponseEntity.ok(ApiResponse.success(adminService.getDashboardOverview()));
     }
 
-    // 5. Số lượng Online Users thực tế (Khớp với fetchStats ở React - phần activeDevices)
-    // React mong đợi ApiResponse: res.data.data
+    // 5. Chi tiết số lượng Online Users (Dùng cho biểu đồ thời gian thực)
     @GetMapping("/analytics/online-users")
     @PreAuthorize("hasRole('ROLE_ADMIN') or hasAuthority('ADMIN_SYSTEM_ALL')")
     public ResponseEntity<ApiResponse<Long>> getOnlineUsers() {
         return ResponseEntity.ok(ApiResponse.success(adminService.countOnlineUsers()));
     }
 
-    // 6. Biểu đồ giao dịch (Khớp với fetchTransactionStats ở React)
-    // React mong đợi ApiResponse: res.data.data
+    // 6. Phân tích tài chính hệ thống - Trả về breakdown % danh mục cha/con (100% Volume)
     @GetMapping("/system/transaction-stats")
     @PreAuthorize("hasRole('ROLE_ADMIN') or hasAuthority('ADMIN_SYSTEM_ALL')")
     public ResponseEntity<ApiResponse<Map<String, Object>>> getSystemTransactionStats(
@@ -84,21 +71,29 @@ public class AdminController {
         return ResponseEntity.ok(ApiResponse.success(adminService.getSystemTransactionStats(rangeMode)));
     }
 
-    // 7. Cảnh báo ngân sách (Khớp với fetchTransactionStats ở React)
-    // React mong đợi ApiResponse: res.data.data
-    @GetMapping("/system/overspent-budgets")
+    // 7. Bảo mật: Kích hoạt quét và cảnh báo giao dịch bất thường
+    @PostMapping("/system/notify-abnormal")
     @PreAuthorize("hasRole('ROLE_ADMIN') or hasAuthority('ADMIN_SYSTEM_ALL')")
-    public ResponseEntity<ApiResponse<List<Map<String, Object>>>> getSystemOverspentBudgets(
-            @RequestParam(defaultValue = "MONTHLY") String rangeMode) {
-        return ResponseEntity.ok(ApiResponse.success(adminService.getSystemOverspentBudgets(rangeMode)));
+    public ResponseEntity<ApiResponse<String>> notifyAbnormalTransactions(
+            @RequestParam BigDecimal threshold) {
+        adminService.notifyAbnormalTransactions(threshold);
+        return ResponseEntity.ok(ApiResponse.success("Đã quét và gửi thông báo đến các giao dịch bất thường"));
     }
 
-    // 8. Thông báo của Admin (Khớp với fetchNotifications ở React)
-    // React mong đợi mảng JSON trực tiếp (res.data)
+    // 7.1 Lấy danh sách người dùng có giao dịch bất thường để hiển thị lên Dashboard
+    @GetMapping("/system/abnormal-users")
+    @PreAuthorize("hasRole('ROLE_ADMIN') or hasAuthority('ADMIN_SYSTEM_ALL')")
+    public ResponseEntity<ApiResponse<List<Map<String, Object>>>> getAbnormalUsers(
+            @RequestParam BigDecimal threshold) {
+        return ResponseEntity.ok(ApiResponse.success(adminService.getAbnormalTransactionUsers(threshold)));
+    }
+
+    // 8. Thông báo hệ thống cho Admin - Lấy các sự kiện quan trọng (SYSTEM notifications)
     @GetMapping("/notifications/{adminId}")
     @PreAuthorize("hasRole('ROLE_ADMIN') or hasAuthority('ADMIN_SYSTEM_ALL')")
-    public ResponseEntity<List<Notification>> getAdminNotifications(@PathVariable Integer adminId) {
-        // Giả định phương thức service tên là getNotifications
-        return ResponseEntity.ok(adminService.getAdminNotifications(adminId));
+    public ResponseEntity<ApiResponse<List<Notification>>> getAdminNotifications(@PathVariable Integer adminId) {
+        // Lưu ý: Logic đã được cập nhật để lấy thông báo loại SYSTEM trên toàn hệ thống 
+        // thay vì thông báo cá nhân, giúp Admin giám sát các sự kiện quan trọng.
+        return ResponseEntity.ok(ApiResponse.success(adminService.getAdminNotifications(adminId)));
     }
 }
