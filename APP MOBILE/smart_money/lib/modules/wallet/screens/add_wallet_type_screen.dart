@@ -8,90 +8,134 @@ class AddWalletTypeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Thêm ví"), centerTitle: true),
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        title: const Text("Thêm Ví"),
+        centerTitle: true,
+        backgroundColor: Colors.black,
+      ),
       body: Padding(
         padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            _option(
-              context,
-              icon: Icons.account_balance_wallet,
-              title: "Ví cơ bản",
-              subtitle: "Dùng cho thu chi hằng ngày",
-              color: Colors.blue,
+        child: GridView.builder(
+          padding: const EdgeInsets.all(16),
+          itemCount: 2,
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            crossAxisSpacing: 16,
+            mainAxisSpacing: 16,
+            mainAxisExtent: 140, // 🔥 CHIỀU CAO CHUẨN (quan trọng nhất)
+          ),
+          itemBuilder: (context, index) {
+            final items = [
+              {
+                "title": "Ví cơ bản",
+                "color1": const Color(0xFF34C759),
+                "color2": const Color(0xFF2DBE60),
+                "icon": Icons.account_balance_wallet,
+                "screen": const AddBasicWalletScreen(),
+              },
+              {
+                "title": "Ví tiết kiệm",
+                "color1": const Color(0xFFFF5F6D),
+                "color2": const Color(0xFFFF3B30),
+                "icon": Icons.savings,
+                "screen": const AddSavingGoalScreen(),
+              },
+            ];
+
+            final item = items[index];
+
+            return _card(
+              title: item["title"] as String,
+              color1: item["color1"] as Color,
+              color2: item["color2"] as Color,
+              icon: item["icon"] as IconData,
               onTap: () {
-                var push = Navigator.push(
+                Navigator.pushReplacement(
                   context,
                   MaterialPageRoute(
-                    builder: (_) => const AddBasicWalletScreen(),
+                    builder: (_) => item["screen"] as Widget,
                   ),
                 );
               },
-            ),
-            const SizedBox(height: 16),
-            _option(
-              context,
-              icon: Icons.savings,
-              title: "Ví tiết kiệm",
-              subtitle: "Dùng cho mục tiêu tiết kiệm",
-              color: Colors.green,
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const AddSavingGoalScreen(),
-                  ),
-                );
-              },
-            ),
-          ],
+            );
+          },
         ),
       ),
     );
   }
 
-  Widget _option(
-    BuildContext context, {
-    required IconData icon,
+  Widget _card({
     required String title,
-    required String subtitle,
-    required Color color,
+    required Color color1,
+    required Color color2,
+    required IconData icon,
     required VoidCallback onTap,
   }) {
     return InkWell(
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(18),
       onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(16),
+      child: Ink(
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.grey.shade300),
+          borderRadius: BorderRadius.circular(18),
+          gradient: LinearGradient(
+            colors: [color1, color2],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
         ),
-        child: Row(
+        child: Stack(
           children: [
-            CircleAvatar(
-              radius: 24,
-              backgroundColor: color.withOpacity(0.15),
-              child: Icon(icon, color: color),
+
+            // ICON BACKGROUND (đẹp hơn)
+            Positioned(
+              bottom: -5,
+              right: -5,
+              child: Icon(
+                icon,
+                size: 60, // 🔥 chuẩn
+                color: Colors.white.withOpacity(0.12),
+              ),
             ),
-            const SizedBox(width: 16),
-            Expanded(
+
+            Padding(
+              padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+
+                  // dấu ?
+                  Align(
+                    alignment: Alignment.topRight,
+                    child: Container(
+                      width: 20,
+                      height: 20,
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.25),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Center(
+                        child: Text(
+                          "?",
+                          style: TextStyle(fontSize: 12),
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  const Spacer(),
+
                   Text(
                     title,
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
+                      color: Colors.white,
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  Text(subtitle, style: TextStyle(color: Colors.grey.shade600)),
                 ],
               ),
             ),
-            const Icon(Icons.chevron_right),
           ],
         ),
       ),

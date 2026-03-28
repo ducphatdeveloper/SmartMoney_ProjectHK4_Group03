@@ -1,68 +1,44 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:smart_money/modules/wallet/models/wallet_request.dart';
 import '../../../core/helpers/icon_helper.dart';
+import '../models/wallet_response.dart';
 import '../providers/wallet_provider.dart';
-import '../models/wallet_request.dart';
 import '../../category/screens/icon_picker_screen.dart';
 
-class AddBasicWalletScreen extends StatefulWidget {
-  const AddBasicWalletScreen({super.key});
+class EditWalletScreen extends StatefulWidget {
+  final WalletResponse wallet;
+
+  const EditWalletScreen({super.key, required this.wallet});
 
   @override
-  State<AddBasicWalletScreen> createState() => _AddBasicWalletScreenState();
+  State<EditWalletScreen> createState() => _EditWalletScreenState();
 }
 
-class CurrencyInputFormatter extends TextInputFormatter {
-  @override
-  TextEditingValue formatEditUpdate(
-      TextEditingValue oldValue,
-      TextEditingValue newValue,
-      ) {
-    String newText = newValue.text.replaceAll(',', '');
-
-    if (newText.isEmpty) {
-      return newValue.copyWith(text: '');
-    }
-
-    final number = int.tryParse(newText);
-    if (number == null) return oldValue;
-
-    final formatted = _formatNumber(number);
-
-    return TextEditingValue(
-      text: formatted,
-      selection: TextSelection.collapsed(offset: formatted.length),
-    );
-  }
-
-  String _formatNumber(int number) {
-    final str = number.toString();
-    final buffer = StringBuffer();
-
-    for (int i = 0; i < str.length; i++) {
-      int position = str.length - i;
-
-      buffer.write(str[i]);
-
-      if (position > 1 && position % 3 == 1) {
-        buffer.write(',');
-      }
-    }
-
-    return buffer.toString();
-  }
-}
-
-class _AddBasicWalletScreenState extends State<AddBasicWalletScreen> {
-  final TextEditingController nameController = TextEditingController();
-  final TextEditingController balanceController = TextEditingController();
+class _EditWalletScreenState extends State<EditWalletScreen> {
+  late TextEditingController nameController;
+  late TextEditingController balanceController;
 
   bool excludeFromTotal = false;
-  final String currency = "VND";
+  String currency = "VND";
   bool isSaving = false;
 
   String? _selectedIconUrl;
+
+  @override
+  void initState() {
+    super.initState();
+
+    nameController =
+        TextEditingController(text: widget.wallet.walletName);
+
+    balanceController =
+        TextEditingController(text: _formatNumber(widget.wallet.balance));
+
+    currency = widget.wallet.currencyCode ?? "VND";
+    excludeFromTotal = !(widget.wallet.reportable ?? true);
+    _selectedIconUrl = widget.wallet.goalImageUrl;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -73,15 +49,10 @@ class _AddBasicWalletScreenState extends State<AddBasicWalletScreen> {
       appBar: AppBar(
         backgroundColor: Colors.black,
         elevation: 0,
-        leading: TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text("Hủy", style: TextStyle(color: Colors.grey)),
-        ),
-        centerTitle: true,
-        title: const Text("Thêm Ví"),
+        title: const Text("Chỉnh sửa ví"),
         actions: [
           TextButton(
-            onPressed: (!canSave || isSaving) ? null : _saveWallet,
+            onPressed: (!canSave || isSaving) ? null : _save,
             child: isSaving
                 ? const SizedBox(
               width: 18,
@@ -98,12 +69,13 @@ class _AddBasicWalletScreenState extends State<AddBasicWalletScreen> {
           )
         ],
       ),
+
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          _buildMainCard(),
+          _mainCard(),
           const SizedBox(height: 20),
-          _buildSwitchCard(),
+          _switchCard(),
         ],
       ),
     );
@@ -111,12 +83,12 @@ class _AddBasicWalletScreenState extends State<AddBasicWalletScreen> {
 
   // ================= UI =================
 
-  Widget _buildMainCard() {
+  Widget _mainCard() {
     return Container(
       decoration: _card(),
       child: Column(
         children: [
-          // ===== NAME + ICON =====
+          /// NAME + ICON
           ListTile(
             leading: GestureDetector(
               onTap: _openIconPicker,
@@ -140,7 +112,7 @@ class _AddBasicWalletScreenState extends State<AddBasicWalletScreen> {
 
           const Divider(color: Colors.grey, height: 1),
 
-          // ===== CURRENCY =====
+          /// CURRENCY
           ListTile(
             leading: ClipRRect(
               borderRadius: BorderRadius.circular(6),
@@ -157,18 +129,18 @@ class _AddBasicWalletScreenState extends State<AddBasicWalletScreen> {
             ),
             trailing: Row(
               mainAxisSize: MainAxisSize.min,
-              children: const [
-                Text("VND", style: TextStyle(color: Colors.white)),
-                SizedBox(width: 4),
-                Icon(Icons.chevron_right, color: Colors.grey),
+              children: [
+                Text(currency, style: const TextStyle(color: Colors.white)),
+                const SizedBox(width: 4),
+                const Icon(Icons.chevron_right, color: Colors.grey),
               ],
             ),
-            onTap: null,
+            onTap: _pickCurrency,
           ),
 
           const Divider(color: Colors.grey, height: 1),
 
-          // ===== BALANCE =====
+          /// BALANCE
           Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
@@ -179,14 +151,10 @@ class _AddBasicWalletScreenState extends State<AddBasicWalletScreen> {
                   style: TextStyle(color: Colors.grey),
                 ),
                 const SizedBox(height: 8),
-
                 TextField(
                   controller: balanceController,
                   keyboardType: TextInputType.number,
-                  inputFormatters: [
-                    FilteringTextInputFormatter.digitsOnly,
-                    CurrencyInputFormatter(), // 🔥 format tiền
-                  ],
+                  onChanged: _onMoneyChanged,
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 28,
@@ -206,8 +174,7 @@ class _AddBasicWalletScreenState extends State<AddBasicWalletScreen> {
     );
   }
 
-
-  Widget _buildSwitchCard() {
+  Widget _switchCard() {
     return Container(
       decoration: _card(),
       child: SwitchListTile(
@@ -229,41 +196,66 @@ class _AddBasicWalletScreenState extends State<AddBasicWalletScreen> {
     );
   }
 
+  BoxDecoration _card() => BoxDecoration(
+    color: const Color(0xFF1C1C1E),
+    borderRadius: BorderRadius.circular(20),
+  );
+
+  // ================= MONEY FORMAT =================
+
+  String _formatNumber(double amount) {
+    String value = amount.toInt().toString();
+
+    return value.replaceAllMapped(
+      RegExp(r'\B(?=(\d{3})+(?!\d))'),
+          (match) => '.',
+    );
+  }
+
+  void _onMoneyChanged(String value) {
+    String digits = value.replaceAll('.', '');
+
+    if (digits.isEmpty) return;
+
+    final formatted = digits.replaceAllMapped(
+      RegExp(r'\B(?=(\d{3})+(?!\d))'),
+          (match) => '.',
+    );
+
+    balanceController.value = TextEditingValue(
+      text: formatted,
+      selection: TextSelection.collapsed(offset: formatted.length),
+    );
+  }
+
   // ================= ACTION =================
 
-  Future<void> _saveWallet() async {
-    final name = nameController.text.trim();
-
-    // 🔥 FIX FORMAT TIỀN
-    final rawText = balanceController.text.replaceAll(',', '');
-    final balance = double.tryParse(rawText) ?? 0;
-
-    if (name.isEmpty) {
-      _showError("Tên ví không được để trống");
-      return;
-    }
-
+  Future<void> _save() async {
     setState(() => isSaving = true);
 
-    final provider = Provider.of<WalletProvider>(context, listen: false);
+    final provider =
+    Provider.of<WalletProvider>(context, listen: false);
+
+    final rawBalance =
+    balanceController.text.replaceAll('.', '');
 
     final request = WalletRequest(
-      walletName: name,
-      balance: balance,
+      walletName: nameController.text,
+      balance: double.tryParse(rawBalance) ?? 0,
       currencyCode: currency,
       reportable: !excludeFromTotal,
       goalImageUrl: _selectedIconUrl,
     );
 
-    final success = await provider.createWallet(request);
+    final success = await provider.updateWallet(
+      widget.wallet.id,
+      request,
+    );
 
     setState(() => isSaving = false);
 
     if (success) {
       Navigator.pop(context, true);
-      print("ICON SEND: $_selectedIconUrl");
-    } else {
-      _showError(provider.error ?? "Tạo ví thất bại");
     }
   }
 
@@ -278,14 +270,31 @@ class _AddBasicWalletScreenState extends State<AddBasicWalletScreen> {
     }
   }
 
-  void _showError(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
+  void _pickCurrency() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.black,
+      builder: (_) {
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              title: const Text("VND", style: TextStyle(color: Colors.white)),
+              onTap: () {
+                setState(() => currency = "VND");
+                Navigator.pop(context);
+              },
+            ),
+            ListTile(
+              title: const Text("USD", style: TextStyle(color: Colors.white)),
+              onTap: () {
+                setState(() => currency = "USD");
+                Navigator.pop(context);
+              },
+            ),
+          ],
+        );
+      },
     );
   }
-
-  BoxDecoration _card() => BoxDecoration(
-    color: const Color(0xFF1C1C1E),
-    borderRadius: BorderRadius.circular(20),
-  );
 }
