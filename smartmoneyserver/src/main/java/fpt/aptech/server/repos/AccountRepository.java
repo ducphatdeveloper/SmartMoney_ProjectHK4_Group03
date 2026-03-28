@@ -31,10 +31,15 @@ public interface AccountRepository extends JpaRepository<Account, Integer>, JpaS
     // Tìm danh sách tài khoản theo Role Code (VD: Lấy tất cả Admin)
     List<Account> findByRole_RoleCode(String roleCode);
 
-    // Đếm số người hoạt động trong khoảng thời gian (dựa trên bảng UserDevice)
-    @Query("SELECT COUNT(DISTINCT a) FROM Account a JOIN UserDevice ud ON ud.account.id = a.id " +
-            "WHERE ud.lastActive >= :activeLimit AND ud.loggedIn = true")
+    // Đếm số người online thực tế dựa trên Refresh Token và thời gian hoạt động
+    @Query("SELECT COUNT(DISTINCT d.account.id) FROM UserDevice d " +
+            "WHERE d.refreshToken IS NOT NULL AND d.lastActive >= :activeLimit")
     long countOnlineUsers(@Param("activeLimit") LocalDateTime activeLimit);
+    
+    // Lấy danh sách ID tài khoản đang online (Dùng làm bước đệm cho lọc nâng cao)
+    @Query("SELECT DISTINCT d.account.id FROM UserDevice d " +
+           "WHERE d.refreshToken IS NOT NULL AND d.lastActive > :since")
+    List<Integer> findOnlineAccountIds(@Param("since") LocalDateTime since);
 
     @Query("SELECT new map(MONTH(a.createdAt) as month, YEAR(a.createdAt) as year, COUNT(a) as count) " +
             "FROM Account a " +
