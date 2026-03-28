@@ -56,6 +56,9 @@ export const adminApi = {
 
     // 5. Online Users
     getOnlineUsers: () => api.get('/admin/analytics/online-users'),
+    
+    // 5.1 Toàn bộ danh sách người dùng đang trực tuyến
+    getAllLiveOnlineUsers: () => api.get('/admin/analytics/live-online-users'),
 
     // 6. Biểu đồ giao dịch
     getSystemTransactionStats: (rangeMode = "MONTHLY") => api.get('/admin/system/transaction-stats', {
@@ -69,6 +72,9 @@ export const adminApi = {
     getAbnormalUsers: (threshold) => api.get('/admin/system/abnormal-users', {
         params: { threshold }
     }),
+
+    // 7.2 Thu hồi phiên đăng nhập quá hạn
+    handleAutoLogout: () => api.post('/admin/system/auto-logout'),
 
     // 8. Thông báo Admin
     getAdminNotifications: (adminId) => api.get(`/admin/notifications/${adminId}`),
