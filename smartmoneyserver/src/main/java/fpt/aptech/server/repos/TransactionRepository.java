@@ -308,11 +308,14 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
     // 9. CÁC HÀM CHO ADMIN (ADMIN)
     // =================================================================================
 
-    // ADMIN: Thống kê tổng quan theo danh mục toàn hệ thống ( Code của NAM )
-    @Query("SELECT t.category.ctgName, SUM(t.amount), t.category.ctgType, t.category.ctgIconUrl " +
-            "FROM Transaction t " +
-            "WHERE t.transDate BETWEEN :startDate AND :endDate " +
-            "GROUP BY t.category.ctgName, t.category.ctgType, t.category.ctgIconUrl")
+    @Query("SELECT c.ctgName, COALESCE(SUM(t.amount), 0), c.ctgType, c.ctgIconUrl, p.ctgName " +
+           "FROM Category c " +
+           "LEFT JOIN c.parent p " +
+           "LEFT JOIN Transaction t ON t.category = c " +
+           "AND t.transDate BETWEEN :startDate AND :endDate " +
+           "GROUP BY c.id, c.ctgName, c.ctgType, c.ctgIconUrl, p.ctgName")
     List<Object[]> getGlobalCategoryStats(@Param("startDate") LocalDateTime startDate,
                                           @Param("endDate") LocalDateTime endDate);
+    // Tìm các giao dịch có số tiền lớn hơn ngưỡng và phát sinh sau thời điểm xác định
+    List<Transaction> findAllByAmountGreaterThanAndTransDateAfter(BigDecimal amount, LocalDateTime since);
 }

@@ -38,38 +38,40 @@ export const permissionApi = {
     getByGroup: (groupName) => api.get(`/permissions/group/${groupName}`),
 };
 
-// --- ADMIN API (Updated based on AdminController) ---
+export const categoryApi = {
+    getByGroup: (group) => api.get('/categories', { params: { group } }),
+};
+
+// --- ADMIN API (Updated based on latest AdminController) ---
 export const adminApi = {
-    // GET /api/admin/users
-    // Params: search (String), locked (Boolean), onlineStatus (String), pageable (page, size, sort)
-    getUsers: (params) => api.get('/admin/users', { params }),
+    // 1. Quản lý người dùng
+    getUsers: (params) => api.get('/admin/users', { params }), 
 
-    // PUT /api/admin/users/{id}/lock
-    lockUser: (id) => api.put(`/admin/users/${id}/lock`),
+    // 2. Khóa/Mở khóa
+    lockAccount: (id) => api.put(`/admin/users/${id}/lock`),
+    unlockAccount: (id) => api.put(`/admin/users/${id}/unlock`),
 
-    // PUT /api/admin/users/{id}/unlock
-    unlockUser: (id) => api.put(`/admin/users/${id}/unlock`),
-
-    // GET /api/admin/stats
+    // 4. Thống kê tổng quan
     getStats: () => api.get('/admin/stats'),
 
-    // GET /api/admin/notifications/{adminId}
-    getAdminNotifications: (adminId) => api.get(`/admin/notifications/${adminId}`),
+    // 5. Online Users
+    getOnlineUsers: () => api.get('/admin/analytics/online-users'),
 
-    // GET /api/admin/system/transaction-stats
-    // Params: rangeMode (String: "MONTHLY" | "WEEKLY" | "YEARLY")
+    // 6. Biểu đồ giao dịch
     getSystemTransactionStats: (rangeMode = "MONTHLY") => api.get('/admin/system/transaction-stats', {
         params: { rangeMode }
     }),
 
-    // GET /api/admin/system/overspent-budgets
-    // Params: rangeMode (String: "MONTHLY" | "WEEKLY" | "YEARLY")
-    getSystemOverspentBudgets: (rangeMode = "MONTHLY") => api.get('/admin/system/overspent-budgets', {
-        params: { rangeMode }
+    // 7. Giao dịch bất thường
+    notifyAbnormalTransactions: (threshold) => api.post('/admin/system/notify-abnormal', null, {
+        params: { threshold }
+    }),
+    getAbnormalUsers: (threshold) => api.get('/admin/system/abnormal-users', {
+        params: { threshold }
     }),
 
-    // GET /api/admin/analytics/online-users
-    getOnlineUsers: () => api.get('/admin/analytics/online-users'),
+    // 8. Thông báo Admin
+    getAdminNotifications: (adminId) => api.get(`/admin/notifications/${adminId}`),
 };
 
 // --- USER API ---

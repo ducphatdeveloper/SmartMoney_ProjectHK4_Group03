@@ -13,4 +13,5 @@ public interface NotificationService {
     void markAsRead(Integer notificationId, Integer accId); // Sửa userId thành accId
     void markAllAsRead(Integer accId);
     void createNotification(Account account, String title, String content, NotificationType type, Long relatedId, LocalDateTime scheduledTime);
+    List<Notification> getNotificationsByType(NotificationType type);
 }

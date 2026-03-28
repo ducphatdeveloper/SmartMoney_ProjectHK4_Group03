@@ -12,8 +12,8 @@ const translations = {
     vi: {
         dashboard: "Tổng quan",
         users: "Người dùng",
-        totalUsers: "Tổng Người dùng",
-        onlineUsers: "Người dùng trực tuyến",
+        totalUsers: "Tổng User",
+        onlineUsers: "User trực tuyến",
         transactions: "Giao dịch hệ thống",
         flowAnalysis: "Phân tích dòng tiền",
         categoryDetail: "Chi tiết danh mục (%)",
@@ -120,8 +120,6 @@ const AdminDashboard = () => {
     const [transactionStats, setTransactionStats] = useState(null);
     const [notifications, setNotifications] = useState([]);
     const [abnormalUsers, setAbnormalUsers] = useState([]);
-
-    const navigate = useNavigate();
     
     // Filter/Pagination State
     const [searchTerm, setSearchTerm] = useState('');
@@ -139,6 +137,8 @@ const AdminDashboard = () => {
     const [loadingAbnormal, setLoadingAbnormal] = useState(false);
     const [showNotifications, setShowNotifications] = useState(false);
     const [confirmModal, setConfirmModal] = useState({ show: false, userId: null, isLocked: false });
+
+    const navigate = useNavigate();
 
     // --- API CALLS ---
     
@@ -159,7 +159,7 @@ const AdminDashboard = () => {
     const fetchStats = async () => {
         try {
             const res = await adminApi.getStats();
-            if (res.data && res.data.success) setStats(res.data.data);
+            if (res.data.success) setStats(res.data.data);
             
             // Gọi thêm API lấy số user online thực (dựa trên active time)
             const onlineRes = await adminApi.getOnlineUsers();
@@ -172,6 +172,7 @@ const AdminDashboard = () => {
     const fetchTransactionStats = useCallback(async () => {
         try {
             const res = await adminApi.getSystemTransactionStats(rangeMode);
+            // Cấu trúc trả về là ApiResponse -> lấy res.data.data
             setTransactionStats(res.data.data);
         } catch (err) { console.error(err); }
     }, [rangeMode]);
@@ -180,6 +181,7 @@ const AdminDashboard = () => {
         setLoadingAbnormal(true);
         try {
             const res = await adminApi.getAbnormalUsers(threshold);
+            // Res là ApiResponse<List<Map>> -> lấy res.data.data
             setAbnormalUsers(res.data.data || []);
         } catch (err) {
             console.error("Lỗi lấy danh sách bất thường:", err);
@@ -210,9 +212,12 @@ const AdminDashboard = () => {
         try {
             const params = {
                 page, size: 8,
+                // Cắt khoảng trắng và chuyển thành null nếu rỗng
                 search: searchTerm && searchTerm.trim() !== '' ? searchTerm.trim() : null,
+                // Chuyển đổi chính xác chuỗi sang boolean hoặc null
                 locked: filterLocked === 'true' ? true : (filterLocked === 'false' ? false : null),
-                onlineStatus: filterOnline === 'true' ? 'ONLINE' : (filterOnline === 'false' ? 'OFFLINE' : null)
+                // Nếu filterOnline là chuỗi rỗng thì gửi null
+                online: filterOnline === 'true' ? true : (filterOnline === 'false' ? false : null)
             };
             const res = await adminApi.getUsers(params);
             setUsers(res.data.data.content || []);
@@ -307,39 +312,25 @@ const AdminDashboard = () => {
 
     // --- CHART CONFIG ---
     const breakdown = transactionStats?.breakdown || [];
+    
+    // 1. Tính tổng volume giao dịch để tính % tỷ trọng trên toàn hệ thống
     const totalVolume = breakdown.reduce((acc, item) => acc + item.amount, 0);
+
     const totalIncome = breakdown.filter(i => i.type === 'INCOME').reduce((acc, i) => acc + i.amount, 0);
     const totalExpense = breakdown.filter(i => i.type === 'EXPENSE').reduce((acc, i) => acc + i.amount, 0);
     const totalInExp = totalIncome + totalExpense;
+
     const incomePerc = totalInExp > 0 ? ((totalIncome / totalInExp) * 100).toFixed(1) : 0;
     const expensePerc = totalInExp > 0 ? ((totalExpense / totalInExp) * 100).toFixed(1) : 0;
 
-    const wrapLabel = (label, maxLength = 18) => {
-        if (label.length <= maxLength) return label;
-        const words = label.split(' ');
-        const lines = [];
-        let currentLine = "";
-        words.forEach(word => {
-            if ((currentLine + word).length > maxLength) {
-                lines.push(currentLine.trim());
-                currentLine = word + " ";
-            } else {
-                currentLine += word + " ";
-            }
-        });
-        lines.push(currentLine.trim());
-        return lines;
-    };
-
+    // 2. Sắp xếp: Nhóm Thu nhập lên đầu, Chi tiêu bên dưới. Trong mỗi nhóm sắp xếp giảm dần theo giá trị.
     const sortedBreakdown = [...breakdown].sort((a, b) => {
         if (a.type !== b.type) return a.type === 'INCOME' ? -1 : 1;
         return b.amount - a.amount;
     });
     
-    const dynamicChartHeight = Math.max(400, sortedBreakdown.length * 55);
-
     const barChartData = {
-        labels: sortedBreakdown.map(item => wrapLabel(`${item.type === 'INCOME' ? '↑' : '↓'} ${item.categoryName}`)),
+        labels: sortedBreakdown.map(item => `${item.type === 'INCOME' ? '↑' : '↓'} ${item.categoryName}`),
         datasets: [
             {
                 label: 'Tỷ trọng hệ thống',
@@ -347,8 +338,8 @@ const AdminDashboard = () => {
                 backgroundColor: sortedBreakdown.map(item => item.type === 'INCOME' ? '#10b981' : '#f43f5e'),
                 hoverBackgroundColor: sortedBreakdown.map(item => item.type === 'INCOME' ? '#059669' : '#e11d48'),
                 borderRadius: 4,
-                barPercentage: 0.6,
-                categoryPercentage: 0.8,
+                barThickness: 24,
+                maxBarThickness: 35,
             }
         ]
     };
@@ -362,19 +353,39 @@ const AdminDashboard = () => {
             title: { 
                 display: true, 
                 text: t('categoryDetail').toUpperCase(),
-                font: { size: 15, weight: 'bold' }
+                font: { size: 15, weight: 'bold', family: 'Inter, sans-serif' },
+                color: '#334155',
+                padding: { bottom: 20 }
             },
             tooltip: {
+                displayColors: false,
                 callbacks: {
                     label: function(context) {
-                        return ` Tỷ trọng: ${context.raw}%`;
+                        return ` Tỷ trọng trong hệ thống: ${context.raw}%`;
                     }
-                }
+                },
+                backgroundColor: '#1e293b',
+                padding: 12,
+                cornerRadius: 4
             }
         },
         scales: {
-            x: { max: 100, ticks: { callback: (value) => value + "%" } },
-            y: { ticks: { autoSkip: false } }
+            x: {
+                grid: { color: '#f1f5f9', drawBorder: false },
+                max: 100,
+                ticks: {
+                    callback: (value) => value > 0 ? value + "%" : value,
+                    font: { size: 10, weight: '500' },
+                    color: '#64748b'
+                }
+            },
+            y: {
+                grid: { display: false },
+                ticks: { 
+                    font: { size: 12, weight: '600' },
+                    color: '#334155'
+                }
+            }
         }
     };
 
@@ -393,11 +404,27 @@ const AdminDashboard = () => {
         responsive: true,
         maintainAspectRatio: false,
         plugins: {
-            legend: { position: 'bottom' },
+            legend: {
+                position: 'bottom',
+                labels: {
+                    usePointStyle: true,
+                    padding: 20,
+                    font: { size: 12, weight: '500' }
+                }
+            },
             title: {
                 display: true,
                 text: t('ratioInExp').toUpperCase(),
-                font: { size: 15, weight: 'bold' }
+                font: { size: 15, weight: 'bold' },
+                padding: { bottom: 10 }
+            },
+            tooltip: {
+                callbacks: {
+                    label: (context) => ` ${context.label}: ${context.raw}%`
+                },
+                backgroundColor: '#1e293b',
+                padding: 12,
+                cornerRadius: 4
             }
         }
     };
@@ -424,6 +451,14 @@ const AdminDashboard = () => {
                 </li>
             </ul>
             <hr />
+            {/*<div className="dropdown">*/}
+            {/*    <div className="d-flex align-items-center text-white text-decoration-none dropdown-toggle" id="dropdownUser1" data-bs-toggle="dropdown" aria-expanded="false">*/}
+            {/*        <div className="rounded-circle bg-secondary d-flex justify-content-center align-items-center me-2" style={{width: 32, height: 32}}>*/}
+            {/*            <i className="bi bi-person-fill"></i>*/}
+            {/*        </div>*/}
+            {/*        <strong>{currentUser?.roleName || 'Admin'}</strong>*/}
+            {/*    </div>*/}
+            {/*</div>*/}
         </div>
     );
 
@@ -434,24 +469,30 @@ const AdminDashboard = () => {
                     {activeTab === 'overview' ? t('dashboard') : t('users')}
                 </h5>
                 <div className="d-flex align-items-center">
+                    {/* Language Switcher */}
                     <div className="btn-group btn-group-sm me-4 shadow-sm border rounded">
-                        <button onClick={() => toggleLang('vi')} className={`btn ${lang === 'vi' ? 'btn-primary' : 'btn-light'}`}>VN</button>
-                        <button onClick={() => toggleLang('en')} className={`btn ${lang === 'en' ? 'btn-primary' : 'btn-light'}`}>EN</button>
+                        <button onClick={() => toggleLang('vi')} className={`btn ${lang === 'vi' ? 'btn-primary' : 'btn-light'}`}>
+                            VN
+                        </button>
+                        <button onClick={() => toggleLang('en')} className={`btn ${lang === 'en' ? 'btn-primary' : 'btn-light'}`}>
+                            EN
+                        </button>
                     </div>
 
+                    {/* Notifications */}
                      <div className="position-relative me-4">
                         <button className="btn btn-light rounded-circle position-relative shadow-sm" onClick={() => setShowNotifications(!showNotifications)}>
                             <i className="bi bi-bell"></i>
-                            <span className={`position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger ${notifications.length > 0 ? 'animate-pulse' : 'd-none'}`} style={{fontSize: '0.6rem'}}>
-                                {notifications.length}
-                            </span>
+                            {notifications.length > 0 && (
+                                <span className="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style={{fontSize: '0.6rem'}}>
+                                    {notifications.length}
+                                </span>
+                            )}
                         </button>
+                        {/* Dropdown Content */}
                         {showNotifications && (
                             <div className="position-absolute end-0 mt-3 bg-white shadow-lg rounded border" style={{ width: '320px', zIndex: 1050 }}>
-                                <div className="p-3 border-bottom fw-bold bg-light rounded-top d-flex justify-content-between">
-                                    <span>{t('sysNotify')}</span>
-                                    <span className="badge bg-primary">{notifications.length}</span>
-                                </div>
+                                <div className="p-2 border-bottom fw-bold bg-light rounded-top">{t('sysNotify')}</div>
                                 <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
                                     {notifications.length === 0 ? <p className="text-center text-muted m-3 small">{t('noNotify')}</p> : 
                                         notifications.map((n, i) => (
@@ -466,7 +507,7 @@ const AdminDashboard = () => {
                         )}
                     </div>
                     
-                    <button onClick={() => handleLogout()} className="btn btn-danger btn-sm px-3 shadow-sm d-flex align-items-center gap-2 rounded-pill">
+                    <button onClick={() => handleLogout()} className="btn btn-outline-danger btn-sm d-flex align-items-center gap-2">
                         <i className="bi bi-box-arrow-right"></i> {t('logout')}
                     </button>
                 </div>
@@ -475,93 +516,74 @@ const AdminDashboard = () => {
     );
 
     const OverviewTab = () => (
-        <div className="container-fluid py-4 px-lg-4">
-            <style>{`
-                .card-hover-up { transition: all 0.3s ease; }
-                .card-hover-up:hover { transform: translateY(-5px); box-shadow: 0 10px 20px rgba(0,0,0,0.1) !important; }
-                .animate-pulse { animation: pulse 2s infinite; }
-                @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
-                .custom-scrollbar::-webkit-scrollbar { width: 6px; }
-                .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
-            `}</style>
-            
-            <div className="row g-4 mb-5">
-                {[
-                    { key: 'TOTAL', label: t('totalUsers'), value: stats.totalUsers, icon: 'bi-people-fill', color: '#6366f1', bg: '#eef2ff' },
-                    { key: 'ONLINE', label: t('onlineUsers'), value: stats.activeDevices, icon: 'bi-broadcast-pin', color: '#10b981', bg: '#ecfdf5', isLive: true },
-                    { key: 'TRANS', label: t('transactions'), value: stats.totalTransactions, icon: 'bi-lightning-charge-fill', color: '#0ea5e9', bg: '#f0f9ff' }
-                ].map((item, idx) => (
-                    <div className="col-xl-4 col-md-6" key={idx}>
-                        <div 
-                            className="card shadow-sm border-0 rounded-4 card-hover-up h-100"
-                            onClick={() => item.key !== 'TRANS' && handleCardClick(item.key)}
-                            style={{ cursor: item.key !== 'TRANS' ? 'pointer' : 'default' }}
-                        >
-                            <div className="card-body p-4">
-                                <div className="d-flex justify-content-between align-items-center mb-3">
-                                    <div className="rounded-4 d-flex align-items-center justify-content-center" style={{ width: '56px', height: '56px', backgroundColor: item.bg }}>
-                                        <i className={`bi ${item.icon} fs-3`} style={{ color: item.color }}></i>
-                                    </div>
-                                    {item.isLive && <span className="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-3 py-2 animate-pulse small fw-bold">LIVE</span>}
-                                </div>
-                                <p className="text-muted mb-1 fw-bold text-uppercase small" style={{ letterSpacing: '1px' }}>{item.label}</p>
-                                <h2 className="mb-0 fw-bold text-dark">{(item.value || 0).toLocaleString()}</h2>
+        <div className="container-fluid py-4">
+             {/* Stats Cards */}
+             <div className="row g-3 mb-4">
+                <div className="col-xl-4 col-md-6">
+                    <div className="card shadow-sm border-0 border-start border-4 border-primary h-100" onClick={() => handleCardClick('TOTAL')} style={{cursor: 'pointer', transition: 'transform 0.2s'}}>
+                        <div className="card-body p-4 d-flex justify-content-between align-items-center">
+                            <div>
+                                <p className="text-muted mb-1 fw-medium text-uppercase small">{t('totalUsers')}</p>
+                                <h3 className="mb-0 fw-bold text-dark">{stats.totalUsers?.toLocaleString()}</h3>
+                            </div>
+                            <div className="rounded-circle bg-primary bg-opacity-10 p-3">
+                                <i className="bi bi-people-fill fs-3 text-primary"></i>
                             </div>
                         </div>
                     </div>
-                ))}
-            </div>
+                </div>
+                <div className="col-xl-4 col-md-6">
+                    <div className="card shadow-sm border-0 border-start border-4 border-success h-100" onClick={() => handleCardClick('ONLINE')} style={{cursor: 'pointer', transition: 'transform 0.2s'}}>
+                        <div className="card-body p-4 d-flex justify-content-between align-items-center">
+                            <div>
+                                <p className="text-muted mb-1 fw-medium text-uppercase small">{t('onlineUsers')}</p>
+                                <h3 className="mb-0 fw-bold text-dark">{stats.activeDevices?.toLocaleString()}</h3>
+                            </div>
+                            <div className="rounded-circle bg-success bg-opacity-10 p-3">
+                                <i className="bi bi-broadcast fs-3 text-success"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div className="col-xl-4 col-md-12">
+                    <div className="card shadow-sm border-0 border-start border-4 border-info h-100">
+                        <div className="card-body p-4 d-flex justify-content-between align-items-center">
+                            <div>
+                                <p className="text-muted mb-1 fw-medium text-uppercase small">{t('transactions')}</p>
+                                <h3 className="mb-0 fw-bold text-dark">{(stats.totalTransactions || 0).toLocaleString()}</h3>
+                            </div>
+                            <div className="rounded-circle bg-info bg-opacity-10 p-3">
+                                <i className="bi bi-activity fs-3 text-info"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+             </div>
 
+             {/* Charts & Abnormal List */}
              <div className="row g-4">
                 <div className="col-lg-8">
-                    <div className="card shadow-sm border-0 rounded-4 h-100">
-                        <div className="card-header bg-white border-0 pt-4 px-4 d-flex justify-content-between align-items-center">
-                            <div className="d-flex align-items-center">
-                                <div className="p-2 bg-primary-subtle rounded-3 me-3"><i className="bi bi-graph-up-arrow text-primary"></i></div>
-                                <h5 className="mb-0 fw-bold text-dark">{t('flowAnalysis')}</h5>
-                            </div>
-                            <div className="btn-group btn-group-sm p-1 bg-light rounded-3 shadow-sm">
+                    <div className="card shadow-sm border-0 rounded-3 h-100">
+                        <div className="card-header bg-transparent border-0 pt-4 px-4 d-flex justify-content-between align-items-center">
+                            <h6 className="mb-0 fw-bold text-dark"><i className="bi bi-graph-up-arrow me-2 text-primary"></i>{t('flowAnalysis')}</h6>
+                            <div className="btn-group btn-group-sm shadow-sm rounded">
                                 {['WEEKLY', 'MONTHLY', 'YEARLY'].map(m => (
-                                    <button key={m} className={`btn border-0 px-3 rounded-2 ${rangeMode === m ? 'btn-white shadow-sm fw-bold text-primary' : 'text-muted'}`} 
+                                    <button key={m} className={`btn ${rangeMode === m ? 'btn-primary' : 'btn-outline-secondary'}`} 
                                             onClick={() => setRangeMode(m)}>{m === 'WEEKLY' ? t('week') : m === 'MONTHLY' ? t('month') : t('year')}</button>
                                 ))}
                             </div>
                         </div>
-                        <div className="card-body p-4">
+                        <div className="card-body">
                             {transactionStats ? (
-                                <div className="row g-5">
-                                    <div className="col-12">
-                                        <div className="row align-items-center">
-                                            <div className="col-md-5 d-flex flex-column align-items-center">
-                                                <div style={{ height: '280px', width: '100%' }}><Doughnut data={doughnutData} options={doughnutOptions} /></div>
-                                            </div>
-                                            <div className="col-md-7">
-                                                <div className="p-4 bg-light rounded-4 shadow-sm border border-white mt-4 mt-md-0">
-                                                    <div className="mb-4">
-                                                        <div className="d-flex justify-content-between mb-2">
-                                                            <span className="small fw-bold text-secondary text-uppercase">{t('income')}</span>
-                                                            <span className="small fw-bold text-success">{incomePerc}%</span>
-                                                        </div>
-                                                        <div className="progress rounded-pill" style={{height: '10px', backgroundColor: '#e2e8f0'}}><div className="progress-bar bg-success" style={{width: `${incomePerc}%`}}></div></div>
-                                                    </div>
-                                                    <div>
-                                                        <div className="d-flex justify-content-between mb-2">
-                                                            <span className="small fw-bold text-secondary text-uppercase">{t('expense')}</span>
-                                                            <span className="small fw-bold text-danger">{expensePerc}%</span>
-                                                        </div>
-                                                        <div className="progress rounded-pill" style={{height: '10px', backgroundColor: '#e2e8f0'}}><div className="progress-bar bg-danger" style={{width: `${expensePerc}%`}}></div></div>
-                                                    </div>
-                                                </div>
-                                            </div>
+                                <div className="row g-0 align-items-center" style={{ minHeight: '380px' }}>
+                                    <div className="col-md-7 border-end border-light">
+                                        <div style={{ height: '360px', padding: '10px' }}>
+                                            <Bar data={barChartData} options={barOptions} />
                                         </div>
                                     </div>
-                                    <div className="col-12 pt-4 border-top border-light">
-                                        <div className="d-flex justify-content-between align-items-center mb-4">
-                                            <h6 className="small fw-bold text-uppercase text-muted mb-0">{t('categoryDetail')}</h6>
-                                            <span className="badge bg-light text-dark border px-3 py-2 rounded-pill">{sortedBreakdown.length} {t('items', {count: ''})}</span>
-                                        </div>
-                                        <div className="custom-scrollbar pe-2" style={{ height: '450px', overflowY: 'auto' }}>
-                                            <div style={{ height: `${dynamicChartHeight}px` }}><Bar data={barChartData} options={barOptions} /></div>
+                                    <div className="col-md-5">
+                                        <div style={{ height: '320px', padding: '20px' }}>
+                                            <Doughnut data={doughnutData} options={doughnutOptions} />
                                         </div>
                                     </div>
                                 </div>
@@ -570,39 +592,35 @@ const AdminDashboard = () => {
                     </div>
                 </div>
                 <div className="col-lg-4">
-                    <div className="card shadow-sm border-0 rounded-4 h-100">
-                        <div className="card-header bg-white border-0 pt-4 px-4 d-flex justify-content-between align-items-center">
-                            <div className="d-flex align-items-center">
-                                <div className="p-2 bg-warning-subtle rounded-3 me-3"><i className="bi bi-shield-lock-fill text-warning"></i></div>
-                                <h5 className="mb-0 fw-bold text-dark">{t('abnormalTrans')}</h5>
+                    <div className="card shadow-sm border-0 rounded-3 h-100">
+                        <div className="card-header bg-transparent border-0 pt-4 px-4 d-flex justify-content-between align-items-center">
+                            <div className="d-flex align-items-center gap-2">
+                                <h6 className="mb-0 fw-bold text-dark"><i className="bi bi-shield-exclamation me-2 text-warning"></i>{t('abnormalTrans')}</h6>
                             </div>
-                            <button className="btn btn-sm btn-light border rounded-circle shadow-sm" onClick={fetchAbnormalUsers}><i className="bi bi-arrow-clockwise"></i></button>
+                            <button className="btn btn-sm btn-light rounded-circle shadow-sm" onClick={fetchAbnormalUsers}><i className="bi bi-arrow-clockwise"></i></button>
                         </div>
-                        <div className="card-body p-4 d-flex flex-column h-100">
-                            <div className="abnormal-list mb-auto custom-scrollbar" style={{maxHeight: '420px', overflowY: 'auto'}}>
-                                <div className="d-flex justify-content-between align-items-center small fw-bold mb-3 text-uppercase text-secondary border-bottom pb-2">
-                                    <span>{t('detected', { count: abnormalUsers.length })}</span>
-                                    {abnormalUsers.length > 0 && <span className="badge bg-danger rounded-pill px-2">RISK</span>}
-                                </div>
-                                {loadingAbnormal ? (
-                                    <div className="text-center py-5 text-muted small"><div className="spinner-border spinner-border-sm me-2 text-warning"></div>{t('scanning')}</div>
-                                ) : abnormalUsers.length === 0 ? (
-                                    <div className="text-center py-5"><i className="bi bi-check2-circle fs-1 text-success opacity-25"></i><p className="text-muted small mt-2">{t('noAbnormal')}</p></div>
-                                ) : (
-                                    abnormalUsers.map((item, idx) => (
-                                        <div key={idx} className="d-flex justify-content-between align-items-center mb-3 p-3 bg-light rounded-4 border-start border-4 border-warning">
-                                            <div>
-                                                <div className="fw-bold text-dark small">{item.username || 'N/A'}</div>
-                                                <div className="text-muted extra-small">{item.transactionCount} {t('transactions').toLowerCase()}</div>
-                                            </div>
-                                            <span className="fw-bold text-danger extra-small">{formatCurrency(item.totalAmount)}</span>
-                                        </div>
-                                    ))
-                                )}
+                        <div className="card-body px-4">
+                            {/* Threshold input removed as system detects automatically */}
+                            <div className="abnormal-list mb-4 px-1" style={{maxHeight: '350px', overflowY: 'auto'}}>
+                                <div className="small fw-bold mb-3 text-secondary text-uppercase border-bottom pb-2" style={{letterSpacing: '0.5px'}}>{t('detected', { count: abnormalUsers.length })}</div>
+                                {loadingAbnormal ? <div className="text-center py-3 small">{t('scanning')}</div> : 
+                                 abnormalUsers.length === 0 ? <div className="text-center py-3 text-muted small">{t('noAbnormal')}</div> :
+                                 abnormalUsers.map((item, idx) => (
+                                     <div key={idx} className="d-flex justify-content-between align-items-center mb-3 p-3 bg-white rounded-3 shadow-sm border-start border-3 border-warning card-hover">
+                                         <div style={{fontSize: '0.85rem'}}>
+                                             <div className="fw-bold text-dark">{item.username || 'N/A'}</div>
+                                             <div className="text-muted small">{item.transactionCount} {t('transactions').toLowerCase()}</div>
+                                         </div>
+                                         <span className="badge text-danger" style={{fontSize: '0.7rem'}}>{formatCurrency(item.totalAmount)}</span>
+                                     </div>
+                                 ))
+                                }
                             </div>
-                            <button className="btn btn-warning w-100 fw-bold text-dark shadow-sm py-3 mt-4 rounded-3 d-flex align-items-center justify-content-center gap-2" 
-                                    onClick={handleNotifyAbnormal} disabled={notifying || abnormalUsers.length === 0}>
-                                {notifying ? <span className="spinner-border spinner-border-sm"></span> : <i className="bi bi-send-fill"></i>}
+
+                            <button className="btn btn-warning w-100 fw-bold text-dark shadow-sm py-2" 
+                                    onClick={handleNotifyAbnormal} 
+                                    disabled={notifying || abnormalUsers.length === 0}>
+                                {notifying ? <span className="spinner-border spinner-border-sm me-2"></span> : <i className="bi bi-megaphone me-2"></i>}
                                 {t('scanNow', { count: abnormalUsers.length })}
                             </button>
                         </div>
@@ -614,11 +632,11 @@ const AdminDashboard = () => {
 
     const UsersTab = () => (
         <div className="container-fluid py-4">
-             <div className="card shadow-sm border-0 rounded-4 overflow-hidden">
-                <div className="card-header bg-white py-4 border-0 d-flex flex-wrap gap-3 justify-content-between align-items-center">
+             <div className="card shadow-sm border-0">
+                <div className="card-header bg-white py-3 border-0 d-flex flex-wrap gap-2 justify-content-between align-items-center">
                     <div className="d-flex gap-2">
-                        <input type="text" className="form-control form-control-sm bg-light border-0 px-3 py-2 rounded-3" placeholder={t('searchPlaceholder')} 
-                               value={searchTerm} onChange={e => {setSearchTerm(e.target.value); setPage(0);}} style={{width: '240px'}} />
+                        <input type="text" className="form-control form-control-sm" placeholder={t('searchPlaceholder')} 
+                               value={searchTerm} onChange={e => {setSearchTerm(e.target.value); setPage(0);}} style={{width: '200px'}} />
                         <select className="form-select form-select-sm" style={{width: '130px'}} value={filterLocked} onChange={e => {setFilterLocked(e.target.value); setPage(0);}}>
                             <option value="">{t('status')}</option>
                             <option value="false">{t('active')}</option>
@@ -632,11 +650,11 @@ const AdminDashboard = () => {
                     </div>
                     <div className="small text-muted">{t('items', { count: users.length })}</div>
                 </div>
-                <div className="table-responsive custom-scrollbar">
+                <div className="table-responsive">
                     <table className="table table-hover align-middle mb-0">
                         <thead className="table-light">
                             <tr>
-                                <th className="ps-4 py-3">{t('id')}</th>
+                                <th className="ps-4">{t('id')}</th>
                                 <th>Email</th>
                                 <th>{t('phone')}</th>
                                 <th>{t('status')}</th>
@@ -648,14 +666,14 @@ const AdminDashboard = () => {
                             {loading ? <tr><td colSpan="6" className="text-center py-5">Đang tải...</td></tr> : 
                              users.length === 0 ? <tr><td colSpan="6" className="text-center py-5">Không tìm thấy dữ liệu</td></tr> :
                              users.map(u => (
-                                 <tr key={u.id} className="border-bottom-0">
+                                 <tr key={u.id}>
                                      <td className="ps-4 fw-bold text-muted">#{u.id}</td>
-                                     <td className="fw-medium">{u.accEmail}</td>
+                                     <td>{u.accEmail}</td>
                                      <td>{u.accPhone || '-'}</td>
-                                     <td>{u.locked ? <span className="badge bg-danger-subtle text-danger px-3 py-2 rounded-pill">{t('locked')}</span> : <span className="badge bg-success-subtle text-success px-3 py-2 rounded-pill">{t('active')}</span>}</td>
-                                     <td>{u.online ? <div className="d-flex align-items-center gap-2"><span className="p-1 bg-success rounded-circle animate-pulse"></span><span className="small">{t('online')}</span></div> : <div className="d-flex align-items-center gap-2"><span className="p-1 bg-secondary rounded-circle"></span><span className="small">{t('offline')}</span></div>}</td>
+                                     <td>{u.locked ? <span className="badge bg-danger-subtle text-danger">{t('locked')}</span> : <span className="badge bg-success-subtle text-success">{t('active')}</span>}</td>
+                                     <td>{u.online ? <span className="badge bg-success">{t('online')}</span> : <span className="badge bg-secondary">{t('offline')}</span>}</td>
                                      <td className="text-end pe-4">
-                                         <button className={`btn btn-sm ${u.locked ? 'btn-light text-success' : 'btn-light text-danger'} rounded-circle shadow-sm border p-2`}
+                                         <button className={`btn btn-sm ${u.locked ? 'btn-outline-success' : 'btn-outline-danger'} border-0`}
                                                  onClick={() => setConfirmModal({show: true, userId: u.id, isLocked: u.locked})}>
                                              <i className={`bi ${u.locked ? 'bi-unlock' : 'bi-lock'}`}></i>
                                          </button>
@@ -678,7 +696,7 @@ const AdminDashboard = () => {
     );
 
     return (
-        <div className="d-flex min-vh-100 bg-light font-inter">
+        <div className="d-flex min-vh-100 bg-light">
             <Sidebar />
             <div className="flex-grow-1 d-flex flex-column" style={{height: '100vh', overflow: 'hidden'}}>
                 <Topbar />
@@ -688,17 +706,18 @@ const AdminDashboard = () => {
                 </div>
             </div>
 
+            {/* Confirm Modal */}
             {confirmModal.show && (
                 <div className="modal fade show d-block" style={{backgroundColor: 'rgba(0,0,0,0.5)'}}>
                     <div className="modal-dialog modal-dialog-centered">
-                        <div className="modal-content shadow border-0 rounded-4">
-                            <div className="modal-body text-center p-5">
-                                <i className={`bi ${confirmModal.isLocked ? 'bi-unlock-fill text-success' : 'bi-lock-fill text-danger'} display-1 mb-4`}></i>
-                                <h4 className="fw-bold mb-3">{confirmModal.isLocked ? t('confirmUnlock') : t('confirmLock')}</h4>
-                                <p className="text-muted mb-5">{confirmModal.isLocked ? t('confirmDescUnlock') : t('confirmDescLock')}</p>
-                                <div className="d-flex justify-content-center gap-3">
-                                    <button className="btn btn-light px-5 py-2 rounded-pill fw-bold" onClick={() => setConfirmModal({...confirmModal, show: false})}>{t('cancel')}</button>
-                                    <button className={`btn ${confirmModal.isLocked ? 'btn-success' : 'btn-danger'} px-5 py-2 rounded-pill fw-bold text-white shadow-sm`} onClick={confirmAction}>{t('confirm')}</button>
+                        <div className="modal-content shadow border-0">
+                            <div className="modal-body text-center p-4">
+                                <i className={`bi ${confirmModal.isLocked ? 'bi-unlock-fill text-success' : 'bi-lock-fill text-danger'} display-1 mb-3`}></i>
+                                <h5 className="fw-bold mb-3">{confirmModal.isLocked ? t('confirmUnlock') : t('confirmLock')}</h5>
+                                <p className="text-muted mb-4">{confirmModal.isLocked ? t('confirmDescUnlock') : t('confirmDescLock')}</p>
+                                <div className="d-flex justify-content-center gap-2">
+                                    <button className="btn btn-light px-4" onClick={() => setConfirmModal({...confirmModal, show: false})}>{t('cancel')}</button>
+                                    <button className={`btn ${confirmModal.isLocked ? 'btn-success' : 'btn-danger'} px-4`} onClick={confirmAction}>{t('confirm')}</button>
                                 </div>
                             </div>
                         </div>

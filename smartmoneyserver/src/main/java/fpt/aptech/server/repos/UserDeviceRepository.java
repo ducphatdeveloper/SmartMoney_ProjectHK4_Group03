@@ -33,4 +33,9 @@ public interface UserDeviceRepository extends JpaRepository<UserDevice, Integer>
     // Lấy thời gian hoạt động gần nhất của user
     @Query("SELECT MAX(d.lastActive) FROM UserDevice d WHERE d.account.id = :accountId")
     LocalDateTime findLatestActiveTime(Integer accountId);
+    // Tìm tất cả thiết bị của danh sách người dùng (Tránh N+1 query)
+    List<UserDevice> findAllByAccount_IdIn(List<Integer> accountIds);
+
+    // Đếm số thiết bị đang đăng nhập (dựa trên việc có refresh token)
+    long countByRefreshTokenIsNotNull();
 }

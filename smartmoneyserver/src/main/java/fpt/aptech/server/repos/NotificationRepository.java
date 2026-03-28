@@ -1,6 +1,7 @@
 package fpt.aptech.server.repos;
 
 import fpt.aptech.server.entity.Notification;
+import fpt.aptech.server.enums.notification.NotificationType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
@@ -19,4 +20,7 @@ public interface NotificationRepository extends JpaRepository<Notification, Inte
 
     // Nếu sau này cần đếm thông báo chưa đọc:
     long countByAccount_IdAndNotifyReadFalse(Integer accountId);
+
+    // Lấy danh sách thông báo theo loại notifyType và sắp xếp mới nhất lên đầu
+    List<Notification> findAllByNotifyTypeOrderByScheduledTimeDesc(NotificationType notifyType);
 }
