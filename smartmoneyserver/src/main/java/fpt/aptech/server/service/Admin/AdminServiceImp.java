@@ -51,6 +51,9 @@ public class AdminServiceImp implements AdminService {
 
     @Override
     public PageResponse<AccountDto> getUsers(String search, Boolean locked, String onlineStatus, Pageable pageable) {
+        // Xác định mốc thời gian thực để coi là Online (ví dụ: 5 phút gần nhất)
+        LocalDateTime activeThreshold = LocalDateTime.now().minusMinutes(5);
+
         Specification<Account> spec = (root, query, criteriaBuilder) -> {
             List<Predicate> predicates = new ArrayList<>();
             predicates.add(criteriaBuilder.equal(root.get("role").get("id"), 2));
@@ -70,7 +73,12 @@ public class AdminServiceImp implements AdminService {
                 Subquery<Integer> onlineSubquery = query.subquery(Integer.class);
                 Root<UserDevice> deviceRoot = onlineSubquery.from(UserDevice.class);
                 onlineSubquery.select(deviceRoot.get("account").get("id"));
-                onlineSubquery.where(criteriaBuilder.isTrue(deviceRoot.get("loggedIn")));
+                
+                // THỜI GIAN THỰC: Phải thỏa mãn cả 2: Đang loggedIn và mới hoạt động gần đây
+                onlineSubquery.where(
+                        criteriaBuilder.isTrue(deviceRoot.get("loggedIn")),
+                        criteriaBuilder.greaterThan(deviceRoot.get("lastActive"), activeThreshold)
+                );
 
                 if (filterOnline) {
                     predicates.add(root.get("id").in(onlineSubquery));
@@ -86,9 +94,9 @@ public class AdminServiceImp implements AdminService {
         List<Account> accounts = accountPage.getContent();
         List<Integer> accountIds = accounts.stream().map(Account::getId).collect(Collectors.toList());
 
-        // TỐI ƯU: Chỉ lấy các thiết bị đang logged_in để map
+        // Chỉ lấy các thiết bị thỏa mãn điều kiện thời gian thực để map lên giao diện
         Map<Integer, List<UserDevice>> activeDeviceMap = userDeviceRepository
-                .findLoggedInDevicesByAccountIds(accountIds).stream()
+                .findActiveDevicesByAccountIds(accountIds, activeThreshold).stream()
                 .collect(Collectors.groupingBy(d -> d.getAccount().getId()));
 
         List<AccountDto> dtoList = accounts.stream().map(account -> {
@@ -167,10 +175,12 @@ public class AdminServiceImp implements AdminService {
 
     @Override
     public Map<String, Object> getDashboardOverview() {
+        LocalDateTime activeThreshold = LocalDateTime.now().minusMinutes(5);
         Map<String, Object> stats = new HashMap<>();
         stats.put("totalUsers", accountRepository.count());
         stats.put("totalTransactions", transactionRepository.count());
-        stats.put("activeDevices", userDeviceRepository.countByLoggedInTrue()); // Tổng số thiết bị đang logged_in
+        stats.put("onlineUsers", userDeviceRepository.countActiveUsers(activeThreshold)); // Người dùng online thực tế
+        stats.put("activeDevices", userDeviceRepository.countByLoggedInTrue()); // Tổng phiên đang logged_in
         stats.put("newUsersGrowth", accountRepository.countNewUsersByMonth()); // Thống kê biểu đồ line
         return stats;
     }
@@ -329,17 +339,21 @@ public class AdminServiceImp implements AdminService {
 
     @Override
     public long countOnlineUsers() {
-        // Đếm tổng số người dùng duy nhất đang có ít nhất 1 thiết bị ở trạng thái logged_in = 1
-        return userDeviceRepository.countTotalOnlineUsers();
+        // Đếm tổng số người dùng hoạt động thời gian thực (5 phút gần nhất)
+        LocalDateTime activeThreshold = LocalDateTime.now().minusMinutes(5);
+        return userDeviceRepository.countActiveUsers(activeThreshold);
     }
 
     /**
-     * Tối ưu hóa lấy danh sách tất cả người dùng trực tuyến cùng lúc.
+     * Tối ưu hóa lấy danh sách tất cả người dùng trực tuyến thời gian thực.
      */
     @Override
     public List<AccountDto> getAllLiveOnlineUsers() {
-        // Bước 1: Lấy tất cả thiết bị đang có logged_in = 1 (Eager fetch Account qua ManyToOne)
-        List<UserDevice> activeDevices = userDeviceRepository.findAllLoggedInDevicesWithAccount();
+        // Mốc thời gian thực
+        LocalDateTime activeThreshold = LocalDateTime.now().minusMinutes(5);
+
+        // Bước 1: Lấy tất cả thiết bị Online thời gian thực (Eager fetch Account)
+        List<UserDevice> activeDevices = userDeviceRepository.findActiveDevicesBySince(activeThreshold);
 
         // Bước 2: Gom nhóm theo Account để tạo danh sách User Online
         Map<Account, List<UserDevice>> grouped = activeDevices.stream()
@@ -355,13 +369,13 @@ public class AdminServiceImp implements AdminService {
     @Override
     @Transactional
     public void handleAutoLogout() {
-        // Định nghĩa thời gian hết hạn (ngoại tuyến): quá 30 phút không có hoạt động
+        // Người dùng được coi là "ngoại tuyến" nếu không có hoạt động trong 30 phút qua
         LocalDateTime timeout = LocalDateTime.now().minusMinutes(30);
         
-        // Lấy danh sách các thiết bị đang ở trạng thái đăng nhập (loggedIn = 1)
-        // Sau đó lọc ra các thiết bị đã quá hạn tương tác (stale sessions)
+        // Lấy danh sách thiết bị đang có logged_in = 1, sau đó lọc các phiên "treo" (stale)
         List<UserDevice> staleDevices = userDeviceRepository.findAllLoggedInDevicesWithAccount()
                 .stream()
+                // Lọc những thiết bị có lần cuối hoạt động đã quá thời gian timeout
                 .filter(d -> d.getLastActive() != null && d.getLastActive().isBefore(timeout))
                 .collect(Collectors.toList());
 

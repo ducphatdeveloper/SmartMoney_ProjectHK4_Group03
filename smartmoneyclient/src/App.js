@@ -8,6 +8,18 @@ import AdminDashboard from './components/AdminDashboard';
 import DashBoard from  './components/Dashboard';
 import ForgotPassword from './components/ForgotPassword';
 import ResetPassword from './components/ResetPassword';
+import TransactionHistory from './components/TransactionHistory';
+
+// Thành phần bảo vệ Route cho Người dùng thông thường
+const UserRoute = ({ children }) => {
+    const token = localStorage.getItem('accessToken');
+    const user = JSON.parse(localStorage.getItem('user'));
+
+    // Nếu không có token, yêu cầu đăng nhập
+    if (!token || !user) return <Navigate to="/login" replace />;
+
+    return children;
+};
 
 // Thành phần bảo vệ Route cho Admin
 const AdminRoute = ({ children }) => {
@@ -36,8 +48,24 @@ function App() {
                     <Route path="/register" element={<Register />} />
                     <Route path="/forgot-password" element={<ForgotPassword />} />
                     <Route path="/reset-password" element={<ResetPassword />} />
-                    <Route path="/dashboard" element={<DashBoard />} />
 
+                    {/* Khu vực dành cho người dùng 👤 */}
+                    <Route 
+                        path="/dashboard" 
+                        element={
+                            <UserRoute>
+                                <DashBoard />
+                            </UserRoute>
+                        } 
+                    />
+                    <Route 
+                        path="/transactions" 
+                        element={
+                            <UserRoute>
+                                <TransactionHistory />
+                            </UserRoute>
+                        } 
+                    />
 
                     {/* Bảo vệ khu vực Admin 🔐 */}
                     <Route

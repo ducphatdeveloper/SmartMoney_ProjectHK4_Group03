@@ -24,34 +24,31 @@ public interface UserDeviceRepository extends JpaRepository<UserDevice, Integer>
     // Tìm tất cả thiết bị của một tài khoản (Dùng để thu hồi token khi khóa tài khoản)
     List<UserDevice> findAllByAccount_Id(Integer accountId);
 
-    // Lấy thiết bị của danh sách tài khoản (Dùng cho Batch Fetching ở Dashboard)
-    List<UserDevice> findAllByAccount_IdIn(List<Integer> accountIds);
+    // Kiểm tra trạng thái Online thời gian thực (loggedIn = 1 AND lastActive > mốc thời gian)
+    @Query("SELECT COUNT(d) > 0 FROM UserDevice d WHERE d.account.id = :accountId AND d.loggedIn = true AND d.lastActive > :since")
+    boolean isUserOnline(@Param("accountId") Integer accountId, @Param("since") LocalDateTime since);
 
-    // Kiểm tra xem user có ít nhất một thiết bị đang ở trạng thái logged_in = 1 hay không
-    @Query("SELECT COUNT(d) > 0 FROM UserDevice d WHERE d.account.id = :accountId AND d.loggedIn = true")
-    boolean isUserOnline(@Param("accountId") Integer accountId);
+    // Lấy danh sách thiết bị active của các User (Fix lỗi: findActiveDevicesByAccountIds)
+    @Query("SELECT d FROM UserDevice d WHERE d.account.id IN :accountIds AND d.loggedIn = true AND d.lastActive > :since")
+    List<UserDevice> findActiveDevicesByAccountIds(@Param("accountIds") List<Integer> accountIds, @Param("since") LocalDateTime since);
 
-    // Lấy các thiết bị đang online của danh sách User (Dựa trên logged_in = 1)
-    // Giúp tối ưu dữ liệu khi hiển thị danh sách người dùng ở Dashboard
-    @Query("SELECT d FROM UserDevice d WHERE d.account.id IN :accountIds AND d.loggedIn = true")
-    List<UserDevice> findLoggedInDevicesByAccountIds(@Param("accountIds") List<Integer> accountIds);
-
-    // Fix lỗi: Thêm phương thức tìm thiết bị active dựa trên trạng thái logged_in và thời gian
+    // Tìm thiết bị active cho mục đích Live View hoặc Auto Logout
     @Query("SELECT d FROM UserDevice d JOIN FETCH d.account WHERE d.loggedIn = true AND (:since IS NULL OR d.lastActive > :since)")
     List<UserDevice> findActiveDevicesBySince(@Param("since") LocalDateTime since);
+
+    // Đếm tổng số NGƯỜI DÙNG duy nhất đang trực tuyến thực tế (Fix lỗi: countActiveUsers)
+    @Query("SELECT COUNT(DISTINCT d.account.id) FROM UserDevice d WHERE d.loggedIn = true AND d.lastActive > :since")
+    long countActiveUsers(@Param("since") LocalDateTime since);
+
 
     // TỐI ƯU: Lấy tất cả thiết bị đang đăng nhập kèm theo thông tin Account (JOIN FETCH)
     // Giải quyết bài toán N+1 cho Live View mà không cần thay đổi Entity Account
     @Query("SELECT d FROM UserDevice d JOIN FETCH d.account WHERE d.loggedIn = true")
     List<UserDevice> findAllLoggedInDevicesWithAccount();
 
-    // Đếm số thiết bị đang hoạt động thực tế trên toàn hệ thống
-    long countByRefreshTokenIsNotNull();
 
     // Khắc phục lỗi: Đếm số lượng thiết bị có trạng thái loggedIn là true
     long countByLoggedInTrue();
 
-    // Đếm tổng số NGƯỜI DÙNG duy nhất đang trực tuyến (Dựa trên trạng thái logged_in = 1)
-    @Query("SELECT COUNT(DISTINCT d.account.id) FROM UserDevice d WHERE d.loggedIn = true")
-    long countTotalOnlineUsers();
+
 }

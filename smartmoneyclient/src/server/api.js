@@ -29,8 +29,10 @@ export const authApi = {
 };
 
 export const notificationApi = {
-    getByUser: (accId) => api.get(`/notifications/user/${accId}`),
-    markAsSent: (id) => api.put(`/notifications/${id}/sent`),
+    // Sửa path từ /notifications/user/${accId} thành /notifications/${accId} để tránh lỗi 404
+    getByUser: (accId) => api.get(`/notifications/${accId}`),
+    markAsRead: (id) => api.put(`/notifications/${id}/read`),
+    markAllAsRead: (accId) => api.put(`/notifications/user/${accId}/read-all`),
 };
 
 export const permissionApi = {
@@ -58,14 +60,14 @@ export const adminApi = {
     getOnlineUsers: () => api.get('/admin/analytics/online-users'),
     
     // 5.1 Toàn bộ danh sách người dùng đang trực tuyến
-    getAllLiveOnlineUsers: () => api.get('/admin/analytics/live-online-users'),
+    getAllLiveOnlineUsers: () => api.get('/admin/analytics/online-users'),
 
     // 6. Biểu đồ giao dịch
     getSystemTransactionStats: (rangeMode = "MONTHLY") => api.get('/admin/system/transaction-stats', {
         params: { rangeMode }
     }),
 
-    // 7. Giao dịch bất thường
+    // 7. Xử lý giao dịch bất thường
     notifyAbnormalTransactions: (threshold) => api.post('/admin/system/notify-abnormal', null, {
         params: { threshold }
     }),
@@ -87,9 +89,39 @@ export const userApi = {
     getDashboardStats: () => api.get('/users/dashboard/stats'),
 };
 
+// Helper function để loại bỏ các params rỗng/null tránh lỗi 400 khi parse Enum/Date ở Backend
+const cleanParams = (params) => {
+    const cleaned = {};
+    if (!params) return cleaned;
+    Object.keys(params).forEach(key => {
+        const value = params[key];
+        // Nếu value là undefined, null hoặc chuỗi rỗng thì bỏ qua
+        if (value !== undefined && value !== null && value !== '') {
+            cleaned[key] = value;
+        }
+    });
+    return cleaned;
+};
+
 export const transactionApi = {
-    getRecent: (limit = 5) => api.get(`/transactions/recent?limit=${limit}`),
-    getAll: (params) => api.get('/transactions', { params }),
+    // Nhóm API xem danh sách & Nhật ký
+    // Sử dụng cleanParams để tránh gửi startDate/endDate rỗng gây lỗi 400
+    getJournal: (params) => api.get('/transactions/journal', { params: cleanParams(params) }),
+    getGrouped: (params) => api.get('/transactions/grouped', { params: cleanParams(params) }),
+
+    // Nhóm API Báo cáo & Biểu đồ
+    getSummary: (params) => api.get('/transactions/report/summary', { params: cleanParams(params) }),
+    getCategoryReport: (params) => api.get('/transactions/report/category', { params: cleanParams(params) }),
+    getFinancialReport: (params) => api.get('/transactions/report/financial', { params: cleanParams(params) }),
+    getTrend: (params) => api.get('/transactions/report/trend', { params: cleanParams(params) }), // Dữ liệu thực tế cho biểu đồ thu chi
+
+    // Nhóm API Hành động
+    getById: (id) => api.get(`/transactions/${id}`),
     create: (data) => api.post('/transactions', data),
-    getChartData: (period) => api.get(`/transactions/chart?period=${period}`),
+    update: (id, data) => api.put(`/transactions/${id}`, data),
+    delete: (id) => api.delete(`/transactions/${id}`),
+    search: (request) => api.post('/transactions/search', request),
+    
+    // Giữ lại getAll cho mục đích chung nếu cần
+    getAll: (params) => api.get('/transactions', { params }),
 };

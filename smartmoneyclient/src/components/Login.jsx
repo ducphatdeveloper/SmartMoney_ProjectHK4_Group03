@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { authApi } from '../server/api';
 
@@ -6,10 +6,52 @@ const Login = () => {
     const [formData, setFormData] = useState({
         username: '',
         password: '',
-        deviceToken: 'web-browser', // Cần thiết cho logic UserDevice của bạn
+        deviceToken: 'web-browser', 
         deviceType: 'WEB',
-        deviceName: 'Web Browser' // Thêm trường này để khớp với LoginRequest java
+        deviceName: 'Web Browser',
+        ipAddress: '' 
     });
+
+    // Hàm tự động nhận diện thiết bị và lấy IP
+    useEffect(() => {
+        const getClientSpecs = async () => {
+            const ua = navigator.userAgent;
+            let detectedName = "Web Browser";
+            let detectedType = "WEB";
+
+            // 1. Nhận diện Device Name & Type cơ bản từ User Agent
+            if (/Windows/.test(ua)) detectedName = "Windows PC";
+            else if (/Macintosh/.test(ua)) detectedName = "MacBook/iMac";
+            else if (/iPhone/.test(ua)) { detectedName = "iPhone"; detectedType = "iOS"; }
+            else if (/Android/.test(ua)) { detectedName = "Android Device"; detectedType = "Android"; }
+            else if (/Linux/.test(ua)) detectedName = "Linux PC";
+
+            // 2. Lấy Public IP Address thiết bị của người dùng
+            try {
+                const response = await fetch('https://api.ipify.org?format=json');
+                const data = await response.json();
+                
+                setFormData(prev => ({
+                    ...prev,
+                    deviceType: detectedType,
+                    deviceName: detectedName,
+                    ipAddress: data.ip
+                }));
+            } catch (error) {
+                console.error("Lấy Public IP Address thất bại:", error);
+                // Fallback về địa chỉ IP mặc định nếu dịch vụ không khả dụng
+                setFormData(prev => ({
+                    ...prev,
+                    deviceType: detectedType,
+                    deviceName: detectedName,
+                    ipAddress: "127.0.0.1"
+                }));
+            }
+        };
+
+        getClientSpecs();
+    }, []);
+
     const [errors, setErrors] = useState({}); // Object chứa lỗi từng trường
     const [generalError, setGeneralError] = useState(''); // Lỗi chung (VD: Sai pass, lỗi mạng)
     const [isLoading, setIsLoading] = useState(false); // Trạng thái loading
