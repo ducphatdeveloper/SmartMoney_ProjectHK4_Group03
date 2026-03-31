@@ -3,6 +3,8 @@ import 'package:smart_money/core/di/setup_dependencies.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:smart_money/modules/event/providers/event_provider.dart';
+import 'package:smart_money/modules/saving_goal/providers/saving_goal_provider.dart';
 
 import 'core/routing/app_router.dart';
 import 'modules/auth/providers/auth_provider.dart';
@@ -36,6 +38,8 @@ void main() async {
         ChangeNotifierProvider(create: (_) => RecurringProvider()),
         ChangeNotifierProvider(create: (_) => BillProvider()),
         ChangeNotifierProvider(create: (_) => BillTransactionProvider()), // Đăng ký BillTransactionProvider
+        ChangeNotifierProvider(create: (_) => EventProvider()),
+        ChangeNotifierProvider(create: (_) => SavingGoalProvider()),
       ],
       child: const SmartMoneyApp(),
     ),

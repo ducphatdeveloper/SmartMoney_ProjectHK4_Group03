@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:smart_money/modules/category/screens/category_list_screen.dart';
-import 'package:smart_money/modules/event/screen/event_screen.dart';
 import 'package:smart_money/modules/wallet/screens/wallet_screen.dart' as ws;
 import 'package:smart_money/modules/planned/screens/recurring_screen.dart';
 import 'package:smart_money/modules/planned/screens/bill_screen.dart';
-
+import 'package:smart_money/modules/event/screens/event_screen.dart';
+import 'package:smart_money/modules/saving_goal/screens/saving_goal_list_screen.dart';
+import 'package:smart_money/modules/saving_goal/screens/saving_goal_list_view.dart';
+import 'package:smart_money/modules/wallet/screens/wallet_screen.dart';
 import 'account_management_screen.dart';
 
 class AccountScreen extends StatelessWidget {
@@ -42,6 +44,16 @@ class AccountScreen extends StatelessWidget {
               Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => const ws.WalletListView()),
+              );
+            },
+          ),
+          _item(
+            Icons.account_balance_wallet,
+            "Ví tiết kiệm của tôi",
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const SavingGoalListScreen()),
               );
             },
           ),

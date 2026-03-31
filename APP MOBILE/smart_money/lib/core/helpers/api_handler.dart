@@ -13,6 +13,7 @@ class ApiHandler {
   // Tự động gắn Authorization header vào mọi request
   static Future<Map<String, String>> _buildHeaders() async {
     final token = await TokenHelper.getAccessToken();
+    //print("🔑 TOKEN: $token");
     return {
       "Content-Type":  "application/json",
       "Authorization": "Bearer ${token ?? ''}",

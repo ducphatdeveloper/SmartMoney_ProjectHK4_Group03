@@ -8,7 +8,6 @@ import java.util.List;
 
 @Repository
 public interface EventRepository extends JpaRepository<Event, Integer> {
-
     /**
      * Tìm tất cả sự kiện của một user dựa trên trạng thái 'finished'.
      * Dùng cho 2 tab "Đang diễn ra" và "Đã kết thúc".
