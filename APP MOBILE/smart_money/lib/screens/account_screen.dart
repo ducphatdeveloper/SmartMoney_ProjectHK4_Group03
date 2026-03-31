@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:smart_money/modules/category/screens/category_list_screen.dart';
-import 'package:smart_money/modules/wallet/screens/wallet_screen.dart' as ws;
 import 'package:smart_money/modules/planned/screens/recurring_screen.dart';
 import 'package:smart_money/modules/planned/screens/bill_screen.dart';
 import 'package:smart_money/modules/event/screens/event_screen.dart';
@@ -43,10 +42,11 @@ class AccountScreen extends StatelessWidget {
             onTap: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (_) => const ws.WalletListView()),
+                MaterialPageRoute(builder: (_) => const WalletListView()),
               );
             },
           ),
+
           _item(
             Icons.account_balance_wallet,
             "Ví tiết kiệm của tôi",
@@ -57,6 +57,7 @@ class AccountScreen extends StatelessWidget {
               );
             },
           ),
+          
           _item(Icons.group, "Nhóm" ,
               onTap: () {
                 Navigator.push(
