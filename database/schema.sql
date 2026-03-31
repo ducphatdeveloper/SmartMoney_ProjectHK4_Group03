@@ -2396,3 +2396,5 @@ GO
 --select * from tNotifications
 --select * from tCategories
 --select * from tBudgets
+GO
+ALTER TABLE tBudgets ADD budget_type NVARCHAR(50);
