@@ -1,10 +1,11 @@
 /// Response hiển thị thông tin giao dịch lặp lại.
-/// Tương ứng: PlannedTransactionResponse.java (server)
+/// Tương ứng: PlannedTransactionResponse.java (server) - v2
 class PlannedTransactionResponse {
   final int id;
 
   final int? walletId;
   final String? walletName;
+  final String? walletIcon;
 
   final int? categoryId;
   final String? categoryName;
@@ -33,10 +34,17 @@ class PlannedTransactionResponse {
 
   final String? repeatDescription;
 
+  // ── Computed fields v2 từ Backend ──
+  final String? displayStatus;    // "ACTIVE" | "OVERDUE" | "INACTIVE" | "EXPIRED" | "PAID"
+  final String? statusLabel;      // "Còn 3 lần" | "Quá hạn 2 ngày" | ...
+  final int? remainingCount;      // Số lần lặp còn lại (null nếu không giới hạn)
+  final String? nextDueDateLabel; // "Thứ Ba, 14 tháng 4 2026"
+
   const PlannedTransactionResponse({
     required this.id,
     this.walletId,
     this.walletName,
+    this.walletIcon,
     this.categoryId,
     this.categoryName,
     this.categoryIcon,
@@ -56,6 +64,10 @@ class PlannedTransactionResponse {
     this.active,
     this.createdAt,
     this.repeatDescription,
+    this.displayStatus,
+    this.statusLabel,
+    this.remainingCount,
+    this.nextDueDateLabel,
   });
 
   factory PlannedTransactionResponse.fromJson(Map<String, dynamic> json) {
@@ -63,6 +75,7 @@ class PlannedTransactionResponse {
       id: json['id'] as int,
       walletId: json['walletId'] as int?,
       walletName: json['walletName'] as String?,
+      walletIcon: json['walletIcon'] as String?,
       categoryId: json['categoryId'] as int?,
       categoryName: json['categoryName'] as String?,
       categoryIcon: json['categoryIcon'] as String?,
@@ -92,7 +105,10 @@ class PlannedTransactionResponse {
           ? DateTime.parse(json['createdAt'] as String)
           : null,
       repeatDescription: json['repeatDescription'] as String?,
+      displayStatus: json['displayStatus'] as String?,
+      statusLabel: json['statusLabel'] as String?,
+      remainingCount: json['remainingCount'] as int?,
+      nextDueDateLabel: json['nextDueDateLabel'] as String?,
     );
   }
 }
-

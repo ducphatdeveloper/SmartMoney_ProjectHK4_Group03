@@ -1,9 +1,9 @@
 import '../../../core/constants/app_constants.dart';
 import '../../../core/helpers/api_handler.dart';
-import '../../../core/models/api_response.dart';
 
 import '../models/wallet_request.dart';
 import '../models/wallet_response.dart';
+import '../models/total_balance_response.dart';
 
 class WalletService {
 
@@ -79,13 +79,13 @@ class WalletService {
   // ================= TOTAL =================
   Future<double> getTotalBalance() async {
 
-    final response = await ApiHandler.get<double>(
+    final response = await ApiHandler.get<TotalBalanceResponse>(
       "${AppConstants.walletsBase}/total-balance",
-      fromJson: (data) => (data['totalBalance'] as num).toDouble(),
+      fromJson: (data) => TotalBalanceResponse.fromJson(data),
     );
 
     if (!response.success) throw Exception(response.message);
-    return response.data!;
+    return response.data?.totalBalance ?? 0.0;
   }
 }
 

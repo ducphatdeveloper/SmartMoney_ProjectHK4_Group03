@@ -17,6 +17,10 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  
+  # ✅ [FIX] Thêm flutter_localizations để DatePicker có MaterialLocalizations
+  flutter_localizations:
+    sdk: flutter
 
   # --- UI & UTILITIES ---
   cupertino_icons: ^1.0.8

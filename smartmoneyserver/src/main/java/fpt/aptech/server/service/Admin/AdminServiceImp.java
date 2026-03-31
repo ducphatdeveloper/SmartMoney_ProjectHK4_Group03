@@ -16,6 +16,8 @@ import fpt.aptech.server.service.notification.NotificationService;
 import fpt.aptech.server.service.notification.NotificationContent;
 import fpt.aptech.server.service.notification.NotificationMessages;
 import jakarta.persistence.criteria.Predicate;
+import jakarta.persistence.criteria.Root;
+import jakarta.persistence.criteria.Subquery;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -49,6 +51,9 @@ public class AdminServiceImp implements AdminService {
 
     @Override
     public PageResponse<AccountDto> getUsers(String search, Boolean locked, String onlineStatus, Pageable pageable) {
+        // Xác định mốc thời gian thực để coi là Online (ví dụ: 5 phút gần nhất)
+        LocalDateTime activeThreshold = LocalDateTime.now().minusMinutes(5);
+
         Specification<Account> spec = (root, query, criteriaBuilder) -> {
             List<Predicate> predicates = new ArrayList<>();
             predicates.add(criteriaBuilder.equal(root.get("role").get("id"), 2));
@@ -61,6 +66,26 @@ public class AdminServiceImp implements AdminService {
                 ));
             }
             if (locked != null) predicates.add(criteriaBuilder.equal(root.get("locked"), locked));
+
+            // Lọc Online/Offline trực tiếp trong Database trước khi phân trang
+            if (onlineStatus != null && !onlineStatus.isEmpty()) {
+                boolean filterOnline = "online".equalsIgnoreCase(onlineStatus);
+                Subquery<Integer> onlineSubquery = query.subquery(Integer.class);
+                Root<UserDevice> deviceRoot = onlineSubquery.from(UserDevice.class);
+                onlineSubquery.select(deviceRoot.get("account").get("id"));
+                
+                // THỜI GIAN THỰC: Phải thỏa mãn cả 2: Đang loggedIn và mới hoạt động gần đây
+                onlineSubquery.where(
+                        criteriaBuilder.isTrue(deviceRoot.get("loggedIn")),
+                        criteriaBuilder.greaterThan(deviceRoot.get("lastActive"), activeThreshold)
+                );
+
+                if (filterOnline) {
+                    predicates.add(root.get("id").in(onlineSubquery));
+                } else {
+                    predicates.add(criteriaBuilder.not(root.get("id").in(onlineSubquery)));
+                }
+            }
             
             return criteriaBuilder.and(predicates.toArray(new Predicate[0]));
         };
@@ -69,39 +94,33 @@ public class AdminServiceImp implements AdminService {
         List<Account> accounts = accountPage.getContent();
         List<Integer> accountIds = accounts.stream().map(Account::getId).collect(Collectors.toList());
 
-        // Batch fetch thiết bị để tránh N+1 Query
-        Map<Integer, List<UserDevice>> deviceMap = userDeviceRepository.findAllByAccount_IdIn(accountIds).stream()
+        // Chỉ lấy các thiết bị thỏa mãn điều kiện thời gian thực để map lên giao diện
+        Map<Integer, List<UserDevice>> activeDeviceMap = userDeviceRepository
+                .findActiveDevicesByAccountIds(accountIds, activeThreshold).stream()
                 .collect(Collectors.groupingBy(d -> d.getAccount().getId()));
-
-        LocalDateTime fiveMinutesAgo = LocalDateTime.now().minusMinutes(5);
 
         List<AccountDto> dtoList = accounts.stream().map(account -> {
             AccountDto dto = new AccountDto(account);
-            List<UserDevice> userDevices = deviceMap.getOrDefault(account.getId(), new ArrayList<>());
+            List<UserDevice> activeSessions = activeDeviceMap.getOrDefault(account.getId(), new ArrayList<>());
             
-            // Xác định các session đang hoạt động dựa trên RefreshToken và thời gian tương tác
-            List<UserDevice> activeSessions = userDevices.stream()
-                    .filter(d -> d.getRefreshToken() != null && d.getLastActive() != null 
-                            && d.getLastActive().isAfter(fiveMinutesAgo))
-                    .collect(Collectors.toList());
-
             dto.setOnline(!activeSessions.isEmpty());
             dto.setOnlineDevicesCount(activeSessions.size());
-            dto.setLastActive(userDevices.stream()
+            
+            // TỐI ƯU: Nếu đang online, lấy thời gian từ session active, nếu không thì dùng field có sẵn
+            dto.setLastActive(activeSessions.stream()
                     .map(UserDevice::getLastActive)
                     .filter(Objects::nonNull)
                     .max(LocalDateTime::compareTo)
                     .orElse(null));
-            dto.setOnlinePlatforms(new ArrayList<>()); // Trống vì không thay đổi Entity
+
+            // TỐI ƯU: Lấy danh sách Platform thực tế từ các session đang online
+            dto.setOnlinePlatforms(activeSessions.stream()
+                    .map(d -> d.getDeviceName() != null ? d.getDeviceName() : "Unknown")
+                    .distinct().collect(Collectors.toList()));
+            
             return dto;
         }).collect(Collectors.toList());
 
-        if (onlineStatus != null && !onlineStatus.isEmpty()) {
-            boolean filterOnline = "online".equalsIgnoreCase(onlineStatus);
-            dtoList = dtoList.stream().filter(dto -> dto.isOnline() == filterOnline).collect(Collectors.toList());
-            return new PageResponse<>(new PageImpl<>(dtoList, pageable, dtoList.size())); // Lưu ý: Paging in-memory
-        }
-        
         return new PageResponse<>(new PageImpl<>(dtoList, pageable, accountPage.getTotalElements()));
     }
 
@@ -119,7 +138,8 @@ public class AdminServiceImp implements AdminService {
             List<UserDevice> devices = userDeviceRepository.findAllByAccount_Id(id);
             if (devices != null && !devices.isEmpty()) {
                 devices.forEach(device -> device.setRefreshToken(null));
-                userDeviceRepository.saveAllAndFlush(devices);
+                userDeviceRepository.saveAll(devices);
+                userDeviceRepository.flush();
             }
         } catch (Exception e) {
             System.err.println("Cảnh báo: Không thể thu hồi token của user " + id + ": " + e.getMessage());
@@ -141,7 +161,8 @@ public class AdminServiceImp implements AdminService {
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy tài khoản ID: " + id));
         
         account.setLocked(false);
-        accountRepository.saveAndFlush(account);
+        accountRepository.save(account);
+        accountRepository.flush();
 
         try {
             NotificationContent msg = NotificationMessages.accountUnlocked();
@@ -154,10 +175,12 @@ public class AdminServiceImp implements AdminService {
 
     @Override
     public Map<String, Object> getDashboardOverview() {
+        LocalDateTime activeThreshold = LocalDateTime.now().minusMinutes(5);
         Map<String, Object> stats = new HashMap<>();
         stats.put("totalUsers", accountRepository.count());
         stats.put("totalTransactions", transactionRepository.count());
-        stats.put("activeDevices", userDeviceRepository.countByRefreshTokenIsNotNull()); // Online thực tế
+        stats.put("onlineUsers", userDeviceRepository.countActiveUsers(activeThreshold)); // Người dùng online thực tế
+        stats.put("activeDevices", userDeviceRepository.countByLoggedInTrue()); // Tổng phiên đang logged_in
         stats.put("newUsersGrowth", accountRepository.countNewUsersByMonth()); // Thống kê biểu đồ line
         return stats;
     }
@@ -248,36 +271,36 @@ public class AdminServiceImp implements AdminService {
         LocalDateTime since = LocalDateTime.now().minusDays(1);
         List<Transaction> largeTransactions = transactionRepository.findAllByAmountGreaterThanAndTransDateAfter(threshold, since);
 
+        if (largeTransactions.isEmpty()) {
+            return;
+        }
+
+        BigDecimal totalAmount = BigDecimal.ZERO;
+        int transactionCount = largeTransactions.size();
+
         for (Transaction trans : largeTransactions) {
-            // 1. Gửi cảnh báo trực tiếp cho Người dùng (Loại TRANSACTION)
+            totalAmount = totalAmount.add(trans.getAmount());
+
+            // Vẫn gửi cảnh báo riêng tư cho từng người dùng để họ kiểm tra tài khoản
             NotificationContent content = NotificationMessages.largeTransactionAlert(
                 trans.getAmount(), 
                 trans.getCategory().getCtgName()
             );
-            notificationService.createNotification(
-                trans.getAccount(),
-                content.title(),
-                content.content(),
-                NotificationType.TRANSACTION,
-                trans.getId().longValue(),
-                LocalDateTime.now()
-            );
-
-            // 2. Tạo Log hệ thống cho Admin (Loại SYSTEM)
-            // Việc này giúp Admin thấy được các giao dịch đáng ngờ trong danh sách thông báo Admin
-            String adminTitle = "Cảnh báo bảo mật: Giao dịch lớn";
-            String adminContent = String.format("Phát hiện giao dịch bất thường: %s VNĐ từ tài khoản %s", 
-                    trans.getAmount().toString(), trans.getAccount().getAccEmail());
-            
-            notificationService.createNotification(
-                null, // Thông báo chung cho hệ thống
-                adminTitle,
-                adminContent,
-                NotificationType.SYSTEM,
-                trans.getId().longValue(),
-                LocalDateTime.now()
-            );
+            notificationService.createNotification(trans.getAccount(), content.title(), content.content(),
+                    NotificationType.TRANSACTION, trans.getId().longValue(), LocalDateTime.now());
         }
+
+        // TẠO THÔNG BÁO TỔNG CHO ADMIN (SYSTEM ALERT)
+        // Thay vì mỗi giao dịch 1 thông báo, ta gom lại thành 1 cảnh báo tổng hợp hệ thống
+        String adminTitle = "Hệ thống: Cảnh báo rủi ro giao dịch";
+        String adminContent = String.format(
+            "Phát hiện tổng cộng %d giao dịch bất thường vượt ngưỡng %s VNĐ trong 24h qua. " +
+            "Tổng giá trị nghi vấn: %s VNĐ. Vui lòng kiểm tra danh sách đối soát.",
+            transactionCount, threshold.stripTrailingZeros().toPlainString(), totalAmount.stripTrailingZeros().toPlainString()
+        );
+
+        notificationService.createNotification(null, adminTitle, adminContent, 
+                NotificationType.SYSTEM, null, LocalDateTime.now());
     }
 
     /**
@@ -316,7 +339,74 @@ public class AdminServiceImp implements AdminService {
 
     @Override
     public long countOnlineUsers() {
-        // Lấy số lượng user active trong 5 phút gần nhất từ bộ nhớ
-        return userActivityService.countOnlineUsers(5);
+        // Đếm tổng số người dùng hoạt động thời gian thực (5 phút gần nhất)
+        LocalDateTime activeThreshold = LocalDateTime.now().minusMinutes(5);
+        return userDeviceRepository.countActiveUsers(activeThreshold);
+    }
+
+    /**
+     * Tối ưu hóa lấy danh sách tất cả người dùng trực tuyến thời gian thực.
+     */
+    @Override
+    public List<AccountDto> getAllLiveOnlineUsers() {
+        // Mốc thời gian thực
+        LocalDateTime activeThreshold = LocalDateTime.now().minusMinutes(5);
+
+        // Bước 1: Lấy tất cả thiết bị Online thời gian thực (Eager fetch Account)
+        List<UserDevice> activeDevices = userDeviceRepository.findActiveDevicesBySince(activeThreshold);
+
+        // Bước 2: Gom nhóm theo Account để tạo danh sách User Online
+        Map<Account, List<UserDevice>> grouped = activeDevices.stream()
+                .collect(Collectors.groupingBy(UserDevice::getAccount));
+
+        return mapToOnlineAccountDtos(grouped);
+    }
+
+    /**
+     * Tự động đăng xuất (thu hồi RefreshToken) cho các phiên bản đã ngoại tuyến.
+     * Ngoại tuyến được định nghĩa là không có hoạt động trong 30 phút qua.
+     */
+    @Override
+    @Transactional
+    public void handleAutoLogout() {
+        // Người dùng được coi là "ngoại tuyến" nếu không có hoạt động trong 30 phút qua
+        LocalDateTime timeout = LocalDateTime.now().minusMinutes(30);
+        
+        // Lấy danh sách thiết bị đang có logged_in = 1, sau đó lọc các phiên "treo" (stale)
+        List<UserDevice> staleDevices = userDeviceRepository.findAllLoggedInDevicesWithAccount()
+                .stream()
+                // Lọc những thiết bị có lần cuối hoạt động đã quá thời gian timeout
+                .filter(d -> d.getLastActive() != null && d.getLastActive().isBefore(timeout))
+                .collect(Collectors.toList());
+
+        if (!staleDevices.isEmpty()) {
+            staleDevices.forEach(device -> {
+                device.setRefreshToken(null); // Thu hồi Refresh Token để chặn quyền truy cập cũ
+                device.setLoggedIn(false);    // Chuyển trạng thái sang Ngoại tuyến (logger_in = 0)
+            });
+            userDeviceRepository.saveAll(staleDevices);
+            userDeviceRepository.flush();
+        }
+    }
+
+    private List<AccountDto> mapToOnlineAccountDtos(Map<Account, List<UserDevice>> grouped) {
+        return grouped.entrySet().stream().map(entry -> {
+            Account account = entry.getKey();
+            List<UserDevice> devices = entry.getValue();
+
+            AccountDto dto = new AccountDto(account);
+            dto.setOnline(true);
+            dto.setOnlineDevicesCount(devices.size());
+            dto.setOnlinePlatforms(devices.stream()
+                    .map(d -> d.getDeviceName() != null ? d.getDeviceName() : "Unknown")
+                    .distinct().collect(Collectors.toList()));
+            
+            dto.setLastActive(devices.stream()
+                    .map(UserDevice::getLastActive)
+                    .filter(Objects::nonNull)
+                    .max(LocalDateTime::compareTo)
+                    .orElse(null));
+            return dto;
+        }).collect(Collectors.toList());
     }
 }

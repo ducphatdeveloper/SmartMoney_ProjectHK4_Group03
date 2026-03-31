@@ -318,4 +318,36 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
                                           @Param("endDate") LocalDateTime endDate);
     // Tìm các giao dịch có số tiền lớn hơn ngưỡng và phát sinh sau thời điểm xác định
     List<Transaction> findAllByAmountGreaterThanAndTransDateAfter(BigDecimal amount, LocalDateTime since);
+
+    // =================================================================================
+    // 10. CÁC HÀM CHO PLANNED TRANSACTION (Giao dịch định kỳ / Hóa đơn)
+    // =================================================================================
+
+    /**
+     * [PLANNED] Lấy danh sách giao dịch được tạo ra từ một PlannedTransaction cụ thể.
+     * Dùng cho màn hình "Xem giao dịch" của một Hóa đơn/Giao dịch định kỳ.
+     */
+    List<Transaction> findAllByPlannedTransactionIdAndAccountIdOrderByTransDateDesc(Integer plannedId, Integer accountId);
+
+    /**
+     * [PLANNED] Check xem Planned transaction đã có giao dịch trong khoảng thời gian chưa.
+     * Dùng khi update Recurring/Bill để check xem nextDueDate hôm nay đã có giao dịch chưa.
+     */
+    @Query("SELECT CASE WHEN COUNT(t) > 0 THEN true ELSE false END FROM Transaction t WHERE t.plannedTransaction.id = :plannedId AND t.account.id = :accountId AND t.transDate BETWEEN :startTime AND :endTime")
+    boolean existsByPlannedTransactionIdAndAccountIdAndTransDateBetween(
+            @Param("plannedId") Integer plannedId,
+            @Param("accountId") Integer accountId,
+            @Param("startTime") LocalDateTime startTime,
+            @Param("endTime") LocalDateTime endTime);
+
+    /**
+     * [PLANNED] Set planned_id = NULL cho các giao dịch thuộc một PlannedTransaction.
+     * Dùng khi xóa Hóa đơn hoặc Giao dịch định kỳ (giữ lại transaction, chỉ cắt liên kết).
+     * SourceType sẽ vẫn là PLANNED (5) để tracking lịch sử.
+     */
+    @Modifying
+    @Query("UPDATE Transaction t SET t.plannedTransaction = null WHERE t.plannedTransaction.id = :plannedId AND t.account.id = :accountId")
+    void clearPlannedTransactionLink(
+            @Param("plannedId") Integer plannedId,
+            @Param("accountId") Integer accountId);
 }

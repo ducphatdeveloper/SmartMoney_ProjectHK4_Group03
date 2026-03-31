@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:smart_money/modules/category/screens/category_list_screen.dart';
 import 'package:smart_money/modules/event/screen/event_screen.dart';
-import 'package:smart_money/modules/wallet/screens/wallet_screen.dart';
+import 'package:smart_money/modules/wallet/screens/wallet_screen.dart' as ws;
+import 'package:smart_money/modules/planned/screens/recurring_screen.dart';
+import 'package:smart_money/modules/planned/screens/bill_screen.dart';
 
 import 'account_management_screen.dart';
 
@@ -39,7 +41,7 @@ class AccountScreen extends StatelessWidget {
             onTap: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (_) => const WalletScreen()),
+                MaterialPageRoute(builder: (_) => const ws.WalletListView()),
               );
             },
           ),
@@ -62,8 +64,26 @@ class AccountScreen extends StatelessWidget {
               );
             },
           ),
-          _item(Icons.autorenew, "Giao dịch định kỳ"),
-          _item(Icons.receipt_long, "Hóa đơn"),
+          _item(
+            Icons.autorenew,
+            "Giao dịch định kỳ",
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const RecurringScreen()),
+              );
+            },
+          ),
+          _item(
+            Icons.receipt_long,
+            "Hóa đơn",
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const BillScreen()),
+              );
+            },
+          ),
           _item(Icons.request_page, "Sổ nợ"),
 
           const SizedBox(height: 16),

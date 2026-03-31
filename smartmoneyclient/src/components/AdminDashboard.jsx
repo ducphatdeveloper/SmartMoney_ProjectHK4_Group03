@@ -23,6 +23,8 @@ const translations = {
         scanning: "Đang quét...",
         detected: "Phát hiện: {count} người dùng",
         noAbnormal: "Không có ai vượt ngưỡng",
+        autoLogout: "Thu hồi phiên quá hạn",
+        loggingOut: "Đang xử lý...",
         searchPlaceholder: "Tìm kiếm user...",
         status: "Trạng thái",
         online: "Trực tuyến",
@@ -48,6 +50,7 @@ const translations = {
         page: "Trang {current} / {total}",
         notifySuccess: "Đã gửi thông báo đến {count} người dùng.",
         notifyError: "Lỗi khi gửi thông báo.",
+        autoLogoutSuccess: "Đã thu hồi các phiên đăng nhập ngoại tuyến quá hạn.",
         sessionExpired: "Phiên đăng nhập hết hạn.",
         accountLocked: "Tài khoản bị khóa."
     },
@@ -65,6 +68,8 @@ const translations = {
         scanning: "Scanning...",
         detected: "Detected: {count} users",
         noAbnormal: "No abnormal activities",
+        autoLogout: "Revoke Overdue Sessions",
+        loggingOut: "Processing...",
         searchPlaceholder: "Search users...",
         status: "Status",
         online: "Online",
@@ -90,6 +95,7 @@ const translations = {
         page: "Page {current} of {total}",
         notifySuccess: "Successfully notified {count} users.",
         notifyError: "Error sending notification.",
+        autoLogoutSuccess: "Overdue offline sessions revoked successfully.",
         sessionExpired: "Session expired.",
         accountLocked: "Account has been locked."
     }
@@ -97,10 +103,9 @@ const translations = {
 
 const AdminDashboard = () => {
     // --- STATE ---
-    const [activeTab, setActiveTab] = useState('overview'); // 'overview' | 'users'
+    const [activeTab, setActiveTab] = useState('overview'); 
     const [lang, setLang] = useState(localStorage.getItem('adminLang') || 'vi');
 
-    // Hàm dịch hỗ trợ tham số động
     const t = (key, params = {}) => {
         let text = translations[lang][key] || key;
         Object.keys(params).forEach(p => {
@@ -127,7 +132,7 @@ const AdminDashboard = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [filterLocked, setFilterLocked] = useState('');
     const [filterOnline, setFilterOnline] = useState('');
-    const [threshold, setThreshold] = useState(5000000); // Ngưỡng mặc định 5tr
+    const [threshold, setThreshold] = useState(5000000); 
     const [page, setPage] = useState(0);
     const [totalPages, setTotalPages] = useState(0);
     const [rangeMode, setRangeMode] = useState('MONTHLY');
@@ -136,6 +141,7 @@ const AdminDashboard = () => {
     const [loading, setLoading] = useState(false);
     const [currentUser, setCurrentUser] = useState(null);
     const [notifying, setNotifying] = useState(false);
+    const [autoLoggingOut, setAutoLoggingOut] = useState(false);
     const [loadingAbnormal, setLoadingAbnormal] = useState(false);
     const [showNotifications, setShowNotifications] = useState(false);
     const [confirmModal, setConfirmModal] = useState({ show: false, userId: null, isLocked: false });
@@ -159,11 +165,11 @@ const AdminDashboard = () => {
     const fetchStats = async () => {
         try {
             const res = await adminApi.getStats();
-            if (res.data && res.data.success) setStats(res.data.data);
+            const data = res.data.success ? res.data.data : res.data;
+            if (data) setStats(data);
             
-            // Gọi thêm API lấy số user online thực (dựa trên active time)
             const onlineRes = await adminApi.getOnlineUsers();
-            if (onlineRes.data.success) {
+            if (onlineRes.data && onlineRes.data.success) {
                 setStats(prev => ({ ...prev, activeDevices: onlineRes.data.data }));
             }
         } catch (err) { console.error(err); }
@@ -172,7 +178,9 @@ const AdminDashboard = () => {
     const fetchTransactionStats = useCallback(async () => {
         try {
             const res = await adminApi.getSystemTransactionStats(rangeMode);
-            setTransactionStats(res.data.data);
+            if (res.data && res.data.success) {
+                setTransactionStats(res.data.data);
+            }
         } catch (err) { console.error(err); }
     }, [rangeMode]);
 
@@ -180,7 +188,9 @@ const AdminDashboard = () => {
         setLoadingAbnormal(true);
         try {
             const res = await adminApi.getAbnormalUsers(threshold);
-            setAbnormalUsers(res.data.data || []);
+            if (res.data && res.data.success) {
+                setAbnormalUsers(res.data.data || []);
+            }
         } catch (err) {
             console.error("Lỗi lấy danh sách bất thường:", err);
         } finally { setLoadingAbnormal(false); }
@@ -198,10 +208,26 @@ const AdminDashboard = () => {
         }
     };
 
+    const handleAutoLogoutTrigger = async () => {
+        setAutoLoggingOut(true);
+        try {
+            const res = await adminApi.handleAutoLogout();
+            if (res.data.success) {
+                alert(t('autoLogoutSuccess'));
+                fetchStats();
+            }
+        } catch (err) {
+            console.error("Lỗi Auto Logout:", err);
+        } finally {
+            setAutoLoggingOut(false);
+        }
+    };
+
     const fetchNotifications = async (adminId) => {
         try {
             const res = await adminApi.getAdminNotifications(adminId);
-            setNotifications(res.data.data || []);
+            const data = res.data.success ? res.data.data : res.data;
+            setNotifications(data || []);
         } catch (err) { console.error(err); }
     };
 
@@ -215,9 +241,15 @@ const AdminDashboard = () => {
                 onlineStatus: filterOnline === 'true' ? 'ONLINE' : (filterOnline === 'false' ? 'OFFLINE' : null)
             };
             const res = await adminApi.getUsers(params);
-            setUsers(res.data.data.content || []);
-            setTotalPages(res.data.data.totalPages || 0);
-        } catch (err) { console.error(err); } 
+            const apiData = res.data.success ? res.data.data : res.data;
+            if (apiData) {
+                setUsers(apiData.content || []);
+                setTotalPages(apiData.totalPages || 0);
+            }
+        } catch (err) { 
+            console.error("Fetch users error:", err); 
+            setUsers([]);
+        } 
         finally { if (!isBackground) setLoading(false); }
     }, [page, searchTerm, filterLocked, filterOnline]);
 
@@ -234,7 +266,7 @@ const AdminDashboard = () => {
         }
         setCurrentUser(storedUser);
         fetchStats();
-        fetchTransactionStats(); // Load initial stats
+        fetchTransactionStats();
         if (storedUser.userId || storedUser.id) {
              fetchNotifications(storedUser.userId || storedUser.id);
         }
@@ -424,6 +456,17 @@ const AdminDashboard = () => {
                 </li>
             </ul>
             <hr />
+            <div className="mt-auto px-2">
+                <button 
+                    className="btn btn-outline-light btn-sm w-100 d-flex align-items-center justify-content-center gap-2 py-2"
+                    onClick={handleAutoLogoutTrigger}
+                    disabled={autoLoggingOut}
+                    title="Dọn dẹp các phiên đăng nhập ngoại tuyến đã quá hạn"
+                >
+                    {autoLoggingOut ? <span className="spinner-border spinner-border-sm"></span> : <i className="bi bi-shield-check"></i>}
+                    <span className="extra-small fw-bold text-uppercase" style={{fontSize: '0.65rem'}}>{t('autoLogout')}</span>
+                </button>
+            </div>
         </div>
     );
 

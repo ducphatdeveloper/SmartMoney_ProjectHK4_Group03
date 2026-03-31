@@ -3,6 +3,7 @@ package fpt.aptech.server.api.planned;
 import fpt.aptech.server.dto.planned.PlannedTransactionRequest;
 import fpt.aptech.server.dto.planned.PlannedTransactionResponse;
 import fpt.aptech.server.dto.response.ApiResponse;
+import fpt.aptech.server.dto.transaction.view.BillTransactionListResponse;
 import fpt.aptech.server.entity.Account;
 import fpt.aptech.server.scheduler.planned.PlannedTransactionScheduler;
 import fpt.aptech.server.service.planned.PlannedTransactionService;
@@ -136,6 +137,20 @@ public class PlannedTransactionController {
             @AuthenticationPrincipal Account currentUser) {
         PlannedTransactionResponse data = plannedService.toggleBill(id, currentUser.getId());
         return ResponseEntity.ok(ApiResponse.success(data));
+    }
+
+    // ════════════════════════════════════════════════════════════════════
+    // XEM GIAO DỊCH LIÊN QUAN
+    // ════════════════════════════════════════════════════════════════════
+
+    // [3.1] GET /api/bills/{id}/transactions — Chỉ Bills (plan_type=1)
+    // Trả về: totalCount + summary (totalIncome/totalExpense) + groupedTransactions (gom theo ngày)
+    @GetMapping("/api/bills/{id}/transactions")
+    public ResponseEntity<ApiResponse<BillTransactionListResponse>> getBillTransactions(
+            @PathVariable Integer id,
+            @AuthenticationPrincipal Account currentUser) {
+        return ResponseEntity.ok(ApiResponse.success(
+                plannedService.getBillTransactions(id, currentUser.getId())));
     }
 
     // ════════════════════════════════════════════════════════════════════

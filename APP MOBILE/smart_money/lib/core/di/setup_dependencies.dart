@@ -3,6 +3,7 @@ import '../services/auth_service.dart';
 import '../../modules/category/services/category_service.dart';
 import '../../modules/transaction/services/transaction_service.dart';
 import '../../modules/transaction/services/util_service.dart';
+import '../../modules/planned/services/planned_service.dart';
 
 // Tất cả Service của app đăng ký tại đây 1 lần khi khởi động.
 // Sau đó bất kỳ chỗ nào cũng gọi: getIt.get<TênService>()
@@ -21,6 +22,9 @@ void setupDependencies() {
 
   // Util — gọi API utils (date-ranges, wallets, saving goals, total balance)
   getIt.registerLazySingleton<UtilService>(() => UtilService());
+
+  // Planned — gọi API giao dịch định kỳ & hóa đơn
+  getIt.registerLazySingleton<PlannedService>(() => PlannedService());
 
   // Wallet
   // getIt.registerLazySingleton<WalletService>(() => WalletService());

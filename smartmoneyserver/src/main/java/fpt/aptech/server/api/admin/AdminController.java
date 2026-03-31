@@ -63,6 +63,14 @@ public class AdminController {
         return ResponseEntity.ok(ApiResponse.success(adminService.countOnlineUsers()));
     }
 
+    // 5.1 Lấy toàn bộ danh sách người dùng đang trực tuyến (Live View)
+    @GetMapping("/analytics/live-online-users")
+    @PreAuthorize("hasRole('ROLE_ADMIN') or hasAuthority('ADMIN_SYSTEM_ALL')")
+    public ResponseEntity<ApiResponse<List<AccountDto>>> getAllLiveOnlineUsers() {
+        return ResponseEntity.ok(ApiResponse.success(adminService.getAllLiveOnlineUsers()));
+    }
+
+
     // 6. Phân tích tài chính hệ thống - Trả về breakdown % danh mục cha/con (100% Volume)
     @GetMapping("/system/transaction-stats")
     @PreAuthorize("hasRole('ROLE_ADMIN') or hasAuthority('ADMIN_SYSTEM_ALL')")
@@ -86,6 +94,14 @@ public class AdminController {
     public ResponseEntity<ApiResponse<List<Map<String, Object>>>> getAbnormalUsers(
             @RequestParam BigDecimal threshold) {
         return ResponseEntity.ok(ApiResponse.success(adminService.getAbnormalTransactionUsers(threshold)));
+    }
+
+    // 7.2 Bảo mật: Thủ công kích hoạt quét và thu hồi các phiên đăng nhập ngoại tuyến (Auto Logout)
+    @PostMapping("/system/auto-logout")
+    @PreAuthorize("hasRole('ROLE_ADMIN') or hasAuthority('ADMIN_SYSTEM_ALL')")
+    public ResponseEntity<ApiResponse<String>> handleAutoLogout() {
+        adminService.handleAutoLogout();
+        return ResponseEntity.ok(ApiResponse.success("Đã thực hiện quét và thu hồi các phiên đăng nhập đã ngoại tuyến quá hạn"));
     }
 
     // 8. Thông báo hệ thống cho Admin - Lấy các sự kiện quan trọng (SYSTEM notifications)

@@ -2,6 +2,7 @@ package fpt.aptech.server.service.planned;
 
 import fpt.aptech.server.dto.planned.PlannedTransactionRequest;
 import fpt.aptech.server.dto.planned.PlannedTransactionResponse;
+import fpt.aptech.server.dto.transaction.view.BillTransactionListResponse;
 
 import java.util.List;
 
@@ -13,7 +14,7 @@ public interface PlannedTransactionService {
     PlannedTransactionResponse       createRecurring(PlannedTransactionRequest request, Integer userId);
     PlannedTransactionResponse       updateRecurring(Integer id, PlannedTransactionRequest request, Integer userId);
     void                             deleteRecurring(Integer id, Integer userId);
-    PlannedTransactionResponse       toggleRecurring(Integer id, Integer userId); // bật/tắt active
+    PlannedTransactionResponse       toggleRecurring(Integer id, Integer userId);
 
     // ── Bills (plan_type=1) ──────────────────────────────────────────────
     List<PlannedTransactionResponse> getBills(Integer userId, Boolean active);
@@ -21,6 +22,9 @@ public interface PlannedTransactionService {
     PlannedTransactionResponse       createBill(PlannedTransactionRequest request, Integer userId);
     PlannedTransactionResponse       updateBill(Integer id, PlannedTransactionRequest request, Integer userId);
     void                             deleteBill(Integer id, Integer userId);
-    PlannedTransactionResponse       payBill(Integer id, Integer userId); // user bấm "Trả tiền" → tạo Transaction
-    PlannedTransactionResponse       toggleBill(Integer id, Integer userId); // đánh dấu hoàn tất/chưa
+    PlannedTransactionResponse       payBill(Integer id, Integer userId);
+    PlannedTransactionResponse       toggleBill(Integer id, Integer userId);
+
+    // ── Transactions (chỉ Bills) ─────────────────────────────────────────
+    BillTransactionListResponse getBillTransactions(Integer billId, Integer userId);
 }

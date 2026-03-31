@@ -49,7 +49,7 @@ class AppConstants {
       // 192.168.x.x (IP máy tính) là dành cho máy thật.
 
       // Gán ip máy tính thật để test
-      String computerIp = "192.168.1.131"; // <--- THAY BẰNG IP MÁY TÍNH (Gõ ipconfig để lấy)
+      String computerIp = "192.168.1.168"; // <--- THAY BẰNG IP MÁY TÍNH (Gõ ipconfig để lấy)
 
       return "http://$computerIp:9999/api";
     }
@@ -75,8 +75,8 @@ class AppConstants {
   static String get authRefreshToken  => "$baseUrl/auth/refresh-token";
 
   // --- Wallet ---
-  static String get walletsBase           => "$baseUrl/wallets";
-  static String walletById(int id)        => "$baseUrl/wallets/$id";
+  static String get walletsBase           => "$baseUrl/user/wallets";
+  static String walletById(int id)        => "$baseUrl/user/wallets/$id";
 
   // --- Transaction ---
   static String get transactionsBase      => "$baseUrl/transactions";
@@ -101,4 +101,16 @@ class AppConstants {
 
   // --- Icons (lấy danh sách icon từ Cloudinary) ---
   static String get iconsBase             => "$baseUrl/icons";
+
+  // --- Recurring (Giao dịch định kỳ) — planType = 2 ---
+  static String get recurringBase         => "$baseUrl/recurring";
+  static String recurringById(int id)     => "$baseUrl/recurring/$id";
+  static String recurringToggle(int id)   => "$baseUrl/recurring/$id/toggle";
+
+  // --- Bills (Hóa đơn) — planType = 1 ---
+  static String get billsBase             => "$baseUrl/bills";
+  static String billById(int id)          => "$baseUrl/bills/$id";
+  static String billToggle(int id)        => "$baseUrl/bills/$id/toggle";
+  static String billPay(int id)           => "$baseUrl/bills/$id/pay";
+  static String billTransactions(int id)  => "$baseUrl/bills/$id/transactions"; // Endpoint mới
 }

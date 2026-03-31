@@ -1,18 +1,28 @@
 ### ======================================================================
-### TEST FILE: PlannedTransactions API (Recurring & Bills)
-### User 6: minh.pham@gmail.com
-### Wallet: 10 (MB Bank) | 11 (VNPay)
+### SMARTMONEY — PLANNED TRANSACTIONS API
+### ======================================================================
+### Tài khoản test : minh.pham@gmail.com (acc_id = 6)
+### Ví             : MB Bank (wallet_id=10) | VNPay (wallet_id=11)
+### Danh mục       : Ăn uống (ctg_id=1) | Thu nhập (ctg_id=15)
+###                  Thu nợ  (ctg_id=21) | Vui - chơi (ctg_id=28)
+### Khoản nợ       : Nợ chị gái (debt_id=9)
 ### ======================================================================
 
-### [0] Đăng nhập lấy token
-# @name loginForPlanned
+
+# ════════════════════════════════════════════════════════════════════════
+# [0] ĐĂNG NHẬP — Lấy token trước khi test
+# ════════════════════════════════════════════════════════════════════════
+
+### [0.1] Đăng nhập
+# Kỳ vọng: 200 OK — accessToken được lưu vào biến auth_token
+# @name login
 POST http://localhost:9999/api/auth/login
 Content-Type: application/json
 
 {
   "username": "minh.pham@gmail.com",
   "password": "Test@123",
-  "deviceToken": "device_token_test_saving",
+  "deviceToken": "device_token_test_planned",
   "deviceType": "Postman",
   "deviceName": "Test Client"
 }
@@ -21,11 +31,16 @@ Content-Type: application/json
     client.global.set("auth_token", response.body.data.accessToken);
 %}
 
-### ======================================================================
-### RECURRING — /api/recurring
-### ======================================================================
 
-### [R1] Tạo Recurring — Lương hàng tháng (THU)
+### ════════════════════════════════════════════════════════════════════════
+### [1] RECURRING — Giao dịch định kỳ (Scheduler tự động tạo Transaction)
+### ════════════════════════════════════════════════════════════════════════
+
+### [1.1] Tạo Recurring — Lương hàng tháng (Thu, lặp mãi)
+# Kỳ vọng: 201 Created
+#   plan_type=2, active=true
+#   nextDueDate = beginDate (05/04/2026)
+#   repeatDescription = "Lặp vào ngày 5 hàng tháng"
 # @name createRecurringLuong
 POST http://localhost:9999/api/recurring
 Authorization: Bearer {{auth_token}}
@@ -41,7 +56,7 @@ Content-Type: application/json
   "repeatType": 3,
   "repeatInterval": 1,
   "repeatOnDayVal": null,
-  "beginDate": "2026-03-05",
+  "beginDate": "2026-04-05",
   "endDateOption": "FOREVER",
   "endDateValue": null,
   "repeatCount": null
@@ -53,7 +68,10 @@ Content-Type: application/json
 
 ###
 
-### [R2] Tạo Recurring — Cà phê tuần (CHI, bitmask T2+T4+T6=42)
+### [1.2] Tạo Recurring — Cà phê T2, T4, T6 hàng tuần (Chi, lặp mãi)
+# Kỳ vọng: 201 Created
+#   repeatType=2 (tuần), repeatOnDayVal=42 (T2=2 + T4=8 + T6=32)
+#   nextDueDate = ngày T2/T4/T6 gần nhất sau beginDate
 # @name createRecurringCafe
 POST http://localhost:9999/api/recurring
 Authorization: Bearer {{auth_token}}
@@ -69,7 +87,7 @@ Content-Type: application/json
   "repeatType": 2,
   "repeatInterval": 1,
   "repeatOnDayVal": 42,
-  "beginDate": "2026-03-16",
+  "beginDate": "2026-04-01",
   "endDateOption": "FOREVER",
   "endDateValue": null,
   "repeatCount": null
@@ -81,7 +99,10 @@ Content-Type: application/json
 
 ###
 
-### [R3] Tạo Recurring — Thu nợ chị gái (THU, debt_id=9, lặp 6 lần)
+### [1.3] Tạo Recurring — Thu nợ chị gái (Thu, lặp 6 lần, có debt)
+# Kỳ vọng: 201 Created
+#   endDate = beginDate + (6-1)*1 tháng = 15/09/2026
+#   Sau 6 lần Scheduler chạy → active=false tự động
 # @name createRecurringThuNo
 POST http://localhost:9999/api/recurring
 Authorization: Bearer {{auth_token}}
@@ -97,7 +118,7 @@ Content-Type: application/json
   "repeatType": 3,
   "repeatInterval": 1,
   "repeatOnDayVal": null,
-  "beginDate": "2026-03-15",
+  "beginDate": "2026-04-15",
   "endDateOption": "COUNT",
   "endDateValue": null,
   "repeatCount": 6
@@ -109,19 +130,29 @@ Content-Type: application/json
 
 ###
 
-### [R4] Lấy danh sách Recurring đang áp dụng (active=true)
+### [1.4] Lấy danh sách Recurring đang hoạt động
+# Kỳ vọng: 200 OK — list active=true, kèm repeatDescription đã format sẵn
 GET http://localhost:9999/api/recurring?active=true
 Authorization: Bearer {{auth_token}}
 
 ###
 
-### [R5] Lấy danh sách Recurring đã kết thúc (active=false)
+### [1.5] Lấy danh sách Recurring đã tạm dừng
+# Kỳ vọng: 200 OK — list active=false
 GET http://localhost:9999/api/recurring?active=false
 Authorization: Bearer {{auth_token}}
 
 ###
 
-### [R6] Sửa recurring Lương (đã tạo ở R1)
+### [1.6] Lấy chi tiết 1 Recurring theo ID
+# Kỳ vọng: 200 OK — đầy đủ thông tin kèm daysUntilDue, nextDueDateLabel
+GET http://localhost:9999/api/recurring/{{recurring_id_luong}}
+Authorization: Bearer {{auth_token}}
+
+###
+
+### [1.7] Sửa Recurring Lương — tăng tiền, giữ nguyên lịch lặp
+# Kỳ vọng: 200 OK — amount=15,000,000, nextDueDate không đổi (beginDate không đổi)
 PUT http://localhost:9999/api/recurring/{{recurring_id_luong}}
 Authorization: Bearer {{auth_token}}
 Content-Type: application/json
@@ -136,7 +167,7 @@ Content-Type: application/json
   "repeatType": 3,
   "repeatInterval": 1,
   "repeatOnDayVal": null,
-  "beginDate": "2026-03-05",
+  "beginDate": "2026-04-05",
   "endDateOption": "FOREVER",
   "endDateValue": null,
   "repeatCount": null
@@ -144,23 +175,84 @@ Content-Type: application/json
 
 ###
 
-### [R7] Toggle recurring Cafe (tạm dừng)
+### [1.8] Sửa Recurring Lương — đổi lịch lặp (mỗi 2 tháng thay vì 1)
+# Kỳ vọng: 200 OK — nextDueDate được tính lại từ beginDate với interval mới
+PUT http://localhost:9999/api/recurring/{{recurring_id_luong}}
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "walletId": 10,
+  "amount": 15000000,
+  "categoryId": 15,
+  "debtId": null,
+  "note": "Lương Freelance 2 tháng/lần",
+  "planType": 2,
+  "repeatType": 3,
+  "repeatInterval": 2,
+  "repeatOnDayVal": null,
+  "beginDate": "2026-04-05",
+  "endDateOption": "FOREVER",
+  "endDateValue": null,
+  "repeatCount": null
+}
+
+###
+
+### [1.9] Lỗi: Sửa Recurring sang beginDate quá khứ
+# Kỳ vọng: 400 Bad Request — "Không thể sửa thời gian bắt đầu sang ngày trong quá khứ"
+PUT http://localhost:9999/api/recurring/{{recurring_id_luong}}
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "walletId": 10,
+  "amount": 15000000,
+  "categoryId": 15,
+  "debtId": null,
+  "note": "Test lỗi ngày quá khứ",
+  "planType": 2,
+  "repeatType": 3,
+  "repeatInterval": 1,
+  "repeatOnDayVal": null,
+  "beginDate": "2026-03-01",
+  "endDateOption": "FOREVER",
+  "endDateValue": null,
+  "repeatCount": null
+}
+
+###
+
+### [1.10] Bật/Tắt Recurring Cafe
+# Kỳ vọng: 200 OK — active đổi ngược lại (toggle)
 PATCH http://localhost:9999/api/recurring/{{recurring_id_cafe}}/toggle
 Authorization: Bearer {{auth_token}}
 
 ###
 
-### [R8] Xóa recurring Lương
-DELETE http://localhost:9999/api/recurring/{{recurring_id_luong}}
+### [1.11] Lỗi: Kích hoạt lại Recurring khi Debt đã hoàn tất
+# Kỳ vọng: 400 Bad Request — "Khoản nợ đã thanh toán xong, không thể kích hoạt lại"
+# (Chạy sau khi debt_id=9 đã finished=true)
+PATCH http://localhost:9999/api/recurring/{{recurring_id_thuno}}/toggle
 Authorization: Bearer {{auth_token}}
 
 ###
 
-### ======================================================================
-### BILLS — /api/bills
-### ======================================================================
+### [1.12] Xóa Recurring Lương
+# Kỳ vọng: 200 OK
+#   Transaction cũ GIỮ LẠI, planned_id set NULL, sourceType=5 (PLANNED) vẫn giữ
+DELETE http://localhost:9999/api/recurring/{{recurring_id_luong}}
+Authorization: Bearer {{auth_token}}
 
-### [B1] Tạo Bill — Hóa đơn điện
+
+# ════════════════════════════════════════════════════════════════════════
+# [2] BILLS — Hóa đơn (user duyệt tay, Scheduler chỉ nhắc không tự tạo)
+# ════════════════════════════════════════════════════════════════════════
+
+### [2.1] Tạo Bill — Hóa đơn điện hàng tháng (Chi, lặp mãi)
+# Kỳ vọng: 201 Created
+#   plan_type=1, active=true, isPaidThisCycle=false
+#   nextDueDate = beginDate (20/04/2026)
 # @name createBillDien
 POST http://localhost:9999/api/bills
 Authorization: Bearer {{auth_token}}
@@ -171,12 +263,12 @@ Content-Type: application/json
   "amount": 450000,
   "categoryId": 28,
   "debtId": null,
-  "note": "Hóa đơn điện EVN tháng 3",
+  "note": "Hóa đơn điện EVN",
   "planType": 1,
   "repeatType": 3,
   "repeatInterval": 1,
   "repeatOnDayVal": null,
-  "beginDate": "2026-03-20",
+  "beginDate": "2026-04-20",
   "endDateOption": "FOREVER",
   "endDateValue": null,
   "repeatCount": null
@@ -188,34 +280,292 @@ Content-Type: application/json
 
 ###
 
-### [B2] Lấy danh sách Bills đang áp dụng
+### [2.2] Tạo Bill — Hóa đơn nước (Chi, lặp 4 lần)
+# Kỳ vọng: 201 Created
+#   endDate = 25/04/2026 + (4-1)*1 tháng = 25/07/2026
+# @name createBillNuoc
+POST http://localhost:9999/api/bills
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "walletId": 10,
+  "amount": 280000,
+  "categoryId": 28,
+  "debtId": null,
+  "note": "Hóa đơn nước hàng tháng",
+  "planType": 1,
+  "repeatType": 3,
+  "repeatInterval": 1,
+  "repeatOnDayVal": null,
+  "beginDate": "2026-04-25",
+  "endDateOption": "COUNT",
+  "endDateValue": null,
+  "repeatCount": 4
+}
+
+> {%
+    client.global.set("bill_id_nuoc", response.body.data.id);
+%}
+
+###
+
+### [2.3] Lấy danh sách Bills đang hoạt động
+# Kỳ vọng: 200 OK — list active=true, kèm isPaidThisCycle, daysUntilDue, nextDueDateLabel
 GET http://localhost:9999/api/bills?active=true
 Authorization: Bearer {{auth_token}}
 
 ###
 
-### [B3] User bấm "Trả tiền" cho hóa đơn điện (tạo Transaction)
+### [2.4] Lấy danh sách Bills đã kết thúc
+# Kỳ vọng: 200 OK — list active=false
+GET http://localhost:9999/api/bills?active=false
+Authorization: Bearer {{auth_token}}
+
+###
+
+### [2.5] Lấy chi tiết 1 Bill theo ID
+# Kỳ vọng: 200 OK — đầy đủ thông tin kèm isPaidThisCycle, daysUntilDue, nextDueDateLabel
+GET http://localhost:9999/api/bills/{{bill_id_dien}}
+Authorization: Bearer {{auth_token}}
+
+###
+
+### [2.6] Sửa Bill Điện — tăng tiền, giữ nguyên lịch
+# Kỳ vọng: 200 OK — amount=550,000, nextDueDate không đổi
+PUT http://localhost:9999/api/bills/{{bill_id_dien}}
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "walletId": 10,
+  "amount": 550000,
+  "categoryId": 28,
+  "debtId": null,
+  "note": "Hóa đơn điện EVN tháng tăng giá",
+  "planType": 1,
+  "repeatType": 3,
+  "repeatInterval": 1,
+  "repeatOnDayVal": null,
+  "beginDate": "2026-04-20",
+  "endDateOption": "FOREVER",
+  "endDateValue": null,
+  "repeatCount": null
+}
+
+###
+
+### [2.7] Sửa Bill Điện — đổi lịch lặp (mỗi 2 tháng thay vì 1)
+# Kỳ vọng: 200 OK — nextDueDate được tính lại từ beginDate với interval mới
+PUT http://localhost:9999/api/bills/{{bill_id_dien}}
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "walletId": 10,
+  "amount": 550000,
+  "categoryId": 28,
+  "debtId": null,
+  "note": "Hóa đơn điện EVN 2 tháng/lần",
+  "planType": 1,
+  "repeatType": 3,
+  "repeatInterval": 2,
+  "repeatOnDayVal": null,
+  "beginDate": "2026-04-20",
+  "endDateOption": "FOREVER",
+  "endDateValue": null,
+  "repeatCount": null
+}
+
+###
+
+### [2.8] User bấm "Trả tiền" cho Bill Điện
+# Kỳ vọng: 200 OK
+#   Transaction được tạo, balance ví giảm 550,000đ
+#   lastExecutedAt = hôm nay
+#   nextDueDate = nextDueDate cũ + interval (KHÔNG tính từ today)
+#   isPaidThisCycle = true
 POST http://localhost:9999/api/bills/{{bill_id_dien}}/pay
 Authorization: Bearer {{auth_token}}
 
 ###
 
-### [B4] Toggle bill (đánh dấu đã hoàn tất)
+### [2.9] Kiểm tra sau khi trả — nextDueDateLabel phải đúng kỳ tiếp theo
+# Kỳ vọng: 200 OK — nextDueDate nhảy đúng theo lịch lặp, isPaidThisCycle=true
+GET http://localhost:9999/api/bills/{{bill_id_dien}}
+Authorization: Bearer {{auth_token}}
+
+###
+
+### [2.10] Bật/Tắt Bill Điện (đánh dấu hoàn tất / chưa hoàn tất)
+# Kỳ vọng: 200 OK — active đổi ngược lại (toggle)
 PATCH http://localhost:9999/api/bills/{{bill_id_dien}}/toggle
 Authorization: Bearer {{auth_token}}
 
 ###
 
-### [B5] Xóa bill
-DELETE http://localhost:9999/api/bills/{{bill_id_dien}}
+### [2.11] Xóa Bill Nước
+# Kỳ vọng: 200 OK
+#   Transaction cũ GIỮ LẠI, planned_id set NULL, sourceType=5 (PLANNED) vẫn giữ
+DELETE http://localhost:9999/api/bills/{{bill_id_nuoc}}
+Authorization: Bearer {{auth_token}}
+
+
+# ════════════════════════════════════════════════════════════════════════
+# [3] LỊCH SỬ GIAO DỊCH — Xem các lần đã trả của Bill
+# (Chỉ áp dụng cho Bills, Recurring không có màn này)
+# ════════════════════════════════════════════════════════════════════════
+
+### [3.1] Xem lịch sử giao dịch của Bill Điện
+# Kỳ vọng: 200 OK — BillTransactionListResponse:
+#   totalCount: số lần đã trả
+#   summary: { totalIncome, totalExpense } — Flutter tự tính "Còn lại"
+#   groupedTransactions: gom theo ngày, mỗi ngày kèm netAmount
+GET http://localhost:9999/api/bills/{{bill_id_dien}}/transactions
 Authorization: Bearer {{auth_token}}
 
 ###
 
-### ======================================================================
-### SCHEDULER — Trigger thủ công để test
-### ======================================================================
+### [3.2] Lỗi: Xem lịch sử giao dịch với ID của Recurring
+# Kỳ vọng: 400 Bad Request — "Chỉ hóa đơn mới có danh sách giao dịch"
+GET http://localhost:9999/api/bills/{{recurring_id_thuno}}/transactions
+Authorization: Bearer {{auth_token}}
 
-### [S1] Chạy scheduler ngay (test)
+
+# ════════════════════════════════════════════════════════════════════════
+# [4] SCHEDULER — Chỉ dùng khi test thủ công
+# ════════════════════════════════════════════════════════════════════════
+
+### [4.1] Trigger Scheduler chạy ngay (thay cho lịch 1h sáng)
+# Kỳ vọng: 200 OK
+#   Recurring đến hạn → tự tạo Transaction + cập nhật nextDueDate
+#   Bills đến hạn → gửi notification nhắc, KHÔNG tạo Transaction
 POST http://localhost:9999/api/planned/check-now
+Authorization: Bearer {{auth_token}}
+
+
+# ════════════════════════════════════════════════════════════════════════
+# [5] DEBUG — Kiểm tra displayStatus sau khi backend fix
+# ════════════════════════════════════════════════════════════════════════
+
+### [5.1] Lấy danh sách Bills để kiểm tra displayStatus
+# Kỳ vọng: 200 OK
+#   - Bill đã trả tiền: displayStatus: "PAID", statusLabel: "Đã trả"
+#   - Bill chưa trả + chưa tới hạn: displayStatus: "ACTIVE", statusLabel: "Lặp lại vô thời hạn"
+#   - Bill chưa trả + đã quá hạn: displayStatus: "OVERDUE", statusLabel: "Quá hạn X ngày"
+#   - Bill hết hạn: displayStatus: "EXPIRED", statusLabel: "Đã hết hạn ngày dd/MM/yyyy"
+GET http://localhost:9999/api/bills?active=true
+Authorization: Bearer {{auth_token}}
+
+###
+
+### [5.2] Kiểm tra chi tiết một Bill cụ thể (ID 39 từ log của bạn)
+# Kỳ vọng: 200 OK
+#   Kiểm tra xem displayStatus có đúng là "PAID" nếu đã trả tiền không
+#   Kiểm tra nextDueDate và lastExecutedAt có được update đúng không
+GET http://localhost:9999/api/bills/39
+Authorization: Bearer {{auth_token}}
+
+###
+
+### [5.3] Tạo Bill test với beginDate là hôm nay (để test thanh toán ngay)
+# Kỳ vọng: 201 Created
+#   Bill này sẽ có nextDueDate = hôm nay, có thể thanh toán ngay lập tức
+# @name createBillTestToday
+POST http://localhost:9999/api/bills
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "walletId": 10,
+  "amount": 100000,
+  "categoryId": 28,
+  "debtId": null,
+  "note": "Bill test hôm nay - kiểm tra displayStatus",
+  "planType": 1,
+  "repeatType": 3,
+  "repeatInterval": 1,
+  "repeatOnDayVal": null,
+  "beginDate": "2026-03-31",
+  "endDateOption": "FOREVER",
+  "endDateValue": null,
+  "repeatCount": null
+}
+
+> {%
+    client.global.set("bill_id_test_today", response.body.data.id);
+%}
+
+###
+
+### [5.4] Thanh toán Bill test hôm nay
+# Kỳ vọng: 200 OK
+#   Transaction được tạo, displayStatus phải đổi thành "PAID"
+POST http://localhost:9999/api/bills/{{bill_id_test_today}}/pay
+Authorization: Bearer {{auth_token}}
+
+###
+
+### [5.5] Kiểm tra lại Bill test sau khi thanh toán
+# Kỳ vọng: 200 OK
+#   displayStatus phải là "PAID"
+#   statusLabel phải là "Đã trả"
+#   lastExecutedAt phải là hôm nay
+#   nextDueDate phải là tháng tới (30/04/2026)
+GET http://localhost:9999/api/bills/{{bill_id_test_today}}
+Authorization: Bearer {{auth_token}}
+
+###
+
+### [5.6] Tạo Bill test với repeatCount = 5 lần
+# Kỳ vọng: 201 Created
+#   Backend sẽ convert COUNT → endDate
+#   remainingCount phải hiển thị số lần còn lại
+# @name createBillTestCount
+POST http://localhost:9999/api/bills
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "walletId": 10,
+  "amount": 50000,
+  "categoryId": 28,
+  "debtId": null,
+  "note": "Bill test lặp 5 lần - kiểm tra remainingCount",
+  "planType": 1,
+  "repeatType": 3,
+  "repeatInterval": 1,
+  "repeatOnDayVal": null,
+  "beginDate": "2026-03-31",
+  "endDateOption": "COUNT",
+  "endDateValue": null,
+  "repeatCount": 5
+}
+
+> {%
+    client.global.set("bill_id_test_count", response.body.data.id);
+%}
+
+###
+
+### [5.7] Kiểm tra remainingCount của Bill test
+# Kỳ vọng: 200 OK
+#   remainingCount phải là 5 (chưa thực hiện lần nào)
+#   statusLabel phải là "Lặp lại đến [ngày kết thúc]"
+GET http://localhost:9999/api/bills/{{bill_id_test_count}}
+Authorization: Bearer {{auth_token}}
+
+###
+
+### [5.8] Thanh toán Bill test count lần 1
+# Kỳ vọng: 200 OK
+POST http://localhost:9999/api/bills/{{bill_id_test_count}}/pay
+Authorization: Bearer {{auth_token}}
+
+###
+
+### [5.9] Kiểm tra remainingCount sau thanh toán
+# Kỳ vọng: 200 OK
+#   remainingCount phải giảm đi 1 (4 lần còn lại)
+GET http://localhost:9999/api/bills/{{bill_id_test_count}}
 Authorization: Bearer {{auth_token}}

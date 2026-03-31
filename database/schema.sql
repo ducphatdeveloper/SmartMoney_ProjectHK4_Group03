@@ -1431,280 +1431,8 @@ INSERT INTO tBudgetCategories (budget_id, ctg_id) VALUES
 (20, 29), -- Budget 20 (User 1):  sub Điện (id=29)
 (20, 32); -- Budget 20 (User 1):  Internet (id=32)
 GO
-
 -- ======================================================================
--- 16. BẢNG GIAO DỊCH (TRUNG TÂM HỆ THỐNG)
--- ======================================================================
-CREATE TABLE tTransactions (
-    -- PRIMARY KEY
-    id BIGINT PRIMARY KEY IDENTITY(1,1),
-    
-    -- FOREIGN KEYS
-    acc_id INT NOT NULL,                         -- FK -> tAccounts (N-1)
-    ctg_id INT NULL,                             -- FK -> tCategories (N-1) | NULL = Chi trừ nợ không phân loại
-    wallet_id INT NULL,                          -- FK -> tWallets (N-1)
-    event_id INT NULL,                           -- FK -> tEvents (N-1) | NULL = Không thuộc sự kiện
-    debt_id INT NULL,                            -- FK -> tDebts (N-1) | NULL = Không liên quan nợ
-    goal_id INT NULL,                            -- FK -> tSavingGoals (N-1) | NULL = Không liên quan mục tiêu
-    ai_chat_id INT NULL,                         -- FK -> tAIConversations (N-1) | NULL = Nhập thủ công
-    
-    -- DATA COLUMNS
-    amount DECIMAL(18,2) NOT NULL,               -- Số tiền giao dịch
-    with_person NVARCHAR(100) NULL,              -- Tên người liên quan (VD: người vay, người trả)
-    note NVARCHAR(500) NULL,                     -- Ghi chú (VD: "Ăn sáng", "Lương tháng 1")
-    reportable BIT DEFAULT 1 NOT NULL,        -- 0: Không tính vào báo cáo | 1: Tính vào Dashboard
-    source_type TINYINT DEFAULT 1 NOT NULL,      -- 1: manual | 2: chat | 3: voice | 4: receipt | 5: planned
-    trans_date DATETIME DEFAULT GETDATE() NOT NULL,   -- Ngày giao dịch thực tế
-    created_at DATETIME DEFAULT GETDATE() NOT NULL,   -- Ngày hệ thống ghi nhận
-    
-    -- CONSTRAINTS
-    CONSTRAINT CHK_Transaction_Amount CHECK (amount > 0),
-    CONSTRAINT CHK_Transaction_SourceType CHECK (source_type BETWEEN 1 AND 5),
-    CONSTRAINT CHK_Transaction_Integrity CHECK (
-        (source_type = 1 AND ai_chat_id IS NULL) OR          -- Nhập tay hoàn toàn (ko liên quan Lịch) -> KO có chat
-        (source_type IN (2, 3, 4) AND ai_chat_id IS NOT NULL) OR -- AI nhập giùm khoản phát sinh -> BẮT BUỘC có chat
-        (source_type = 5)                                    -- Sinh ra từ Lịch -> TỰ DO (Có chat cũng đc, ko có cũng đc)
-    ),  
-    CONSTRAINT CHK_Transaction_SingleWallet CHECK (
-        NOT (wallet_id IS NOT NULL AND goal_id IS NOT NULL)
-    ),
-    CONSTRAINT FK_Transactions_Account FOREIGN KEY (acc_id) REFERENCES tAccounts(id),
-    CONSTRAINT FK_Transactions_Category FOREIGN KEY (ctg_id) REFERENCES tCategories(id) ON DELETE CASCADE,
-    CONSTRAINT FK_Transactions_Wallet FOREIGN KEY (wallet_id) REFERENCES tWallets(id) ON DELETE CASCADE,
-    CONSTRAINT FK_Transactions_Event FOREIGN KEY (event_id) REFERENCES tEvents(id),
-    CONSTRAINT FK_Transactions_Debt FOREIGN KEY (debt_id) REFERENCES tDebts(id),
-    CONSTRAINT FK_Transactions_Goal FOREIGN KEY (goal_id) REFERENCES tSavingGoals(id),
-    CONSTRAINT FK_Transactions_Chat FOREIGN KEY (ai_chat_id) REFERENCES tAIConversations(id)
-);
-GO
-
--- Index: Tối ưu Báo cáo tài chính và Dashboard chính
-CREATE INDEX idx_trans_main ON tTransactions(acc_id, wallet_id, trans_date DESC) 
-INCLUDE (amount, ctg_id, reportable, source_type);
-
--- Index: Tối ưu query giao dịch theo Mục tiêu tiết kiệm
-CREATE INDEX idx_trans_goal ON tTransactions(goal_id) 
-INCLUDE (amount, trans_date) 
-WHERE goal_id IS NOT NULL;
-
--- Index: Tối ưu query giao dịch theo Sự kiện
-CREATE INDEX idx_trans_event ON tTransactions(event_id) 
-INCLUDE (amount, trans_date, ctg_id) 
-WHERE event_id IS NOT NULL;
-
--- Index: Tối ưu query giao dịch do AI tạo
-CREATE INDEX idx_trans_ai ON tTransactions(ai_chat_id) 
-INCLUDE (amount, trans_date, source_type) 
-WHERE ai_chat_id IS NOT NULL;
-
--- Index: Tối ưu tính toán khoản nợ (Trả/Thu)
-CREATE INDEX idx_trans_debt ON tTransactions(debt_id) 
-INCLUDE (amount, trans_date) 
-WHERE debt_id IS NOT NULL;
-
--- Index: Tối ưu query giao dịch theo Danh mục
-CREATE INDEX idx_trans_category ON tTransactions(acc_id, ctg_id, trans_date DESC) 
-INCLUDE (amount, wallet_id);
-GO
-
-
--- ======================================================================
--- DỮ LIỆU MẪU: Giao dịch
--- ======================================================================
-INSERT INTO tTransactions (acc_id, ctg_id, wallet_id, amount, note, trans_date, with_person, reportable, source_type, event_id, debt_id, goal_id, ai_chat_id) VALUES
-
--- ── User 1 ──────────────────────────────────────────────────────────────
-(1, 1,  1,    50000,      N'Ăn sáng bánh mì',            '2026-02-10 07:30:00', N'Cô Hương',               1, 1, NULL, NULL, NULL, NULL),
-(1, 15, 2,    15000000,   N'Lương tháng 2',               '2026-02-05 09:00:00', N'Công ty ABC',            1, 1, NULL, NULL, NULL, NULL),
-(1, 9,  1,    500000,     N'Tiền điện tháng 1',           '2026-02-08 14:20:00', N'Điện lực TP.HCM',        1, 1, NULL, NULL, NULL, NULL),
-(1, 1,  1,    45000,      N'Cafe',                        '2026-02-10 08:15:00', NULL,                      1, 2, NULL, NULL, NULL, 2),
-(1, 1,  2,    250000,     N'Ăn tối gia đình',             '2026-02-03 19:00:00', NULL,                      1, 1, 2,    NULL, NULL, NULL),
-(1, 19, 2,    5000000,    N'Cho anh Minh vay khẩn cấp',   '2025-12-10 14:30:00', N'Anh Minh',               1, 1, NULL, 2,    NULL, NULL),
-
--- ── User 2 ──────────────────────────────────────────────────────────────
-(2, 1,  3,    85000,      N'Trà sữa chiều',               '2026-02-09 15:45:00', N'Gongcha',                1, 1, NULL, NULL, NULL, NULL),
-(2, 10, 4,    2000000,    N'Mua áo khoác Zara',           '2026-02-07 18:30:00', N'Zara Vincom',            1, 1, NULL, NULL, NULL, NULL),
-(2, 5,  3,    300000,     N'Xăng xe máy',                 '2026-02-06 08:15:00', N'Petrolimex',             1, 1, NULL, NULL, NULL, NULL),
-(2, 1,  3,    100000,     N'Ăn sáng',                     '2026-02-09 07:30:00', NULL,                      1, 2, NULL, NULL, NULL, 4),
-(2, 10, 3,    850000,     N'Mua sắm Vinmart',              '2026-02-09 18:45:00', N'Vinmart',                1, 4, NULL, NULL, NULL, 6),
-(2, 16, NULL, 3000000,    N'Đi vay bố mẹ mua iPhone',     '2026-01-20 11:00:00', N'Bố mẹ',                  0, 1, NULL, 4,    3,    NULL),
-
--- ── User 3 ──────────────────────────────────────────────────────────────
-(3, 1,  5,    120000,     N'Cơm trưa văn phòng',          '2026-02-10 12:00:00', N'Quán cơm Phúc Lộc Thọ', 1, 1, NULL, NULL, NULL, NULL),
-(3, 12, 6,    500000,     N'Khám răng định kỳ',           '2026-02-08 10:30:00', N'Nha khoa Kim',           1, 1, NULL, NULL, NULL, NULL),
-(3, 20, 6,    10000000,   N'Vay bạn thân mua laptop',     '2025-10-15 16:30:00', N'Bạn thân',               0, 1, NULL, 6,    NULL, NULL),
-(3, 22, 6,    1000000,    N'Trả nợ bạn thân kỳ này',      '2026-02-15 10:00:00', N'Bạn thân',               1, 1, NULL, 6,    NULL, NULL),
-
--- ── User 5 ──────────────────────────────────────────────────────────────
-(5, 7,  9,    150000,     N'Xem phim Avengers',           '2026-02-09 19:45:00', N'CGV Landmark',           1, 1, NULL, NULL, NULL, NULL),
-(5, 16, NULL, 5000000,    N'Rút tiết kiệm về ví',         '2026-02-07 11:00:00', NULL,                      0, 1, NULL, NULL, 7,    NULL),
-(5, 5,  9,    200000,     N'Đổ xăng',                     '2026-02-09 17:20:00', N'Petrolimex',             1, 3, NULL, NULL, NULL, 10),
-(5, 5,  9,    132600,     N'Xăng RON95 5.2L',             '2026-02-09 17:25:00', N'Petrolimex',             1, 4, NULL, NULL, NULL, 12),
-(5, 20, NULL, 50000000,   N'Vay ngân hàng tiền cưới',     '2025-06-01 09:30:00', N'Ngân hàng',              0, 1, NULL, 7,    8,    NULL),
-
--- ── User 6 ──────────────────────────────────────────────────────────────
-(6, 8,  10,   800000,     N'Mua sách lập trình',          '2026-02-08 16:20:00', N'Fahasa',                 1, 1, NULL, NULL, NULL, NULL),
-(6, 10, 11,   250000,     N'Mua ốp lưng iPhone',          '2026-02-09 14:10:00', N'Shopee',                 1, 1, NULL, NULL, NULL, NULL),
-(6, 7,  10,   350000,     N'Chi phí dự án tốt nghiệp',    '2026-02-05 10:00:00', NULL,                      1, 1, 7,    NULL, NULL, NULL),
-(6, 16, NULL, 500000,     N'Góp quỹ ChatGPT Plus',        '2026-02-01 08:00:00', NULL,                      1, 1, NULL, NULL, 31,   NULL),
-
--- ── User 7 ──────────────────────────────────────────────────────────────
-(7, 1,  12,   350000,     N'Ăn tối lẩu',                  '2026-02-09 19:00:00', N'Lẩu Hải Sản Đà Lạt',    1, 1, 8,    NULL, NULL, NULL),
-(7, 9,  12,   1200000,    N'Thuê khách sạn 2 đêm',        '2026-02-08 15:30:00', N'Dalat Palace Hotel',     1, 1, 8,    NULL, NULL, NULL),
-(7, 20, NULL, 15000000,   N'Vay bố mua MacBook',          '2025-12-05 15:00:00', N'Bố',                     0, 1, NULL, 10,   10,   NULL),
-
--- ── User 10 ─────────────────────────────────────────────────────────────
-(10, 1, 16,   95000,      N'Cafe sáng',                   '2026-02-10 08:00:00', N'Highlands Coffee',       1, 1, NULL, NULL, NULL, NULL),
-(10, 10,17,   1500000,    N'Áo thun nam x2, Quần jean',   '2026-02-07 18:00:00', N'Uniqlo',                 1, 4, NULL, NULL, NULL, 20),
-(10, 20,NULL, 25000000,   N'Vay mẹ mua nhẫn cưới',       '2025-08-20 11:30:00', N'Mẹ',                     0, 1, NULL, 12,   13,   NULL),
-(10, 22,16,   2000000,    N'Trả nợ mẹ kỳ này',           '2026-02-10 09:00:00', N'Mẹ',                     1, 1, NULL, 12,   NULL, NULL),
-
--- ── User 11 ─────────────────────────────────────────────────────────────
-(11, 11,18,   200000,     N'Đóng góp từ thiện',           '2026-02-09 09:30:00', N'Quỹ vì người nghèo',     1, 1, NULL, NULL, NULL, NULL),
-(11, 15,18,   18000000,   N'Lương tháng 2',               '2026-02-05 10:00:00', N'Công ty Tech Innovation', 1, 1, NULL, NULL, NULL, NULL),
-(11, 7, 18,   440000,     N'2 vé phim, bắp, nước',        '2026-02-09 22:00:00', N'CGV Landmark 81',        1, 4, NULL, NULL, NULL, 22),
-(11, 8, NULL, 8000000,    N'Góp quỹ khóa học AWS',        '2026-02-10 10:00:00', NULL,                      1, 1, NULL, NULL, 27,   NULL),
-
--- ── User 15 ─────────────────────────────────────────────────────────────
-(15, 8, NULL, 3500000,    N'Học phí học kỳ 1',            '2026-02-06 13:00:00', N'Trường ĐH FPT',          1, 1, NULL, NULL, 19,   NULL),
-(15, 8, NULL, 3500000,    N'Học phí kỳ 2 - ĐH FPT',       '2026-02-06 13:05:00', N'ĐH FPT',                 1, 4, NULL, NULL, 19,   26),
-(15, 21,23,   12000000,   N'Cho bạn học vay học Thạc sĩ', '2026-01-05 13:20:00', N'Bạn học',                1, 1, NULL, 17,   NULL, NULL),
-
--- ── User 17 ─────────────────────────────────────────────────────────────
-(17, 8, 26,   350000,     N'Sách lập trình',              '2026-02-08 16:45:00', NULL,                      1, 3, NULL, NULL, NULL, 28),
-(17, 16,NULL, 10000000,   N'Góp quỹ đầu tư chứng khoán', '2026-02-01 09:00:00', NULL,                      0, 1, NULL, NULL, 21,   NULL),
-(17, 20,26,   100000000,  N'Vay ngân hàng khởi nghiệp',  '2024-06-15 09:00:00', N'Ngân hàng',              0, 1, NULL, 18,   NULL, NULL),
-
--- ── User 20 ─────────────────────────────────────────────────────────────
-(20, 9, 13,   2500000,    N'Đặt vé máy bay đi Phú Quốc', '2026-02-09 11:20:00', N'VietJet Air',            1, 1, 21,   NULL, NULL, NULL),
-(20, 9, 13,   2700000,    N'Vé máy bay HN - Đà Lạt',     '2026-02-09 11:25:00', N'VietJet Air',            1, 4, NULL, NULL, NULL, 32),
-(20, 9, 14,   4000000,    N'Đặt khách sạn Đà Lạt',       '2026-02-08 10:00:00', N'Agoda',                  1, 1, 21,   NULL, NULL, NULL),
-(20, 16,NULL, 5000000,    N'Góp quỹ mua máy ảnh',        '2026-02-05 08:00:00', NULL,                      1, 1, NULL, NULL, 24,   NULL),
-(20, 20,13,   18000000,   N'Vay bạn thân mua máy ảnh',   '2025-09-10 11:00:00', N'Bạn thân',               0, 1, NULL, 20,   NULL, NULL);
-GO
-
--- ======================================================================
--- 17. BẢNG THÔNG BÁO (1-N với tAccounts)
--- ======================================================================
-CREATE TABLE tNotifications (
-    -- PRIMARY KEY
-    id INT PRIMARY KEY IDENTITY(1,1),
-    
-    -- FOREIGN KEYS
-    acc_id INT NOT NULL,                         -- FK -> tAccounts (N-1)     
-
-	-- LOẠI THÔNG BÁO (Sử dụng TINYINT để tối ưu hiệu năng)
-    -- 1: TRANSACTION (Giao dịch/Biến động số dư)
-    -- 2: SAVING      (Mục tiêu tiết kiệm/Quỹ)
-    -- 3: BUDGET      (Cảnh báo ngân sách/Vượt hạn mức)
-    -- 4: SYSTEM      (Hệ thống/Cập nhật/Bảo mật)
-    -- 5: CHAT_AI     (Thông báo từ trợ lý AI)
-    -- 6: WALLETS     (Thông báo liên quan đến ví/số dư âm)
-    -- 7: EVENTS      (Sự kiện/Lịch trình)
-    -- 8: DEBT_LOAN   (Nhắc nợ/Thu nợ)
-    -- 9: REMINDER    (Nhắc nhở chung/Daily nhắc ghi chép)
-    notify_type TINYINT NOT NULL, 
-
-    -- ID CỦA ĐỐI TƯỢNG LIÊN QUAN (Tùy theo notify_type)
-    -- Ví dụ: Nếu type = 1 thì đây là ID của tTransactions
-    -- Nếu type = 6 thì đây là ID của tWallets
-    related_id BIGINT NULL,
-
-	title NVARCHAR(100) NULL,                    -- Tiêu đề ngắn gọn (VD: "Cảnh báo ngân sách")
-    content NVARCHAR(500) NOT NULL,              -- Nội dung chi tiết (VD: "Bạn đã xài hết 50% tiền Ăn uống")
-    scheduled_time DATETIME DEFAULT GETDATE(),   -- Thời điểm thông báo (ngay hoặc hẹn lịch)
-    notify_sent BIT DEFAULT 0,                       -- 0: Chưa gửi Push | 1: Đã gửi Push
-    notify_read BIT DEFAULT 0,                       -- 0: Chưa đọc | 1: Đã đọc  
-    created_at DATETIME DEFAULT GETDATE(),       -- Ngày tạo thông báo
-	
-    -- CONSTRAINTS
-    CONSTRAINT CHK_Notify_Type CHECK (notify_type BETWEEN 1 AND 9),
-    CONSTRAINT FK_Notifications_Account FOREIGN KEY (acc_id) REFERENCES tAccounts(id)
-);
-GO
-
--- Index: Tối ưu Worker quét thông báo cần gửi
-CREATE INDEX idx_notify_worker ON tNotifications(scheduled_time, notify_sent) WHERE notify_sent = 0;
-
--- Index: Tối ưu load thông báo cho User UI
-CREATE INDEX idx_notify_ui ON tNotifications(acc_id, notify_read, created_at DESC) INCLUDE (title, content, notify_type, related_id);
-
--- Index: Tối ưu load thông báo mới nhất
-CREATE INDEX idx_notify_latest ON tNotifications(acc_id, created_at DESC) INCLUDE (notify_read, title, content);
-GO
-
--- ======================================================================
--- DỮ LIỆU MẪU: Thông báo
--- ======================================================================
-INSERT INTO tNotifications (acc_id, notify_type, related_id, title, content, scheduled_time, notify_sent, notify_read) VALUES
-
--- type=1: Giao dịch lớn (đã đọc)
-(1,  1, 2,    N'Giao dịch mới',       N'Đã ghi nhận thu nhập 15,000,000đ - Lương tháng 2 vào ví Vietcombank',       '2026-02-05 09:00:05', 1, 1),
-(11, 1, 23,   N'Giao dịch mới',       N'Đã ghi nhận thu nhập 18,000,000đ - Lương tháng 2 vào ví TPBank',            '2026-02-05 10:00:05', 1, 1),
-(2,  1, 12,   N'Giao dịch mới',       N'Đã ghi nhận chi tiêu 3,000,000đ - Đi vay bố mẹ mua iPhone vào ví TCB',     '2026-01-20 11:00:10', 1, 1),
-
--- type=2: Mục tiêu tiết kiệm (mix đọc/chưa)
-(5,  2, 7,    N'Mục tiêu tiến triển', N'Bạn đã đạt 50% mục tiêu "Mua xe máy SH". Còn 45,000,000đ nữa là hoàn thành!','2026-02-07 09:00:00', 1, 0),
-(10, 2, 13,   N'Nhắc mục tiêu',       N'Mục tiêu "Mua nhẫn cưới" sắp đến hạn (30/11/2026). Còn thiếu 15,000,000đ', '2026-02-10 08:00:00', 1, 0),
-(6,  2, 31,   N'Mục tiêu tiến triển', N'Quỹ ChatGPT Plus đã đạt 29%. Cố lên! Còn 8,500,000đ nữa.',                  '2026-02-08 10:00:00', 1, 1),
-
--- type=3: Cảnh báo ngân sách (mix)
-(2,  3, 1,    N'Cảnh báo ngân sách',  N'Bạn đã chi 80% ngân sách Ăn uống tháng 2. Hãy cân nhắc chi tiêu!',          '2026-02-09 20:00:00', 1, 1),
-(6,  3, 4,    N'Vượt ngân sách',      N'Bạn đã vượt 120% ngân sách Ăn uống + Giải trí. Tổng chi: 2,400,000đ/2tr',   '2026-02-10 18:00:00', 1, 0),
-(10, 3, 10,   N'Cảnh báo ngân sách',  N'Đã chi 75% tổng ngân sách tháng 2 (6,000,000đ/8,000,000đ).',                 '2026-02-09 22:00:00', 1, 0),
-
--- type=4: Hệ thống
-(1,  4, NULL, N'Cập nhật hệ thống',   N'SmartMoney v1.1 vừa ra mắt! Tính năng mới: Báo cáo nâng cao và xuất PDF',   '2026-02-01 07:00:00', 1, 1),
-(15, 4, NULL, N'Bảo mật tài khoản',   N'Phát hiện đăng nhập mới từ thiết bị lạ lúc 02:30. Hãy đổi mật khẩu ngay',  '2026-02-08 02:35:00', 1, 0),
-
--- type=5: AI Chat
-(3,  5, 7,    N'Phân tích AI',        N'AI đã phân tích xong chi tiêu tháng 2. Bạn đang chi nhiều hơn 18% tháng trước','2026-02-10 20:00:10', 1, 0),
-(10, 5, 18,   N'AI nhắc nhở',         N'Lời nhắc: "Trả nợ anh Tuấn" vào ngày mai 15/02/2026 lúc 9:00 sáng',         '2026-02-14 21:00:00', 0, 0),
-
--- type=6: Ví số dư thấp
-(2,  6, 3,    N'Số dư ví thấp',       N'Ví MoMo còn 250,000đ - dưới mức cảnh báo 500,000đ. Hãy nạp thêm tiền',      '2026-02-10 15:00:00', 1, 0),
-(6,  6, 11,   N'Số dư ví thấp',       N'Ví VNPay còn 150,000đ. Bạn có muốn chuyển tiền từ MB Bank sang không?',      '2026-02-09 22:00:00', 1, 1),
-
--- type=7: Sự kiện sắp tới (hẹn lịch tương lai)
-(3,  7, 4,    N'Sự kiện sắp tới',     N'Sinh nhật 25 tuổi còn 33 ngày nữa (15/03/2026). Đừng quên lên kế hoạch!',   '2026-02-10 08:00:00', 1, 0),
-(20, 7, 21,   N'Sự kiện sắp tới',     N'Kỳ nghỉ hè gia đình còn 141 ngày (01/07/2026). Ngân sách: 10,000,000đ',     '2026-02-15 08:00:00', 0, 0),
-
--- type=8: Nhắc nợ (hẹn lịch tương lai)
-(1,  8, 2,    N'Nhắc khoản thu',      N'Khoản cho anh Minh vay 3,000,000đ đến hạn thu 31/03/2026. Hãy liên hệ!',    '2026-02-20 09:00:00', 0, 0),
-(5,  8, 7,    N'Nhắc khoản nợ',       N'Khoản vay cưới còn 40,000,000đ. Kỳ thanh toán tiếp theo 01/03/2026',         '2026-02-25 09:00:00', 0, 0),
-
--- type=9: Nhắc ghi chép
-(7,  9, NULL, N'Nhắc ghi chép',       N'Bạn chưa ghi chép chi tiêu hôm nay! Hãy dành 2 phút cập nhật sổ chi tiêu 📝','2026-02-10 21:00:00', 1, 1),
-(17, 9, NULL, N'Tổng kết tuần',       N'Tuần này bạn đã chi 2,350,000đ. Chi tiêu cao nhất: Giáo dục (350,000đ).',    '2026-02-10 20:00:00', 1, 0);
-GO
---------------
--- Thêm notifications cho user 6 (minh.pham) — đủ 9 loại để test
-INSERT INTO tNotifications (acc_id, notify_type, related_id, title, content, scheduled_time, notify_sent, notify_read)
-VALUES
--- Type 1: TRANSACTION
-(6, 1, NULL, N'Giao dịch mới',        N'Đã ghi nhận thu nhập 12,000,000đ - Lương tháng 3 vào ví MB Bank',               '2026-03-05 09:00:05', 1, 1),
--- Type 2: SAVING
-(6, 2, 31,   N'Mục tiêu tiến triển',  N'Quỹ ChatGPT Plus & Claude Pro đã đạt 35%. Cố lên! Còn thiếu khoảng 7,800,000đ', '2026-03-05 09:00:10', 1, 0),
--- Type 3: BUDGET (từ check-now vừa tạo — nhắc lại dạng seed)
-(6, 3, 21,   N'Vượt quá ngân sách!',  N'Bạn đã chi vượt 165% ngân sách Ăn uống tháng 3. Tổng chi: 1,650,000đ/1,000,000đ', '2026-03-13 10:40:50', 1, 0),
-(6, 3, 22,   N'Cảnh báo ngân sách',   N'Bạn đã chi 87% ngân sách Giải trí tháng 3. Hãy cân nhắc chi tiêu!',              '2026-03-13 10:40:50', 1, 0),
--- Type 4: SYSTEM
-(6, 4, NULL, N'Cập nhật hệ thống',    N'SmartMoney v1.1 vừa ra mắt! Tính năng mới: Báo cáo nâng cao và xuất PDF',        '2026-02-01 07:00:00', 1, 1),
--- Type 5: CHAT_AI (không có AI conversation của user 6 → related_id=NULL)
-(6, 5, NULL, N'Phân tích AI',         N'AI đã phân tích chi tiêu tháng 3. Bạn chi Ăn uống nhiều hơn 22% tháng trước',   '2026-03-13 20:00:00', 1, 0),
--- Type 6: WALLETS
-(6, 6, 11,   N'Số dư ví thấp',        N'Ví VNPay còn 900,000đ - gần mức cảnh báo. Hãy chú ý chi tiêu!',                 '2026-03-12 08:00:00', 1, 1),
--- Type 7: EVENTS
-(6, 7, NULL, N'Sự kiện sắp tới',      N'Sinh nhật bạn thân còn 2 ngày nữa (15/03/2026). Đừng quên chuẩn bị quà!',       '2026-03-13 08:00:00', 0, 0),
--- Type 8: DEBT_LOAN
-(6, 8, 6,    N'Nhắc khoản nợ',        N'Khoản vay bạn thân mua laptop còn 9,000,000đ. Hạn trả tiếp theo: 15/03/2026',   '2026-03-01 09:00:00', 1, 0),
--- Type 9: REMINDER
-(6, 9, NULL, N'Nhắc ghi chép',        N'Bạn chưa ghi chép chi tiêu hôm nay! Hãy dành 2 phút cập nhật sổ chi tiêu 📝',   '2026-03-13 21:00:00', 0, 0);
-GO
---------------
-
--- ======================================================================
--- 18. BẢNG GIAO DỊCH ĐỊNH KỲ/HÓA ĐƠN (1-N với tAccounts)
+-- 16. BẢNG GIAO DỊCH ĐỊNH KỲ/HÓA ĐƠN (1-N với tAccounts)
 -- ======================================================================
 -- THAY ĐỔI SO VỚI PHIÊN BẢN CŨ:
 --   ❌ Bỏ cột trans_type  → ctg_id JOIN tCategories đã xác định loại giao dịch
@@ -2022,100 +1750,6 @@ PRINT '   - Bills (thay đổi, duyệt tay): 9 rows';
 PRINT '   - Recurring (cố định, tự động): 31 rows';
 PRINT '   - Trong đó có debt_id: 3 rows trả nợ định kỳ';
 GO
-
---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
--- ======================================================================
--- BUDGET TEST DATA v2 — User 6 (minh.pham@gmail.com)
--- Wallet: MB Bank (id=10), VNPay (id=11)
--- ======================================================================
-
--- BƯỚC 1: GIAO DỊCH THÁNG 3/2026
--- ======================================================================
-INSERT INTO tTransactions (acc_id, ctg_id, wallet_id, amount, note, trans_date, with_person, reportable, source_type, event_id, debt_id, goal_id, ai_chat_id)
-VALUES
--- Ăn uống (ctg=1) — Tổng: 1,650,000
-(6, 1, 10,  85000,    N'Bún bò buổi sáng',           '2026-03-02 07:30:00', NULL,              1, 1, NULL, NULL, NULL, NULL),
-(6, 1, 10,  120000,   N'Cơm trưa văn phòng',          '2026-03-04 12:00:00', NULL,              1, 1, NULL, NULL, NULL, NULL),
-(6, 1, 11,  75000,    N'Bánh mì ốp la',               '2026-03-05 07:45:00', NULL,              1, 1, NULL, NULL, NULL, NULL),
-(6, 1, 10,  350000,   N'Ăn tối bạn bè',               '2026-03-07 19:30:00', N'Nhóm bạn ĐH',   1, 1, NULL, NULL, NULL, NULL),
-(6, 1, 10,  95000,    N'Phở gà',                      '2026-03-10 11:30:00', NULL,              1, 1, NULL, NULL, NULL, NULL),
-(6, 1, 11,  180000,   N'Trà sữa và snack',            '2026-03-11 15:00:00', NULL,              1, 1, NULL, NULL, NULL, NULL),
-(6, 1, 10,  145000,   N'Cơm chiều + chè',             '2026-03-12 18:00:00', NULL,              1, 1, NULL, NULL, NULL, NULL),
-(6, 1, 10,  600000,   N'Tiệc sinh nhật bạn thân',     '2026-03-15 20:00:00', N'Nhà hàng',       1, 1, NULL, NULL, NULL, NULL),
--- Giải trí (ctg=7) — Tổng: 870,000
-(6, 7, 10,  240000,   N'2 vé xem phim + bắp nước',   '2026-03-03 19:00:00', N'CGV Crescent',   1, 1, NULL, NULL, NULL, NULL),
-(6, 7, 11,  180000,   N'Karaoke nhóm bạn',            '2026-03-08 21:00:00', N'Nhóm bạn',       1, 1, NULL, NULL, NULL, NULL),
-(6, 7, 10,  450000,   N'Mua game Steam sale',         '2026-03-09 14:00:00', NULL,              1, 1, NULL, NULL, NULL, NULL),
--- Mua sắm (ctg=10) — Tổng: 1,280,000
-(6, 10, 10, 320000,   N'Mua quần áo Uniqlo',          '2026-03-06 15:30:00', N'Uniqlo',         1, 1, NULL, NULL, NULL, NULL),
-(6, 10, 11, 180000,   N'Đồ dùng văn phòng phẩm',      '2026-03-08 10:00:00', NULL,              1, 1, NULL, NULL, NULL, NULL),
-(6, 10, 10, 780000,   N'Giày thể thao mới',           '2026-03-12 16:00:00', N'Nike Store',     1, 1, NULL, NULL, NULL, NULL),
--- Di chuyển (ctg=5) — Tổng: 560,000
-(6, 5,  10, 85000,    N'Xăng xe đầy bình',            '2026-03-03 08:00:00', NULL,              1, 1, NULL, NULL, NULL, NULL),
-(6, 5,  11, 45000,    N'Grab đi làm',                 '2026-03-05 08:30:00', NULL,              1, 1, NULL, NULL, NULL, NULL),
-(6, 5,  10, 65000,    N'Xăng giữa tháng',             '2026-03-10 17:00:00', NULL,              1, 1, NULL, NULL, NULL, NULL),
-(6, 5,  11, 365000,   N'Vé xe khách về quê cuối tuần','2026-03-13 06:00:00', NULL,              1, 1, NULL, NULL, NULL, NULL),
--- Giáo dục (ctg=8) — Tổng: 1,350,000
-(6, 8,  10, 850000,   N'Khóa học React Native Udemy', '2026-03-01 20:00:00', NULL,              1, 1, NULL, NULL, NULL, NULL),
-(6, 8,  10, 350000,   N'Mua sách Clean Code',         '2026-03-07 09:00:00', N'Fahasa',         1, 1, NULL, NULL, NULL, NULL),
-(6, 8,  11, 150000,   N'Phí thi chứng chỉ tiếng Anh', '2026-03-09 14:30:00', NULL,             1, 1, NULL, NULL, NULL, NULL),
--- Sức khỏe (ctg=12) — Tổng: 680,000
-(6, 12, 10, 250000,   N'Khám sức khỏe định kỳ',       '2026-03-04 09:00:00', N'Bệnh viện FV',  1, 1, NULL, NULL, NULL, NULL),
-(6, 12, 11, 180000,   N'Mua thuốc dự phòng',          '2026-03-06 18:00:00', NULL,              1, 1, NULL, NULL, NULL, NULL),
-(6, 12, 10, 250000,   N'Đăng ký gym 1 tháng',         '2026-03-01 10:00:00', N'California Gym', 1, 1, NULL, NULL, NULL, NULL),
--- Hoá đơn & Tiện ích (ctg=9) — Tổng: 790,000
-(6, 9,  10, 350000,   N'Tiền điện tháng 3',           '2026-03-03 10:00:00', N'EVN TP.HCM',     1, 1, NULL, NULL, NULL, NULL),
-(6, 9,  10, 220000,   N'Internet Viettel tháng 3',    '2026-03-05 09:00:00', NULL,              1, 1, NULL, NULL, NULL, NULL),
-(6, 9,  11, 220000,   N'Tiền nước tháng 3',           '2026-03-05 09:30:00', NULL,              1, 1, NULL, NULL, NULL, NULL),
--- Thu nhập (ctg=15 — type THU, không tính vào budget)
-(6, 15, 10, 12000000, N'Lương tháng 3/2026',          '2026-03-05 09:00:00', N'Công ty FPT',    1, 1, NULL, NULL, NULL, NULL);
-GO
-
--- BƯỚC 2: BUDGETS + CATEGORIES (dùng IDENTITY để lấy ID tự động)
--- ======================================================================
-DECLARE @A INT, @B INT, @C INT, @D INT, @E INT, @F INT;
-
--- Scenario A: Ăn uống — 1,650,000 / 1,000,000 = 165% → VƯỢT
-INSERT INTO tBudgets (acc_id, wallet_id, amount, begin_date, end_date, all_categories, repeating)
-VALUES (6, NULL, 1000000, '2026-03-01', '2026-03-31', 0, 0);
-SET @A = SCOPE_IDENTITY();
-INSERT INTO tBudgetCategories (budget_id, ctg_id) VALUES (@A, 1);
-
--- Scenario B: Giải trí — 870,000 / 1,000,000 = 87% → CẢNH BÁO
-INSERT INTO tBudgets (acc_id, wallet_id, amount, begin_date, end_date, all_categories, repeating)
-VALUES (6, NULL, 1000000, '2026-03-01', '2026-03-31', 0, 0);
-SET @B = SCOPE_IDENTITY();
-INSERT INTO tBudgetCategories (budget_id, ctg_id) VALUES (@B, 7);
-
--- Scenario C: Di chuyển — 560,000 / 1,000,000 = 56% → AN TOÀN
-INSERT INTO tBudgets (acc_id, wallet_id, amount, begin_date, end_date, all_categories, repeating)
-VALUES (6, NULL, 1000000, '2026-03-01', '2026-03-31', 0, 0);
-SET @C = SCOPE_IDENTITY();
-INSERT INTO tBudgetCategories (budget_id, ctg_id) VALUES (@C, 5), (@C, 23);
-
--- Scenario D: Tất cả danh mục — 7,180,000 / 5,000,000 = 143% → VƯỢT + repeating
-INSERT INTO tBudgets (acc_id, wallet_id, amount, begin_date, end_date, all_categories, repeating)
-VALUES (6, NULL, 5000000, '2026-03-01', '2026-03-31', 1, 1);
-SET @D = SCOPE_IDENTITY();
--- all_categories=1 → không cần insert tBudgetCategories
-
--- Scenario E: Ăn uống chỉ ví MB Bank — 1,395,000 / 1,500,000 = 93% → CẢNH BÁO
-INSERT INTO tBudgets (acc_id, wallet_id, amount, begin_date, end_date, all_categories, repeating)
-VALUES (6, 10, 1500000, '2026-03-01', '2026-03-31', 0, 0);
-SET @E = SCOPE_IDENTITY();
-INSERT INTO tBudgetCategories (budget_id, ctg_id) VALUES (@E, 1);
-
--- Scenario F: Giáo dục — 1,350,000 / 3,000,000 = 45% → AN TOÀN + repeating
-INSERT INTO tBudgets (acc_id, wallet_id, amount, begin_date, end_date, all_categories, repeating)
-VALUES (6, NULL, 3000000, '2026-03-01', '2026-03-31', 0, 1);
-SET @F = SCOPE_IDENTITY();
-INSERT INTO tBudgetCategories (budget_id, ctg_id) VALUES (@F, 8);
-
-PRINT N'✅ Đã tạo 6 budgets: A=' + CAST(@A AS VARCHAR) + ' B=' + CAST(@B AS VARCHAR)
-    + ' C=' + CAST(@C AS VARCHAR) + ' D=' + CAST(@D AS VARCHAR)
-    + ' E=' + CAST(@E AS VARCHAR) + ' F=' + CAST(@F AS VARCHAR);
-GO
-
 -- ======================================================================
 -- TEST DATA: tPlannedTransactions — User 6 (minh.pham@gmail.com)
 -- ======================================================================
@@ -2257,6 +1891,500 @@ ORDER BY id;
 -- └──┴──────┴─────────────────────────────┴──────────┴───────┴──────┴──────┴─────────┴──────────────┴──────┘
 
 PRINT '✅ Test data user 6 — 8 rows, cover đủ các case';
+GO
+-- ======================================================================
+-- 17. BẢNG GIAO DỊCH (TRUNG TÂM HỆ THỐNG)
+-- ======================================================================
+CREATE TABLE tTransactions (
+    -- PRIMARY KEY
+    id BIGINT PRIMARY KEY IDENTITY(1,1),
+    
+    -- FOREIGN KEYS
+    acc_id INT NOT NULL,                         -- FK -> tAccounts (N-1)
+    ctg_id INT NULL,                             -- FK -> tCategories (N-1) | NULL = Chi trừ nợ không phân loại
+    wallet_id INT NULL,                          -- FK -> tWallets (N-1)
+    event_id INT NULL,                           -- FK -> tEvents (N-1) | NULL = Không thuộc sự kiện
+    debt_id INT NULL,                            -- FK -> tDebts (N-1) | NULL = Không liên quan nợ
+    goal_id INT NULL,                            -- FK -> tSavingGoals (N-1) | NULL = Không liên quan mục tiêu
+    ai_chat_id INT NULL,                         -- FK -> tAIConversations (N-1) | NULL = Nhập thủ công
+	planned_id INT NULL,                         -- FK -> tPlannedTransactions (N-1) | NULL = Giao dịch thường
+    
+    -- DATA COLUMNS
+    amount DECIMAL(18,2) NOT NULL,               -- Số tiền giao dịch
+    with_person NVARCHAR(100) NULL,              -- Tên người liên quan (VD: người vay, người trả)
+    note NVARCHAR(500) NULL,                     -- Ghi chú (VD: "Ăn sáng", "Lương tháng 1")
+    reportable BIT DEFAULT 1 NOT NULL,        -- 0: Không tính vào báo cáo | 1: Tính vào Dashboard
+    source_type TINYINT DEFAULT 1 NOT NULL,      -- 1: manual | 2: chat | 3: voice | 4: receipt | 5: planned
+    trans_date DATETIME DEFAULT GETDATE() NOT NULL,   -- Ngày giao dịch thực tế
+    created_at DATETIME DEFAULT GETDATE() NOT NULL,   -- Ngày hệ thống ghi nhận
+    
+    -- CONSTRAINTS
+    CONSTRAINT CHK_Transaction_Amount CHECK (amount > 0),
+    CONSTRAINT CHK_Transaction_SourceType CHECK (source_type BETWEEN 1 AND 5),
+    CONSTRAINT CHK_Transaction_Integrity CHECK (
+        (source_type = 1 AND ai_chat_id IS NULL) OR          -- Nhập tay hoàn toàn (ko liên quan Lịch) -> KO có chat
+        (source_type IN (2, 3, 4) AND ai_chat_id IS NOT NULL) OR -- AI nhập giùm khoản phát sinh -> BẮT BUỘC có chat
+        (source_type = 5)                                    -- Sinh ra từ Lịch -> TỰ DO (Có chat cũng đc, ko có cũng đc)
+    ),  
+    CONSTRAINT CHK_Transaction_SingleWallet CHECK (
+        NOT (wallet_id IS NOT NULL AND goal_id IS NOT NULL)
+    ),
+    CONSTRAINT FK_Transactions_Account FOREIGN KEY (acc_id) REFERENCES tAccounts(id),
+    CONSTRAINT FK_Transactions_Category FOREIGN KEY (ctg_id) REFERENCES tCategories(id) ON DELETE CASCADE,
+    CONSTRAINT FK_Transactions_Wallet FOREIGN KEY (wallet_id) REFERENCES tWallets(id) ON DELETE CASCADE,
+    CONSTRAINT FK_Transactions_Event FOREIGN KEY (event_id) REFERENCES tEvents(id),
+    CONSTRAINT FK_Transactions_Debt FOREIGN KEY (debt_id) REFERENCES tDebts(id),
+    CONSTRAINT FK_Transactions_Goal FOREIGN KEY (goal_id) REFERENCES tSavingGoals(id),
+    CONSTRAINT FK_Transactions_Chat FOREIGN KEY (ai_chat_id) REFERENCES tAIConversations(id),
+	CONSTRAINT FK_Transactions_Planned FOREIGN KEY (planned_id) REFERENCES tPlannedTransactions(id)
+);
+GO
+
+-- Index: Tối ưu Báo cáo tài chính và Dashboard chính
+CREATE INDEX idx_trans_main ON tTransactions(acc_id, wallet_id, trans_date DESC) 
+INCLUDE (amount, ctg_id, reportable, source_type);
+
+-- Index: Tối ưu query giao dịch theo Mục tiêu tiết kiệm
+CREATE INDEX idx_trans_goal ON tTransactions(goal_id) 
+INCLUDE (amount, trans_date) 
+WHERE goal_id IS NOT NULL;
+
+-- Index: Tối ưu query giao dịch theo Sự kiện
+CREATE INDEX idx_trans_event ON tTransactions(event_id) 
+INCLUDE (amount, trans_date, ctg_id) 
+WHERE event_id IS NOT NULL;
+
+-- Index: Tối ưu query giao dịch do AI tạo
+CREATE INDEX idx_trans_ai ON tTransactions(ai_chat_id) 
+INCLUDE (amount, trans_date, source_type) 
+WHERE ai_chat_id IS NOT NULL;
+
+-- Index: Tối ưu tính toán khoản nợ (Trả/Thu)
+CREATE INDEX idx_trans_debt ON tTransactions(debt_id) 
+INCLUDE (amount, trans_date) 
+WHERE debt_id IS NOT NULL;
+
+-- Index: Tối ưu query giao dịch theo Danh mục
+CREATE INDEX idx_trans_category ON tTransactions(acc_id, ctg_id, trans_date DESC) 
+INCLUDE (amount, wallet_id);
+
+-- Index tối ưu: Kết hợp acc_id và planned_id
+CREATE INDEX idx_trans_planned ON tTransactions(acc_id, planned_id) 
+    WHERE planned_id IS NOT NULL;
+GO
+
+
+-- ======================================================================
+-- DỮ LIỆU MẪU: Giao dịch (CHỈ BỔ SUNG PLANNED_ID - GIỮ NGUYÊN DATA GỐC)
+-- ======================================================================
+INSERT INTO tTransactions (acc_id, ctg_id, wallet_id, amount, note, trans_date, with_person, reportable, source_type, event_id, debt_id, goal_id, ai_chat_id, planned_id) VALUES
+
+-- ── User 1 ──────────────────────────────────────────────────────────────
+(1, 1,  1,    50000,      N'Ăn sáng bánh mì',            '2026-02-10 07:30:00', N'Cô Hương',               1, 1, NULL, NULL, NULL, NULL, NULL),
+(1, 15, 2,    15000000,   N'Lương tháng 2',               '2026-02-05 09:00:00', N'Công ty ABC',             1, 1, NULL, NULL, NULL, NULL, NULL),
+(1, 9,  1,    500000,     N'Tiền điện tháng 1',           '2026-02-08 14:20:00', N'Điện lực TP.HCM',        1, 1, NULL, NULL, NULL, NULL, NULL),
+(1, 1,  1,    45000,      N'Cafe',                        '2026-02-10 08:15:00', NULL,                      1, 2, NULL, NULL, NULL, 2,    NULL),
+(1, 1,  2,    250000,     N'Ăn tối gia đình',              '2026-02-03 19:00:00', NULL,                      1, 1, 2,    NULL, NULL, NULL, NULL),
+(1, 19, 2,    5000000,    N'Cho anh Minh vay khẩn cấp',   '2025-12-10 14:30:00', N'Anh Minh',               1, 1, NULL, 2,    NULL, NULL, NULL),
+
+-- ── User 2 ──────────────────────────────────────────────────────────────
+(2, 1,  3,    85000,      N'Trà sữa chiều',               '2026-02-09 15:45:00', N'Gongcha',                1, 1, NULL, NULL, NULL, NULL, NULL),
+(2, 10, 4,    2000000,    N'Mua áo khoác Zara',            '2026-02-07 18:30:00', N'Zara Vincom',            1, 1, NULL, NULL, NULL, NULL, NULL),
+(2, 5,  3,    300000,     N'Xăng xe máy',                  '2026-02-06 08:15:00', N'Petrolimex',              1, 1, NULL, NULL, NULL, NULL, NULL),
+(2, 1,  3,    100000,     N'Ăn sáng',                      '2026-02-09 07:30:00', NULL,                      1, 2, NULL, NULL, NULL, 4,    NULL),
+(2, 10, 3,    850000,     N'Mua sắm Vinmart',              '2026-02-09 18:45:00', N'Vinmart',                1, 4, NULL, NULL, NULL, 6,    NULL),
+(2, 16, NULL, 3000000,    N'Đi vay bố mẹ mua iPhone',     '2026-01-20 11:00:00', N'Bố mẹ',                  0, 1, NULL, 4,    3,    NULL, NULL),
+
+-- ── User 3 ──────────────────────────────────────────────────────────────
+(3, 1,  5,    120000,     N'Cơm trưa văn phòng',          '2026-02-10 12:00:00', N'Quán cơm Phúc Lộc Thọ', 1, 1, NULL, NULL, NULL, NULL, NULL),
+(3, 12, 6,    500000,     N'Khám răng định kỳ',           '2026-02-08 10:30:00', N'Nha khoa Kim',           1, 1, NULL, NULL, NULL, NULL, NULL),
+(3, 20, 6,    10000000,   N'Vay bạn thân mua laptop',     '2025-10-15 16:30:00', N'Bạn thân',               0, 1, NULL, 6,    NULL, NULL, NULL),
+(3, 22, 6,    1000000,    N'Trả nợ bạn thân kỳ này',      '2026-02-15 10:00:00', N'Bạn thân',               1, 1, NULL, 6,    NULL, NULL, NULL),
+
+-- ── User 5 ──────────────────────────────────────────────────────────────
+(5, 7,  9,    150000,     N'Xem phim Avengers',           '2026-02-09 19:45:00', N'CGV Landmark',           1, 1, NULL, NULL, NULL, NULL, NULL),
+(5, 16, NULL, 5000000,    N'Rút tiết kiệm về ví',         '2026-02-07 11:00:00', NULL,                      0, 1, NULL, NULL, 7,    NULL, NULL),
+(5, 5,  9,    200000,     N'Đổ xăng',                     '2026-02-09 17:20:00', N'Petrolimex',              1, 3, NULL, NULL, NULL, 10,   NULL),
+(5, 5,  9,    132600,     N'Xăng RON95 5.2L',             '2026-02-09 17:25:00', N'Petrolimex',              1, 4, NULL, NULL, NULL, 12,   NULL),
+(5, 20, NULL, 50000000,   N'Vay ngân hàng tiền cưới',     '2025-06-01 09:30:00', N'Ngân hàng',              0, 1, NULL, 7,    8,    NULL, NULL),
+
+-- ── User 6 ──────────────────────────────────────────────────────────────
+(6, 8,  10,   800000,     N'Mua sách lập trình',          '2026-02-08 16:20:00', N'Fahasa',                 1, 1, NULL, NULL, NULL, NULL, NULL),
+(6, 10, 11,   250000,     N'Mua ốp lưng iPhone',          '2026-02-09 14:10:00', N'Shopee',                 1, 1, NULL, NULL, NULL, NULL, NULL),
+(6, 7,  10,   350000,     N'Chi phí dự án tốt nghiệp',    '2026-02-05 10:00:00', NULL,                      1, 1, 7,    NULL, NULL, NULL, NULL),
+(6, 16, NULL, 500000,     N'Góp quỹ ChatGPT Plus',        '2026-02-01 08:00:00', NULL,                      1, 1, NULL, NULL, 31,   NULL, NULL),
+
+-- ── User 7 ──────────────────────────────────────────────────────────────
+(7, 1,  12,   350000,     N'Ăn tối lẩu',                  '2026-02-09 19:00:00', N'Lẩu Hải Sản Đà Lạt',    1, 1, 8,    NULL, NULL, NULL, NULL),
+(7, 9,  12,   1200000,    N'Thuê khách sạn 2 đêm',        '2026-02-08 15:30:00', N'Dalat Palace Hotel',     1, 1, 8,    NULL, NULL, NULL, NULL),
+(7, 20, NULL, 15000000,   N'Vay bố mua MacBook',          '2025-12-05 15:00:00', N'Bố',                     0, 1, NULL, 10,   10,   NULL, NULL),
+
+-- ── User 10 ─────────────────────────────────────────────────────────────
+(10, 1, 16,   95000,      N'Cafe sáng',                   '2026-02-10 08:00:00', N'Highlands Coffee',       1, 1, NULL, NULL, NULL, NULL, NULL),
+(10, 10,17,   1500000,    N'Áo thun nam x2, Quần jean',   '2026-02-07 18:00:00', N'Uniqlo',                 1, 4, NULL, NULL, NULL, 20,   NULL),
+(10, 20,NULL, 25000000,   N'Vay mẹ mua nhẫn cưới',       '2025-08-20 11:30:00', N'Mẹ',                     0, 1, NULL, 12,   13,   NULL, NULL),
+(10, 22,16,   2000000,    N'Trả nợ mẹ kỳ này',           '2026-02-10 09:00:00', N'Mẹ',                     1, 1, NULL, 12,   NULL, NULL, NULL),
+
+-- ── User 11 ─────────────────────────────────────────────────────────────
+(11, 11,18,   200000,     N'Đóng góp từ thiện',           '2026-02-09 09:30:00', N'Quỹ vì người nghèo',     1, 1, NULL, NULL, NULL, NULL, NULL),
+(11, 15,18,   18000000,   N'Lương tháng 2',               '2026-02-05 10:00:00', N'Công ty Tech Innovation', 1, 1, NULL, NULL, NULL, NULL, NULL),
+(11, 7, 18,   440000,     N'2 vé phim, bắp, nước',        '2026-02-09 22:00:00', N'CGV Landmark 81',        1, 4, NULL, NULL, NULL, 22,   NULL),
+(11, 8, NULL, 8000000,    N'Góp quỹ khóa học AWS',        '2026-02-10 10:00:00', NULL,                      1, 1, NULL, NULL, 27,   NULL, NULL),
+
+-- ── User 15 ─────────────────────────────────────────────────────────────
+(15, 8, NULL, 3500000,    N'Học phí học kỳ 1',            '2026-02-06 13:00:00', N'Trường ĐH FPT',          1, 1, NULL, NULL, 19,   NULL, NULL),
+(15, 8, NULL, 3500000,    N'Học phí kỳ 2 - ĐH FPT',       '2026-02-06 13:05:00', N'ĐH FPT',                 1, 4, NULL, NULL, 19,   26,   NULL),
+(15, 21,23,   12000000,   N'Cho bạn học vay học Thạc sĩ', '2026-01-05 13:20:00', N'Bạn học',               1, 1, NULL, 17,   NULL, NULL, NULL),
+
+-- ── User 17 ─────────────────────────────────────────────────────────────
+(17, 8, 26,   350000,     N'Sách lập trình',              '2026-02-08 16:45:00', NULL,                      1, 3, NULL, NULL, NULL, 28,   NULL),
+(17, 16,NULL, 10000000,   N'Góp quỹ đầu tư chứng khoán', '2026-02-01 09:00:00', NULL,                      0, 1, NULL, NULL, 21,   NULL, NULL),
+(17, 20,26,   100000000,  N'Vay ngân hàng khởi nghiệp',  '2024-06-15 09:00:00', N'Ngân hàng',              0, 1, NULL, 18,   NULL, NULL, NULL),
+
+-- ── User 20 ─────────────────────────────────────────────────────────────
+(20, 9, 13,   2500000,    N'Đặt vé máy bay đi Phú Quốc', '2026-02-09 11:20:00', N'VietJet Air',           1, 1, 21,   NULL, NULL, NULL, NULL),
+(20, 9, 13,   2700000,    N'Vé máy bay HN - Đà Lạt',     '2026-02-09 11:25:00', N'VietJet Air',           1, 4, NULL, NULL, NULL, 32,   NULL),
+(20, 9, 14,   4000000,    N'Đặt khách sạn Đà Lạt',       '2026-02-08 10:00:00', N'Agoda',                 1, 1, 21,   NULL, NULL, NULL, NULL),
+(20, 16,NULL, 5000000,    N'Góp quỹ mua máy ảnh',        '2026-02-05 08:00:00', NULL,                      1, 1, NULL, NULL, 24,   NULL, NULL),
+(20, 20,13,   18000000,   N'Vay bạn thân mua máy ảnh',   '2025-09-10 11:00:00', N'Bạn thân',               0, 1, NULL, 20,   NULL, NULL, NULL);
+GO
+
+-- ======================================================================
+-- 18. BẢNG THÔNG BÁO (1-N với tAccounts)
+-- ======================================================================
+CREATE TABLE tNotifications (
+    -- PRIMARY KEY
+    id INT PRIMARY KEY IDENTITY(1,1),
+    
+    -- FOREIGN KEYS
+    acc_id INT NOT NULL,                         -- FK -> tAccounts (N-1)     
+
+	-- LOẠI THÔNG BÁO (Sử dụng TINYINT để tối ưu hiệu năng)
+    -- 1: TRANSACTION (Giao dịch/Biến động số dư)
+    -- 2: SAVING      (Mục tiêu tiết kiệm/Quỹ)
+    -- 3: BUDGET      (Cảnh báo ngân sách/Vượt hạn mức)
+    -- 4: SYSTEM      (Hệ thống/Cập nhật/Bảo mật)
+    -- 5: CHAT_AI     (Thông báo từ trợ lý AI)
+    -- 6: WALLETS     (Thông báo liên quan đến ví/số dư âm)
+    -- 7: EVENTS      (Sự kiện/Lịch trình)
+    -- 8: DEBT_LOAN   (Nhắc nợ/Thu nợ)
+    -- 9: REMINDER    (Nhắc nhở chung/Daily nhắc ghi chép)
+    notify_type TINYINT NOT NULL, 
+
+    -- ID CỦA ĐỐI TƯỢNG LIÊN QUAN (Tùy theo notify_type)
+    -- Ví dụ: Nếu type = 1 thì đây là ID của tTransactions
+    -- Nếu type = 6 thì đây là ID của tWallets
+    related_id BIGINT NULL,
+
+	title NVARCHAR(100) NULL,                    -- Tiêu đề ngắn gọn (VD: "Cảnh báo ngân sách")
+    content NVARCHAR(500) NOT NULL,              -- Nội dung chi tiết (VD: "Bạn đã xài hết 50% tiền Ăn uống")
+    scheduled_time DATETIME DEFAULT GETDATE(),   -- Thời điểm thông báo (ngay hoặc hẹn lịch)
+    notify_sent BIT DEFAULT 0,                       -- 0: Chưa gửi Push | 1: Đã gửi Push
+    notify_read BIT DEFAULT 0,                       -- 0: Chưa đọc | 1: Đã đọc  
+    created_at DATETIME DEFAULT GETDATE(),       -- Ngày tạo thông báo
+	
+    -- CONSTRAINTS
+    CONSTRAINT CHK_Notify_Type CHECK (notify_type BETWEEN 1 AND 9),
+    CONSTRAINT FK_Notifications_Account FOREIGN KEY (acc_id) REFERENCES tAccounts(id)
+);
+GO
+
+-- Index: Tối ưu Worker quét thông báo cần gửi
+CREATE INDEX idx_notify_worker ON tNotifications(scheduled_time, notify_sent) WHERE notify_sent = 0;
+
+-- Index: Tối ưu load thông báo cho User UI
+CREATE INDEX idx_notify_ui ON tNotifications(acc_id, notify_read, created_at DESC) INCLUDE (title, content, notify_type, related_id);
+
+-- Index: Tối ưu load thông báo mới nhất
+CREATE INDEX idx_notify_latest ON tNotifications(acc_id, created_at DESC) INCLUDE (notify_read, title, content);
+GO
+
+-- ======================================================================
+-- DỮ LIỆU MẪU: Thông báo
+-- ======================================================================
+INSERT INTO tNotifications (acc_id, notify_type, related_id, title, content, scheduled_time, notify_sent, notify_read) VALUES
+
+-- type=1: Giao dịch lớn (đã đọc)
+(1,  1, 2,    N'Giao dịch mới',       N'Đã ghi nhận thu nhập 15,000,000đ - Lương tháng 2 vào ví Vietcombank',       '2026-02-05 09:00:05', 1, 1),
+(11, 1, 23,   N'Giao dịch mới',       N'Đã ghi nhận thu nhập 18,000,000đ - Lương tháng 2 vào ví TPBank',            '2026-02-05 10:00:05', 1, 1),
+(2,  1, 12,   N'Giao dịch mới',       N'Đã ghi nhận chi tiêu 3,000,000đ - Đi vay bố mẹ mua iPhone vào ví TCB',     '2026-01-20 11:00:10', 1, 1),
+
+-- type=2: Mục tiêu tiết kiệm (mix đọc/chưa)
+(5,  2, 7,    N'Mục tiêu tiến triển', N'Bạn đã đạt 50% mục tiêu "Mua xe máy SH". Còn 45,000,000đ nữa là hoàn thành!','2026-02-07 09:00:00', 1, 0),
+(10, 2, 13,   N'Nhắc mục tiêu',       N'Mục tiêu "Mua nhẫn cưới" sắp đến hạn (30/11/2026). Còn thiếu 15,000,000đ', '2026-02-10 08:00:00', 1, 0),
+(6,  2, 31,   N'Mục tiêu tiến triển', N'Quỹ ChatGPT Plus đã đạt 29%. Cố lên! Còn 8,500,000đ nữa.',                  '2026-02-08 10:00:00', 1, 1),
+
+-- type=3: Cảnh báo ngân sách (mix)
+(2,  3, 1,    N'Cảnh báo ngân sách',  N'Bạn đã chi 80% ngân sách Ăn uống tháng 2. Hãy cân nhắc chi tiêu!',          '2026-02-09 20:00:00', 1, 1),
+(6,  3, 4,    N'Vượt ngân sách',      N'Bạn đã vượt 120% ngân sách Ăn uống + Giải trí. Tổng chi: 2,400,000đ/2tr',   '2026-02-10 18:00:00', 1, 0),
+(10, 3, 10,   N'Cảnh báo ngân sách',  N'Đã chi 75% tổng ngân sách tháng 2 (6,000,000đ/8,000,000đ).',                 '2026-02-09 22:00:00', 1, 0),
+
+-- type=4: Hệ thống
+(1,  4, NULL, N'Cập nhật hệ thống',   N'SmartMoney v1.1 vừa ra mắt! Tính năng mới: Báo cáo nâng cao và xuất PDF',   '2026-02-01 07:00:00', 1, 1),
+(15, 4, NULL, N'Bảo mật tài khoản',   N'Phát hiện đăng nhập mới từ thiết bị lạ lúc 02:30. Hãy đổi mật khẩu ngay',  '2026-02-08 02:35:00', 1, 0),
+
+-- type=5: AI Chat
+(3,  5, 7,    N'Phân tích AI',        N'AI đã phân tích xong chi tiêu tháng 2. Bạn đang chi nhiều hơn 18% tháng trước','2026-02-10 20:00:10', 1, 0),
+(10, 5, 18,   N'AI nhắc nhở',         N'Lời nhắc: "Trả nợ anh Tuấn" vào ngày mai 15/02/2026 lúc 9:00 sáng',         '2026-02-14 21:00:00', 0, 0),
+
+-- type=6: Ví số dư thấp
+(2,  6, 3,    N'Số dư ví thấp',       N'Ví MoMo còn 250,000đ - dưới mức cảnh báo 500,000đ. Hãy nạp thêm tiền',      '2026-02-10 15:00:00', 1, 0),
+(6,  6, 11,   N'Số dư ví thấp',       N'Ví VNPay còn 150,000đ. Bạn có muốn chuyển tiền từ MB Bank sang không?',      '2026-02-09 22:00:00', 1, 1),
+
+-- type=7: Sự kiện sắp tới (hẹn lịch tương lai)
+(3,  7, 4,    N'Sự kiện sắp tới',     N'Sinh nhật 25 tuổi còn 33 ngày nữa (15/03/2026). Đừng quên lên kế hoạch!',   '2026-02-10 08:00:00', 1, 0),
+(20, 7, 21,   N'Sự kiện sắp tới',     N'Kỳ nghỉ hè gia đình còn 141 ngày (01/07/2026). Ngân sách: 10,000,000đ',     '2026-02-15 08:00:00', 0, 0),
+
+-- type=8: Nhắc nợ (hẹn lịch tương lai)
+(1,  8, 2,    N'Nhắc khoản thu',      N'Khoản cho anh Minh vay 3,000,000đ đến hạn thu 31/03/2026. Hãy liên hệ!',    '2026-02-20 09:00:00', 0, 0),
+(5,  8, 7,    N'Nhắc khoản nợ',       N'Khoản vay cưới còn 40,000,000đ. Kỳ thanh toán tiếp theo 01/03/2026',         '2026-02-25 09:00:00', 0, 0),
+
+-- type=9: Nhắc ghi chép
+(7,  9, NULL, N'Nhắc ghi chép',       N'Bạn chưa ghi chép chi tiêu hôm nay! Hãy dành 2 phút cập nhật sổ chi tiêu 📝','2026-02-10 21:00:00', 1, 1),
+(17, 9, NULL, N'Tổng kết tuần',       N'Tuần này bạn đã chi 2,350,000đ. Chi tiêu cao nhất: Giáo dục (350,000đ).',    '2026-02-10 20:00:00', 1, 0);
+GO
+--------------
+-- Thêm notifications cho user 6 (minh.pham) — đủ 9 loại để test
+INSERT INTO tNotifications (acc_id, notify_type, related_id, title, content, scheduled_time, notify_sent, notify_read)
+VALUES
+-- Type 1: TRANSACTION
+(6, 1, NULL, N'Giao dịch mới',        N'Đã ghi nhận thu nhập 12,000,000đ - Lương tháng 3 vào ví MB Bank',               '2026-03-05 09:00:05', 1, 1),
+-- Type 2: SAVING
+(6, 2, 31,   N'Mục tiêu tiến triển',  N'Quỹ ChatGPT Plus & Claude Pro đã đạt 35%. Cố lên! Còn thiếu khoảng 7,800,000đ', '2026-03-05 09:00:10', 1, 0),
+-- Type 3: BUDGET (từ check-now vừa tạo — nhắc lại dạng seed)
+(6, 3, 21,   N'Vượt quá ngân sách!',  N'Bạn đã chi vượt 165% ngân sách Ăn uống tháng 3. Tổng chi: 1,650,000đ/1,000,000đ', '2026-03-13 10:40:50', 1, 0),
+(6, 3, 22,   N'Cảnh báo ngân sách',   N'Bạn đã chi 87% ngân sách Giải trí tháng 3. Hãy cân nhắc chi tiêu!',              '2026-03-13 10:40:50', 1, 0),
+-- Type 4: SYSTEM
+(6, 4, NULL, N'Cập nhật hệ thống',    N'SmartMoney v1.1 vừa ra mắt! Tính năng mới: Báo cáo nâng cao và xuất PDF',        '2026-02-01 07:00:00', 1, 1),
+-- Type 5: CHAT_AI (không có AI conversation của user 6 → related_id=NULL)
+(6, 5, NULL, N'Phân tích AI',         N'AI đã phân tích chi tiêu tháng 3. Bạn chi Ăn uống nhiều hơn 22% tháng trước',   '2026-03-13 20:00:00', 1, 0),
+-- Type 6: WALLETS
+(6, 6, 11,   N'Số dư ví thấp',        N'Ví VNPay còn 900,000đ - gần mức cảnh báo. Hãy chú ý chi tiêu!',                 '2026-03-12 08:00:00', 1, 1),
+-- Type 7: EVENTS
+(6, 7, NULL, N'Sự kiện sắp tới',      N'Sinh nhật bạn thân còn 2 ngày nữa (15/03/2026). Đừng quên chuẩn bị quà!',       '2026-03-13 08:00:00', 0, 0),
+-- Type 8: DEBT_LOAN
+(6, 8, 6,    N'Nhắc khoản nợ',        N'Khoản vay bạn thân mua laptop còn 9,000,000đ. Hạn trả tiếp theo: 15/03/2026',   '2026-03-01 09:00:00', 1, 0),
+-- Type 9: REMINDER
+(6, 9, NULL, N'Nhắc ghi chép',        N'Bạn chưa ghi chép chi tiêu hôm nay! Hãy dành 2 phút cập nhật sổ chi tiêu 📝',   '2026-03-13 21:00:00', 0, 0);
+GO
+--------------
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+-- ======================================================================
+-- BUDGET TEST DATA v2 — User 6 (minh.pham@gmail.com)
+-- BƯỚC 1: GIAO DỊCH THÁNG 3/2026 (FIXED PLANNED_ID THEO FILE)
+-- ======================================================================
+INSERT INTO tTransactions (acc_id, ctg_id, wallet_id, amount, note, trans_date, with_person, reportable, source_type, event_id, debt_id, goal_id, ai_chat_id, planned_id)
+VALUES
+-- Ăn uống (ctg=1)
+(6, 1, 10, 85000, N'Bún bò buổi sáng', '2026-03-02 07:30:00', NULL, 1, 1, NULL, NULL, NULL, NULL, NULL),
+(6, 1, 10, 120000, N'Cơm trưa văn phòng', '2026-03-04 12:00:00', NULL, 1, 1, NULL, NULL, NULL, NULL, NULL),
+(6, 1, 11, 75000, N'Bánh mì ốp la', '2026-03-05 07:45:00', NULL, 1, 1, NULL, NULL, NULL, NULL, NULL),
+(6, 1, 10, 350000, N'Ăn tối bạn bè', '2026-03-07 19:30:00', N'Nhóm bạn ĐH', 1, 1, NULL, NULL, NULL, NULL, NULL),
+(6, 1, 10, 95000, N'Phở gà', '2026-03-10 11:30:00', NULL, 1, 1, NULL, NULL, NULL, NULL, NULL),
+(6, 1, 11, 180000, N'Trà sữa và snack', '2026-03-11 15:00:00', NULL, 1, 1, NULL, NULL, NULL, NULL, NULL),
+(6, 1, 10, 145000, N'Cơm chiều + chè', '2026-03-12 18:00:00', NULL, 1, 1, NULL, NULL, NULL, NULL, NULL),
+(6, 1, 10, 600000, N'Tiệc sinh nhật bạn thân', '2026-03-15 20:00:00', N'Nhà hàng', 1, 1, NULL, NULL, NULL, NULL, NULL),
+
+-- Giải trí (ctg=7)
+(6, 7, 10, 240000, N'2 vé xem phim + bắp nước', '2026-03-03 19:00:00', N'CGV Crescent', 1, 1, NULL, NULL, NULL, NULL, NULL),
+(6, 7, 11, 180000, N'Karaoke nhóm bạn', '2026-03-08 21:00:00', N'Nhóm bạn', 1, 1, NULL, NULL, NULL, NULL, NULL),
+(6, 7, 10, 450000, N'Mua game Steam sale', '2026-03-09 14:00:00', NULL, 1, 1, NULL, NULL, NULL, NULL, NULL),
+
+-- Mua sắm (ctg=10)
+(6, 10, 10, 320000, N'Mua quần áo Uniqlo', '2026-03-06 15:30:00', N'Uniqlo', 1, 1, NULL, NULL, NULL, NULL, NULL),
+(6, 10, 11, 180000, N'Đồ dùng văn phòng phẩm', '2026-03-08 10:00:00', NULL, 1, 1, NULL, NULL, NULL, NULL, NULL),
+(6, 10, 10, 780000, N'Giày thể thao mới', '2026-03-12 16:00:00', N'Nike Store', 1, 1, NULL, NULL, NULL, NULL, NULL),
+
+-- Di chuyển (ctg=5)
+(6, 5, 10, 85000, N'Xăng xe đầy bình', '2026-03-03 08:00:00', NULL, 1, 1, NULL, NULL, NULL, NULL, NULL),
+(6, 5, 11, 45000, N'Grab đi làm', '2026-03-05 08:30:00', NULL, 1, 1, NULL, NULL, NULL, NULL, NULL),
+(6, 5, 10, 65000, N'Xăng giữa tháng', '2026-03-10 17:00:00', NULL, 1, 1, NULL, NULL, NULL, NULL, NULL),
+(6, 5, 11, 365000, N'Vé xe khách về quê', '2026-03-13 06:00:00', NULL, 1, 1, NULL, NULL, NULL, NULL, NULL),
+
+-- Giáo dục (ctg=8)
+(6, 8, 10, 850000, N'Khóa học React Native', '2026-03-01 20:00:00', NULL, 1, 1, NULL, NULL, NULL, NULL, NULL),
+(6, 8, 10, 350000, N'Mua sách Clean Code', '2026-03-07 09:00:00', N'Fahasa', 1, 1, NULL, NULL, NULL, NULL, NULL),
+(6, 8, 11, 150000, N'Phí thi tiếng Anh', '2026-03-09 14:30:00', NULL, 1, 1, NULL, NULL, NULL, NULL, NULL),
+
+-- Sức khỏe (ctg=12)
+(6, 12, 10, 250000, N'Khám sức khỏe', '2026-03-04 09:00:00', N'Bệnh viện FV', 1, 1, NULL, NULL, NULL, NULL, NULL),
+(6, 12, 11, 180000, N'Mua thuốc dự phòng', '2026-03-06 18:00:00', NULL, 1, 1, NULL, NULL, NULL, NULL, NULL),
+(6, 12, 10, 250000, N'Đăng ký gym 1 tháng', '2026-03-01 10:00:00', N'California Gym', 1, 1, NULL, NULL, NULL, NULL, NULL),
+
+-- Hoá đơn & Tiện ích (ctg=9)
+(6, 9, 10, 350000, N'Tiền điện tháng 3', '2026-03-03 10:00:00', N'EVN TP.HCM', 1, 1, NULL, NULL, NULL, NULL, 28), -- Fix: planned_id = 28
+(6, 9, 10, 220000, N'Internet Viettel tháng 3', '2026-03-05 09:00:00', NULL, 1, 1, NULL, NULL, NULL, NULL, 31), -- Fix: planned_id = 31
+(6, 9, 11, 220000, N'Tiền nước tháng 3', '2026-03-05 09:30:00', NULL, 1, 1, NULL, NULL, NULL, NULL, NULL),
+
+-- Thu nhập (ctg=15)
+(6, 15, 10, 12000000, N'Lương tháng 3/2026', '2026-03-05 09:00:00', N'Công ty FPT', 1, 1, NULL, NULL, NULL, NULL, NULL),
+
+-- Trả nợ (ctg=22)
+(6, 22, 10, 8000000, N'Trả góp mua iPhone 15 Pro', '2026-03-01 08:00:00', NULL, 1, 1, NULL, NULL, NULL, NULL, 22); -- Fix: planned_id = 22
+GO
+PRINT '✅ Đã chèn xong Transaction tháng 3 cho User 6.';
+-- ======================================================================
+-- BUDGET TEST DATA v2 — User 6 (minh.pham@gmail.com)
+-- THÁNG 2 & THÁNG 4/2026 (ĐÃ FIX PLANNED_ID THEO THỨ TỰ FILE)
+-- ======================================================================
+
+-- ── THÁNG 02/2026 ──────────────────────────────────────────────────────
+INSERT INTO tTransactions (acc_id, ctg_id, wallet_id, amount, note, trans_date, with_person, reportable, source_type, event_id, debt_id, goal_id, ai_chat_id, planned_id)
+VALUES
+-- Thu nhập
+(6, 15, 10, 12000000, N'Lương tháng 2/2026', '2026-02-05 09:00:00', N'Công ty FPT', 1, 1, NULL, NULL, NULL, NULL, NULL),
+
+-- Các khoản định kỳ (Đã sửa planned_id)
+(6, 9,  10, 425000,   N'Hóa đơn điện (Nhà riêng)', '2026-02-20 10:00:00', N'EVN', 1, 1, NULL, NULL, NULL, NULL, 28),    
+(6, 9,  10, 220000,   N'Internet Viettel - Gói 100Mbps', '2026-02-20 09:00:00', NULL, 1, 1, NULL, NULL, NULL, NULL, 31),   
+(6, 9,  10, 90000,    N'Gói cước Viettel - V90', '2026-02-20 08:00:00', NULL, 1, 1, NULL, NULL, NULL, NULL, 29),   
+(6, 22, 10, 8000000,  N'Trả góp mua iPhone 15 Pro', '2026-02-01 08:00:00', NULL, 1, 1, NULL, NULL, NULL, NULL, 22),   
+
+-- Chi tiêu khác tháng 2
+(6, 1,  10, 150000,   N'Lẩu đầu năm với đồng nghiệp', '2026-02-06 19:00:00', N'Team Dev', 1, 1, NULL, NULL, NULL, NULL, NULL),
+(6, 10, 10, 550000,   N'Mua lì xì & quà Tết muộn', '2026-02-08 15:00:00', NULL, 1, 1, NULL, NULL, NULL, NULL, NULL),
+(6, 5,  11, 200000,   N'Nạp tiền thẻ từ xe buýt/Grab', '2026-02-12 10:00:00', NULL, 1, 1, NULL, NULL, NULL, NULL, NULL),
+(6, 1,  10, 85000,    N'Cafe làm việc cuối tuần', '2026-02-15 14:00:00', N'The Coffee House', 1, 1, NULL, NULL, NULL, NULL, NULL),
+(6, 8,  10, 250000,   N'Mua khóa học SQL Advanced', '2026-02-18 21:00:00', N'Udemy', 1, 1, NULL, NULL, NULL, NULL, NULL);
+GO
+
+-- ── THÁNG 04/2026 ──────────────────────────────────────────────────────
+INSERT INTO tTransactions (acc_id, ctg_id, wallet_id, amount, note, trans_date, with_person, reportable, source_type, event_id, debt_id, goal_id, ai_chat_id, planned_id)
+VALUES
+-- Thu nhập
+(6, 15, 10, 12000000, N'Lương tháng 4/2026', '2026-04-05 09:00:00', N'Công ty FPT', 1, 1, NULL, NULL, NULL, NULL, NULL),
+
+-- Các khoản định kỳ (Đã sửa planned_id)
+(6, 9,  10, 480000,   N'Hóa đơn điện (Nhà riêng)', '2026-04-20 10:00:00', N'EVN', 1, 1, NULL, NULL, NULL, NULL, 28),    
+(6, 9,  10, 220000,   N'Internet Viettel - Gói 100Mbps', '2026-04-20 09:00:00', NULL, 1, 1, NULL, NULL, NULL, NULL, 31),   
+(6, 9,  10, 90000,    N'Gói cước Viettel - V90', '2026-04-20 08:00:00', NULL, 1, 1, NULL, NULL, NULL, NULL, 29),   
+(6, 22, 10, 8000000,  N'Trả góp mua iPhone 15 Pro', '2026-04-01 08:00:00', NULL, 1, 1, NULL, NULL, NULL, NULL, 22),   
+
+-- Chi tiêu khác tháng 4
+(6, 1,  11, 45000,    N'Bánh mì & Cafe sáng', '2026-04-02 07:30:00', NULL, 1, 1, NULL, NULL, NULL, NULL, NULL),
+(6, 7,  10, 1200000,  N'Vé đi Fan Meeting LMHT', '2026-04-10 13:00:00', N'Nhà thi đấu', 1, 1, NULL, NULL, NULL, NULL, NULL),
+(6, 10, 11, 350000,   N'Thay chuột máy tính mới', '2026-04-12 16:00:00', N'Shopee', 1, 1, NULL, NULL, NULL, NULL, NULL),
+(6, 12, 10, 150000,   N'Mua vitamin bổ mắt', '2026-04-15 18:00:00', N'Nhà thuốc', 1, 1, NULL, NULL, NULL, NULL, NULL),
+(6, 1,  10, 500000,   N'Liên hoan lễ 30/4', '2026-04-29 19:30:00', N'Gia đình', 1, 1, NULL, NULL, NULL, NULL, NULL),
+(6, 5,  10, 500000,   N'Xăng xe & phí cầu đường về quê', '2026-04-30 06:00:00', NULL, 1, 1, NULL, NULL, NULL, NULL, NULL);
+GO
+
+PRINT '✅ Đã bổ sung dữ liệu giao dịch tháng 2 và tháng 4 cho User 6.';
+PRINT '   - Các giao dịch định kỳ đã được map với planned_id chính xác (22, 28, 29, 31).';
+GO
+-- ── THÁNG 01/2026 ──────────────────────────────────────────────────────
+INSERT INTO tTransactions (acc_id, ctg_id, wallet_id, amount, note, trans_date, with_person, reportable, source_type, event_id, debt_id, goal_id, ai_chat_id, planned_id)
+VALUES
+-- Thu nhập đầu năm
+(6, 15, 10, 12000000, N'Lương tháng 01/2026', '2026-01-05 09:00:00', N'Công ty FPT', 1, 1, NULL, NULL, NULL, NULL, NULL),
+(6, 15, 10, 2000000,  N'Thưởng dự án cuối năm', '2026-01-15 10:30:00', NULL, 1, 1, NULL, NULL, NULL, NULL, NULL),
+
+-- Ăn uống & Tiệc tùng
+(6, 1,  10, 450000,   N'Tiệc tất niên nhóm bạn', '2026-01-01 19:00:00', N'Nhóm bạn ĐH', 1, 1, NULL, NULL, NULL, NULL, NULL),
+(6, 1,  11, 120000,   N'Ăn sáng + Cafe đầu năm', '2026-01-02 08:30:00', NULL, 1, 1, NULL, NULL, NULL, NULL, NULL),
+
+-- Mua sắm đồ Tết
+(6, 10, 10, 1200000,  N'Mua áo khoác mới', '2026-01-10 16:00:00', N'Zara', 1, 1, NULL, NULL, NULL, NULL, NULL),
+(6, 10, 11, 300000,   N'Phụ kiện máy tính', '2026-01-12 14:00:00', N'Shopee', 1, 1, NULL, NULL, NULL, NULL, NULL),
+
+-- Hoá đơn (Không dùng planned_id vì plan bắt đầu từ tháng 3)
+(6, 9,  10, 410000,   N'Tiền điện tháng 1', '2026-01-20 10:00:00', N'EVN', 1, 1, NULL, NULL, NULL, NULL, NULL),
+(6, 9,  10, 220000,   N'Internet tháng 1', '2026-01-20 09:00:00', NULL, 1, 1, NULL, NULL, NULL, NULL, NULL),
+
+-- Di chuyển
+(6, 5,  10, 500000,   N'Xăng xe đi lại trong tháng', '2026-01-25 17:00:00', NULL, 1, 1, NULL, NULL, NULL, NULL, NULL);
+GO
+-- ── THÁNG 12/2025 (NĂM NGOÁI) ──────────────────────────────────────────
+INSERT INTO tTransactions (acc_id, ctg_id, wallet_id, amount, note, trans_date, with_person, reportable, source_type, event_id, debt_id, goal_id, ai_chat_id, planned_id)
+VALUES
+-- Thu nhập
+(6, 15, 10, 11500000, N'Lương tháng 12/2025', '2025-12-05 09:00:00', N'Công ty FPT', 1, 1, NULL, NULL, NULL, NULL, NULL),
+
+-- Chi tiêu Giáng sinh & Cuối năm
+(6, 7,  10, 800000,   N'Quà tặng Giáng sinh', '2025-12-24 20:00:00', N'Gia đình', 1, 1, NULL, NULL, NULL, NULL, NULL),
+(6, 1,  10, 600000,   N'Ăn tối Noel', '2025-12-24 21:30:00', N'Bạn gái', 1, 1, NULL, NULL, NULL, NULL, NULL),
+
+-- Mua sắm thiết bị (Dell Precision M4800)
+(6, 10, 10, 1500000,  N'Nâng cấp SSD cho laptop', '2025-12-15 10:00:00', N'Phong Vũ', 1, 1, NULL, NULL, NULL, NULL, NULL),
+
+-- Các khoản phí khác
+(6, 9,  11, 150000,   N'Phí quản lý chung cư', '2025-12-10 08:00:00', NULL, 1, 1, NULL, NULL, NULL, NULL, NULL),
+(6, 12, 10, 300000,   N'Mua thực phẩm chức năng', '2025-12-28 15:00:00', N'Long Châu', 1, 1, NULL, NULL, NULL, NULL, NULL);
+GO
+
+PRINT '✅ Đã bổ sung dữ liệu giao dịch Tháng 1/2026 và Tháng 12/2025 cho User 6.';
+GO
+-- ── MỘT NGÀY NĂM 2024 (15/06/2024) ────────────────────────────────────
+INSERT INTO tTransactions (acc_id, ctg_id, wallet_id, amount, note, trans_date, with_person, reportable, source_type, event_id, debt_id, goal_id, ai_chat_id, planned_id)
+VALUES
+-- Thu nhập tháng đó
+(6, 15, 10, 10000000, N'Lương tháng 06/2024', '2024-06-05 09:00:00', N'Công ty cũ', 1, 1, NULL, NULL, NULL, NULL, NULL),
+
+-- Chi tiêu trong ngày 15/06
+(6, 10, 10, 2500000,  N'Mua RAM & Bàn phím cơ mới', '2024-06-15 10:30:00', N'GearVN', 1, 1, NULL, NULL, NULL, NULL, NULL),
+(6, 1,  11, 150000,   N'Ăn trưa cùng đồng nghiệp', '2024-06-15 12:00:00', NULL, 1, 1, NULL, NULL, NULL, NULL, NULL),
+(6, 5,  10, 50000,    N'Thay nhớt xe máy', '2024-06-15 16:45:00', NULL, 1, 1, NULL, NULL, NULL, NULL, NULL),
+(6, 7,  10, 200000,   N'Nạp thẻ game (Genshin Impact)', '2024-06-15 21:00:00', NULL, 1, 1, NULL, NULL, NULL, NULL, NULL);
+GO
+-- ── MỘT NGÀY NĂM 2023 (20/11/2023) ────────────────────────────────────
+INSERT INTO tTransactions (acc_id, ctg_id, wallet_id, amount, note, trans_date, with_person, reportable, source_type, event_id, debt_id, goal_id, ai_chat_id, planned_id)
+VALUES
+-- Thu nhập tháng đó
+(6, 15, 10, 8500000,  N'Lương tháng 11/2023', '2023-11-05 08:30:00', N'Freelance Job', 1, 1, NULL, NULL, NULL, NULL, NULL),
+
+-- Chi tiêu trong ngày 20/11
+(6, 8,  10, 500000,   N'Mua quà tặng thầy cô 20/11', '2023-11-20 09:00:00', N'Nhóm bạn', 1, 1, NULL, NULL, NULL, NULL, NULL),
+(6, 1,  11, 65000,    N'Cơm tấm & Trà đá', '2023-11-20 12:15:00', NULL, 1, 1, NULL, NULL, NULL, NULL, NULL),
+(6, 9,  10, 150000,   N'Nạp tiền điện thoại (Mobifone)', '2023-11-20 14:00:00', NULL, 1, 1, NULL, NULL, NULL, NULL, NULL),
+(6, 1,  10, 300000,   N'Đi ăn đồ nướng tối', '2023-11-20 19:30:00', N'Gia đình', 1, 1, NULL, NULL, NULL, NULL, NULL);
+GO
+
+PRINT '✅ Đã bổ sung dữ liệu lịch sử năm 2024 và 2023 cho User 6.';
+GO
+
+-- BƯỚC 2: BUDGETS + CATEGORIES (dùng IDENTITY để lấy ID tự động)
+-- ======================================================================
+DECLARE @A INT, @B INT, @C INT, @D INT, @E INT, @F INT;
+
+-- Scenario A: Ăn uống — 1,650,000 / 1,000,000 = 165% → VƯỢT
+INSERT INTO tBudgets (acc_id, wallet_id, amount, begin_date, end_date, all_categories, repeating)
+VALUES (6, NULL, 1000000, '2026-03-01', '2026-03-31', 0, 0);
+SET @A = SCOPE_IDENTITY();
+INSERT INTO tBudgetCategories (budget_id, ctg_id) VALUES (@A, 1);
+
+-- Scenario B: Giải trí — 870,000 / 1,000,000 = 87% → CẢNH BÁO
+INSERT INTO tBudgets (acc_id, wallet_id, amount, begin_date, end_date, all_categories, repeating)
+VALUES (6, NULL, 1000000, '2026-03-01', '2026-03-31', 0, 0);
+SET @B = SCOPE_IDENTITY();
+INSERT INTO tBudgetCategories (budget_id, ctg_id) VALUES (@B, 7);
+
+-- Scenario C: Di chuyển — 560,000 / 1,000,000 = 56% → AN TOÀN
+INSERT INTO tBudgets (acc_id, wallet_id, amount, begin_date, end_date, all_categories, repeating)
+VALUES (6, NULL, 1000000, '2026-03-01', '2026-03-31', 0, 0);
+SET @C = SCOPE_IDENTITY();
+INSERT INTO tBudgetCategories (budget_id, ctg_id) VALUES (@C, 5), (@C, 23);
+
+-- Scenario D: Tất cả danh mục — 7,180,000 / 5,000,000 = 143% → VƯỢT + repeating
+INSERT INTO tBudgets (acc_id, wallet_id, amount, begin_date, end_date, all_categories, repeating)
+VALUES (6, NULL, 5000000, '2026-03-01', '2026-03-31', 1, 1);
+SET @D = SCOPE_IDENTITY();
+-- all_categories=1 → không cần insert tBudgetCategories
+
+-- Scenario E: Ăn uống chỉ ví MB Bank — 1,395,000 / 1,500,000 = 93% → CẢNH BÁO
+INSERT INTO tBudgets (acc_id, wallet_id, amount, begin_date, end_date, all_categories, repeating)
+VALUES (6, 10, 1500000, '2026-03-01', '2026-03-31', 0, 0);
+SET @E = SCOPE_IDENTITY();
+INSERT INTO tBudgetCategories (budget_id, ctg_id) VALUES (@E, 1);
+
+-- Scenario F: Giáo dục — 1,350,000 / 3,000,000 = 45% → AN TOÀN + repeating
+INSERT INTO tBudgets (acc_id, wallet_id, amount, begin_date, end_date, all_categories, repeating)
+VALUES (6, NULL, 3000000, '2026-03-01', '2026-03-31', 0, 1);
+SET @F = SCOPE_IDENTITY();
+INSERT INTO tBudgetCategories (budget_id, ctg_id) VALUES (@F, 8);
+
+PRINT N'✅ Đã tạo 6 budgets: A=' + CAST(@A AS VARCHAR) + ' B=' + CAST(@B AS VARCHAR)
+    + ' C=' + CAST(@C AS VARCHAR) + ' D=' + CAST(@D AS VARCHAR)
+    + ' E=' + CAST(@E AS VARCHAR) + ' F=' + CAST(@F AS VARCHAR);
 GO
 --select * from tWallets
 --select * from tSavingGoals

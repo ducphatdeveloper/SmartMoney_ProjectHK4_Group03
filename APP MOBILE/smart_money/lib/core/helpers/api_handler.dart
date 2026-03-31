@@ -96,6 +96,26 @@ class ApiHandler {
   }
 
   // =============================================
+  // PATCH — dùng cho toggle active/inactive
+  // =============================================
+  static Future<ApiResponse<T>> patch<T>(
+      String url, {
+        Map<String, dynamic>? body,
+        T Function(dynamic)? fromJson,
+      }) async {
+    try {
+      final response = await http.patch(
+        Uri.parse(url),
+        headers: await _buildHeaders(),
+        body: body != null ? jsonEncode(body) : null,
+      );
+      return _handleResponse<T>(response, fromJson);
+    } catch (e) {
+      return _networkError();
+    }
+  }
+
+  // =============================================
   // XỬ LÝ RESPONSE CHUNG
   // =============================================
   static ApiResponse<T> _handleResponse<T>(

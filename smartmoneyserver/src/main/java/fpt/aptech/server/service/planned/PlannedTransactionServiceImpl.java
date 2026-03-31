@@ -2,16 +2,20 @@ package fpt.aptech.server.service.planned;
 
 import fpt.aptech.server.dto.planned.PlannedTransactionRequest;
 import fpt.aptech.server.dto.planned.PlannedTransactionResponse;
+import fpt.aptech.server.dto.transaction.report.TransactionTotalDTO;
+import fpt.aptech.server.dto.transaction.view.BillTransactionListResponse;
+import fpt.aptech.server.dto.transaction.view.DailyTransactionGroup;
+import fpt.aptech.server.dto.transaction.view.TransactionResponse;
 import fpt.aptech.server.entity.*;
 import fpt.aptech.server.enums.category.SystemCategory;
-import fpt.aptech.server.enums.notification.NotificationType;
 import fpt.aptech.server.enums.transaction.TransactionSourceType;
 import fpt.aptech.server.mapper.planned.PlannedTransactionMapper;
+import fpt.aptech.server.mapper.transaction.TransactionMapper;
 import fpt.aptech.server.repos.*;
 import fpt.aptech.server.service.debt.DebtCalculationService;
-import fpt.aptech.server.service.notification.NotificationContent;
-import fpt.aptech.server.service.notification.NotificationMessages;
 import fpt.aptech.server.service.notification.NotificationService;
+import fpt.aptech.server.utils.date.DateUtils;
+import fpt.aptech.server.utils.plannedtransaction.RepeatDayBitmask;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,7 +25,9 @@ import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -35,7 +41,8 @@ public class PlannedTransactionServiceImpl implements PlannedTransactionService 
     private final TransactionRepository        transactionRepo;
     private final PlannedTransactionMapper     mapper;
     private final NotificationService          notificationService; // Inject để gửi thông báo debtFullyPaid
-    private final DebtCalculationService debtCalculationService;
+    private final DebtCalculationService       debtCalculationService;
+    private final TransactionMapper            transactionMapper; // Inject TransactionMapper
 
     // ── DEBT category IDs cần có debt_id ────────────────────────────────────
     private static final Set<Integer> DEBT_CATEGORY_IDS = Set.of(
@@ -93,12 +100,17 @@ public class PlannedTransactionServiceImpl implements PlannedTransactionService 
     }
 
     /**
-     * [1.5] Xóa Recurring — các Transaction đã tạo ra KHÔNG bị xóa.
+     * [1.5] Xóa Recurring — giữ lại Transaction nhưng cắt liên kết (set planned_id=NULL).
+     * SourceType vẫn là PLANNED (5) để tracking lịch sử.
      */
     @Override
     @Transactional
     public void deleteRecurring(Integer id, Integer userId) {
-        plannedRepo.delete(getOwnedPlanned(id, userId));
+        PlannedTransaction planned = getOwnedPlanned(id, userId);
+        // Cắt liên kết transaction (set planned_id=NULL) thay vì xóa
+        transactionRepo.clearPlannedTransactionLink(id, userId);
+        // Xóa planned
+        plannedRepo.delete(planned);
     }
 
     /**
@@ -114,7 +126,7 @@ public class PlannedTransactionServiceImpl implements PlannedTransactionService 
         if (!planned.getActive()
                 && planned.getDebt() != null
                 && Boolean.TRUE.equals(planned.getDebt().getFinished())) {
-            throw new IllegalStateException(
+            throw new IllegalArgumentException(
                     "Khoản nợ đã thanh toán xong, không thể kích hoạt lại");
         }
 
@@ -169,47 +181,76 @@ public class PlannedTransactionServiceImpl implements PlannedTransactionService 
     }
 
     /**
-     * [2.5] Xóa Bill — các Transaction đã tạo ra KHÔNG bị xóa.
+     * [2.5] Xóa Bill — giữ lại Transaction nhưng cắt liên kết (set planned_id=NULL).
+     * SourceType vẫn là PLANNED (5) để tracking lịch sử.
      */
     @Override
     @Transactional
     public void deleteBill(Integer id, Integer userId) {
-        plannedRepo.delete(getOwnedPlanned(id, userId));
+        PlannedTransaction planned = getOwnedPlanned(id, userId);
+        // Cắt liên kết transaction (set planned_id=NULL) thay vì xóa
+        transactionRepo.clearPlannedTransactionLink(id, userId);
+        // Xóa planned
+        plannedRepo.delete(planned);
     }
 
     /**
      * [2.6] User bấm "Trả tiền" → Tạo Transaction từ Bill.
-     * Bước 1 — Validate: chỉ Bill (plan_type=1) mới cần duyệt tay.
-     * Bước 2 — Tạo Transaction + cập nhật số dư ví + recalculate debt.
-     * Bước 3 — Cập nhật last_executed_at + next_due_date.
-     * Bước 4 — Kiểm tra hết hạn → active=false.
+     * Tích hợp logic kiểm tra trạng thái V2.
      */
     @Override
     @Transactional
     public PlannedTransactionResponse payBill(Integer id, Integer userId) {
+        // --- Bước 1: Lấy thông tin và validate quyền ---
         PlannedTransaction planned = getOwnedPlanned(id, userId);
+        LocalDate today = LocalDate.now();
 
-        // Bước 1: Validate loại
+        // --- Bước 2: Validate loại, chỉ cho phép Bill ---
         if (planned.getPlanType() != 1) {
-            throw new IllegalArgumentException("Chỉ hóa đơn mới cần duyệt tay");
+            throw new IllegalArgumentException("Chỉ hóa đơn (Bill) mới có thể được trả qua phương thức này.");
         }
 
-        // Bước 2: Tạo Transaction
+        // --- Bước 3: Validate trạng thái (Logic V3) ---
+        // 3.1. Kiểm tra Hết Hạn (EXPIRED)
+        if (planned.getEndDate() != null && planned.getEndDate().isBefore(today)) {
+            throw new IllegalArgumentException("Hóa đơn đã hết hạn. Vui lòng sửa lại ngày kết thúc nếu muốn tiếp tục.");
+        }
+
+        // 3.2. Kiểm tra Đã Đến Hạn thanh toán chưa
+        // Chỉ cho phép thanh toán khi ngày hiện tại >= ngày đến hạn tiếp theo
+        if (planned.getNextDueDate() != null && today.isBefore(planned.getNextDueDate())) {
+            throw new IllegalArgumentException(String.format(
+                "Chưa tới hạn thanh toán. Hóa đơn này có thể thanh toán vào ngày %s. " +
+                "Vui lòng quay lại vào ngày đến hạn để thanh toán.",
+                DateUtils.formatDisplayDate(planned.getNextDueDate())
+            ));
+        }
+
+        // 3.3. Kiểm tra Đã Trả (PAID) cho kỳ hiện tại
+        // cycleDate là ngày đại diện cho kỳ cần thanh toán
+        LocalDate cycleDate = planned.getNextDueDate() != null ? planned.getNextDueDate() : today;
+        LocalDateTime startOfCycle = cycleDate.atStartOfDay();
+        LocalDateTime endOfCycle = cycleDate.atTime(23, 59, 59);
+
+        if (transactionRepo.existsByPlannedTransactionIdAndAccountIdAndTransDateBetween(
+                planned.getId(), userId, startOfCycle, endOfCycle)) {
+            throw new IllegalArgumentException("Hóa đơn đã được thanh toán cho kỳ này.");
+        }
+
+        // --- Bước 4: Tạo Transaction ---
+        // Nếu tất cả validate đều qua, tiến hành tạo giao dịch
         createTransactionFromPlanned(planned);
 
-        // Bước 3: Cập nhật lịch
-        LocalDate today   = LocalDate.now();
-        LocalDate nextDue = calculateNextDueDate(planned, today);
+        // --- Bước 5: Cập nhật lịch trình cho kỳ tiếp theo ---
+        LocalDate nextDue = calculateNextDueDate(planned, planned.getNextDueDate());
         planned.setLastExecutedAt(today);
         planned.setNextDueDate(nextDue);
 
-        // Bước 4: Kiểm tra hết hạn
-        if (planned.getEndDate() != null && nextDue.isAfter(planned.getEndDate())) {
-            planned.setActive(false);
-        }
-
+        // --- Bước 6: Lưu và trả về DTO mới nhất ---
+        // Mapper sẽ tự động tính lại displayStatus và các label khác
         return mapper.toDto(plannedRepo.save(planned));
     }
+
 
     /**
      * [2.7] Toggle active của Bill (đánh dấu hoàn tất / chưa hoàn tất).
@@ -223,11 +264,79 @@ public class PlannedTransactionServiceImpl implements PlannedTransactionService 
     }
 
     // ════════════════════════════════════════════════════════════════════════
-    // 3. HELPER DÙNG CHUNG
+    // 3. XEM GIAO DỊCH LIÊN QUAN
     // ════════════════════════════════════════════════════════════════════════
 
     /**
-     * [3.1] Tìm PlannedTransaction và kiểm tra quyền sở hữu.
+     * [3.1] Lấy danh sách giao dịch của Hóa đơn kèm header tóm tắt.
+     * ⚠️ CHỈ BILLS (plan_type=1) — Recurring tự động, không cần màn này.
+     *
+     * Trả về 2 phần:
+     *   - summary: tổng thu (totalIncome) + tổng chi (totalExpense) → Frontend tự tính "Còn lại"
+     *   - groupedTransactions: danh sách giao dịch gom theo ngày (DailyTransactionGroup)
+     *
+     * Performance: CHỈ 1 QUERY duy nhất → tính totalIncome/totalExpense bằng Java stream
+     * (Hóa đơn có ít giao dịch, ~12-50/năm → Java stream nhanh hơn 2 queries DB)
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public BillTransactionListResponse getBillTransactions(Integer billId, Integer userId) {
+        // Bước 1: Validate Bill tồn tại, thuộc user, và đúng plan_type=1
+        PlannedTransaction bill = getOwnedPlanned(billId, userId);
+        if (bill.getPlanType() != 1) {
+            throw new IllegalArgumentException("Chỉ hóa đơn mới có danh sách giao dịch");
+        }
+
+        // Bước 2: Lấy toàn bộ giao dịch của Bill (1 query duy nhất, sắp xếp mới nhất lên đầu)
+        List<Transaction> transactions = transactionRepo
+                .findAllByPlannedTransactionIdAndAccountIdOrderByTransDateDesc(billId, userId);
+
+        // Bước 3: Tính tổng thu/chi từ list đã fetch — không cần query thêm
+        // ctgType=true → Thu nhập | ctgType=false → Chi tiêu
+        BigDecimal totalIncome = transactions.stream()
+                .filter(t -> Boolean.TRUE.equals(t.getCategory().getCtgType()))
+                .map(Transaction::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal totalExpense = transactions.stream()
+                .filter(t -> Boolean.FALSE.equals(t.getCategory().getCtgType()))
+                .map(Transaction::getAmount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        // Bước 4: Gom giao dịch theo ngày → mỗi ngày là 1 DailyTransactionGroup
+        List<DailyTransactionGroup> grouped = transactions.stream()
+                .collect(Collectors.groupingBy(t -> t.getTransDate().toLocalDate()))
+                .entrySet().stream()
+                .map(e -> {
+                    // netAmount của ngày = tổng thu - tổng chi trong ngày đó
+                    BigDecimal net = e.getValue().stream()
+                            .map(t -> Boolean.TRUE.equals(t.getCategory().getCtgType())
+                                    ? t.getAmount()          // Thu → cộng
+                                    : t.getAmount().negate()) // Chi → trừ
+                            .reduce(BigDecimal.ZERO, BigDecimal::add);
+                    return DailyTransactionGroup.builder()
+                            .date(e.getKey())
+                            .displayDateLabel(DateUtils.formatDisplayDate(e.getKey())) // VD: "Hôm nay", "Hôm qua"
+                            .netAmount(net)
+                            .transactions(transactionMapper.toDtoList(e.getValue()))
+                            .build();
+                })
+                .sorted(java.util.Comparator.comparing(DailyTransactionGroup::date).reversed()) // Mới nhất lên đầu
+                .collect(Collectors.toList());
+
+        // Bước 5: Build response trả về 2 form (header + body)
+        return BillTransactionListResponse.builder()
+                .totalCount(transactions.size())                          // Tổng số GD ("5 Kết quả")
+                .summary(new TransactionTotalDTO(totalIncome, totalExpense)) // Form 1: Header
+                .groupedTransactions(grouped)                              // Form 2: Body gom theo ngày
+                .build();
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // 4. HELPER DÙNG CHUNG
+    // ════════════════════════════════════════════════════════════════════════
+
+    /**
+     * [4.1] Tìm PlannedTransaction và kiểm tra quyền sở hữu.
      */
     private PlannedTransaction getOwnedPlanned(Integer id, Integer userId) {
         return plannedRepo.findByIdAndAccount_Id(id, userId)
@@ -236,7 +345,7 @@ public class PlannedTransactionServiceImpl implements PlannedTransactionService 
     }
 
     /**
-     * [3.2] Xây dựng PlannedTransaction mới từ Request.
+     * [4.2] Xây dựng PlannedTransaction mới từ Request.
      * Bước 1 — Validate Account, Wallet, Category, Debt.
      * Bước 2 — Tính endDate từ endDateOption.
      * Bước 3 — Build Entity.
@@ -296,25 +405,56 @@ public class PlannedTransactionServiceImpl implements PlannedTransactionService 
     }
 
     /**
-     * [3.3] Cập nhật các trường của PlannedTransaction khi edit.
+     * [4.3] Cập nhật các trường của PlannedTransaction khi edit.
      * KHÔNG đụng đến các Transaction đã tạo trước đó.
+     *
+     * Logic nextDueDate:
+     *   - beginDate đổi, = hôm nay, đã có GD hôm nay → nextDueDate = kỳ sau (tránh duplicate)
+     *   - beginDate đổi, = hôm nay, chưa có GD hôm nay → nextDueDate = hôm nay (Scheduler tạo ngay)
+     *   - beginDate đổi, > hôm nay → nextDueDate = beginDate
+     *   - beginDate giữ, repeat params đổi → tính lại từ beginDate, tiến >= hôm nay
+     *   - Cả hai giữ nguyên → nextDueDate không đổi
      */
     private void updatePlannedFields(PlannedTransaction planned,
                                      PlannedTransactionRequest req,
                                      Integer userId) {
-        // Validate Wallet
-        Wallet wallet = walletRepo.findById(req.walletId())
-                .orElseThrow(() -> new IllegalArgumentException("Ví không tồn tại"));
-        if (!wallet.getAccount().getId().equals(userId)) {
-            throw new SecurityException("Không có quyền sử dụng ví này");
+        // ── Bước 1: Detect thay đổi trước khi overwrite ──────────────────
+        LocalDate oldBeginDate = planned.getBeginDate();
+        boolean beginDateChanged = !oldBeginDate.equals(req.beginDate());
+        boolean repeatParamsChanged =
+                !Objects.equals(planned.getRepeatType(),     req.repeatType())      ||
+                        !Objects.equals(planned.getRepeatInterval(), req.repeatInterval())  ||
+                        !Objects.equals(planned.getRepeatOnDayVal(), req.repeatOnDayVal());
+
+        if (beginDateChanged && req.beginDate().isBefore(LocalDate.now())) {
+            throw new IllegalArgumentException(
+                    "Không thể sửa thời gian bắt đầu sang ngày trong quá khứ. " +
+                            "Vui lòng chọn một ngày từ hôm nay trở đi.");
         }
 
-        // Validate Category
+        // ── Bước 2: Validate Wallet, Category, Debt ──────────────────────
+        Wallet wallet = walletRepo.findById(req.walletId())
+                .orElseThrow(() -> new IllegalArgumentException("Ví không tồn tại"));
+        if (!wallet.getAccount().getId().equals(userId))
+            throw new SecurityException("Không có quyền sử dụng ví này");
+
         Category category = categoryRepo.findById(req.categoryId())
                 .orElseThrow(() -> new IllegalArgumentException("Danh mục không tồn tại"));
+        if (category.getAccount() != null && !category.getAccount().getId().equals(userId))
+            throw new SecurityException("Không có quyền sử dụng danh mục này");
 
+        Debt debt = null;
+        if (DEBT_CATEGORY_IDS.contains(req.categoryId()) && req.debtId() != null) {
+            debt = debtRepo.findById(req.debtId())
+                    .orElseThrow(() -> new IllegalArgumentException("Khoản nợ không tồn tại"));
+            if (!debt.getAccount().getId().equals(userId))
+                throw new SecurityException("Không có quyền sử dụng khoản nợ này");
+        }
+
+        // ── Bước 3: Overwrite các field ──────────────────────────────────
         planned.setWallet(wallet);
         planned.setCategory(category);
+        planned.setDebt(debt);
         planned.setAmount(req.amount());
         planned.setNote(req.note());
         planned.setRepeatType(req.repeatType());
@@ -323,19 +463,66 @@ public class PlannedTransactionServiceImpl implements PlannedTransactionService 
         planned.setBeginDate(req.beginDate());
         planned.setEndDate(calculateEndDate(req));
 
-        // FIX: Reset next_due_date nếu beginDate đổi sang tương lai
-        // → Tránh Scheduler fire ngay hôm nay dù user muốn bắt đầu sau
-        if (req.beginDate().isAfter(LocalDate.now())) {
-            planned.setNextDueDate(req.beginDate());
+        // ── Bước 4: Tính lại nextDueDate (nếu cần) ───────────────────────
+        LocalDate today = LocalDate.now();
+
+        if (beginDateChanged) {
+            LocalDate newBeginDate = req.beginDate();
+            if (newBeginDate.equals(today)) {
+                // beginDate = hôm nay → check duplicate GD hôm nay
+                boolean hasTransactionToday = transactionRepo
+                        .existsByPlannedTransactionIdAndAccountIdAndTransDateBetween(
+                                planned.getId(), userId,
+                                today.atStartOfDay(), today.atTime(23, 59, 59));
+                planned.setNextDueDate(hasTransactionToday
+                        ? calculateNextDueDate(planned, today) // đã có GD → nhảy kỳ sau
+                        : today);                              // chưa có  → Scheduler chạy ngay
+            } else {
+                planned.setNextDueDate(newBeginDate); // beginDate > hôm nay → giữ nguyên beginDate
+            }
+
+        } else if (repeatParamsChanged && planned.getNextDueDate() != null) {
+            // Lịch lặp đổi, beginDate giữ → tính lại từ beginDate rồi tiến >= hôm nay
+            LocalDate nd = calculateNextDueDate(planned, planned.getBeginDate());
+            int safety = 0;
+            while (nd.isBefore(today) && safety++ < 1000)
+                nd = calculateNextDueDate(planned, nd);
+            planned.setNextDueDate(nd);
+        }
+        // Cả hai không đổi → giữ nguyên nextDueDate hiện tại
+
+        // ── Bước 5: Fallback safety — đẩy nextDueDate lên >= hôm nay ────
+        // Bắt edge case: Case B set nextDueDate = beginDate nhưng beginDate vừa pass today
+        // (hiếm nhưng có thể xảy ra nếu request gửi trễ ngay sát nửa đêm)
+        LocalDate currentNext = planned.getNextDueDate();
+        if (currentNext != null && currentNext.isBefore(today)) {
+            LocalDate nd = currentNext;
+            int safety = 0;
+            while (nd.isBefore(today) && safety++ < 1000)
+                nd = calculateNextDueDate(planned, nd);
+            planned.setNextDueDate(nd);
         }
     }
 
     // ════════════════════════════════════════════════════════════════════════
-    // 4. TÍNH TOÁN LỊCH LẶP
+    // 5. TÍNH TOÁN LỊCH LẶP
     // ════════════════════════════════════════════════════════════════════════
 
+    // [5.0] Helper: Tính nextDueDate từ một ngày cho trước (dùng cho logic update & Scheduler)
+    public LocalDate calculateNextDueDate(PlannedTransaction p, LocalDate from) {
+        int interval = p.getRepeatInterval() != null ? p.getRepeatInterval() : 1;
+
+        return switch (p.getRepeatType()) {
+            case 1 -> from.plusDays(interval);
+            case 2 -> calculateNextWeekDay(p.getRepeatOnDayVal(), from, interval);
+            case 3 -> from.plusMonths(interval);
+            case 4 -> from.plusYears(interval);
+            default -> from.plusMonths(1);
+        };
+    }
+
     /**
-     * [4.1] Tính endDate từ endDateOption.
+     * [5.1] Tính endDate từ endDateOption.
      * - FOREVER    → null (lặp mãi mãi)
      * - UNTIL_DATE → endDateValue (ngày cụ thể)
      * - COUNT      → tính từ beginDate + interval * (count - 1)
@@ -351,7 +538,7 @@ public class PlannedTransactionServiceImpl implements PlannedTransactionService 
     }
 
     /**
-     * [4.2] Tính endDate khi user chọn "Lặp X lần".
+     * [5.2] Tính endDate khi user chọn "Lặp X lần".
      *
      * Dùng (count - 1) vì begin_date đã tính là lần chạy thứ 1.
      * Ví dụ: count=3, daily, start=14/03
@@ -375,23 +562,7 @@ public class PlannedTransactionServiceImpl implements PlannedTransactionService 
     }
 
     /**
-     * [4.3] Tính next_due_date sau khi Scheduler chạy xong 1 kỳ.
-     * Được gọi bởi: Scheduler (processRecurring, processBill) và payBill().
-     */
-    public LocalDate calculateNextDueDate(PlannedTransaction p, LocalDate from) {
-        int interval = p.getRepeatInterval() != null ? p.getRepeatInterval() : 1;
-
-        return switch (p.getRepeatType()) {
-            case 1 -> from.plusDays(interval);
-            case 2 -> calculateNextWeekDay(p.getRepeatOnDayVal(), from, interval);
-            case 3 -> from.plusMonths(interval);
-            case 4 -> from.plusYears(interval);
-            default -> from.plusMonths(1); // Fallback an toàn
-        };
-    }
-
-    /**
-     * [4.4] Tính ngày kế tiếp trong tuần theo bitmask, hỗ trợ intervalWeeks > 1.
+     * [5.3] Tính ngày kế tiếp trong tuần theo bitmask, hỗ trợ intervalWeeks > 1.
      *
      * Logic:
      *   Bước 1 — Tìm ngày hợp lệ còn lại trong TUẦN HIỆN TẠI.
@@ -404,8 +575,13 @@ public class PlannedTransactionServiceImpl implements PlannedTransactionService 
     private LocalDate calculateNextWeekDay(Integer bitmask, LocalDate from, int intervalWeeks) {
         if (bitmask == null || bitmask == 0) return from.plusWeeks(intervalWeeks);
 
-        // Map DayOfWeek Java (MON=1..SUN=7) → bitmask project (CN=1, T2=2, T3=4, T4=8, T5=16, T6=32, T7=64)
-        int[] javaToMask = {0, 2, 4, 8, 16, 32, 64, 1}; // index 0 unused
+        // ✅ Dùng RepeatDayBitmask util thay vì inline magic numbers
+        // Map DayOfWeek Java (MON=1..SUN=7) → bitmask project
+        int[] javaToMask = {0,
+                RepeatDayBitmask.MONDAY, RepeatDayBitmask.TUESDAY,
+                RepeatDayBitmask.WEDNESDAY, RepeatDayBitmask.THURSDAY,
+                RepeatDayBitmask.FRIDAY, RepeatDayBitmask.SATURDAY,
+                RepeatDayBitmask.SUNDAY};
 
         // Bước 1: Tìm ngày hợp lệ còn lại trong tuần hiện tại (tối đa 6 ngày)
         for (int offset = 1; offset <= 6; offset++) {
@@ -427,11 +603,11 @@ public class PlannedTransactionServiceImpl implements PlannedTransactionService 
     }
 
     // ════════════════════════════════════════════════════════════════════════
-    // 5. TẠO TRANSACTION + CẬP NHẬT SỐ DƯ + RECALCULATE DEBT
+    // 6. TẠO TRANSACTION + CẬP NHẬT SỐ DƯ + RECALCULATE DEBT
     // ════════════════════════════════════════════════════════════════════════
 
     /**
-     * [5.1] Tạo Transaction từ PlannedTransaction.
+     * [6.1] Tạo Transaction từ PlannedTransaction.
      * Được gọi bởi:
      *   - PlannedTransactionScheduler.processRecurring() — tự động hàng ngày
      *   - payBill() — user bấm "Trả tiền"
@@ -449,6 +625,7 @@ public class PlannedTransactionServiceImpl implements PlannedTransactionService 
                 .wallet(planned.getWallet())
                 .category(planned.getCategory())
                 .debt(planned.getDebt())
+                .plannedTransaction(planned) // ✅ Link FK planned_id
                 .amount(planned.getAmount())
                 .note(planned.getNote() != null
                         ? planned.getNote()
@@ -461,6 +638,13 @@ public class PlannedTransactionServiceImpl implements PlannedTransactionService 
 
         // Bước 2: Cập nhật số dư ví
         Wallet wallet = planned.getWallet();
+        // [6.1] Bảo vệ: Không cho phép ví bị âm (nếu nghiệp vụ yêu cầu)
+        // Nếu là CHI (isIncome == false) và số dư hiện tại < amount -> chặn
+        if (!isIncome && wallet.getBalance().compareTo(planned.getAmount()) < 0) {
+            throw new IllegalArgumentException("Ví '" + wallet.getWalletName() + "' hiện có "
+                    + wallet.getBalance().toPlainString() + " không đủ để thực hiện giao dịch");
+        }
+
         wallet.setBalance(isIncome
                 ? wallet.getBalance().add(planned.getAmount())
                 : wallet.getBalance().subtract(planned.getAmount()));
@@ -476,7 +660,7 @@ public class PlannedTransactionServiceImpl implements PlannedTransactionService 
     }
 
     /**
-     * [5.2] Tính lại trạng thái khoản nợ sau mỗi transaction định kỳ.
+     * [6.2] Tính lại trạng thái khoản nợ sau mỗi transaction định kỳ.
      *
      * Bước 1 — Tính totalAmount từ Cho vay + Đi vay.
      * Bước 2 — Tính paidAmount từ Thu nợ + Trả nợ.

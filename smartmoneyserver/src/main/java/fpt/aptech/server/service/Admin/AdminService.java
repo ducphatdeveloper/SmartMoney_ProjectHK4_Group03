@@ -15,21 +15,28 @@ public interface AdminService {
     void lockAccount(Integer id);
 
     void unlockAccount(Integer id);
+
     // Tổng quan Dashboard
     Map<String, Object> getDashboardOverview();
 
-
+    // Lấy thông báo hệ thống (SYSTEM) để Admin giám sát
     List<Notification> getAdminNotifications(Integer adminId);
 
-    // Thống kê giao dịch toàn hệ thống (Pie chart)
+    // Thống kê phân bổ giao dịch toàn hệ thống (Tính % trên 100% Volume, hỗ trợ cha-con)
     Map<String, Object> getSystemTransactionStats(String rangeMode);
 
+    // Đếm số lượng người dùng đang trực tuyến (Online)
     long countOnlineUsers();
-    // Thống kê ngân sách vượt mức (Overspent budgets)
 
-    // Cảnh báo giao dịch bất thường (giá trị lớn)
+    // Lấy toàn bộ danh sách người dùng đang trực tuyến (Tối ưu hóa mapping)
+    List<AccountDto> getAllLiveOnlineUsers();
+
+    // Quét và gửi cảnh báo giao dịch bất thường (Thông báo SYSTEM tổng hợp)
     void notifyAbnormalTransactions(BigDecimal threshold);
 
-    // Lấy danh sách người dùng có giao dịch bất thường
+    // Lấy danh sách đối soát người dùng có giao dịch bất thường trên Dashboard
     List<Map<String, Object>> getAbnormalTransactionUsers(BigDecimal threshold);
+
+    // Tự động đăng xuất (thu hồi session) cho các người dùng đã ngoại tuyến quá hạn
+    void handleAutoLogout();
 }

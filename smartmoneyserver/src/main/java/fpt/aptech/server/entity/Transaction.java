@@ -52,6 +52,13 @@ public class Transaction {
     @JoinColumn(name = "ai_chat_id")
     private AIConversation aiConversation;
 
+    // ✅ THÊM: Link giao dịch về PlannedTransaction gốc (nullable)
+    // Chỉ có giá trị khi source_type = 5 (PLANNED)
+    // Flutter dùng để: "Xem danh sách giao dịch thuộc hóa đơn này"
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "planned_id")
+    private PlannedTransaction plannedTransaction;
+
     @Column(name = "amount", nullable = false, precision = 18, scale = 2)
     private BigDecimal amount;
 

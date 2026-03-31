@@ -104,13 +104,11 @@ public class WalletServiceImpl implements WalletService {
 
     /**
      * [2.1] Cập nhật thông tin ví.
-     * Bước 1 — Tìm ví và kiểm tra quyền sở hữu.
-     * Bước 2 — Cập nhật các trường được phép sửa.
-     *
-     * Lưu ý: balance được update thẳng ở đây (không tạo transaction điều chỉnh).
-     * Nếu sau này muốn đảm bảo toàn vẹn dữ liệu, cần tạo transaction điều chỉnh tương ứng.
+     * - So sánh số dư cũ và mới để tạo giao dịch "Điều chỉnh số dư" nếu cần.
+     * - Cập nhật các thông tin khác của ví.
      */
     @Override
+    @Transactional
     public WalletResponse updateWallet(Integer accountId, Integer walletId, WalletRequest request) {
         // Bước 1: Tìm ví và kiểm tra quyền
         Wallet wallet = walletRepository.findById(walletId)
@@ -119,9 +117,41 @@ public class WalletServiceImpl implements WalletService {
             throw new SecurityException("Bạn không có quyền sửa ví này");
         }
 
-        // Bước 2: Cập nhật các trường
+        // Bước 2: Xử lý điều chỉnh số dư
+        if (request.getBalance() != null) {
+            BigDecimal currentBalance = wallet.getBalance();
+            BigDecimal newBalance = request.getBalance();
+            int comparison = newBalance.compareTo(currentBalance);
+
+            if (comparison != 0) { // Chỉ tạo giao dịch khi số dư thay đổi
+                BigDecimal adjustmentAmount = newBalance.subtract(currentBalance).abs();
+                boolean isIncome = comparison > 0; // true nếu số dư mới > số dư cũ (THU)
+
+                // Xác định category tương ứng
+                SystemCategory systemCategory = isIncome ? SystemCategory.INCOME_OTHER : SystemCategory.OTHER_EXPENSE;
+                Category category = categoryRepository.findById(systemCategory.getId())
+                        .orElseThrow(() -> new IllegalStateException("Không tìm thấy danh mục hệ thống: " + systemCategory.name()));
+
+                // Tạo giao dịch điều chỉnh
+                Transaction adjustmentTransaction = Transaction.builder()
+                        .account(wallet.getAccount())
+                        .wallet(wallet)
+                        .category(category)
+                        .amount(adjustmentAmount)
+                        .note("Điều chỉnh số dư")
+                        .reportable(false) // Giao dịch điều chỉnh không tính vào báo cáo
+                        .transDate(LocalDateTime.now())
+                        .build();
+
+                transactionRepository.save(adjustmentTransaction);
+
+                // Cập nhật số dư mới cho ví
+                wallet.setBalance(newBalance);
+            }
+        }
+
+        // Bước 3: Cập nhật các thông tin khác
         if (request.getWalletName() != null)  wallet.setWalletName(request.getWalletName());
-        if (request.getBalance()    != null)  wallet.setBalance(request.getBalance());
         if (request.getNotified()   != null)  wallet.setNotified(request.getNotified());
         if (request.getReportable() != null)  wallet.setReportable(request.getReportable());
         if (request.getGoalImageUrl() != null) wallet.setGoalImageUrl(request.getGoalImageUrl());
@@ -131,8 +161,8 @@ public class WalletServiceImpl implements WalletService {
             wallet.setCurrency(currency);
         }
 
-        walletRepository.save(wallet);
-        return mapToResponse(wallet);
+        Wallet savedWallet = walletRepository.save(wallet);
+        return mapToResponse(savedWallet);
     }
 
     // =================================================================================
