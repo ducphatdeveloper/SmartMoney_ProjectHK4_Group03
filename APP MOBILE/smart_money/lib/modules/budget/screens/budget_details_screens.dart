@@ -1,8 +1,12 @@
-import 'package:smart_money/modules/budget/models/budget_response.dart';
-import 'package:smart_money/modules/transaction/models/view/transaction_response.dart';
+// ignore_for_file: use_build_context_synchronously
+
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
-import 'package:smart_money/modules/budget/screens/edit_details_screens.dart';
+
+import 'package:smart_money/modules/budget/models/budget_response.dart';
+import 'package:smart_money/modules/transaction/models/view/transaction_response.dart';
+import 'edit_details_screens.dart';
 
 class BudgetDetailScreen extends StatefulWidget {
   final BudgetResponse budget;
@@ -18,129 +22,220 @@ class BudgetDetailScreen extends StatefulWidget {
   State<BudgetDetailScreen> createState() => _BudgetDetailScreenState();
 }
 
-class _BudgetDetailScreenState extends State<BudgetDetailScreen> {
+class _BudgetDetailScreenState extends State<BudgetDetailScreen>
+    with SingleTickerProviderStateMixin {
   late BudgetResponse budget;
+
+  bool showTransactions = false;
+
+  late AnimationController _controller;
+  late Animation<double> _animation;
 
   @override
   void initState() {
     super.initState();
     budget = widget.budget;
+
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 700),
+    );
+
+    _animation = CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeOutCubic,
+    );
+
+    _controller.forward();
   }
 
   @override
   Widget build(BuildContext context) {
-    /// ================= TÍNH TOÁN AN TOÀN =================
+    final spent =
+    widget.transactions.fold<double>(0.0, (s, t) => s + t.amount);
 
-    final spent = widget.transactions.fold<double>(0, (s, t) => s + t.amount);
-
-    /// tránh chia cho 0
-    final double total = budget.amount <= 0 ? 1 : budget.amount;
-
+    final total = (budget.amount <= 0 ? 1 : budget.amount).toDouble();
     final remaining = total - spent;
-
     final percent = (spent / total).clamp(0.0, 1.0);
-
     final isOver = spent > total;
 
-    /// mock tháng trước (an toàn)
     final lastMonthSpent = spent * 0.75;
     final diffPercent = lastMonthSpent == 0
         ? 0
         : (((spent - lastMonthSpent) / lastMonthSpent) * 100).toInt();
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text("Budget #${budget.id}"),
-        centerTitle: true,
-        actions: [
-          IconButton(icon: const Icon(Icons.edit), onPressed: _editBudget),
-        ],
+      backgroundColor: Colors.transparent,
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              Color(0xFF0B0F14),
+              Color(0xFF121821),
+              Color(0xFF1A2230),
+            ],
+          ),
+        ),
+        child: SafeArea(
+          child: Column(
+            children: [
+              _appBar(),
+              Expanded(
+                child: ListView(
+                  padding: const EdgeInsets.all(16),
+                  children: [
+                    _pieChart(percent, spent, total),
+                    const SizedBox(height: 16),
+                    _summary(spent, remaining, isOver),
+                    if (isOver) ...[
+                      const SizedBox(height: 12),
+                      _warning(),
+                    ],
+                    const SizedBox(height: 16),
+                    _compare(diffPercent),
+                    const SizedBox(height: 16),
+                    _transactionSection(),
+                    const SizedBox(height: 20),
+                    _deleteButton(),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
+    );
+  }
+
+  // ================= APP BAR =================
+
+  Widget _appBar() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      child: Row(
         children: [
-          _pieChart(percent, spent, total),
-          const SizedBox(height: 24),
-          _summary(spent, remaining, isOver),
-          if (isOver) _warning(),
-          const SizedBox(height: 24),
-          _compare(diffPercent),
-          const SizedBox(height: 24),
-          _transactionList(),
+          IconButton(
+            onPressed: () => Navigator.pop(context),
+            icon: const Icon(Icons.arrow_back),
+          ),
+          Expanded(
+            child: Text(
+              "Budget #${budget.id}",
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+          IconButton(
+            onPressed: _editBudget,
+            icon: const Icon(Icons.edit),
+          ),
         ],
       ),
     );
   }
 
-  // ================= PIE CHART =================
+  // ================= GLASS =================
+
+  Widget glassCard({required Widget child}) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.05),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.white.withOpacity(0.05)),
+          ),
+          child: child,
+        ),
+      ),
+    );
+  }
+
+  // ================= PIE CHART (ANIMATION) =================
 
   Widget _pieChart(double percent, double spent, double total) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1C1C1E),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Column(
-        children: [
-          SizedBox(
-            height: 260, // TO HƠN
-            child: PieChart(
-              PieChartData(
-                centerSpaceRadius: 90,
-                sectionsSpace: 3,
-                sections: [
-                  PieChartSectionData(
-                    value: spent <= 0 ? 0.1 : spent,
-                    color: Colors.orange,
-                    radius: 70,
-                    title: "${(percent * 100).toInt()}%",
-                    titleStyle: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
+    return AnimatedBuilder(
+      animation: _animation,
+      builder: (_, __) {
+        final animated = percent * _animation.value;
+
+        return glassCard(
+          child: Column(
+            children: [
+              SizedBox(
+                height: 180,
+                child: Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    PieChart(
+                      PieChartData(
+                        centerSpaceRadius: 55,
+                        sectionsSpace: 2,
+                        sections: [
+                          PieChartSectionData(
+                            value: animated,
+                            color: const Color(0xFF5B8DEF),
+                            radius: 22,
+                            title: "",
+                          ),
+                          PieChartSectionData(
+                            value: 1 - animated,
+                            color: Colors.white.withOpacity(0.06),
+                            radius: 20,
+                            title: "",
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                  PieChartSectionData(
-                    value: (total - spent).clamp(0, double.infinity),
-                    color: Colors.grey.shade700,
-                    radius: 65,
-                    title: "",
-                  ),
-                ],
+                    Text(
+                      "${(animated * 100).toInt()}%",
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
+              const SizedBox(height: 6),
+              Text("${spent.toInt()} / ${total.toInt()} đ"),
+            ],
           ),
-          const SizedBox(height: 12),
-          Text(
-            "${spent.toInt()} / ${budget.amount.toInt()} đ",
-            style: const TextStyle(fontWeight: FontWeight.bold),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 
   // ================= SUMMARY =================
 
   Widget _summary(double spent, double remaining, bool isOver) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        _info("Mục tiêu", budget.amount),
-        _info("Đã chi", spent),
-        _info(
-          isOver ? "Vượt" : "Còn lại",
-          remaining.abs(),
-          color: isOver ? Colors.red : Colors.green,
-        ),
-      ],
+    return glassCard(
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceAround,
+        children: [
+          _info(Icons.flag, "Mục tiêu", budget.amount),
+          _info(Icons.wallet, "Đã chi", spent),
+          _info(
+            Icons.savings,
+            isOver ? "Vượt" : "Còn",
+            remaining.abs(),
+            color: isOver ? Colors.red : Colors.green,
+          ),
+        ],
+      ),
     );
   }
 
-  Widget _info(String label, double value, {Color? color}) {
+  Widget _info(IconData icon, String label, double value, {Color? color}) {
     return Column(
       children: [
-        Text(label, style: const TextStyle(color: Colors.grey)),
+        Icon(icon, color: color ?? Colors.white70),
+        const SizedBox(height: 6),
+        Text(label, style: const TextStyle(fontSize: 12)),
         const SizedBox(height: 4),
         Text(
           "${value.toInt()} đ",
@@ -156,23 +251,12 @@ class _BudgetDetailScreenState extends State<BudgetDetailScreen> {
   // ================= WARNING =================
 
   Widget _warning() {
-    return Container(
-      margin: const EdgeInsets.only(top: 16),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.red.withOpacity(0.15),
-        borderRadius: BorderRadius.circular(12),
-      ),
+    return glassCard(
       child: const Row(
         children: [
-          Icon(Icons.warning, color: Colors.red),
+          Icon(Icons.warning_amber_rounded, color: Colors.red),
           SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              "Bạn đã vượt quá ngân sách!",
-              style: TextStyle(color: Colors.red),
-            ),
-          ),
+          Expanded(child: Text("Bạn đã vượt ngân sách")),
         ],
       ),
     );
@@ -181,64 +265,140 @@ class _BudgetDetailScreenState extends State<BudgetDetailScreen> {
   // ================= COMPARE =================
 
   Widget _compare(int diff) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1C1C1E),
-        borderRadius: BorderRadius.circular(16),
-      ),
+    final isUp = diff >= 0;
+
+    return glassCard(
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           const Text("So với tháng trước"),
-          Row(
-            children: [
-              Icon(
-                diff >= 0 ? Icons.trending_up : Icons.trending_down,
-                color: diff >= 0 ? Colors.red : Colors.green,
-              ),
-              const SizedBox(width: 4),
-              Text(
-                "${diff.abs()}%",
-                style: TextStyle(
-                  color: diff >= 0 ? Colors.red : Colors.green,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
+          Text(
+            "${diff.abs()}%",
+            style: TextStyle(
+              color: isUp ? Colors.red : Colors.green,
+              fontWeight: FontWeight.bold,
+            ),
           ),
         ],
       ),
     );
   }
 
-  // ================= TRANSACTIONS =================
+  // ================= TRANSACTION TOGGLE =================
+
+  Widget _transactionSection() {
+    return Column(
+      children: [
+        GestureDetector(
+          onTap: () {
+            setState(() {
+              showTransactions = !showTransactions;
+            });
+          },
+          child: glassCard(
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text("Danh sách giao dịch"),
+                Icon(
+                  showTransactions
+                      ? Icons.expand_less
+                      : Icons.expand_more,
+                ),
+              ],
+            ),
+          ),
+        ),
+        if (showTransactions) ...[
+          const SizedBox(height: 10),
+          _transactionList(),
+        ]
+      ],
+    );
+  }
+
+  // ================= TRANSACTION LIST =================
 
   Widget _transactionList() {
     if (widget.transactions.isEmpty) {
-      return const Center(child: Text("Chưa có giao dịch"));
+      return const Padding(
+        padding: EdgeInsets.all(12),
+        child: Text("Chưa có giao dịch"),
+      );
     }
 
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text("Giao dịch", style: TextStyle(fontWeight: FontWeight.bold)),
-        const SizedBox(height: 12),
-        ...widget.transactions.map((t) {
-          return Container(
-            margin: const EdgeInsets.only(bottom: 8),
-            decoration: BoxDecoration(
-              color: const Color(0xFF1C1C1E),
-              borderRadius: BorderRadius.circular(12),
+      children: widget.transactions.map((t) {
+        return Container(
+          margin: const EdgeInsets.only(bottom: 8),
+          child: glassCard(
+            child: Row(
+              children: [
+                const Icon(Icons.shopping_cart, size: 18),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    "${t.transDate.day}/${t.transDate.month}",
+                    style: const TextStyle(fontSize: 13),
+                  ),
+                ),
+                Text(
+                  "-${t.amount.toInt()} đ",
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ],
             ),
-            child: ListTile(
-              leading: const Icon(Icons.money),
-              title: Text("${t.amount.toInt()} đ"),
-              subtitle: Text("${t.transDate.day}/${t.transDate.month}/${t.transDate.year}"),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  // ================= DELETE =================
+
+  Widget _deleteButton() {
+    return GestureDetector(
+      onTap: _confirmDelete,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        decoration: BoxDecoration(
+          color: Colors.red.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: const Center(
+          child: Text(
+            "Xóa ngân sách",
+            style: TextStyle(
+              color: Colors.red,
+              fontWeight: FontWeight.bold,
             ),
-          );
-        }),
-      ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _confirmDelete() {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text("Xóa ngân sách"),
+        content: const Text("Bạn chắc chưa?"),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Hủy"),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              Navigator.pop(context, "deleted");
+            },
+            child: const Text("Xóa",
+                style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
     );
   }
 
@@ -247,29 +407,15 @@ class _BudgetDetailScreenState extends State<BudgetDetailScreen> {
   void _editBudget() async {
     final updated = await Navigator.push<BudgetResponse>(
       context,
-      MaterialPageRoute(builder: (_) => EditBudgetDetailScreen(budget: budget)),
+      MaterialPageRoute(
+        builder: (_) => EditBudgetDetailScreen(budget: budget),
+      ),
     );
 
     if (updated != null) {
-      final oldAmount = budget.amount;
-
       setState(() {
         budget = updated;
       });
-
-      final diff = updated.amount - oldAmount;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            diff == 0
-                ? "Không thay đổi ngân sách"
-                : diff > 0
-                ? "Tăng ${diff.toInt()} đ"
-                : "Giảm ${diff.abs().toInt()} đ",
-          ),
-        ),
-      );
     }
   }
 }

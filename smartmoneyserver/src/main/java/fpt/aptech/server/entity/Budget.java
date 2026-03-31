@@ -1,5 +1,6 @@
 package fpt.aptech.server.entity;
 
+import fpt.aptech.server.enums.budget.BudgetType;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -62,4 +63,8 @@ public class Budget {
             inverseJoinColumns = @JoinColumn(name = "ctg_id")
     )
     private Set<Category> categories;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "budget_type", nullable = false)
+    private BudgetType budgetType;
 }

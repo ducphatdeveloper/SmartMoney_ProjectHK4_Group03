@@ -5,6 +5,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'core/routing/app_router.dart';
 import 'modules/auth/providers/auth_provider.dart';
+import 'modules/budget/providers/budget_provider.dart';
 import 'modules/wallet/providers/wallet_provider.dart';
 import 'modules/transaction/providers/transaction_provider.dart';
 import 'modules/category/providers/category_provider.dart';
@@ -27,10 +28,19 @@ void main() async {
   // Đăng ký tất cả Service vào getIt
   setupDependencies();
 
-  runApp(
-    MultiProvider(
+  runApp(const MyApp());
+
+}
+
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => AuthProvider()),
+        ChangeNotifierProvider(create: (_) => BudgetProvider()),
         ChangeNotifierProvider(create: (_) => WalletProvider()),
         ChangeNotifierProvider(create: (_) => TransactionProvider()),
         ChangeNotifierProvider(create: (_) => CategoryProvider()),
@@ -41,9 +51,15 @@ void main() async {
         ChangeNotifierProvider(create: (_) => SavingGoalProvider()),
       ],
       child: const SmartMoneyApp(),
-    ),
-  );
+    );
+  }
 }
+
+
+
+
+
+
 
 class SmartMoneyApp extends StatelessWidget {
   const SmartMoneyApp({super.key});

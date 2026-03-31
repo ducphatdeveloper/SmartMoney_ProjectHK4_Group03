@@ -18,9 +18,17 @@ public interface BudgetRepository extends JpaRepository<Budget, Integer> {
     // =================================================================================
 
     /// [ACTIVE] Ngân sách đang hoạt động (endDate >= today)
-    @Query("SELECT b FROM Budget b WHERE b.account.id = :accountId AND b.endDate >= :today ORDER BY b.beginDate DESC")
-    List<Budget> findActiveBudgetsByAccountId(@Param("accountId") Integer accountId, @Param("today") LocalDate today);
-
+    @Query("""
+            SELECT b FROM Budget b
+            WHERE b.account.id = :accountId
+            AND b.wallet.id = :walletId
+            AND b.endDate >= :today
+            ORDER BY b.beginDate DESC
+            """)
+    List<Budget> findActiveBudgetsByAccountId(
+            Integer accountId,
+            Integer walletId,
+            LocalDate today);
     /// [EXPIRED] Ngân sách đã kết thúc (endDate < today)
     @Query("SELECT b FROM Budget b WHERE b.account.id = :accountId AND b.endDate < :today ORDER BY b.endDate DESC")
     List<Budget> findExpiredBudgetsByAccountId(@Param("accountId") Integer accountId, @Param("today") LocalDate today);
@@ -46,4 +54,33 @@ public interface BudgetRepository extends JpaRepository<Budget, Integer> {
     @Query("SELECT b FROM Budget b WHERE b.beginDate <= :endDate AND b.endDate >= :startDate")
     List<Budget> findAllActiveBudgetsInRange(@Param("startDate") LocalDate startDate,
                                              @Param("endDate") LocalDate endDate);
+
+    @Query("""
+SELECT b FROM Budget b
+WHERE b.account.id = :accId
+AND b.endDate >= :now
+AND (:walletId IS NULL OR b.wallet.id = :walletId)
+ORDER BY b.beginDate DESC
+""")
+    List<Budget> getBudgets(Long accId, LocalDate now, Long walletId);
+
+    @Query("""
+SELECT b FROM Budget b
+WHERE b.account.id = :accountId
+AND (:excludeId IS NULL OR b.id <> :excludeId)
+
+/* Wallet match */
+AND b.wallet.id = :walletId
+
+/* Time overlap */
+AND b.beginDate <= :endDate
+AND b.endDate >= :beginDate
+""")
+    List<Budget> findConflictingBudgets(
+            @Param("accountId") Integer accountId,
+            @Param("walletId") Integer walletId,
+            @Param("beginDate") LocalDate beginDate,
+            @Param("endDate") LocalDate endDate,
+            @Param("excludeId") Integer excludeId
+    );
 }

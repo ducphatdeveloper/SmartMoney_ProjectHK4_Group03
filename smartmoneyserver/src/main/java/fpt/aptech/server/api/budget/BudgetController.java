@@ -29,9 +29,12 @@ public class BudgetController {
     @GetMapping
     @PreAuthorize("hasAuthority('USER_STANDARD_MANAGE')")
     public ResponseEntity<ApiResponse<List<BudgetResponse>>> getBudgets(
+            @RequestParam(required = false) Integer walletId,
             @AuthenticationPrincipal Account currentUser) {
+
         return ResponseEntity.ok(ApiResponse.success(
-                budgetService.getBudgets(currentUser.getId())));
+                budgetService.getBudgets(currentUser.getId(), walletId)
+        ));
     }
 
     /// Ngân sách đã kết thúc (endDate < today)

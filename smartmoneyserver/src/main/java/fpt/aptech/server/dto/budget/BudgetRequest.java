@@ -1,5 +1,6 @@
 package fpt.aptech.server.dto.budget;
 
+import fpt.aptech.server.enums.budget.BudgetType;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.NotNull;
 import lombok.Builder;
@@ -20,6 +21,7 @@ public record BudgetRequest(
         @NotNull(message = "Ngày kết thúc không được để trống")
         LocalDate endDate,
 
+        @NotNull(message = "Wallet không được để trống")
         Integer walletId,       // null → áp dụng cho tất cả ví
 
         @NotNull(message = "allCategories không được để trống")
@@ -30,5 +32,9 @@ public record BudgetRequest(
         // id con → chỉ con đó
 
         @NotNull(message = "repeating không được để trống")
-        Boolean repeating       // true → tự động tạo ngân sách mới khi hết kỳ
+        Boolean repeating   ,    // true → tự động tạo ngân sách mới khi hết kỳ
+
+        @NotNull(message = "Loại ngân sách không được để trống")
+        BudgetType budgetType
+
 ) {}

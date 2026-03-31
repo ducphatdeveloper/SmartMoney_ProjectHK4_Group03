@@ -25,10 +25,13 @@ import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
+import java.time.temporal.WeekFields;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
+
+import static fpt.aptech.server.enums.budget.BudgetType.MONTHLY;
 
 @Service
 @RequiredArgsConstructor
@@ -48,9 +51,17 @@ public class BudgetServiceImpl implements BudgetService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<BudgetResponse> getBudgets(Integer userId) {
-        List<Budget> budgets = budgetRepository.findActiveBudgetsByAccountId(userId, LocalDate.now());
-        return budgets.stream().map(this::toBudgetResponse).collect(Collectors.toList());
+    public List<BudgetResponse> getBudgets(Integer userId, Integer walletId) {
+
+        List<Budget> budgets = budgetRepository
+                .getBudgets(userId.longValue(), LocalDate.now(), walletId.longValue());
+        if (walletId == null) {
+            throw new IllegalArgumentException("Phải chọn ví");
+        }
+
+        return budgets.stream()
+                .map(this::toBudgetResponse)
+                .collect(Collectors.toList());
     }
 
     @Override
@@ -92,22 +103,29 @@ public class BudgetServiceImpl implements BudgetService {
     @Transactional
     public BudgetResponse createBudget(BudgetRequest request, Integer userId) {
         validateDates(request.beginDate(), request.endDate());
-
+        //bắt lỗi
+        validateDuplicateBudget(request, userId, null);
         Account currentUser = accountRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("Tài khoản không tồn tại"));
 
+        Wallet wallet = walletRepository.findById(request.walletId())
+                .orElseThrow(() -> new IllegalArgumentException("Ví không tồn tại"));
+
+
         Budget budget = Budget.builder()
                 .account(currentUser)
+                .wallet(wallet)
                 .amount(request.amount())
                 .beginDate(request.beginDate())
                 .endDate(request.endDate())
                 .allCategories(request.allCategories())
                 .repeating(request.repeating())
                 .categories(new HashSet<>())
+                .budgetType(request.budgetType()) // thêm mới
                 .build();
 
-        // Gán Wallet (nếu có)
-        applyWallet(budget, request.walletId(), userId);
+//        // Gán Wallet (nếu có)
+//        applyWallet(budget, request.walletId(), userId);
 
         // Gán Categories
         applyCategories(budget, request.allCategories(), request.categoryId(), userId);
@@ -120,17 +138,22 @@ public class BudgetServiceImpl implements BudgetService {
     @Transactional
     public BudgetResponse updateBudget(Integer budgetId, BudgetRequest request, Integer userId) {
         validateDates(request.beginDate(), request.endDate());
-
+        validateDuplicateBudget(request, userId, budgetId);
         Budget budget = getOwnedBudget(budgetId, userId);
 
+        Wallet wallet = walletRepository.findById(request.walletId())
+                .orElseThrow(() -> new IllegalArgumentException("Ví không tồn tại"));
+
         budget.setAmount(request.amount());
+        budget.setWallet(wallet);
         budget.setBeginDate(request.beginDate());
         budget.setEndDate(request.endDate());
         budget.setAllCategories(request.allCategories());
         budget.setRepeating(request.repeating());
+        budget.setBudgetType(request.budgetType()); //thêm mới
 
-        // Cập nhật Wallet
-        applyWallet(budget, request.walletId(), userId);
+//        // Cập nhật Wallet
+//        applyWallet(budget, request.walletId(), userId);
 
         // Cập nhật Categories
         budget.getCategories().clear();
@@ -164,18 +187,18 @@ public class BudgetServiceImpl implements BudgetService {
     /**
      * Gán Wallet cho Budget, hoặc set null nếu walletId=null (áp dụng tất cả ví).
      */
-    private void applyWallet(Budget budget, Integer walletId, Integer userId) {
-        if (walletId != null) {
-            Wallet wallet = walletRepository.findById(walletId)
-                    .orElseThrow(() -> new IllegalArgumentException("Ví không tồn tại"));
-            if (!wallet.getAccount().getId().equals(userId)) {
-                throw new SecurityException("Không có quyền sử dụng ví này");
-            }
-            budget.setWallet(wallet);
-        } else {
-            budget.setWallet(null);
-        }
-    }
+//    private void applyWallet(Budget budget, Integer walletId, Integer userId) {
+//        if (walletId != null) {
+//            Wallet wallet = walletRepository.findById(walletId)
+//                    .orElseThrow(() -> new IllegalArgumentException("Ví không tồn tại"));
+//            if (!wallet.getAccount().getId().equals(userId)) {
+//                throw new SecurityException("Không có quyền sử dụng ví này");
+//            }
+//            budget.setWallet(wallet);
+//        } else {
+//            budget.setWallet(null);
+//        }
+//    }
 
     /**
      * Gán Categories cho Budget.
@@ -231,80 +254,293 @@ public class BudgetServiceImpl implements BudgetService {
 
     /**
      * Build BudgetResponse đầy đủ với các chỉ số tính toán.
-     * 
+     *
      * 1. primaryCategoryId & primaryCategoryIconUrl: Lấy danh mục chính để Flutter hiển thị icon
      *    - Nếu allCategories=false: Lấy danh mục đầu tiên từ categories set
      *    - Nếu allCategories=true: Set null (Flutter sẽ dùng icon mặc định)
      * 2. Tính tổng chi tiêu, số dư, và các chỉ số dự đoán
      */
+
+    private void validateDuplicateBudget(BudgetRequest request,
+                                         Integer userId,
+                                         Integer excludeId) {
+
+        List<Budget> conflicts = budgetRepository.findConflictingBudgets(
+                userId,
+                request.walletId(),
+                request.beginDate(),
+                request.endDate(),
+                excludeId
+        );
+
+        // ================================
+        // 1. LẤY CATEGORY REQUEST
+        // ================================
+        Set<Integer> requestCategoryIds = new HashSet<>();
+
+        boolean isAllCategory = Boolean.TRUE.equals(request.allCategories());
+
+        if (!isAllCategory) {
+            Category selected = categoryRepository.findById(request.categoryId())
+                    .orElseThrow(() -> new IllegalArgumentException("Danh mục không tồn tại"));
+
+            requestCategoryIds.add(selected.getId());
+
+            // Nếu là category cha → lấy luôn con
+            if (selected.getParent() == null) {
+                List<Category> children = categoryRepository
+                        .findChildrenForBudget(selected.getId(), userId);
+
+                for (Category c : children) {
+                    requestCategoryIds.add(c.getId());
+                }
+            }
+        }
+
+        // ================================
+        // 2. CHECK CONFLICT
+        // ================================
+        // ================================
+// 2. CHECK CONFLICT
+// ================================
+        for (Budget existing : conflicts) {
+
+            boolean existingAll = Boolean.TRUE.equals(existing.getAllCategories());
+
+            // 🚨 2.1 ALL CATEGORY (block mạnh nhất)
+            if (isAllCategory || existingAll) {
+                throw new IllegalArgumentException(
+                        "Đã tồn tại ngân sách cho tất cả danh mục trong khoảng thời gian này"
+                );
+            }
+
+            // 🚨 2.2 CHECK CATEGORY TRÙNG
+            Set<Integer> existingCategoryIds = existing.getCategories().stream()
+                    .map(Category::getId)
+                    .collect(Collectors.toSet());
+
+            boolean isSameCategory = requestCategoryIds.stream()
+                    .anyMatch(existingCategoryIds::contains);
+
+            if (!isSameCategory) continue;
+
+            // ================================
+            // 🔥 3. CHỈ CHECK KHI CÙNG TYPE
+            // ================================
+            if (request.budgetType() != existing.getBudgetType()) {
+                continue; // ✅ KHÁC TYPE → CHO QUA
+            }
+
+            switch (request.budgetType()) {
+
+                case MONTHLY:
+                    if (isSameMonth(existing.getBeginDate(), request.beginDate())) {
+                        throw new IllegalArgumentException(
+                                "Danh mục đã có ngân sách trong tháng này"
+                        );
+                    }
+                    break;
+
+                case WEEKLY:
+                    if (isSameWeek(existing.getBeginDate(), request.beginDate())) {
+                        throw new IllegalArgumentException(
+                                "Danh mục đã có ngân sách trong tuần này"
+                        );
+                    }
+                    break;
+
+                case YEARLY:
+                    if (existing.getBeginDate().getYear() == request.beginDate().getYear()) {
+                        throw new IllegalArgumentException(
+                                "Danh mục đã có ngân sách trong năm này"
+                        );
+                    }
+                    break;
+
+                case CUSTOM:
+                    throw new IllegalArgumentException(
+                            "Danh mục đã có ngân sách trong khoảng thời gian này"
+                    );
+            }
+        }
+    }
+    private boolean isSameMonth(LocalDate d1, LocalDate d2) {
+        return d1.getMonth() == d2.getMonth()
+                && d1.getYear() == d2.getYear();
+    }
+
+    private boolean isSameWeek(LocalDate d1, LocalDate d2) {
+        WeekFields weekFields = WeekFields.ISO;
+
+        return d1.get(weekFields.weekOfWeekBasedYear()) ==
+                d2.get(weekFields.weekOfWeekBasedYear())
+                && d1.getYear() == d2.getYear();
+    }
+
+
+
+
+
+
+
     private BudgetResponse toBudgetResponse(Budget budget) {
-        LocalDate today    = LocalDate.now();
-        LocalDate start    = budget.getBeginDate();
-        LocalDate end      = budget.getEndDate();
-        boolean   expired  = today.isAfter(end);
 
-        // ── Tính tổng chi ─────────────────────────────────────────────────────
-        Integer       walletId    = budget.getWallet() != null ? budget.getWallet().getId() : null;
-        LocalDateTime startDt     = start.atStartOfDay();
-        LocalDateTime endDt       = end.atTime(23, 59, 59);
-        Set<Integer>  categoryIds = resolveCategoryIds(budget);
+        // =========================
+        // 1. TIME
+        // =========================
+        LocalDate today   = LocalDate.now();
+        LocalDate start   = budget.getBeginDate();
+        LocalDate end     = budget.getEndDate();
 
+        boolean expired = today.isAfter(end);
+
+        // =========================
+        // 2. QUERY PARAM
+        // =========================
+        Integer walletId = budget.getWallet().getId();
+
+        LocalDateTime startDt = start.atStartOfDay();
+        LocalDateTime endDt   = end.atTime(23, 59, 59);
+
+        Set<Integer> categoryIds = resolveCategoryIds(budget);
+
+        // =========================
+        // 3. SPENT
+        // =========================
         BigDecimal spent = transactionRepository.sumExpenseForBudget(
-                budget.getAccount().getId(), startDt, endDt,
-                walletId, budget.getAllCategories(), categoryIds);
+                budget.getAccount().getId(),
+                startDt,
+                endDt,
+                walletId,
+                budget.getAllCategories(),
+                categoryIds
+        );
+
         if (spent == null) spent = BigDecimal.ZERO;
 
         BigDecimal remaining = budget.getAmount().subtract(spent);
 
-        // ── Tính ngày ─────────────────────────────────────────────────────────
-        long totalDays   = Math.max(1, ChronoUnit.DAYS.between(start, end) + 1);
-        // Số ngày đã trôi qua (tính đến hôm nay hoặc ngày kết thúc nếu đã hết hạn)
+        // =========================
+        // 4. DAYS CALCULATION
+        // =========================
+        long totalDays = ChronoUnit.DAYS.between(start, end) + 1;
+        if (totalDays <= 0) totalDays = 1;
+
         LocalDate effectiveToday = expired ? end : today;
-        long daysElapsed = Math.max(1, ChronoUnit.DAYS.between(start, effectiveToday) + 1);
-        long daysLeft    = Math.max(0, ChronoUnit.DAYS.between(today, end));
 
-        // ── Chỉ số dự đoán ────────────────────────────────────────────────────
-        BigDecimal dailyActual  = spent.divide(BigDecimal.valueOf(daysElapsed), 0, RoundingMode.HALF_UP);
-        BigDecimal projected    = dailyActual.multiply(BigDecimal.valueOf(totalDays));
-        BigDecimal dailyShould  = daysLeft > 0
-                ? remaining.max(BigDecimal.ZERO).divide(BigDecimal.valueOf(daysLeft), 0, RoundingMode.HALF_UP)
-                : BigDecimal.ZERO;
+        long daysElapsed = ChronoUnit.DAYS.between(start, effectiveToday) + 1;
+        if (daysElapsed <= 0) daysElapsed = 1;
 
-        // ── Map categories ────────────────────────────────────────────────────
-        List<CategoryResponse> catResponses = budget.getCategories().stream()
-                .map(categoryMapper::toDto)
-                .collect(Collectors.toList());
+        long daysLeft = ChronoUnit.DAYS.between(today, end);
+        if (daysLeft < 0) daysLeft = 0;
 
-        // ── Lấy icon danh mục chính cho Flutter ────────────────────────────────
-        // 1. Nếu allCategories=false: Lấy danh mục đầu tiên
-        // 2. Nếu allCategories=true: Set null
+        // =========================
+        // 5. CALCULATIONS
+        // =========================
+        BigDecimal dailyActual = BigDecimal.ZERO;
+        if (daysElapsed > 0) {
+            dailyActual = spent.divide(
+                    BigDecimal.valueOf(daysElapsed),
+                    2,
+                    RoundingMode.HALF_UP
+            );
+        }
+
+        BigDecimal projected = dailyActual.multiply(BigDecimal.valueOf(totalDays));
+
+        BigDecimal dailyShould = BigDecimal.ZERO;
+        if (daysLeft > 0) {
+            dailyShould = remaining
+                    .max(BigDecimal.ZERO) // 🔥 không cho âm
+                    .divide(
+                            BigDecimal.valueOf(daysLeft),
+                            2,
+                            RoundingMode.HALF_UP
+                    );
+        }
+        // ─────────────────────────────
+        // 🚨 ALERT LOGIC (QUAN TRỌNG)
+        // ─────────────────────────────
+
+        // 1. ĐÃ VƯỢT
+        boolean exceeded = spent.compareTo(budget.getAmount()) > 0;
+
+        // 2. SẮP VƯỢT (dự đoán)
+        boolean warning = false;
+        if (!expired) {
+            warning = projected.compareTo(budget.getAmount()) > 0;
+        }
+
+        // 3. PROGRESS %
+        BigDecimal progress = BigDecimal.ZERO;
+
+        if (budget.getAmount().compareTo(BigDecimal.ZERO) > 0) {
+            progress = spent.divide(
+                    budget.getAmount(),
+                    2,
+                    RoundingMode.HALF_UP
+            ).min(BigDecimal.ONE);
+        }
+
+
+
+
+
+
+
+
+        // =========================
+        // 6. CATEGORY RESPONSE
+        // =========================
+        List<CategoryResponse> catResponses =
+                Boolean.TRUE.equals(budget.getAllCategories())
+                        ? List.of()
+                        : budget.getCategories().stream()
+                        .map(categoryMapper::toDto)
+                        .collect(Collectors.toList());
+
+        // =========================
+        // 7. PRIMARY CATEGORY (Flutter)
+        // =========================
         Integer primaryCategoryId = null;
         String primaryCategoryIconUrl = null;
 
-        if (!catResponses.isEmpty() && !Boolean.TRUE.equals(budget.getAllCategories())) {
-            CategoryResponse firstCategory = catResponses.get(0);
-            primaryCategoryId = firstCategory.id();
-            primaryCategoryIconUrl = firstCategory.ctgIconUrl();
+        if (!catResponses.isEmpty()) {
+            CategoryResponse first = catResponses.get(0);
+            primaryCategoryId = first.id();
+            primaryCategoryIconUrl = first.ctgIconUrl();
         }
 
+        // =========================
+        // 8. WALLET
+        // =========================
+        String walletName = budget.getWallet().getWalletName();
+        // =========================
+        // 9. BUILD RESPONSE
+        // =========================
         return BudgetResponse.builder()
                 .id(budget.getId())
                 .amount(budget.getAmount())
-                .beginDate(budget.getBeginDate())
-                .endDate(budget.getEndDate())
+                .beginDate(start)
+                .endDate(end)
                 .walletId(walletId)
-                .walletName(budget.getWallet() != null ? budget.getWallet().getWalletName() : null)
+                .walletName(walletName)
                 .allCategories(budget.getAllCategories())
                 .repeating(budget.getRepeating())
-                .primaryCategoryId(primaryCategoryId)           // ← 1. ID danh mục chính
-                .primaryCategoryIconUrl(primaryCategoryIconUrl) // ← 2. Icon danh mục chính
                 .categories(catResponses)
+                .primaryCategoryId(primaryCategoryId)
+                .primaryCategoryIconUrl(primaryCategoryIconUrl)
                 .expired(expired)
                 .spentAmount(spent)
                 .remainingAmount(remaining)
                 .dailyActualSpend(dailyActual)
                 .projectedSpend(projected)
                 .dailyShouldSpend(dailyShould)
+                .exceeded(exceeded)
+                .warning(warning)
+                .progress(progress)
+
+                .budgetType(budget.getBudgetType())
                 .build();
     }
 
@@ -317,4 +553,3 @@ public class BudgetServiceImpl implements BudgetService {
         }
     }
 }
-
