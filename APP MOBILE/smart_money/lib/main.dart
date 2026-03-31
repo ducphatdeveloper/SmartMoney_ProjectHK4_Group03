@@ -3,9 +3,6 @@ import 'package:smart_money/core/di/setup_dependencies.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-import 'package:smart_money/modules/event/providers/event_provider.dart';
-import 'package:smart_money/modules/saving_goal/providers/saving_goal_provider.dart';
-
 import 'core/routing/app_router.dart';
 import 'modules/auth/providers/auth_provider.dart';
 import 'modules/wallet/providers/wallet_provider.dart';
@@ -14,6 +11,8 @@ import 'modules/category/providers/category_provider.dart';
 import 'modules/planned/providers/recurring_provider.dart';
 import 'modules/planned/providers/bill_provider.dart';
 import 'modules/planned/providers/bill_transaction_provider.dart'; // Import mới
+import 'package:smart_money/modules/event/providers/event_provider.dart';
+import 'package:smart_money/modules/saving_goal/providers/saving_goal_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
