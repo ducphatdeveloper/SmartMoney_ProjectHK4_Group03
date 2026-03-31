@@ -20,7 +20,7 @@ class _MainNavigationState extends State<MainNavigation> {
 
   int index = 0;
 
-  final screens = const [
+  final screens =  [
     HomeScreen(),
     TransactionListScreen(),
     SizedBox(), // placeholder — nút + mở TransactionCreateScreen bằng Navigator

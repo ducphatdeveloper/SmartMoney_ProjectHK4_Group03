@@ -9,7 +9,7 @@ import java.util.List;
 public interface BudgetService {
 
     // ── Danh sách ─────────────────────────────────────────────────────────────
-    List<BudgetResponse> getBudgets(Integer userId);           // active budgets
+    List<BudgetResponse> getBudgets(Integer userId , Integer walletId);           // active budgets
     List<BudgetResponse> getExpiredBudgets(Integer userId);   // expired budgets
 
     // ── Chi tiết ──────────────────────────────────────────────────────────────

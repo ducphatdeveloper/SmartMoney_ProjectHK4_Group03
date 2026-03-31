@@ -26,6 +26,7 @@ dependencies:
   cupertino_icons: ^1.0.8
   # Vẽ biểu đồ tròn, cột, đường trong màn hình Báo cáo/Thống kê
   fl_chart: ^0.66.2
+  animations: ^2.0.11
   # Format tiền "1.000.000 đ" và ngày "12/03/2025" (dùng trong format_helper.dart)
   intl: ^0.20.2
   # Hiện popup nhỏ phản hồi thao tác: "Tạo ví thành công", "Xóa thất bại"...

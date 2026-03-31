@@ -1,6 +1,7 @@
 package fpt.aptech.server.dto.budget;
 
 import fpt.aptech.server.dto.category.CategoryResponse;
+import fpt.aptech.server.enums.budget.BudgetType;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -21,6 +22,11 @@ public class BudgetResponse {
     private String walletName;          // null = "Tổng cộng"
     private Boolean allCategories;
     private Boolean repeating;
+
+    private    Boolean exceeded;// đã vượt
+    private    Boolean warning; // sắp vượt
+    private    BigDecimal progress; // % tiến độ (0 → 1)
+
     private List<CategoryResponse> categories; // rỗng nếu allCategories=true
 
     // ── Icon danh mục chính (Flutter hiển thị) ────────────────────────────────
@@ -38,4 +44,6 @@ public class BudgetResponse {
     private BigDecimal dailyShouldSpend;  // Nên chi hàng ngày = remainingAmount / daysLeft
     private BigDecimal dailyActualSpend;  // Thực tế chi hàng ngày = spentAmount / daysElapsed
     private BigDecimal projectedSpend;    // Dự kiến chi tiêu = dailyActual * totalDays
+
+    private BudgetType budgetType;
 }

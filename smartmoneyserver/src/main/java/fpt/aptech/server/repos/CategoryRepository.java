@@ -8,6 +8,7 @@ import org.springframework.stereotype.Repository;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 @Repository
 public interface CategoryRepository extends JpaRepository<Category, Integer> {
@@ -102,4 +103,5 @@ public interface CategoryRepository extends JpaRepository<Category, Integer> {
            "WHERE c.parent.id = :parentId " +
            "  AND (c.account IS NULL OR c.account.id = :accountId)")
     List<Category> findByParent_IdAndAccount_Id(@Param("parentId") Integer parentId, @Param("accountId") Integer accountId);
+
 }

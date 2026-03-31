@@ -5,6 +5,8 @@ import '../../modules/transaction/services/transaction_service.dart';
 import '../../modules/transaction/services/util_service.dart';
 import '../../modules/planned/services/planned_service.dart';
 
+import '../../modules/budget/services/budget_service.dart';
+import '../../modules/wallet/services/wallet_service.dart';
 // Tất cả Service của app đăng ký tại đây 1 lần khi khởi động.
 // Sau đó bất kỳ chỗ nào cũng gọi: getIt.get<TênService>()
 final GetIt getIt = GetIt.instance;
@@ -27,10 +29,10 @@ void setupDependencies() {
   getIt.registerLazySingleton<PlannedService>(() => PlannedService());
 
   // Wallet
-  // getIt.registerLazySingleton<WalletService>(() => WalletService());
+  getIt.registerLazySingleton<WalletService>(() => WalletService());
 
   // Budget
-  // getIt.registerLazySingleton<BudgetService>(() => BudgetService());
+  getIt.registerLazySingleton<BudgetService>(() => BudgetService());
 
   // Saving Goal
   // getIt.registerLazySingleton<SavingGoalService>(() => SavingGoalService());
