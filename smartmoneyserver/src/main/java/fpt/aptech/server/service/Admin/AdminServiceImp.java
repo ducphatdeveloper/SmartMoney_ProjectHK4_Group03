@@ -47,7 +47,7 @@ public class AdminServiceImp implements AdminService {
     private final UserDeviceRepository userDeviceRepository;
     private final NotificationService notificationService;
     private final TransactionRepository transactionRepository;
-    private final UserActivityService userActivityService;
+
 
     @Override
     public PageResponse<AccountDto> getUsers(String search, Boolean locked, String onlineStatus, Pageable pageable) {
@@ -202,26 +202,34 @@ public class AdminServiceImp implements AdminService {
         LocalDateTime startDate, endDate;
         LocalDate today = LocalDate.now();
 
+        // 1. Xác định khoảng thời gian thống kê
         if ("DAILY".equalsIgnoreCase(rangeMode)) {
-            startDate = today.atStartOfDay(); endDate = today.atTime(LocalTime.MAX);
+            startDate = today.atStartOfDay(); 
+            endDate = today.atTime(LocalTime.MAX);
         } else {
             startDate = today.with(TemporalAdjusters.firstDayOfMonth()).atStartOfDay();
             endDate = today.with(TemporalAdjusters.lastDayOfMonth()).atTime(LocalTime.MAX);
         }
 
+        // 2. Lấy dữ liệu thô từ Repository (bao gồm tất cả người dùng)
         List<Object[]> rawStats = transactionRepository.getGlobalCategoryStats(startDate, endDate);
+        
+        // 3. Tính toán Tổng khối lượng (Volume = Thu + Chi)
         BigDecimal totalVolume = BigDecimal.ZERO;
-        BigDecimal income = BigDecimal.ZERO; BigDecimal expense = BigDecimal.ZERO;
+        BigDecimal incomeTotal = BigDecimal.ZERO;
+        BigDecimal expenseTotal = BigDecimal.ZERO;
 
         for (Object[] row : rawStats) {
             BigDecimal amount = row[1] != null ? (BigDecimal) row[1] : BigDecimal.ZERO;
-            
             totalVolume = totalVolume.add(amount);
-            if (Boolean.TRUE.equals(row[2])) income = income.add(amount);
-            else expense = expense.add(amount);
+            if (Boolean.TRUE.equals(row[2])) incomeTotal = incomeTotal.add(amount);
+            else expenseTotal = expenseTotal.add(amount);
         }
 
+        // 4. Xây dựng danh sách chi tiết (Breakdown) với % dựa trên totalVolume
         List<Map<String, Object>> breakdown = new ArrayList<>();
+        final BigDecimal finalTotalVolume = totalVolume; // Để dùng trong lambda hoặc tính toán
+
         for (Object[] row : rawStats) {
             String ctgName = (String) row[0];
             BigDecimal amount = row[1] != null ? (BigDecimal) row[1] : BigDecimal.ZERO;
@@ -229,9 +237,10 @@ public class AdminServiceImp implements AdminService {
             String ctgIconUrl = (String) row[3];
             String parentName = (String) row[4];
 
-            BigDecimal pct = (totalVolume.compareTo(BigDecimal.ZERO) > 0) 
-                ? amount.multiply(new BigDecimal("100")).divide(totalVolume, 2, RoundingMode.HALF_UP)
-                : BigDecimal.ZERO;
+            // Tỷ trọng danh mục = (Số tiền danh mục / Tổng khối lượng hệ thống) * 100
+            BigDecimal percentage = (finalTotalVolume.compareTo(BigDecimal.ZERO) > 0)
+                    ? amount.multiply(new BigDecimal("100")).divide(finalTotalVolume, 2, RoundingMode.HALF_UP)
+                    : BigDecimal.ZERO;
 
             Map<String, Object> item = new HashMap<>();
             item.put("categoryName", ctgName);
@@ -239,21 +248,22 @@ public class AdminServiceImp implements AdminService {
             item.put("isChild", parentName != null);
             item.put("displayName", parentName != null ? parentName + " > " + ctgName : ctgName);
             item.put("amount", amount);
-            item.put("percentage", pct); 
+            item.put("percentage", percentage); 
             item.put("type", Boolean.TRUE.equals(ctgType) ? "INCOME" : "EXPENSE");
             item.put("iconUrl", ctgIconUrl);
             breakdown.add(item);
         }
 
+        // 5. Tổng hợp kết quả phản hồi
         Map<String, Object> result = new HashMap<>();
-        result.put("totalSystemVolume", totalVolume); // Mốc 100%
+        result.put("totalSystemVolume", totalVolume); // Thu + Chi = 100%
         result.put("summary", Map.of(
-            "incomeTotal", income,
-            "expenseTotal", expense,
-            "incomePercentage", totalVolume.compareTo(BigDecimal.ZERO) > 0 
-                    ? income.multiply(new BigDecimal("100")).divide(totalVolume, 2, RoundingMode.HALF_UP) : BigDecimal.ZERO,
-            "expensePercentage", totalVolume.compareTo(BigDecimal.ZERO) > 0 
-                    ? expense.multiply(new BigDecimal("100")).divide(totalVolume, 2, RoundingMode.HALF_UP) : BigDecimal.ZERO
+            "incomeTotal", incomeTotal,
+            "expenseTotal", expenseTotal,
+            "incomePercentage", totalVolume.compareTo(BigDecimal.ZERO) > 0
+                    ? incomeTotal.multiply(new BigDecimal("100")).divide(totalVolume, 2, RoundingMode.HALF_UP) : BigDecimal.ZERO,
+            "expensePercentage", totalVolume.compareTo(BigDecimal.ZERO) > 0
+                    ? expenseTotal.multiply(new BigDecimal("100")).divide(totalVolume, 2, RoundingMode.HALF_UP) : BigDecimal.ZERO
         ));
         result.put("breakdown", breakdown);
         result.put("range", rangeMode);
@@ -263,44 +273,48 @@ public class AdminServiceImp implements AdminService {
 
     /**
      * [1.2] Thông báo giao dịch bất thường:
-     * Quét các giao dịch lớn của tất cả người dùng trong 24h qua.
+     * Phân tích hành vi theo ví: Phát hiện tần suất giao dịch cao và tổng khối lượng chi tiêu lớn.
      */
     @Override
     @Transactional
     public void notifyAbnormalTransactions(BigDecimal threshold) {
+        // Ngưỡng tần suất: ví dụ hơn 10 giao dịch chi tiêu/ngày là bất thường
+        int frequencyThreshold = 10; 
         LocalDateTime since = LocalDateTime.now().minusDays(1);
-        List<Transaction> largeTransactions = transactionRepository.findAllByAmountGreaterThanAndTransDateAfter(threshold, since);
 
-        if (largeTransactions.isEmpty()) {
-            return;
-        }
+        // 1. Lấy tất cả giao dịch trong 24h qua
+        List<Transaction> recentTransactions = transactionRepository.findAllByTransDateAfter(since);
 
-        BigDecimal totalAmount = BigDecimal.ZERO;
-        int transactionCount = largeTransactions.size();
+        // 2. Gom nhóm theo Ví và lọc các giao dịch CHI TIÊU (Expense)
+        Map<Object, List<Transaction>> walletActivity = recentTransactions.stream()
+                .filter(t -> Boolean.FALSE.equals(t.getCategory().getCtgType())) // Chỉ lấy khoản CHI
+                .collect(Collectors.groupingBy(t -> t.getWallet()));
 
-        for (Transaction trans : largeTransactions) {
-            totalAmount = totalAmount.add(trans.getAmount());
+        walletActivity.forEach((walletObj, transList) -> {
+            BigDecimal walletTotalExpense = transList.stream()
+                    .map(Transaction::getAmount)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            int activityCount = transList.size();
 
-            // Vẫn gửi cảnh báo riêng tư cho từng người dùng để họ kiểm tra tài khoản
-            NotificationContent content = NotificationMessages.largeTransactionAlert(
-                trans.getAmount(), 
-                trans.getCategory().getCtgName()
-            );
-            notificationService.createNotification(trans.getAccount(), content.title(), content.content(),
-                    NotificationType.TRANSACTION, trans.getId().longValue(), LocalDateTime.now());
-        }
+            // 3. Kiểm tra điều kiện: (Tổng tiền chi > ngưỡng) HOẶC (Số lượng giao dịch > ngưỡng tần suất)
+            if (walletTotalExpense.compareTo(threshold) > 0 || activityCount >= frequencyThreshold) {
+                Account userAccount = transList.get(0).getAccount();
+                // Giả định thực thể Wallet có phương thức lấy tên, nếu không bạn có thể dùng walletObj.toString()
+                String walletName = "Ví người dùng"; 
+                
+                // Gửi thông báo cho User về chiếc ví cụ thể đang có vấn đề
+                NotificationContent userMsg = NotificationMessages.abnormalWalletActivity(
+                        walletName, activityCount, walletTotalExpense);
+                notificationService.createNotification(userAccount, userMsg.title(), userMsg.content(),
+                        NotificationType.TRANSACTION, null, LocalDateTime.now());
 
-        // TẠO THÔNG BÁO TỔNG CHO ADMIN (SYSTEM ALERT)
-        // Thay vì mỗi giao dịch 1 thông báo, ta gom lại thành 1 cảnh báo tổng hợp hệ thống
-        String adminTitle = "Hệ thống: Cảnh báo rủi ro giao dịch";
-        String adminContent = String.format(
-            "Phát hiện tổng cộng %d giao dịch bất thường vượt ngưỡng %s VNĐ trong 24h qua. " +
-            "Tổng giá trị nghi vấn: %s VNĐ. Vui lòng kiểm tra danh sách đối soát.",
-            transactionCount, threshold.stripTrailingZeros().toPlainString(), totalAmount.stripTrailingZeros().toPlainString()
-        );
-
-        notificationService.createNotification(null, adminTitle, adminContent, 
-                NotificationType.SYSTEM, null, LocalDateTime.now());
+                // Gửi thông báo cho Admin để theo dõi rủi ro hệ thống
+                NotificationContent adminMsg = NotificationMessages.adminWalletRiskAlert(
+                        userAccount.getAccEmail(), walletName, activityCount, walletTotalExpense);
+                notificationService.createNotification(null, adminMsg.title(), adminMsg.content(), 
+                        NotificationType.SYSTEM, null, LocalDateTime.now());
+            }
+        });
     }
 
     /**
@@ -308,33 +322,49 @@ public class AdminServiceImp implements AdminService {
      */
     @Override
     public List<Map<String, Object>> getAbnormalTransactionUsers(BigDecimal threshold) {
+        int frequencyThreshold = 10;
         LocalDateTime since = LocalDateTime.now().minusDays(1);
-        List<Transaction> largeTransactions = transactionRepository.findAllByAmountGreaterThanAndTransDateAfter(threshold, since);
+        List<Transaction> recentTransactions = transactionRepository.findAllByTransDateAfter(since);
 
-        Map<Account, List<Transaction>> groupedByAccount = largeTransactions.stream()
+        // Nhóm theo Account trước
+        Map<Account, List<Transaction>> groupedByAccount = recentTransactions.stream()
+                .filter(t -> Boolean.FALSE.equals(t.getCategory().getCtgType()))
                 .collect(Collectors.groupingBy(Transaction::getAccount));
 
         return groupedByAccount.entrySet().stream().map(entry -> {
             Account acc = entry.getKey();
             List<Transaction> userTrans = entry.getValue();
+            
+            // Nhóm giao dịch của user này theo từng Ví
+            Map<Object, List<Transaction>> byWallet = userTrans.stream()
+                    .collect(Collectors.groupingBy(t -> t.getWallet()));
+
+            List<Map<String, Object>> abnormalWallets = new ArrayList<>();
+            BigDecimal userTotalAbnormalAmount = BigDecimal.ZERO;
+
+            for (Map.Entry<Object, List<Transaction>> walletEntry : byWallet.entrySet()) {
+                List<Transaction> transList = walletEntry.getValue();
+                BigDecimal walletTotal = transList.stream().map(Transaction::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
+                
+                if (walletTotal.compareTo(threshold) > 0 || transList.size() >= frequencyThreshold) {
+                    Map<String, Object> wMap = new HashMap<>();
+                    wMap.put("walletInfo", walletEntry.getKey().toString());
+                    wMap.put("transactionCount", transList.size());
+                    wMap.put("totalSpent", walletTotal);
+                    abnormalWallets.add(wMap);
+                    userTotalAbnormalAmount = userTotalAbnormalAmount.add(walletTotal);
+                }
+            }
+
+            if (abnormalWallets.isEmpty()) return null;
 
             Map<String, Object> userMap = new HashMap<>();
             userMap.put("userId", acc.getId());
             userMap.put("email", acc.getAccEmail());
-            
-            List<Map<String, Object>> transDetails = userTrans.stream().map(t -> {
-                Map<String, Object> d = new HashMap<>();
-                d.put("id", t.getId());
-                d.put("amount", t.getAmount());
-                d.put("category", t.getCategory().getCtgName());
-                d.put("time", t.getTransDate());
-                return d;
-            }).collect(Collectors.toList());
-
-            userMap.put("abnormalTransactions", transDetails);
-            userMap.put("totalViolatingAmount", userTrans.stream().map(Transaction::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add));
+            userMap.put("abnormalWallets", abnormalWallets);
+            userMap.put("totalAbnormalAmount", userTotalAbnormalAmount);
             return userMap;
-        }).collect(Collectors.toList());
+        }).filter(Objects::nonNull).collect(Collectors.toList());
     }
 
     @Override

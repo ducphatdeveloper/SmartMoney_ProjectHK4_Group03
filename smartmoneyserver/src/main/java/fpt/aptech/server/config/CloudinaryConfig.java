@@ -1,17 +1,11 @@
 package fpt.aptech.server.config;
 
 import com.cloudinary.Cloudinary;
+import com.cloudinary.utils.ObjectUtils;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
-import java.util.HashMap;
-import java.util.Map;
-
-/**
- * Cấu hình Cloudinary bean dùng cho CloudinaryService.
- * Đọc thông tin kết nối từ application.properties.
- */
 @Configuration
 public class CloudinaryConfig {
 
@@ -26,12 +20,11 @@ public class CloudinaryConfig {
 
     @Bean
     public Cloudinary cloudinary() {
-        Map<String, String> config = new HashMap<>();
-        config.put("cloud_name", cloudName);
-        config.put("api_key", apiKey);
-        config.put("api_secret", apiSecret);
-        config.put("secure", "true"); // Luôn dùng HTTPS
-        return new Cloudinary(config);
+        return new Cloudinary(ObjectUtils.asMap(
+                "cloud_name", cloudName,
+                "api_key", apiKey,
+                "api_secret", apiSecret,
+                "secure", true
+        ));
     }
 }
-

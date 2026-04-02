@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+import 'package:smart_money/modules/auth/providers/auth_provider.dart';
 import 'package:smart_money/modules/category/screens/category_list_screen.dart';
 import 'package:smart_money/modules/planned/screens/recurring_screen.dart';
 import 'package:smart_money/modules/planned/screens/bill_screen.dart';
 import 'package:smart_money/modules/event/screens/event_screen.dart';
 import 'package:smart_money/modules/saving_goal/screens/saving_goal_list_screen.dart';
-import 'package:smart_money/modules/saving_goal/screens/saving_goal_list_view.dart';
 import 'package:smart_money/modules/wallet/screens/wallet_screen.dart';
 import 'account_management_screen.dart';
 
@@ -13,6 +15,9 @@ class AccountScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Lấy thông tin từ AuthProvider
+    final auth = context.watch<AuthProvider>();
+
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Colors.black,
@@ -22,7 +27,7 @@ class AccountScreen extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          _profileCard(),
+          _profileCard(auth),
           const SizedBox(height: 24),
 
           _item(
@@ -111,7 +116,7 @@ class AccountScreen extends StatelessWidget {
 
   // ===== Widgets =====
 
-  Widget _profileCard() {
+  Widget _profileCard(AuthProvider auth) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -119,30 +124,81 @@ class AccountScreen extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
       ),
       child: Row(
-        children: const [
+        children: [
           CircleAvatar(
             radius: 30,
-            backgroundColor: Colors.green,
-            child: Icon(Icons.person, size: 32, color: Colors.white),
+            backgroundColor: Colors.green.shade800,
+            child: _buildAvatarContent(auth),
           ),
-          SizedBox(width: 16),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                "Minh Nhất",
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              SizedBox(height: 4),
-              Text("Free account", style: TextStyle(color: Colors.grey)),
-            ],
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  auth.currentUser?.accUsername ?? "Người dùng SmartMoney",
+                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  auth.userEmail ?? "Thành viên",
+                  style: const TextStyle(color: Colors.grey),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
           ),
         ],
       ),
     );
   }
 
+  // Hàm helper để xây dựng nội dung avatar (xử lý SVG, ảnh thường, hoặc chữ cái đầu)
+  Widget? _buildAvatarContent(AuthProvider auth) {
+    final url = auth.currentUser?.avatarUrl;
+    final username = auth.currentUser?.accUsername ?? "U";
 
+    // 1. Nếu không có URL hoặc URL rỗng, hiển thị chữ cái đầu của username
+    if (url == null || url.isEmpty) {
+      return _textAvatar(username);
+    }
+
+    // 2. Nếu URL là ảnh SVG, sử dụng SvgPicture.network
+    if (url.toLowerCase().contains('svg')) {
+      return ClipOval(
+        child: SvgPicture.network(
+          url,
+          fit: BoxFit.cover,
+          width: 60, // Kích thước của CircleAvatar radius * 2
+          height: 60,
+          placeholderBuilder: (context) => const CircularProgressIndicator(
+            strokeWidth: 2,
+            color: Colors.white,
+          ),
+        ),
+      );
+    }
+
+    // 3. Nếu URL là ảnh raster (PNG, JPG, WebP), sử dụng Image.network
+    return ClipOval(
+      child: Image.network(
+        url,
+        fit: BoxFit.cover,
+        width: 60,
+        height: 60,
+        errorBuilder: (_, __, ___) => _textAvatar(username), // Fallback nếu ảnh lỗi
+      ),
+    );
+  }
+
+  // Hàm helper để tạo widget Text cho avatar
+  Widget _textAvatar(String username) {
+    return Text(
+      username.substring(0, 1).toUpperCase(),
+      style: const TextStyle(fontSize: 24, color: Colors.white, fontWeight: FontWeight.bold),
+    );
+  }
 
   Widget _section(String title) {
     return Padding(

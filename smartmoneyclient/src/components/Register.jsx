@@ -85,48 +85,104 @@ const Register = () => {
     };
 
     return (
-        <div className="container d-flex justify-content-center align-items-center vh-100">
-            <div className="card shadow-lg p-4 border-0" style={{ width: '450px', borderRadius: '1rem' }}>
-                <h3 className="text-center fw-bold mb-4">Đăng Ký Tài Khoản 📝</h3>
-                
-                {generalError && <div className="alert alert-danger text-center py-2 small">{generalError}</div>}
-                {errors.identity && <div className="alert alert-warning text-center py-2 small"><i className="bi bi-exclamation-triangle me-2"></i>{errors.identity}</div>}
+        <div className="container-fluid d-flex justify-content-center align-items-center vh-100" 
+             style={{ 
+                 background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                 fontFamily: "'Inter', sans-serif" 
+             }}>
+            <style>{`
+                .register-card {
+                    background: rgba(255, 255, 255, 0.95);
+                    backdrop-filter: blur(10px);
+                    border-radius: 24px;
+                    border: 1px solid rgba(255, 255, 255, 0.3);
+                }
+                .form-control {
+                    border-radius: 12px;
+                    padding: 12px 15px 12px 45px;
+                    border: 1px solid #e2e8f0;
+                    background-color: #f8fafc;
+                }
+                .form-control:focus {
+                    box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
+                    border-color: #667eea;
+                }
+                .input-group-icon {
+                    position: absolute;
+                    left: 15px;
+                    top: 50%;
+                    transform: translateY(-50%);
+                    z-index: 10;
+                    color: #94a3b8;
+                }
+                .btn-register {
+                    border-radius: 12px;
+                    padding: 12px;
+                    background: linear-gradient(to right, #667eea, #764ba2);
+                    border: none;
+                    letter-spacing: 1px;
+                    transition: all 0.3s ease;
+                }
+                .btn-register:hover {
+                    transform: translateY(-2px);
+                    box-shadow: 0 10px 20px rgba(0,0,0,0.15);
+                }
+            `}</style>
+
+            <div className="card register-card shadow-2xl p-4 p-md-5" style={{ width: '100%', maxWidth: '480px' }}>
+                <div className="text-center mb-4">
+                    <div className="d-inline-block p-3 rounded-circle bg-primary bg-opacity-10 mb-3">
+                        <i className="bi bi-person-plus fs-1 text-primary"></i>
+                    </div>
+                    <h3 className="fw-bold text-dark">Tạo tài khoản</h3>
+                    <p className="text-muted small">Bắt đầu hành trình quản lý tài chính cùng SmartMoney</p>
+                </div>
+
+                {generalError && <div className="alert alert-danger border-0 small text-center py-2 rounded-3 mb-3">{generalError}</div>}
+                {errors.identity && <div className="alert alert-warning border-0 small text-center py-2 rounded-3 mb-3">
+                    <i className="bi bi-exclamation-triangle me-2"></i>{errors.identity}
+                </div>}
 
                 <form onSubmit={handleSubmit}>
-                    <div className="mb-3">
-                        <label className="form-label small fw-bold">Số điện thoại</label>
-                        <input type="text" name="accPhone" className={`form-control ${errors.accPhone ? 'is-invalid' : ''}`} 
-                            value={formData.accPhone} onChange={handleChange} placeholder="0xxxxxxxxx" />
+                    <div className="mb-3 position-relative">
+                        <i className="bi bi-telephone input-group-icon"></i>
+                        <input type="text" name="accPhone" 
+                            className={`form-control ${errors.accPhone ? 'is-invalid' : ''}`} 
+                            value={formData.accPhone} onChange={handleChange} placeholder="Số điện thoại" />
                         {errors.accPhone && <div className="invalid-feedback">{errors.accPhone}</div>}
                     </div>
 
-                    <div className="mb-3">
-                        <label className="form-label small fw-bold">Email</label>
-                        <input type="email" name="accEmail" className={`form-control ${errors.accEmail ? 'is-invalid' : ''}`} 
-                            value={formData.accEmail} onChange={handleChange} placeholder="example@mail.com" />
+                    <div className="mb-3 position-relative">
+                        <i className="bi bi-envelope input-group-icon"></i>
+                        <input type="email" name="accEmail" 
+                            className={`form-control ${errors.accEmail ? 'is-invalid' : ''}`} 
+                            value={formData.accEmail} onChange={handleChange} placeholder="Địa chỉ Email" />
                         {errors.accEmail && <div className="invalid-feedback">{errors.accEmail}</div>}
                     </div>
 
-                    <div className="mb-3">
-                        <label className="form-label small fw-bold">Mật khẩu</label>
-                        <input type="password" name="password" className={`form-control ${errors.password ? 'is-invalid' : ''}`} 
+                    <div className="mb-3 position-relative">
+                        <i className="bi bi-lock input-group-icon"></i>
+                        <input type="password" name="password" 
+                            className={`form-control ${errors.password ? 'is-invalid' : ''}`} 
                             value={formData.password} onChange={handleChange} placeholder="Tối thiểu 6 ký tự" />
                         {errors.password && <div className="invalid-feedback">{errors.password}</div>}
                     </div>
 
-                    <div className="mb-3">
-                        <label className="form-label small fw-bold">Xác nhận mật khẩu</label>
-                        <input type="password" name="confirmPassword" className={`form-control ${errors.confirmPassword ? 'is-invalid' : ''}`} 
+                    <div className="mb-4 position-relative">
+                        <i className="bi bi-shield-check input-group-icon"></i>
+                        <input type="password" name="confirmPassword" 
+                            className={`form-control ${errors.confirmPassword ? 'is-invalid' : ''}`} 
                             value={formData.confirmPassword} onChange={handleChange} placeholder="Nhập lại mật khẩu" />
                         {errors.confirmPassword && <div className="invalid-feedback">{errors.confirmPassword}</div>}
                     </div>
 
-                    <button type="submit" className="btn btn-success w-100 py-2 fw-bold" disabled={isLoading}>
-                        {isLoading ? "Đang xử lý..." : "ĐĂNG KÝ"}
+                    <button type="submit" className="btn btn-primary btn-register w-100 fw-bold text-white" disabled={isLoading}>
+                        {isLoading ? <span><span className="spinner-border spinner-border-sm me-2"></span>Xử lý...</span> : "ĐĂNG KÝ NGAY"}
                     </button>
                     
                     <div className="text-center mt-4 small">
-                        Đã có tài khoản? <Link to="/login" className="text-decoration-none fw-bold">Đăng nhập ngay</Link>
+                        <span className="text-muted">Đã có tài khoản?</span>{" "}
+                        <Link to="/login" className="text-decoration-none fw-bold text-primary">Đăng nhập ngay</Link>
                     </div>
                 </form>
             </div>

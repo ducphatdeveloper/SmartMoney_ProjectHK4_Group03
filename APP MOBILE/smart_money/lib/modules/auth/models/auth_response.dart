@@ -6,6 +6,7 @@
 class AuthResponse {
   final int userId;
   final String? accPhone;
+  final String? accUsername;
   final String? accEmail;
   final String? avatarUrl;
   final String? currency;     // VND, USD...
@@ -25,6 +26,7 @@ class AuthResponse {
   AuthResponse({
     required this.userId,
     this.accPhone,
+    this.accUsername,
     this.accEmail,
     this.avatarUrl,
     this.currency,
@@ -42,6 +44,7 @@ class AuthResponse {
     return AuthResponse(
       userId:       json['userId'],
       accPhone:     json['accPhone'],
+      accUsername:  json['accUsername'],
       accEmail:     json['accEmail'],
       avatarUrl:    json['avatarUrl'],
       currency:     json['currency'],

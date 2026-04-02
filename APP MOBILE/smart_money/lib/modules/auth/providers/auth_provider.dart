@@ -9,7 +9,6 @@ import '../../../core/models/user_model.dart';
 import '../../../core/services/auth_service.dart';
 import '../../../core/helpers/token_helper.dart';
 import '../models/login_request.dart';
-import '../models/auth_response.dart';
 import '../models/register_request.dart';
 
 class AuthProvider extends ChangeNotifier {
@@ -20,6 +19,7 @@ class AuthProvider extends ChangeNotifier {
   UserModel? get currentUser => _currentUser;
   bool get isLoading => _isLoading;
   bool get isLoggedIn => _currentUser != null;
+  String? get userEmail => _currentUser?.accEmail;
 
   // Constructor: Tải thông tin user nếu đã đăng nhập trước đó
   AuthProvider() {
@@ -166,5 +166,73 @@ class AuthProvider extends ChangeNotifier {
     _currentUser = null;
     _isLoading = false;
     notifyListeners();
+  }
+
+  /// Yêu cầu gửi mã OTP đặt lại mật khẩu qua Email (Alias cho requestPasswordReset)
+  Future<bool> requestPasswordReset(String email) async {
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      final response = await _authService.forgotPassword(email);
+      
+      _isLoading = false;
+      notifyListeners();
+      return response.success;
+    } catch (e) {
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  /// Xác nhận OTP và đặt mật khẩu mới
+  Future<bool> confirmResetPassword({
+    required String email,
+    required String otp,
+    required String newPassword,
+  }) async {
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      final response = await _authService.resetPassword(email, otp, newPassword);
+
+      _isLoading = false;
+      notifyListeners();
+      return response.success;
+    } catch (e) {
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  /// Cập nhật ảnh đại diện
+  Future<String?> updateAvatar(String filePath) async {
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      final response = await _authService.updateAvatar(filePath);
+      
+      if (response.success && response.data != null) {
+        // Cập nhật lại state local
+        if (_currentUser != null) {
+          _currentUser = _currentUser!.copyWith(avatarUrl: response.data);
+        }
+        _isLoading = false;
+        notifyListeners();
+        return response.data; // Trả về avatarUrl mới
+      } else {
+        _isLoading = false;
+        notifyListeners();
+        return null;
+      }
+    } catch (e) {
+      _isLoading = false;
+      notifyListeners();
+      return null;
+    }
   }
 }

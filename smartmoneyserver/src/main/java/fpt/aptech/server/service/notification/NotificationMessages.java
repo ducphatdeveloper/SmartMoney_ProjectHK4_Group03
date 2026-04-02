@@ -122,6 +122,18 @@ public final class NotificationMessages {
     // ════════════════════════════════════════════════════════════════════════
 
     /**
+     * Ngân sách mới được tạo.
+     */
+    public static NotificationContent budgetCreated(String budgetLabel,
+                                                    BigDecimal amount) {
+        String title = "Thiết lập ngân sách 💰";
+        String content = String.format(
+                "Ngân sách \"%s\" với hạn mức %s đã được thiết lập thành công. Hãy chi tiêu hợp lý nhé!",
+                budgetLabel, CurrencyUtils.formatVND(amount));
+        return new NotificationContent(title, content);
+    }
+
+    /**
      * Đã chi >= 80% ngân sách (cảnh báo vàng).
      * Dùng khi: BudgetScheduler.checkAndNotify() → 80% <= percent < 100%.
      */
@@ -174,6 +186,73 @@ public final class NotificationMessages {
     public static NotificationContent newUserRegistered(String userName) {
         String title = "Người dùng mới đăng ký";
         String content = String.format("Người dùng mới \"%s\" vừa đăng ký tài khoản.", userName);
+        return new NotificationContent(title, content);
+    }
+
+    /**
+     * Cảnh báo tổng hợp cho Admin về các giao dịch bất thường trong hệ thống.
+     */
+    public static NotificationContent systemAbnormalSummary(int count,
+                                                           BigDecimal threshold,
+                                                           BigDecimal totalAmount) {
+        String title = "Cảnh báo rủi ro hệ thống ⚠️";
+        String content = String.format(
+                "Phát hiện %d giao dịch vượt ngưỡng %s trong 24h qua. Tổng giá trị nghi vấn: %s. Vui lòng kiểm tra danh sách đối soát.",
+                count,
+                CurrencyUtils.formatVND(threshold),
+                CurrencyUtils.formatVND(totalAmount));
+        return new NotificationContent(title, content);
+    }
+
+    /**
+     * Cảnh báo người dùng về hoạt động chi tiêu bất thường trên một ví cụ thể.
+     */
+    public static NotificationContent abnormalWalletActivity(String walletName, int count, BigDecimal totalAmount) {
+        String title = "Cảnh báo chi tiêu bất thường 🚩";
+        String content = String.format(
+                "Ví '%s' có dấu hiệu hoạt động nghi vấn: %d giao dịch chi tiêu với tổng số tiền %s trong vòng 24h qua. " +
+                "Vui lòng kiểm tra lại lịch sử giao dịch của bạn.",
+                walletName, count, CurrencyUtils.formatVND(totalAmount));
+        return new NotificationContent(title, content);
+    }
+
+    /**
+     * Thông báo cho Admin về ví của người dùng có dấu hiệu rủi ro cao.
+     */
+    public static NotificationContent adminWalletRiskAlert(String userEmail, String walletName, int count, BigDecimal totalAmount) {
+        String title = "Cảnh báo rủi ro ví người dùng 🚨";
+        String content = String.format(
+                "Người dùng [%s] có ví '%s' phát sinh %d giao dịch chi tiêu bất thường. " +
+                "Tổng giá trị: %s. Đề nghị kiểm tra tài khoản này.",
+                userEmail, walletName, count, CurrencyUtils.formatVND(totalAmount));
+        return new NotificationContent(title, content);
+    }
+
+    /**
+     * Thông báo cập nhật ảnh đại diện thành công.
+     */
+    public static NotificationContent avatarUpdated() {
+        String title = "Cập nhật hồ sơ ✨";
+        String content = "Ảnh đại diện của bạn đã được cập nhật thành công.";
+        return new NotificationContent(title, content);
+    }
+
+    /**
+     * Thông báo cập nhật thông tin cá nhân (tên, số điện thoại...).
+     */
+    public static NotificationContent profileUpdated() {
+        String title = "Cập nhật thông tin 📝";
+        String content = "Thông tin tài khoản của bạn đã được thay đổi thành công.";
+        return new NotificationContent(title, content);
+    }
+
+    /**
+     * Thông báo thay đổi mật khẩu thành công.
+     * Dùng khi: Người dùng đổi mật khẩu hoặc reset mật khẩu.
+     */
+    public static NotificationContent passwordChanged() {
+        String title = "Bảo mật tài khoản 🔐";
+        String content = "Mật khẩu của bạn đã được thay đổi thành công. Nếu không phải bạn thực hiện, hãy liên hệ hỗ trợ ngay lập tức.";
         return new NotificationContent(title, content);
     }
 
@@ -258,6 +337,16 @@ public final class NotificationMessages {
     // ════════════════════════════════════════════════════════════════════════
 
     /**
+     * Ví mới được tạo thành công.
+     */
+    public static NotificationContent walletCreated(String walletName) {
+        String title = "Ví mới đã sẵn sàng 👛";
+        String content = String.format(
+                "Ví \"%s\" đã được tạo thành công. Bắt đầu quản lý tài chính ngay thôi!", walletName);
+        return new NotificationContent(title, content);
+    }
+
+    /**
      * Số dư ví xuống thấp dưới ngưỡng cảnh báo.
      * Dùng khi: Sau mỗi transaction → kiểm tra balance của wallet.
      * (Scheduler hoặc inline trong TransactionService)
@@ -282,6 +371,19 @@ public final class NotificationMessages {
         String content = String.format(
                 "Ví \"%s\" đang âm %s. Hãy kiểm tra lại các giao dịch!",
                 walletName, CurrencyUtils.formatVND(balance.abs()));
+        return new NotificationContent(title, content);
+    }
+
+    /**
+     * Chuyển tiền giữa các ví của cùng một người dùng.
+     */
+    public static NotificationContent walletTransfer(BigDecimal amount,
+                                                     String fromWallet,
+                                                     String toWallet) {
+        String title = "Chuyển tiền nội bộ 💸";
+        String content = String.format(
+                "Đã chuyển %s từ ví \"%s\" sang ví \"%s\".",
+                CurrencyUtils.formatVND(amount), fromWallet, toWallet);
         return new NotificationContent(title, content);
     }
 
@@ -353,6 +455,20 @@ public final class NotificationMessages {
     }
 
     /**
+     * Ghi nhận một khoản nợ hoặc cho vay mới.
+     */
+    public static NotificationContent debtCreated(String personName,
+                                                  BigDecimal amount,
+                                                  boolean isPayable) {
+        String title = isPayable ? "Ghi nợ mới 📝" : "Ghi khoản cho vay mới 📝";
+        String action = isPayable ? "nợ" : "cho vay";
+        String content = String.format(
+                "Đã ghi nhận khoản %s %s với %s. Đừng quên theo dõi hạn trả!",
+                action, CurrencyUtils.formatVND(amount), personName);
+        return new NotificationContent(title, content);
+    }
+
+    /**
      * Khoản nợ đã được thanh toán xong.
      * Dùng khi: recalculateDebt() → debt.finished = true.
      */
@@ -407,6 +523,25 @@ public final class NotificationMessages {
                 CurrencyUtils.formatVND(totalSpent),
                 topCategoryName,
                 CurrencyUtils.formatVND(topCategoryAmount));
+        return new NotificationContent(title, content);
+    }
+
+    /**
+     * Tổng kết tháng.
+     * Dùng khi: ReminderScheduler chạy vào ngày đầu tháng mới.
+     */
+    public static NotificationContent monthlyDigest(int month, int year,
+                                                    BigDecimal totalIncome,
+                                                    BigDecimal totalExpense) {
+        String title = String.format("Báo cáo tài chính tháng %d/%d 📊", month, year);
+        BigDecimal balance = totalIncome.subtract(totalExpense);
+        String trend = balance.compareTo(BigDecimal.ZERO) >= 0 ? "thặng dư" : "thâm hụt";
+        
+        String content = String.format(
+                "Tháng qua bạn đã thu %s và chi %s. Tài khoản %s %s.",
+                CurrencyUtils.formatVND(totalIncome),
+                CurrencyUtils.formatVND(totalExpense),
+                trend, CurrencyUtils.formatVND(balance.abs()));
         return new NotificationContent(title, content);
     }
 

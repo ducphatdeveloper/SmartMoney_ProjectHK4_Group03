@@ -3,6 +3,8 @@ import '../../modules/auth/screens/register_screen.dart';
 import '../../screens/splash_screen.dart';
 import '../../modules/auth/screens/login_screen.dart';
 import '../../screens/main_navigation.dart';
+import '../../screens/reset_password_screen.dart';
+import '../../modules/notification/screens/notification_screen.dart';
 import '../helpers/token_helper.dart';
 
 class AppRouter {
@@ -21,13 +23,14 @@ class AppRouter {
 
       final isGoingToLogin = state.matchedLocation == "/login";
       final isGoingToRegister = state.matchedLocation == "/register";
+      final isGoingToReset = state.matchedLocation == "/reset-password";
 
-      // Đang chưa login mà đòi vào trang khác -> Bắt về login
-      if (!isLoggedIn && !isGoingToLogin && !isGoingToRegister) {
+      // Đang chưa login mà đòi vào trang khác (không phải login/register/reset) -> Bắt về login
+      if (!isLoggedIn && !isGoingToLogin && !isGoingToRegister && !isGoingToReset) {
         return "/login";
       }
 
-      // Đã login rồi mà đòi vào lại trang login -> Bắt về main
+      // Đã login rồi mà đòi vào lại trang login/register -> Bắt về main
       if (isLoggedIn && isGoingToLogin) {
         return "/main";
       }
@@ -52,6 +55,18 @@ class AppRouter {
       GoRoute(
         path: "/main",
         builder: (context, state) => const MainNavigation(),
+      ),
+      GoRoute(
+        path: "/reset-password",
+        builder: (context, state) {
+          // Lấy email được truyền qua tham số 'extra'
+          final email = state.extra as String;
+          return ResetPasswordScreen(email: email);
+        },
+      ),
+      GoRoute(
+        path: "/notifications",
+        builder: (context, state) => const NotificationScreen(),
       ),
     ],
   );

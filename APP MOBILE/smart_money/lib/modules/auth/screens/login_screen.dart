@@ -236,16 +236,32 @@ class _LoginScreenState extends State<LoginScreen> {
                                       ),
 
                                       ElevatedButton(
-                                        onPressed: () {
+                                        onPressed: () async {
+                                          final email = emailController.text.trim();
+                                          if (email.isEmpty) {
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              const SnackBar(content: Text("Please enter your email")),
+                                            );
+                                            return;
+                                          }
 
-                                          /// TODO: API reset password
-                                          ScaffoldMessenger.of(context).showSnackBar(
-                                            const SnackBar(
-                                              content: Text("Reset link sent to your email"),
-                                            ),
-                                          );
+                                          // Gọi API gửi OTP thông qua AuthProvider
+                                          final success = await authProvider.requestPasswordReset(email);
 
-                                          Navigator.pop(context);
+                                          if (context.mounted) {
+                                            if (success) {
+                                              Navigator.pop(context); // Đóng dialog
+                                              ScaffoldMessenger.of(context).showSnackBar(
+                                                SnackBar(content: Text("OTP sent to $email")),
+                                              );
+                                              // Chuyển sang màn hình nhập OTP và mật khẩu mới
+                                              context.push('/reset-password', extra: email);
+                                            } else {
+                                              ScaffoldMessenger.of(context).showSnackBar(
+                                                const SnackBar(content: Text("Failed to send OTP. Please try again.")),
+                                              );
+                                            }
+                                          }
                                         },
                                         child: const Text("Send"),
                                       ),

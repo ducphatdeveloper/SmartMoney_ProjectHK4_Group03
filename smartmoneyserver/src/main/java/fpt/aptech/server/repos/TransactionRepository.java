@@ -319,6 +319,9 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
     // Tìm các giao dịch có số tiền lớn hơn ngưỡng và phát sinh sau thời điểm xác định
     List<Transaction> findAllByAmountGreaterThanAndTransDateAfter(BigDecimal amount, LocalDateTime since);
 
+    // Tìm tất cả giao dịch phát sinh sau một thời điểm nhất định (Dùng cho phân tích hành vi ví)
+    List<Transaction> findAllByTransDateAfter(LocalDateTime since);
+
     // =================================================================================
     // 10. CÁC HÀM CHO PLANNED TRANSACTION (Giao dịch định kỳ / Hóa đơn)
     // =================================================================================

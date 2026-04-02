@@ -1,46 +1,28 @@
-/// Response hiển thị thông báo.
-/// Tương ứng: dto/notification/NotificationResponse.java (server)
 class NotificationResponse {
   final int id;
-  final int? notifyType;
-  final int? relatedId;
-  final String? title;
-  final String? content;
-  final DateTime? scheduledTime;
-  final bool? notifySent;
-  final bool? notifyRead;
-  final DateTime? createdAt;
+  final String title;
+  final String content;
+  final int notifyType;
+  final bool notifyRead;
+  final String? scheduledTime;
 
-  const NotificationResponse({
+  NotificationResponse({
     required this.id,
-    this.notifyType,
-    this.relatedId,
-    this.title,
-    this.content,
+    required this.title,
+    required this.content,
+    required this.notifyType,
+    required this.notifyRead,
     this.scheduledTime,
-    this.notifySent,
-    this.notifyRead,
-    this.createdAt,
   });
 
   factory NotificationResponse.fromJson(Map<String, dynamic> json) {
     return NotificationResponse(
-      id: json['id'] as int,
-      notifyType: json['notifyType'] as int?,
-      relatedId: json['relatedId'] != null
-          ? (json['relatedId'] as num).toInt()
-          : null,
-      title: json['title'] as String?,
-      content: json['content'] as String?,
-      scheduledTime: json['scheduledTime'] != null
-          ? DateTime.parse(json['scheduledTime'] as String)
-          : null,
-      notifySent: json['notifySent'] as bool?,
-      notifyRead: json['notifyRead'] as bool?,
-      createdAt: json['createdAt'] != null
-          ? DateTime.parse(json['createdAt'] as String)
-          : null,
+      id: json['id'] ?? 0,
+      title: json['title'] ?? '',
+      content: json['content'] ?? '',
+      notifyType: json['notifyType'] ?? 0,
+      notifyRead: json['notifyRead'] ?? false,
+      scheduledTime: json['scheduledTime'],
     );
   }
 }
-

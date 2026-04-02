@@ -34,7 +34,9 @@ class AppConstants {
       url = _developmentBaseUrl;
     }
     // In log giúp team biết đang kết nối tới server nào
-    print("📍 API Base URL: $url (ENV: $_environment)");
+    if (kDebugMode) {
+      print("📍 API Base URL: $url (ENV: $_environment)");
+    }
     return url;
   }
 
@@ -49,7 +51,7 @@ class AppConstants {
       // 192.168.x.x (IP máy tính) là dành cho máy thật.
 
       // Gán ip máy tính thật để test
-      String computerIp = "192.168.1.168"; // <--- THAY BẰNG IP MÁY TÍNH (Gõ ipconfig để lấy)
+      String computerIp = "172.16.3.232"; // <--- THAY BẰNG IP MÁY TÍNH (Gõ ipconfig để lấy)
 
       return "http://$computerIp:9999/api";
     }
@@ -72,7 +74,12 @@ class AppConstants {
   static String get authLogin         => "$baseUrl/auth/login";
   static String get authRegister      => "$baseUrl/auth/register";
   static String get authLogout        => "$baseUrl/auth/logout";
+  static String get authForgotPassword => "$baseUrl/auth/forgot-password";
+  static String get authResetPassword => "$baseUrl/auth/reset-password";
   static String get authRefreshToken  => "$baseUrl/auth/refresh-token";
+
+  // --- User ---
+  static String get authUpdateAvatar        => "$baseUrl/user/avatar";
 
   // --- Wallet ---
   static String get walletsBase           => "$baseUrl/user/wallets";
@@ -113,4 +120,10 @@ class AppConstants {
   static String billToggle(int id)        => "$baseUrl/bills/$id/toggle";
   static String billPay(int id)           => "$baseUrl/bills/$id/pay";
   static String billTransactions(int id)  => "$baseUrl/bills/$id/transactions"; // Endpoint mới
+
+  // --- Notification ---
+  static String get notificationsBase        => "$baseUrl/notifications";
+  static String get notificationsUnreadCount => "$baseUrl/notifications/unread-count";
+  static String markNotificationRead(int id) => "$baseUrl/notifications/$id/read";
+  static String get markAllNotificationsRead => "$baseUrl/notifications/read-all";
 }

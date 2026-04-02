@@ -13,6 +13,8 @@ import 'modules/planned/providers/bill_provider.dart';
 import 'modules/planned/providers/bill_transaction_provider.dart'; // Import mới
 import 'package:smart_money/modules/event/providers/event_provider.dart';
 import 'package:smart_money/modules/saving_goal/providers/saving_goal_provider.dart';
+import 'modules/notification/providers/notification_provider.dart';
+
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -39,6 +41,7 @@ void main() async {
         ChangeNotifierProvider(create: (_) => BillTransactionProvider()), // Đăng ký BillTransactionProvider
         ChangeNotifierProvider(create: (_) => EventProvider()),
         ChangeNotifierProvider(create: (_) => SavingGoalProvider()),
+        ChangeNotifierProvider(create: (_) => NotificationProvider()),
       ],
       child: const SmartMoneyApp(),
     ),
@@ -53,22 +56,17 @@ class SmartMoneyApp extends StatelessWidget {
     return MaterialApp.router(
       debugShowCheckedModeBanner: false,
 
-      // Bắt buộc để DatePicker hiển thị tiếng Việt (tháng, thứ, nút OK/HỦY)
+      // Cấu hình ngôn ngữ và định dạng khu vực
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
       ],
       supportedLocales: const [
-        Locale('vi', 'VN'),  // Tiếng Việt
-        Locale('en', 'US'),  // English
+        Locale('vi', 'VN'),
+        Locale('en', 'US'),
       ],
-
-      // cấu hình GoRouter
-      routerDelegate: AppRouter.router.routerDelegate,
-      routeInformationParser: AppRouter.router.routeInformationParser,
-      routeInformationProvider: AppRouter.router.routeInformationProvider,
-
+      routerConfig: AppRouter.router,
       theme: ThemeData.dark().copyWith(scaffoldBackgroundColor: Colors.black),
     );
   }

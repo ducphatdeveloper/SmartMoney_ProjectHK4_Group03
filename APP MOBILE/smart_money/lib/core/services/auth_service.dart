@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 
 import '../constants/app_constants.dart';
 import '../helpers/token_helper.dart';
@@ -96,6 +97,94 @@ class AuthService {
     } finally {
       // Luôn xóa token dù server có lỗi hay không
       await TokenHelper.clearTokens();
+    }
+  }
+
+  // =============================================
+  // FORGOT PASSWORD
+  // =============================================
+  // Gọi POST /api/auth/forgot-password
+  Future<ApiResponse<dynamic>> forgotPassword(String email) async {
+    try {
+      final response = await http.post(
+        Uri.parse(AppConstants.authForgotPassword),
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode({"email": email}),
+      );
+
+      final json = jsonDecode(utf8.decode(response.bodyBytes));
+      return ApiResponse<dynamic>.fromJson(json, null);
+    } catch (e) {
+      return ApiResponse<dynamic>(
+        success: false,
+        message: "Không thể kết nối đến server. Kiểm tra lại mạng.",
+      );
+    }
+  }
+
+  // =============================================
+  // RESET PASSWORD
+  // =============================================
+  // Gọi POST /api/auth/reset-password
+  Future<ApiResponse<dynamic>> resetPassword(
+    String email,
+    String otp,
+    String newPassword,
+  ) async {
+    try {
+      final response = await http.post(
+        Uri.parse(AppConstants.authResetPassword),
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode({
+          "email": email,
+          "otp": otp,
+          "newPassword": newPassword,
+        }),
+      );
+
+      final json = jsonDecode(utf8.decode(response.bodyBytes));
+      return ApiResponse<dynamic>.fromJson(json, null);
+    } catch (e) {
+      return ApiResponse<dynamic>(
+        success: false,
+        message: "Không thể kết nối đến server. Kiểm tra lại mạng.",
+      );
+    }
+  }
+
+  // =============================================
+  // UPDATE AVATAR
+  // =============================================
+  // Gọi POST /api/auth/avatar (consumes MultipartFile)
+  Future<ApiResponse<String>> updateAvatar(String filePath) async {
+    try {
+      final uri = Uri.parse(AppConstants.authUpdateAvatar);
+      final request = http.MultipartRequest('POST', uri);
+
+      // Thêm Authorization header
+      final token = await TokenHelper.getAccessToken();
+      if (token != null) {
+        request.headers['Authorization'] = 'Bearer $token';
+      }
+
+      // Thêm file vào request
+      final file = await http.MultipartFile.fromPath(
+        'file',
+        filePath,
+        contentType: MediaType('image', 'jpeg'), // Có thể linh hoạt theo loại file
+      );
+      request.files.add(file);
+
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
+
+      final json = jsonDecode(utf8.decode(response.bodyBytes));
+      return ApiResponse<String>.fromJson(json, (data) => data.toString());
+    } catch (e) {
+      return ApiResponse<String>(
+        success: false,
+        message: "Lỗi khi tải ảnh lên server: ${e.toString()}",
+      );
     }
   }
 }
