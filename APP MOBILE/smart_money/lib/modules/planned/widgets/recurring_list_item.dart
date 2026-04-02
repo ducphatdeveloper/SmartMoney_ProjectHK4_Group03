@@ -134,8 +134,9 @@ class RecurringListItem extends StatelessWidget {
                       ),
                     ],
 
-                    // Số lần lặp lại còn lại (chỉ khi lặp theo COUNT)
-                    if (item.remainingCount != null && item.repeatType == 3) ...[
+                    // [2] Số lần lặp lại còn lại — hiện cho TẤT CẢ repeat_type (ngày/tuần/tháng/năm)
+                    // Bug cũ: chỉ hiện khi repeatType == 3 (tháng), thiếu ngày/tuần/năm
+                    if (item.remainingCount != null) ...[
                       const SizedBox(height: 4),
                       Text(
                         'Còn ${item.remainingCount} lần lặp lại',

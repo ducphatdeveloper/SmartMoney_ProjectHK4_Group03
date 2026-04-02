@@ -6,6 +6,7 @@ import 'package:smart_money/modules/event/screens/event_screen.dart';
 import 'package:smart_money/modules/saving_goal/screens/saving_goal_list_screen.dart';
 import 'package:smart_money/modules/saving_goal/screens/saving_goal_list_view.dart';
 import 'package:smart_money/modules/wallet/screens/wallet_screen.dart';
+import 'package:smart_money/modules/debt/screens/debt_list_screen.dart';
 import 'account_management_screen.dart';
 
 class AccountScreen extends StatelessWidget {
@@ -97,7 +98,16 @@ class AccountScreen extends StatelessWidget {
               );
             },
           ),
-          _item(Icons.request_page, "Sổ nợ"),
+          _item(
+            Icons.request_page,
+            "Sổ nợ",
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const DebtListScreen()),
+              );
+            },
+          ),
 
           const SizedBox(height: 16),
           _section("Khác"),

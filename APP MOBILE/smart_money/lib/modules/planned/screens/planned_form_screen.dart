@@ -248,7 +248,10 @@ class _PlannedFormScreenState extends State<PlannedFormScreen> {
   // [6.5] ROW CHỌN VÍ — Hiện icon ví + tên + số dư
   // =============================================
   Widget _buildWalletRow() {
+    // [1b] Dùng HitTestBehavior.opaque để đảm bảo toàn bộ khung đều nhận tap
+    //      (không chỉ riêng icon ">")
     return GestureDetector(
+      behavior: HitTestBehavior.opaque,
       onTap: _isLoadingWallets ? null : () => _showWalletPicker(_wallets),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 14),

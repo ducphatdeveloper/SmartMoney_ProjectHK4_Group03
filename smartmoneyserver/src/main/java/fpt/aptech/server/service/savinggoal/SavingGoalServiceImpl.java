@@ -111,6 +111,11 @@ public class SavingGoalServiceImpl implements SavingGoalService {
      * [2.1] Cập nhật thông tin mục tiêu (tên, số tiền mục tiêu, ngày kết thúc, ảnh...).
      * Chỉ cho phép sửa khi mục tiêu đang ACTIVE.
      * Không cho phép đặt target thấp hơn số tiền hiện tại.
+     *
+     * Bước 1 — Validate trạng thái và dữ liệu đầu vào.
+     * Bước 2 — Xử lý điều chỉnh currentAmount (nếu có) bằng cách tạo giao dịch ghi nhận chênh lệch.
+     * Bước 3 — Cập nhật thông tin mục tiêu.
+     * Bước 4 — Kiểm tra tự động hoàn thành nếu đạt mục tiêu.
      */
     @Override
     @Transactional
@@ -122,19 +127,71 @@ public class SavingGoalServiceImpl implements SavingGoalService {
             throw new IllegalStateException("Chỉ có thể sửa mục tiêu đang hoạt động.");
         }
 
-        // Bước 2: Không cho target thấp hơn số tiền đã có
+        // Validate targetAmount trước khi sử dụng
+        if (request.getTargetAmount() == null) {
+            throw new IllegalArgumentException("Số tiền mục tiêu không được để trống");
+        }
+
+        // Bước 2: Xử lý điều chỉnh currentAmount (nếu request có truyền lên)
+        // Tham khảo logic WalletServiceImpl.updateWallet() — tạo giao dịch ghi nhận chênh lệch
+        if (request.getInitialAmount() != null) {
+            BigDecimal oldAmount = goal.getCurrentAmount();
+            BigDecimal newAmount = request.getInitialAmount();
+
+            // 2.1: Validate số tiền không được âm
+            if (newAmount.compareTo(BigDecimal.ZERO) < 0) {
+                throw new IllegalArgumentException("Số tiền hiện tại không được âm");
+            }
+
+            // 2.2: Nếu có thay đổi → tạo giao dịch ghi nhận chênh lệch
+            int comparison = newAmount.compareTo(oldAmount);
+            if (comparison != 0) {
+                BigDecimal diff = newAmount.subtract(oldAmount).abs();
+                boolean isIncrease = comparison > 0;
+
+                // Tăng số tiền → Thu nhập khác | Giảm số tiền → Các chi phí khác
+                SystemCategory systemCategory = isIncrease
+                        ? SystemCategory.INCOME_OTHER
+                        : SystemCategory.OTHER_EXPENSE;
+                Category category = categoryRepository.findById(systemCategory.getId())
+                        .orElseThrow(() -> new IllegalStateException(
+                                "Không tìm thấy danh mục hệ thống: " + systemCategory.name()));
+
+                Transaction adjustTransaction = Transaction.builder()
+                        .account(goal.getAccount())
+                        .savingGoal(goal)
+                        .category(category)
+                        .amount(diff)
+                        .note("Điều chỉnh số dư mục tiêu: " + goal.getGoalName())
+                        .reportable(false) // Không tính vào báo cáo thu/chi thông thường
+                        .sourceType(TransactionSourceType.MANUAL.getValue())
+                        .transDate(LocalDateTime.now())
+                        .build();
+
+                transactionRepository.save(adjustTransaction);
+                goal.setCurrentAmount(newAmount);
+            }
+        }
+
+        // Bước 3: Không cho target thấp hơn số tiền đã có
         if (request.getTargetAmount().compareTo(goal.getCurrentAmount()) < 0) {
             throw new IllegalArgumentException(
                     "Số tiền mục tiêu không được nhỏ hơn số tiền hiện tại");
         }
 
-        // Bước 3: Cập nhật các trường
+        // Bước 4: Cập nhật các trường thông tin
         goal.setGoalName(request.getGoalName());
         goal.setTargetAmount(request.getTargetAmount());
         goal.setEndDate(request.getEndDate());
         goal.setGoalImageUrl(request.getGoalImageUrl());
         goal.setNotified(request.getNotified());
         goal.setReportable(request.getReportable());
+
+        // Bước 5: Kiểm tra tự động hoàn thành nếu số tiền hiện tại đạt hoặc vượt mục tiêu
+        if (goal.getCurrentAmount().compareTo(goal.getTargetAmount()) >= 0) {
+            goal.setGoalStatus(GoalStatus.COMPLETED.getValue());
+            goal.setFinished(true);
+        }
 
         savingGoalRepository.save(goal);
         return mapToResponse(goal);

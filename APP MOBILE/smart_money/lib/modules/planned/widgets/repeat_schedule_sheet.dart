@@ -146,15 +146,21 @@ class _RepeatScheduleSheetState extends State<RepeatScheduleSheet> {
   // =============================================
   @override
   Widget build(BuildContext context) {
+    // [1a] Lấy chiều cao bàn phím để sheet đẩy lên, tránh che ô nhập liệu
+    final keyboardInset = MediaQuery.of(context).viewInsets.bottom;
+
     return Container(
       decoration: const BoxDecoration(
         color: Color(0xFF2C2C2E),    // nền sheet
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
+      // [1a] Cộng keyboardInset vào bottom padding → sheet tự đẩy lên trên bàn phím
+      padding: EdgeInsets.fromLTRB(20, 16, 20, 24 + keyboardInset),
+      // [1a] SingleChildScrollView để scroll khi nội dung tràn (bàn phím mở)
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
           // ── Handle bar ──
           Container(
             width: 40,
@@ -197,8 +203,9 @@ class _RepeatScheduleSheetState extends State<RepeatScheduleSheet> {
           // ── Hàng 7: Nút HUỶ + XONG ──
           _buildActionButtons(),
         ],
-      ),
-    );
+      ),   // end Column
+    ),     // end SingleChildScrollView
+    );     // end Container
   }
 
   // =============================================
@@ -652,7 +659,7 @@ class _RepeatScheduleSheetState extends State<RepeatScheduleSheet> {
       firstDate: today,      // Ngày trong quá khứ bị làm xám
       lastDate: today.add(const Duration(days: 365 * 5)),
       useRootNavigator: true, // Dialog nổi lên trên sheet — không cần pop sheet trước
-      locale: const Locale('vi', 'VN'),
+      // [NOTE] Không dùng locale: Locale('vi','VN') vì cần GlobalMaterialLocalizations.delegate
     );
 
     if (!mounted) return;
@@ -671,7 +678,7 @@ class _RepeatScheduleSheetState extends State<RepeatScheduleSheet> {
       firstDate: _beginDate, // Không cho chọn trước ngày bắt đầu
       lastDate: _beginDate.add(const Duration(days: 365 * 10)),
       useRootNavigator: true,
-      locale: const Locale('vi', 'VN'),
+      // [NOTE] Không dùng locale: Locale('vi','VN') vì cần GlobalMaterialLocalizations.delegate
     );
 
     if (!mounted) return;

@@ -123,9 +123,11 @@ class _RecurringScreenState extends State<RecurringScreen> with SingleTickerProv
         onPressed: () => Navigator.pop(context),
       ),
       // [TODO i18n] Hard-coded title string — migrate to AppLocalizations
+      // [0b] Giảm fontSize xuống 15 để không bị tràn khi hiển thị cùng wallet dropdown
       title: const Text(
         'Giao dịch định kỳ',
-        style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600),
+        style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w600),
+        overflow: TextOverflow.ellipsis,
       ),
       actions: [
         // Dropdown chọn ví → BottomSheet
@@ -167,12 +169,13 @@ class _RecurringScreenState extends State<RecurringScreen> with SingleTickerProv
           child: GestureDetector(
             onTap: _isLoadingWallets ? null : () => _showWalletFilterSheet(wallets, recurringProv),
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              // [0c] Thu nhỏ maxWidth từ 200 → 130 để chữ title "Giao dịch định kỳ" hiện đủ
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
               decoration: BoxDecoration(
                 border: Border.all(color: Colors.white24),
                 borderRadius: BorderRadius.circular(8),
               ),
-              constraints: const BoxConstraints(maxWidth: 200),
+              constraints: const BoxConstraints(maxWidth: 130),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -183,22 +186,22 @@ class _RecurringScreenState extends State<RecurringScreen> with SingleTickerProv
                           ? wallets.firstWhere((w) => w.id == selected).goalImageUrl
                           : null,
                     ),
-                    const SizedBox(width: 6),
+                    const SizedBox(width: 4),
                   ] else ...[
                     // Khi 'Tất cả ví' được chọn (selected == null) hiển thị icon màu xanh lá giống trang transaction
-                    const Icon(Icons.account_balance_wallet, color: Color(0xFF4CAF50), size: 18),
-                    const SizedBox(width: 6),
+                    const Icon(Icons.account_balance_wallet, color: Color(0xFF4CAF50), size: 16),
+                    const SizedBox(width: 4),
                   ],
                   // Tên ví
                   Flexible(
                     child: Text(
                       displayName,
-                      style: const TextStyle(color: Colors.white, fontSize: 14),
+                      style: const TextStyle(color: Colors.white, fontSize: 12),
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  const SizedBox(width: 4),
-                  const Icon(Icons.keyboard_arrow_down, color: Color(0xFF8E8E93), size: 18),
+                  const SizedBox(width: 2),
+                  const Icon(Icons.keyboard_arrow_down, color: Color(0xFF8E8E93), size: 16),
                 ],
               ),
             ),
@@ -416,16 +419,28 @@ class _RecurringScreenState extends State<RecurringScreen> with SingleTickerProv
       return _buildEmptyState('Chưa có giao dịch định kỳ đang diễn ra.\nNhấn + để thêm mới.');
     }
 
-    return ListView.builder(
+    // [0a] Dùng ListView thay vì ListView.builder để thêm header label "Các giao dịch cố định"
+    return ListView(
       padding: const EdgeInsets.only(top: 8, bottom: 80),
-      itemCount: items.length,
-      itemBuilder: (context, index) {
-        final item = items[index];
-        return RecurringListItem(
+      children: [
+        // [0a] Label ghi chú phía trên danh sách
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Text(
+            'Các giao dịch cố định',
+            style: TextStyle(
+              color: Color(0xFF8E8E93),
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+        // Danh sách các giao dịch định kỳ
+        ...items.map((item) => RecurringListItem(
           item: item,
           onTap: () => _openRecurringDetailSheet(item),
-        );
-      },
+        )),
+      ],
     );
   }
 

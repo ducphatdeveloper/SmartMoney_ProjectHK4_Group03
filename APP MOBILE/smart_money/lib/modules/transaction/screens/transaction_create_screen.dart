@@ -144,6 +144,15 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
       return;
     }
 
+    // Bước 2b: Validate personName nếu loại giao dịch là "debt" — bắt buộc
+    if (_transactionType == 'debt') {
+      final personName = _withPersonController.text.trim();
+      if (personName.isEmpty) {
+        _showSnackBar('Vui lòng nhập tên người vay', isError: true);
+        return;
+      }
+    }
+
     // Bước 3: Build request body — tương ứng TransactionRequest.java
     final request = TransactionRequest(
       // Nếu ví là wallet → gửi walletId, nếu là saving_goal → gửi goalId
@@ -156,6 +165,9 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
       withPerson: _withPersonController.text.trim().isNotEmpty
           ? _withPersonController.text.trim()
           : null,
+      personName: _transactionType == 'debt' && _withPersonController.text.trim().isNotEmpty
+          ? _withPersonController.text.trim()
+          : null, // personName chỉ gửi khi loại = debt
       eventId: _selectedEventId,
       reminderDate: _reminderTime,
       reportable: !_notReportable, // checkbox "Không tính" → reportable = false
@@ -480,14 +492,23 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
 
                     const Divider(color: Colors.grey, height: 1),
 
+                    // [G] Row "Tên người" — hiển thị bắt buộc khi debt
+                    if (_transactionType == 'debt')
+                      _buildDebtPersonNameRow(),
+
+                    if (_transactionType == 'debt')
+                      const Divider(color: Colors.grey, height: 1),
+
                     // Nút "THÊM CHI TIẾT"
                     _buildToggleDetailsButton(),
 
                     // Phần chi tiết (ẩn/hiện)
                     if (_showDetails) ...[
                       const Divider(color: Colors.grey, height: 1),
-                      _buildWithPersonRow(),
-                      const Divider(color: Colors.grey, height: 1),
+                      if (_transactionType != 'debt')
+                        _buildWithPersonRow(),
+                      if (_transactionType != 'debt')
+                        const Divider(color: Colors.grey, height: 1),
                       _buildReportCheckbox(),
                     ],
 
@@ -550,34 +571,61 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
     );
   }
 
-  // ----- Widget: Row ghi chú -----
-  Widget _buildNoteRow() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      child: Row(
-        children: [
-          const Icon(Icons.notes, color: Colors.grey, size: 20),
-          const SizedBox(width: 12),
-          Expanded(
-            child: TextField(
-              controller: _noteController,
-              focusNode: _noteFocusNode,
-              maxLength: 500,
-              style: const TextStyle(color: Colors.white, fontSize: 15),
-              decoration: const InputDecoration(
-                hintText: 'Thêm ghi chú',
-                hintStyle: TextStyle(color: Colors.grey),
-                border: InputBorder.none,
-                counterText: '', // ẩn counter ký tự
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+   // ----- Widget: Row ghi chú -----
+   Widget _buildNoteRow() {
+     return Container(
+       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+       child: Row(
+         children: [
+           const Icon(Icons.notes, color: Colors.grey, size: 20),
+           const SizedBox(width: 12),
+           Expanded(
+             child: TextField(
+               controller: _noteController,
+               focusNode: _noteFocusNode,
+               maxLength: 500,
+               style: const TextStyle(color: Colors.white, fontSize: 15),
+               decoration: const InputDecoration(
+                 hintText: 'Thêm ghi chú',
+                 hintStyle: TextStyle(color: Colors.grey),
+                 border: InputBorder.none,
+                 counterText: '', // ẩn counter ký tự
+               ),
+             ),
+           ),
+         ],
+       ),
+     );
+   }
 
-
+   // ----- Widget: Row "Tên người vay/cho vay" — Bắt buộc khi debt -----
+   Widget _buildDebtPersonNameRow() {
+     return Container(
+       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+       child: Row(
+         children: [
+           const Icon(Icons.person, color: Colors.orange, size: 20),
+           const SizedBox(width: 12),
+           Expanded(
+             child: TextField(
+               controller: _withPersonController,
+               focusNode: _withPersonFocusNode,
+               maxLength: 100,
+               style: const TextStyle(color: Colors.white, fontSize: 15),
+               decoration: InputDecoration(
+                 hintText: _transactionType == 'debt'
+                     ? 'Tên người vay/cho vay *'
+                     : 'Với ai',
+                 hintStyle: const TextStyle(color: Colors.grey),
+                 border: InputBorder.none,
+                 counterText: '',
+               ),
+             ),
+           ),
+         ],
+       ),
+     );
+   }
   // ----- Widget: Nút "THÊM CHI TIẾT" -----
   Widget _buildToggleDetailsButton() {
     return GestureDetector(
