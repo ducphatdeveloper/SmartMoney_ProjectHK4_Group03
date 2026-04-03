@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import '../../../modules/transaction/providers/transaction_provider.dart';
 import '../models/saving_goal_response.dart';
 import '../providers/saving_goal_provider.dart';
 import 'edit_saving_goal_screen.dart';
@@ -116,6 +117,11 @@ class _DetailSavingGoalScreenState extends State<DetailSavingGoalScreen> {
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Cancel")),
           TextButton(onPressed: () async {
             await context.read<SavingGoalProvider>().deleteGoal(widget.goal.id);
+            // [FIX-BẪY2] Refresh TransactionProvider._sourceItems ngay lập tức
+            // để dropdown trong màn Transaction không còn hiện mục tiêu vừa bị soft-delete
+            if (context.mounted) {
+              context.read<TransactionProvider>().refreshSourceItems();
+            }
             if (mounted) { Navigator.pop(ctx); Navigator.pop(context, true); }
           }, child: const Text("Delete", style: TextStyle(color: Colors.red))),
         ],

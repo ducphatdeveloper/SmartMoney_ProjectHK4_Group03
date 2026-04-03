@@ -452,6 +452,17 @@ class TransactionProvider extends ChangeNotifier {
   }
 
   // =============================================
+  // [2.14b] REFRESH SOURCE ITEMS — Cập nhật dropdown ví/mục tiêu ngay lập tức
+  // =============================================
+  // Gọi khi: Wallet hoặc SavingGoal bị xóa từ màn hình khác
+  // Mục đích: Xóa ngay item đã bị soft-delete khỏi dropdown nguồn tiền
+  // mà không cần đợi user chuyển tab (AnimatedSwitcher mới mount lại)
+  Future<void> refreshSourceItems() async {
+    await _loadSourceItems();
+    notifyListeners();
+  }
+
+  // =============================================
   // [2.15] CLEAR MESSAGES — Xóa thông báo sau khi UI đã hiện
   // =============================================
   void clearMessages() {

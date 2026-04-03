@@ -28,6 +28,8 @@ public interface EventMapper {
     @Mapping(target = "currency", ignore = true)
     @Mapping(target = "finished", ignore = true)
     @Mapping(target = "beginDate", ignore = true) // Sẽ được set tự động
+    @Mapping(target = "deleted", ignore = true)   // Soft delete — giữ @Builder.Default = false
+    @Mapping(target = "deletedAt", ignore = true) // Soft delete — giữ null mặc định
     Event fromCreateRequest(EventCreateRequest request);
 
     // Cập nhật Entity từ DTO UpdateRequest (dùng khi sửa)
@@ -36,5 +38,7 @@ public interface EventMapper {
     @Mapping(target = "currency", ignore = true)
     @Mapping(target = "finished", ignore = true)
     @Mapping(target = "beginDate", ignore = true)
+    @Mapping(target = "deleted", ignore = true)   // Soft delete — không cho update ghi đè
+    @Mapping(target = "deletedAt", ignore = true) // Soft delete — không cho update ghi đè
     void updateFromUpdateRequest(EventUpdateRequest request, @MappingTarget Event entity);
 }

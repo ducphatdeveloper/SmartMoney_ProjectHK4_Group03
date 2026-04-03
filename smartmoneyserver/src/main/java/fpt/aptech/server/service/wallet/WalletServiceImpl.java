@@ -22,13 +22,17 @@ import java.util.List;
 @RequiredArgsConstructor
 public class WalletServiceImpl implements WalletService {
 
-    private final WalletRepository      walletRepository;
-    private final AccountRepository     accountRepository;
-    private final CurrencyRepository    currencyRepository;
-    private final TransactionRepository transactionRepository;
-    private final CategoryRepository    categoryRepository;
-    private final SavingGoalRepository  savingGoalRepository;
-    private final NotificationService   notificationService; // Inject để cảnh báo số dư thấp
+    private final WalletRepository              walletRepository;
+    private final AccountRepository             accountRepository;
+    private final CurrencyRepository            currencyRepository;
+    private final TransactionRepository         transactionRepository;
+    private final CategoryRepository            categoryRepository;
+    private final SavingGoalRepository          savingGoalRepository;
+    private final BudgetRepository              budgetRepository;              // Cascade soft delete
+    private final PlannedTransactionRepository  plannedTransactionRepository;  // Cascade soft delete
+    private final DebtRepository                debtRepository;               // Cascade soft delete
+    private final EventRepository               eventRepository;               // Cascade soft delete
+    private final NotificationService           notificationService; // Inject để cảnh báo số dư thấp
 
     // Ngưỡng số dư thấp mặc định (500,000đ) — gửi cảnh báo khi số dư xuống dưới mức này
     // Lưu ý: Đây là ngưỡng chung, tương lai có thể config riêng theo từng ví
@@ -170,11 +174,18 @@ public class WalletServiceImpl implements WalletService {
     // =================================================================================
 
     /**
-     * [3.1] Xóa ví.
+     * [3.1] Xóa mềm ví.
      * Bước 1 — Tìm ví và kiểm tra quyền sở hữu.
-     * Bước 2 — Xóa ví. DB ON DELETE CASCADE tự xóa: Transactions, Budgets, PlannedTransactions liên kết.
+     * Bước 2 — Soft delete cascade (ví là NGUỒN TIỀN → xóa toàn bộ dữ liệu liên kết):
+     *           • Transactions thuộc wallet_id
+     *           • Budgets thuộc wallet_id
+     *           • PlannedTransactions thuộc wallet_id
+     *           • Debts có giao dịch trong ví này (qua subquery tTransactions)
+     *           • Events có giao dịch trong ví này (qua subquery tTransactions)
+     * Bước 3 — Soft delete chính ví.
      */
     @Override
+    @Transactional
     public void deleteWallet(Integer accountId, Integer walletId) {
         // Bước 1: Tìm ví và kiểm tra quyền
         Wallet wallet = walletRepository.findById(walletId)
@@ -183,8 +194,17 @@ public class WalletServiceImpl implements WalletService {
             throw new SecurityException("Bạn không có quyền xóa ví này");
         }
 
-        // Bước 2: Xóa ví
-        walletRepository.delete(wallet);
+        // Bước 2: Soft delete cascade — xóa mềm các bản ghi liên kết
+        transactionRepository.softDeleteAllByWalletId(walletId);          // Giao dịch thuộc ví
+        budgetRepository.softDeleteAllByWalletId(walletId);               // Ngân sách thuộc ví
+        plannedTransactionRepository.softDeleteAllByWalletId(walletId);   // Giao dịch định kỳ/hóa đơn thuộc ví
+        debtRepository.softDeleteAllByWalletId(walletId);                 // Khoản nợ có giao dịch thuộc ví
+        eventRepository.softDeleteAllByWalletId(walletId);                // Sự kiện có giao dịch thuộc ví
+
+        // Bước 3: Soft delete chính ví
+        wallet.setDeleted(true);
+        wallet.setDeletedAt(LocalDateTime.now());
+        walletRepository.save(wallet);
     }
 
     // =================================================================================

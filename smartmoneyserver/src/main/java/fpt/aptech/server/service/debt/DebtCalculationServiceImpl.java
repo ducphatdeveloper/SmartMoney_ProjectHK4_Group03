@@ -145,13 +145,13 @@ public class DebtCalculationServiceImpl implements DebtCalculationService {
     // =================================================================================
 
     /**
-     * [2.1] Xóa khoản nợ nếu không còn giao dịch gốc nào (Cho vay / Đi vay) liên kết.
+     * [2.1] Xóa mềm khoản nợ nếu không còn giao dịch gốc nào (Cho vay / Đi vay) liên kết.
      *
-     * Được gọi từ TransactionServiceImpl.deleteTransaction() SAU khi đã xóa giao dịch
+     * Được gọi từ TransactionServiceImpl.deleteTransaction() SAU khi đã xóa mềm giao dịch
      * thuộc loại Cho vay (19) hoặc Đi vay (20).
      *
      * Nếu vẫn còn giao dịch gốc khác → không xóa (caller gọi recalculateDebt() tiếp).
-     * Nếu không còn → dọn dẹp FK + xóa Debt bằng JPQL DELETE (an toàn với Hibernate session).
+     * Nếu không còn → dọn dẹp FK + soft delete Debt.
      */
     @Override
     @Transactional
@@ -165,14 +165,19 @@ public class DebtCalculationServiceImpl implements DebtCalculationService {
             return;
         }
 
-        // Không còn giao dịch gốc → xóa Debt và dọn dẹp FK liên kết
+        // Không còn giao dịch gốc → soft delete Debt và dọn dẹp FK liên kết
         // Bước 1: NULL hóa debt_id trong Transaction (tránh FK violation)
         transactionRepository.setDebtIdToNullByDebtId(debtId);
         // Bước 2: Deactivate + NULL hóa debt_id trong PlannedTransaction
         plannedTransactionRepository.deactivateAllByDebtId(debtId);
         plannedTransactionRepository.setDebtIdToNullByDebtId(debtId);
-        // Bước 3: JPQL DELETE (không qua entity lifecycle → không gây TransientObjectException)
-        debtRepository.deleteByDebtId(debtId);
+        // Bước 3: Soft delete Debt (thay vì JPQL DELETE)
+        Debt debt = debtRepository.findById(debtId).orElse(null);
+        if (debt != null) {
+            debt.setDeleted(true);
+            debt.setDeletedAt(java.time.LocalDateTime.now());
+            debtRepository.save(debt);
+        }
     }
 }
 

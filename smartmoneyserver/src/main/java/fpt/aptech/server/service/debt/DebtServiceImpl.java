@@ -76,12 +76,16 @@ public class DebtServiceImpl implements DebtService {
     @Override
     @Transactional
     public void deleteDebt(Integer debtId, Integer accId) {
-        getOwnedDebt(debtId, accId); // check ownership
+        Debt debt = getOwnedDebt(debtId, accId);
         // Giữ lại giao dịch, chỉ set debt_id = null
         transactionRepository.setDebtIdToNullByDebtId(debtId);
         plannedTransactionRepository.deactivateAllByDebtId(debtId);        // ← thêm
         plannedTransactionRepository.setDebtIdToNullByDebtId(debtId);      // ← thêm
-        debtRepository.deleteById(debtId);
+
+        // Soft delete khoản nợ (thay vì xóa cứng)
+        debt.setDeleted(true);
+        debt.setDeletedAt(java.time.LocalDateTime.now());
+        debtRepository.save(debt);
     }
 
     // ================= PRIVATE HELPERS =================

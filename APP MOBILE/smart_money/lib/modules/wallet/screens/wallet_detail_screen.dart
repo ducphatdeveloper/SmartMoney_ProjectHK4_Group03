@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../core/helpers/icon_helper.dart';
+import '../../../modules/transaction/providers/transaction_provider.dart';
 import '../models/wallet_response.dart';
 import '../providers/wallet_provider.dart';
 import 'edit_wallet_screen.dart';
@@ -243,6 +244,12 @@ class _WalletDetailScreenState extends State<WalletDetailScreen> {
               Provider.of<WalletProvider>(context, listen: false);
 
               await provider.deleteWallet(widget.wallet.id);
+
+              // [FIX-BẪY2] Refresh TransactionProvider._sourceItems ngay lập tức
+              // để dropdown ví trong màn Transaction không còn hiện ví vừa bị soft-delete
+              if (context.mounted) {
+                context.read<TransactionProvider>().refreshSourceItems();
+              }
 
               Navigator.pop(context);
               Navigator.pop(context, true);

@@ -130,29 +130,32 @@ public class CategoryServiceImpl implements CategoryService {
             }
 
         } else {
-            // LOGIC XÓA SẠCH (DELETE_ALL)
+            // LOGIC XÓA MỀM (DELETE_ALL) — thay vì xóa cứng, dùng soft delete
             for (Category child : childCategories) {
                 transactionService.revertAllTransactionBalancesForCategoryNoFetch(child.getId(), accountId);
-                transactionRepository.deleteAllByCategoryIdAndAccountId(child.getId(), accountId);
+                transactionRepository.softDeleteAllByCategoryIdAndAccountId(child.getId(), accountId);
             }
             transactionService.revertAllTransactionBalancesForCategoryNoFetch(categoryId, accountId);
-            transactionRepository.deleteAllByCategoryIdAndAccountId(categoryId, accountId);
+            transactionRepository.softDeleteAllByCategoryIdAndAccountId(categoryId, accountId);
         }
 
-        // --- XÓA DỮ LIỆU: CON TRƯỚC, CHA SAU (Tránh lỗi FK) ---
+        // --- XÓA MỀM DỮ LIỆU: CON TRƯỚC, CHA SAU ---
 
-        // 4. Xóa danh mục con
+        // 4. Soft delete danh mục con
+        java.time.LocalDateTime now = java.time.LocalDateTime.now();
+        for (Category child : childCategories) {
+            child.setDeleted(true);
+            child.setDeletedAt(now);
+        }
         if (!childCategories.isEmpty()) {
-            // Dùng deleteAll để Hibernate đồng bộ lifecycle của các thực thể (tránh TransientObjectException).
-            // deleteAll sẽ xóa từng entity thông qua Persistence Context, đảm bảo các quan hệ trong bộ nhớ
-            // được cập nhật đúng trước khi xóa cha.
-            categoryRepository.deleteAll(childCategories);
-            // Ép đồng bộ xuống DB ngay để đảm bảo trạng thái nhất quán (tùy chọn nhưng an toàn).
+            categoryRepository.saveAll(childCategories);
             categoryRepository.flush();
         }
 
-        // 5. Cuối cùng xóa danh mục cha
-        categoryRepository.delete(category);
+        // 5. Cuối cùng soft delete danh mục cha
+        category.setDeleted(true);
+        category.setDeletedAt(now);
+        categoryRepository.save(category);
     }
 
     /**

@@ -167,8 +167,10 @@ public class BudgetServiceImpl implements BudgetService {
     @Transactional
     public void deleteBudget(Integer budgetId, Integer userId) {
         Budget budget = getOwnedBudget(budgetId, userId);
-        // Chỉ xóa ngân sách, không xóa giao dịch (FK budget_id ở tTransactions là nullable)
-        budgetRepository.delete(budget);
+        // Soft delete ngân sách (không xóa giao dịch vì FK budget_id ở tTransactions là nullable)
+        budget.setDeleted(true);
+        budget.setDeletedAt(java.time.LocalDateTime.now());
+        budgetRepository.save(budget);
     }
 
     // ═══════════════════════════════════════════════════════════════════════════

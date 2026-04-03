@@ -93,7 +93,8 @@ public interface SavingGoalRepository extends JpaRepository<SavingGoal, Integer>
     @Query("SELECT SUM(sg.currentAmount) FROM SavingGoal sg " +
            "WHERE sg.account.id = :accountId " +
            "  AND sg.goalStatus != 3 " +      // Loại trừ CANCELLED
-           "  AND sg.reportable = true")       // Chỉ tính mục tiêu được báo cáo
+           "  AND sg.reportable = true " +     // Chỉ tính mục tiêu được báo cáo
+           "  AND sg.deleted = false")         // Chỉ tính mục tiêu chưa bị xóa mềm
     BigDecimal sumCurrentAmountByAccountId(@Param("accountId") Integer accountId);
 
     // =================================================================================

@@ -100,7 +100,7 @@ public class PlannedTransactionServiceImpl implements PlannedTransactionService 
     }
 
     /**
-     * [1.5] Xóa Recurring — giữ lại Transaction nhưng cắt liên kết (set planned_id=NULL).
+     * [1.5] Xóa mềm Recurring — giữ lại Transaction nhưng cắt liên kết (set planned_id=NULL).
      * SourceType vẫn là PLANNED (5) để tracking lịch sử.
      */
     @Override
@@ -109,8 +109,10 @@ public class PlannedTransactionServiceImpl implements PlannedTransactionService 
         PlannedTransaction planned = getOwnedPlanned(id, userId);
         // Cắt liên kết transaction (set planned_id=NULL) thay vì xóa
         transactionRepo.clearPlannedTransactionLink(id, userId);
-        // Xóa planned
-        plannedRepo.delete(planned);
+        // Soft delete planned
+        planned.setDeleted(true);
+        planned.setDeletedAt(java.time.LocalDateTime.now());
+        plannedRepo.save(planned);
     }
 
     /**
@@ -181,7 +183,7 @@ public class PlannedTransactionServiceImpl implements PlannedTransactionService 
     }
 
     /**
-     * [2.5] Xóa Bill — giữ lại Transaction nhưng cắt liên kết (set planned_id=NULL).
+     * [2.5] Xóa mềm Bill — giữ lại Transaction nhưng cắt liên kết (set planned_id=NULL).
      * SourceType vẫn là PLANNED (5) để tracking lịch sử.
      */
     @Override
@@ -190,8 +192,10 @@ public class PlannedTransactionServiceImpl implements PlannedTransactionService 
         PlannedTransaction planned = getOwnedPlanned(id, userId);
         // Cắt liên kết transaction (set planned_id=NULL) thay vì xóa
         transactionRepo.clearPlannedTransactionLink(id, userId);
-        // Xóa planned
-        plannedRepo.delete(planned);
+        // Soft delete planned
+        planned.setDeleted(true);
+        planned.setDeletedAt(java.time.LocalDateTime.now());
+        plannedRepo.save(planned);
     }
 
     /**

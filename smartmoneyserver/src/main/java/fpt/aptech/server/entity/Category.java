@@ -3,7 +3,9 @@ package fpt.aptech.server.entity;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.SQLRestriction;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -12,6 +14,7 @@ import java.util.List;
  */
 @Entity
 @Table(name = "tCategories")
+@SQLRestriction("deleted = 0")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -50,4 +53,12 @@ public class Category {
 
     @Column(name = "ctg_icon_url", length = 2048)
     private String ctgIconUrl;
+
+    // ── SOFT DELETE ──────────────────────────────────────────────────────
+    @Column(name = "deleted", nullable = false)
+    @Builder.Default
+    private Boolean deleted = false;
+
+    @Column(name = "deleted_at")
+    private LocalDateTime deletedAt;
 }

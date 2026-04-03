@@ -295,6 +295,7 @@ public class TransactionServiceImpl implements TransactionService {
         Specification<Transaction> spec = (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
             predicates.add(cb.equal(root.get("account").get("id"), accountId));
+            predicates.add(cb.equal(root.get("deleted"), false)); // Chỉ lấy giao dịch chưa bị xóa mềm
 
             // Wallet / SavingGoal (giữ nguyên logic cũ)
             if (request.walletId() != null) {
@@ -641,10 +642,10 @@ public class TransactionServiceImpl implements TransactionService {
     }
 
     /**
-     * [4.2] Xóa một giao dịch.
+     * [4.2] Xóa mềm một giao dịch.
      * Bước 1 — Tìm và kiểm tra quyền.
      * Bước 2 — Hoàn tiền vào Ví/Mục tiêu.
-     * Bước 3 — Xóa giao dịch.
+     * Bước 3 — Soft delete giao dịch.
      * Bước 4 — Tính lại Debt nếu có.
      */
     @Override
@@ -658,32 +659,32 @@ public class TransactionServiceImpl implements TransactionService {
             throw new SecurityException("Bạn không có quyền xóa giao dịch này.");
         }
 
-        // Lưu debtId và categoryId TRƯỚC khi xóa (sau khi xóa không còn lấy được)
+        // Lưu debtId và categoryId TRƯỚC khi xóa mềm
         Integer debtId     = transaction.getDebt()     != null ? transaction.getDebt().getId()     : null;
         Integer categoryId = transaction.getCategory() != null ? transaction.getCategory().getId() : null;
 
-        // Bước 2 + 3: Hoàn tiền và xóa
+        // Bước 2: Hoàn tiền
         revertTransactionBalance(transaction);
-        transactionRepository.delete(transaction);
 
-        // Bước 4: Xử lý Debt SAU khi xóa
+        // Bước 3: Soft delete (thay vì xóa cứng)
+        transaction.setDeleted(true);
+        transaction.setDeletedAt(LocalDateTime.now());
+        transactionRepository.save(transaction);
+
+        // Bước 4: Xử lý Debt SAU khi xóa mềm
         if (debtId != null) {
             Account account = accountRepository.findById(accountId).orElse(null);
 
             // Nếu giao dịch vừa xóa là giao dịch GỐC (Cho vay / Đi vay):
             //   → Kiểm tra xem còn giao dịch gốc nào khác không.
-            //   → Nếu không còn → xóa luôn Debt (deleteDebtIfOrphaned).
+            //   → Nếu không còn → xóa mềm Debt (deleteDebtIfOrphaned).
             //   → Nếu còn         → chỉ tính lại số liệu (recalculateDebt).
             // Nếu là giao dịch trả/thu nợ: chỉ cần tính lại.
-            // categoryId là Integer (nullable), getId() trả về int → cần autobox, gọi equals trên Integer
             boolean isOriginTransaction = categoryId != null && (
                     categoryId.equals(SystemCategory.DEBT_LENDING.getId()) ||
                     categoryId.equals(SystemCategory.DEBT_BORROWING.getId()));
 
             if (isOriginTransaction) {
-                // deleteDebtIfOrphaned() sẽ tự kiểm tra còn origin tx không.
-                // Nếu xóa debt → recalculateDebt() bên dưới sẽ return sớm (findById = null).
-                // Nếu không xóa (còn origin tx khác) → recalculateDebt() cập nhật lại số liệu.
                 debtCalculationService.deleteDebtIfOrphaned(debtId);
             }
 

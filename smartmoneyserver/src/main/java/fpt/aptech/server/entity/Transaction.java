@@ -3,6 +3,7 @@ package fpt.aptech.server.entity;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.SQLRestriction;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -13,6 +14,7 @@ import java.time.LocalDateTime;
  */
 @Entity
 @Table(name = "tTransactions")
+@SQLRestriction("deleted = 0")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -86,4 +88,11 @@ public class Transaction {
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 
+    // ── SOFT DELETE ──────────────────────────────────────────────────────
+    @Column(name = "deleted", nullable = false)
+    @Builder.Default
+    private Boolean deleted = false;
+
+    @Column(name = "deleted_at")
+    private LocalDateTime deletedAt;
 }

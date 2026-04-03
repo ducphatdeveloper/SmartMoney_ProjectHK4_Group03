@@ -58,8 +58,11 @@ public interface TransactionMapper {
         @Mapping(target = "debt", ignore = true),
         @Mapping(target = "savingGoal", ignore = true),
         @Mapping(target = "aiConversation", ignore = true),
+        @Mapping(target = "plannedTransaction", ignore = true),
         @Mapping(target = "createdAt", ignore = true),
-        @Mapping(target = "sourceType", ignore = true)
+        @Mapping(target = "sourceType", ignore = true),
+        @Mapping(target = "deleted", ignore = true),   // Soft delete — giữ @Builder.Default = false
+        @Mapping(target = "deletedAt", ignore = true)   // Soft delete — giữ null mặc định
     })
     Transaction toEntity(TransactionRequest request);
 }

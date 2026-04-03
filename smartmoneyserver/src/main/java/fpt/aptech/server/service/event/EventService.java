@@ -61,12 +61,14 @@ public interface EventService {
     EventResponse updateEventStatus(Integer eventId, Integer accId);
 
     /**
-     * Xóa một sự kiện.
+     * Xóa mềm một sự kiện.
+     * Giao dịch thuộc sự kiện được GIỮ LẠI (set event_id = null), KHÔNG xóa mềm.
+     * Chỉ Wallet / SavingGoal (nguồn tiền) mới cascade xóa mềm giao dịch.
+     *
      * @param eventId ID của sự kiện cần xóa.
      * @param accId ID của user để kiểm tra quyền.
-     * @param deleteTransactions Nếu true, xóa cả các giao dịch liên quan. Nếu false, chỉ xóa sự kiện.
      */
-    void deleteEvent(Integer eventId, Integer accId, Boolean deleteTransactions);
+    void deleteEvent(Integer eventId, Integer accId);
 
     /**
      * Lấy danh sách các giao dịch thuộc về một sự kiện, đã được nhóm theo ngày.

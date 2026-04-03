@@ -30,4 +30,24 @@ public interface DebtRepository extends JpaRepository<Debt, Integer> {
     @Modifying
     @Query("DELETE FROM Debt d WHERE d.id = :id")
     void deleteByDebtId(@Param("id") Integer id);
+
+    // ── SOFT DELETE CASCADE ───────────────────────────────────────────────────────────
+    // Dùng Native SQL để bỏ qua @SQLRestriction("deleted = 0") trên bảng tTransactions,
+    // đảm bảo tìm được khoản nợ ngay cả khi giao dịch liên kết đã bị xóa mềm trước đó.
+
+    /// [CASCADE] Xóa mềm tất cả khoản nợ có giao dịch thuộc một ví (cascade từ Wallet soft delete)
+    @Modifying
+    @Query(value = "UPDATE tDebts SET deleted = 1, deleted_at = CURRENT_TIMESTAMP " +
+                   "WHERE id IN (SELECT DISTINCT debt_id FROM tTransactions " +
+                   "             WHERE wallet_id = :walletId AND debt_id IS NOT NULL)",
+           nativeQuery = true)
+    void softDeleteAllByWalletId(@Param("walletId") Integer walletId);
+
+    /// [CASCADE] Xóa mềm tất cả khoản nợ có giao dịch thuộc một mục tiêu (cascade từ SavingGoal soft delete)
+    @Modifying
+    @Query(value = "UPDATE tDebts SET deleted = 1, deleted_at = CURRENT_TIMESTAMP " +
+                   "WHERE id IN (SELECT DISTINCT debt_id FROM tTransactions " +
+                   "             WHERE goal_id = :goalId AND debt_id IS NOT NULL)",
+           nativeQuery = true)
+    void softDeleteAllBySavingGoalId(@Param("goalId") Integer goalId);
 }

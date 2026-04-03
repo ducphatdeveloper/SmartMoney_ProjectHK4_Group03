@@ -18,11 +18,15 @@ public interface BudgetMapper {
     @Mapping(target = "account", ignore = true)
     @Mapping(target = "wallet", ignore = true)
     @Mapping(target = "categories", ignore = true)
+    @Mapping(target = "deleted", ignore = true)   // Soft delete — giữ @Builder.Default = false
+    @Mapping(target = "deletedAt", ignore = true) // Soft delete — giữ null mặc định
     Budget toEntity(BudgetRequest request);
 
     @Mapping(target = "id", ignore = true)
     @Mapping(target = "account", ignore = true)
     @Mapping(target = "wallet", ignore = true)
     @Mapping(target = "categories", ignore = true)
+    @Mapping(target = "deleted", ignore = true)   // Soft delete — không cho update ghi đè
+    @Mapping(target = "deletedAt", ignore = true) // Soft delete — không cho update ghi đè
     void updateEntityFromRequest(BudgetRequest request, @MappingTarget Budget entity);
 }

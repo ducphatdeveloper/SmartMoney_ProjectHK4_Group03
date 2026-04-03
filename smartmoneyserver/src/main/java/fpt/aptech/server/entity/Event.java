@@ -2,8 +2,10 @@ package fpt.aptech.server.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.SQLRestriction;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 /**
  * Bảng sự kiện.
@@ -11,6 +13,7 @@ import java.time.LocalDate;
  */
 @Entity
 @Table(name = "tEvents")
+@SQLRestriction("deleted = 0")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -47,4 +50,12 @@ public class Event {
     @Column(name = "finished")
     @Builder.Default
     private Boolean finished = false;
+
+    // ── SOFT DELETE ──────────────────────────────────────────────────────
+    @Column(name = "deleted", nullable = false)
+    @Builder.Default
+    private Boolean deleted = false;
+
+    @Column(name = "deleted_at")
+    private LocalDateTime deletedAt;
 }

@@ -2,8 +2,10 @@ package fpt.aptech.server.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.SQLRestriction;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 
 /**
  * Bảng ví tiền.
@@ -11,6 +13,7 @@ import java.math.BigDecimal;
  */
 @Entity
 @Table(name = "tWallets")
+@SQLRestriction("deleted = 0")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -54,4 +57,12 @@ public class Wallet {
     // Hình ảnh của ví (nếu có).
     @Column(name = "goal_image_url", length = 2048)
     private String goalImageUrl;
+
+    // ── SOFT DELETE ──────────────────────────────────────────────────────
+    @Column(name = "deleted", nullable = false)
+    @Builder.Default
+    private Boolean deleted = false;
+
+    @Column(name = "deleted_at")
+    private LocalDateTime deletedAt;
 }

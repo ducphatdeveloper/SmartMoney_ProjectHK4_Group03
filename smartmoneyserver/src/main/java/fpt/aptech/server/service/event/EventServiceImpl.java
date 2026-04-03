@@ -195,23 +195,27 @@ public class EventServiceImpl implements EventService {
     // =================================================================================
 
     /**
-     * [3.1] Xóa sự kiện.
-     * deleteTransactions=true  → xóa cả giao dịch liên quan (hard delete).
-     * deleteTransactions=false → chỉ xóa sự kiện, giữ giao dịch (set event_id=null).
+     * [3.1] Xóa mềm sự kiện.
+     * Chỉ xóa mềm chính sự kiện — KHÔNG cascade xóa mềm giao dịch.
+     * Giao dịch thuộc sự kiện được giữ lại (set event_id = null để cắt liên kết).
+     *
+     * Nguyên tắc thiết kế:
+     *   - Chỉ Wallet / SavingGoal (nguồn tiền) mới cascade xóa mềm Transaction.
+     *   - Event / Debt / Planned khi bị xóa chỉ xóa mềm chính nó + cắt FK liên kết.
+     *   - Hoàn tiền (nếu cần) được xử lý ở TransactionServiceImpl.deleteTransaction().
      */
     @Override
     @Transactional
-    public void deleteEvent(Integer eventId, Integer accId, Boolean deleteTransactions) {
-        getOwnedEvent(eventId, accId); // Kiểm tra quyền
+    public void deleteEvent(Integer eventId, Integer accId) {
+        Event event = getOwnedEvent(eventId, accId);
 
-        if (Boolean.TRUE.equals(deleteTransactions)) {
-            // Xóa cả giao dịch lẫn sự kiện
-            transactionRepository.deleteAllByEventId(eventId);
-        } else {
-            // Chỉ xóa sự kiện — giữ lại giao dịch (set event_id = null)
-            transactionRepository.setEventIdToNullByEventId(eventId);
-        }
-        eventRepository.deleteById(eventId);
+        // Cắt liên kết: set event_id = null trên các giao dịch (KHÔNG xóa mềm transaction)
+        transactionRepository.setEventIdToNullByEventId(eventId);
+
+        // Soft delete sự kiện
+        event.setDeleted(true);
+        event.setDeletedAt(java.time.LocalDateTime.now());
+        eventRepository.save(event);
     }
 
     // =================================================================================

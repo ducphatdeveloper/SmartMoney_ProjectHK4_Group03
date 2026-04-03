@@ -2,6 +2,7 @@ package fpt.aptech.server.repos;
 
 import fpt.aptech.server.entity.Budget;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -83,4 +84,11 @@ AND b.endDate >= :beginDate
             @Param("endDate") LocalDate endDate,
             @Param("excludeId") Integer excludeId
     );
+
+    // ── SOFT DELETE CASCADE ─────────────────────────────────────────────
+
+    /// [WALLET] Xóa mềm tất cả Budget thuộc một ví (cascade từ Wallet soft delete)
+    @Modifying
+    @Query("UPDATE Budget b SET b.deleted = true, b.deletedAt = CURRENT_TIMESTAMP WHERE b.wallet.id = :walletId")
+    void softDeleteAllByWalletId(@Param("walletId") Integer walletId);
 }

@@ -59,4 +59,11 @@ public interface PlannedTransactionRepository extends JpaRepository<PlannedTrans
         WHERE p.debt.id = :debtId
     """)
     void deactivateAllByDebtId(@Param("debtId") Integer debtId);
+
+    // ── SOFT DELETE CASCADE ─────────────────────────────────────────────
+
+    /// [WALLET] Xóa mềm tất cả PlannedTransaction thuộc một ví (cascade từ Wallet soft delete)
+    @Modifying
+    @Query("UPDATE PlannedTransaction p SET p.deleted = true, p.deletedAt = CURRENT_TIMESTAMP WHERE p.wallet.id = :walletId")
+    void softDeleteAllByWalletId(@Param("walletId") Integer walletId);
 }

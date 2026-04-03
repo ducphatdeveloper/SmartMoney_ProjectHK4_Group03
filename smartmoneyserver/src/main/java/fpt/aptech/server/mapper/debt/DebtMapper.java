@@ -29,5 +29,7 @@ public interface DebtMapper {
     @Mapping(target = "remainAmount", ignore = true)
     @Mapping(target = "finished", ignore = true)
     @Mapping(target = "createdAt", ignore = true)
+    @Mapping(target = "deleted", ignore = true)   // Soft delete — không cho update ghi đè
+    @Mapping(target = "deletedAt", ignore = true) // Soft delete — không cho update ghi đè
     void updateFromRequest(DebtUpdateRequest request, @MappingTarget Debt entity);
 }

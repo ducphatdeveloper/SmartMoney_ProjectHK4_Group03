@@ -3,9 +3,11 @@ package fpt.aptech.server.entity;
 import fpt.aptech.server.enums.budget.BudgetType;
 import jakarta.persistence.*;
 import lombok.*;
+import org.hibernate.annotations.SQLRestriction;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.Set;
 
 /**
@@ -14,6 +16,7 @@ import java.util.Set;
  */
 @Entity
 @Table(name = "tBudgets")
+@SQLRestriction("deleted = 0")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -67,4 +70,12 @@ public class Budget {
     @Enumerated(EnumType.STRING)
     @Column(name = "budget_type", nullable = false)
     private BudgetType budgetType;
+
+    // ── SOFT DELETE ──────────────────────────────────────────────────────
+    @Column(name = "deleted", nullable = false)
+    @Builder.Default
+    private Boolean deleted = false;
+
+    @Column(name = "deleted_at")
+    private LocalDateTime deletedAt;
 }

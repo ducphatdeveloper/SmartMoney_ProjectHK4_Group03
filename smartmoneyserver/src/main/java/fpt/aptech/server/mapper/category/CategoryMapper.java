@@ -24,5 +24,7 @@ public interface CategoryMapper {
     @Mapping(target = "account", ignore = true)
     @Mapping(target = "children", ignore = true)
     @Mapping(target = "parent", ignore = true)
+    @Mapping(target = "deleted", ignore = true)   // Soft delete — giữ @Builder.Default = false
+    @Mapping(target = "deletedAt", ignore = true) // Soft delete — giữ null mặc định
     Category toEntity(CategoryRequest request);
 }

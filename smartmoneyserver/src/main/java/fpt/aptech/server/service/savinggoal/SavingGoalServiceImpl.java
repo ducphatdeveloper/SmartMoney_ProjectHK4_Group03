@@ -30,6 +30,8 @@ public class SavingGoalServiceImpl implements SavingGoalService {
     private final CurrencyRepository   currencyRepository;
     private final TransactionRepository transactionRepository;
     private final CategoryRepository   categoryRepository;
+    private final DebtRepository       debtRepository;   // Cascade soft delete
+    private final EventRepository      eventRepository;  // Cascade soft delete
     private final NotificationService  notificationService; // Inject để gửi thông báo milestone
 
     // Các mốc % cần gửi thông báo khi nạp tiền
@@ -272,8 +274,12 @@ public class SavingGoalServiceImpl implements SavingGoalService {
     // =================================================================================
 
     /**
-     * [4.1] Hủy mục tiêu (Soft delete — chuyển sang CANCELLED, không xóa cứng).
-     * Giữ lại lịch sử giao dịch.
+     * [4.1] Hủy mục tiêu (Soft delete — chuyển sang CANCELLED + đánh dấu deleted).
+     * Mục tiêu tiết kiệm là NGUỒN TIỀN → cascade xóa mềm toàn bộ dữ liệu liên kết:
+     *   • Transactions thuộc goal_id
+     *   • Debts có giao dịch trong mục tiêu này (qua subquery tTransactions)
+     *   • Events có giao dịch trong mục tiêu này (qua subquery tTransactions)
+     * Sau đó soft-delete chính SavingGoal (status = CANCELLED).
      */
     @Override
     @Transactional
@@ -282,6 +288,13 @@ public class SavingGoalServiceImpl implements SavingGoalService {
 
         goal.setGoalStatus(GoalStatus.CANCELLED.getValue());
         goal.setFinished(true);
+
+        // Soft delete cascade — xóa mềm mục tiêu + các bản ghi liên kết
+        goal.setDeleted(true);
+        goal.setDeletedAt(java.time.LocalDateTime.now());
+        transactionRepository.softDeleteAllBySavingGoalId(id);   // Giao dịch thuộc mục tiêu
+        debtRepository.softDeleteAllBySavingGoalId(id);          // Khoản nợ có giao dịch thuộc mục tiêu
+        eventRepository.softDeleteAllBySavingGoalId(id);         // Sự kiện có giao dịch thuộc mục tiêu
 
         savingGoalRepository.save(goal);
     }

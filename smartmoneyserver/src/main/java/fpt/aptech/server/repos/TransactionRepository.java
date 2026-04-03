@@ -42,6 +42,7 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
             "  AND t.transDate BETWEEN :startDate AND :endDate " + // Trong khoảng thời gian
             "  AND (:walletId IS NULL OR t.wallet.id = :walletId) " +             // Lọc theo Ví (nếu có)
             "  AND (:savingGoalId IS NULL OR t.savingGoal.id = :savingGoalId) " + // Lọc theo Mục tiêu (nếu có)
+            "  AND t.deleted = false " +                         // Chỉ lấy giao dịch chưa bị xóa mềm
             "ORDER BY t.transDate DESC") // Sắp xếp giảm dần theo ngày
     List<Transaction> findAllByFilters(
             @Param("accountId") Integer accountId,
@@ -69,6 +70,7 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
             "  AND t.reportable = true " +                         // Chỉ tính giao dịch được báo cáo
             "  AND (:walletId IS NULL OR t.wallet.id = :walletId) " +             // Lọc theo Ví (nếu có)
             "  AND (:savingGoalId IS NULL OR t.savingGoal.id = :savingGoalId) " + // Lọc theo Mục tiêu (nếu có)
+            "  AND t.deleted = false " +                         // Chỉ tính giao dịch chưa bị xóa mềm
             "GROUP BY " +
             "    c.ctgName, " +
             "    c.ctgType, " +
@@ -91,7 +93,8 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
             "WHERE t.account.id = :accountId " +                  // Lọc theo tài khoản
             "  AND t.transDate < :startDate " + // Lấy tất cả giao dịch TRƯỚC ngày bắt đầu
             "  AND (:walletId IS NULL OR t.wallet.id = :walletId) " +             // Lọc theo Ví (nếu có)
-            "  AND (:savingGoalId IS NULL OR t.savingGoal.id = :savingGoalId)")   // Lọc theo Mục tiêu (nếu có)
+            "  AND (:savingGoalId IS NULL OR t.savingGoal.id = :savingGoalId) " + // Lọc theo Mục tiêu (nếu có)
+            "  AND t.deleted = false")   // Chỉ tính giao dịch chưa bị xóa mềm
     BigDecimal calculateBalanceBeforeDate(
             @Param("accountId") Integer accountId,
             @Param("startDate") LocalDateTime startDate,
@@ -115,6 +118,7 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
             "  AND (:walletId IS NULL OR t.wallet.id = :walletId) " +
             "  AND (:savingGoalId IS NULL OR t.savingGoal.id = :savingGoalId) " +
             "  AND (:categoryId IS NULL OR c.id = :categoryId) " +
+            "  AND t.deleted = false " + // Chỉ lấy giao dịch chưa bị xóa mềm
             "GROUP BY CAST(t.transDate AS date) " +
             "ORDER BY CAST(t.transDate AS date) ASC")
     List<DailyTrendDTO> getDailyTrend(
@@ -138,7 +142,8 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
             "  AND t.transDate BETWEEN :startDate AND :endDate " +
             "  AND c.ctgType = false " + // Chỉ tính khoản CHI
             "  AND (:walletId IS NULL OR t.wallet.id = :walletId) " + // Lọc theo ví của ngân sách (nếu có)
-            "  AND (:allCategories = true OR c.id IN :categoryIds)")  // Lọc theo danh mục của ngân sách
+            "  AND (:allCategories = true OR c.id IN :categoryIds) " + // Lọc theo danh mục của ngân sách
+            "  AND t.deleted = false")  // Chỉ tính giao dịch chưa bị xóa mềm
     BigDecimal sumExpenseForBudget(
             @Param("accountId") Integer accountId,
             @Param("startDate") LocalDateTime startDate,
@@ -158,6 +163,7 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
             "  AND c.ctgType = false " +
             "  AND (:walletId IS NULL OR t.wallet.id = :walletId) " +
             "  AND (:allCategories = true OR c.id IN :categoryIds) " +
+            "  AND t.deleted = false " + // Chỉ lấy giao dịch chưa bị xóa mềm
             "ORDER BY t.transDate DESC")
     List<Transaction> findTransactionsForBudget(
             @Param("accountId") Integer accountId,
@@ -195,6 +201,11 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
     @Modifying
     @Query("DELETE FROM Transaction t WHERE t.event.id = :eventId")
     void deleteAllByEventId(@Param("eventId") Integer eventId);
+
+    /// [EVENT] Xóa mềm giao dịch theo eventId (cho nút XÓA CẢ HAI)
+    @Modifying
+    @Query("UPDATE Transaction t SET t.deleted = true, t.deletedAt = CURRENT_TIMESTAMP WHERE t.event.id = :eventId")
+    void softDeleteAllByEventId(@Param("eventId") Integer eventId);
 
     // =================================================================================
     // 6. CÁC HÀM CHO SỔ NỢ (DEBT)
@@ -245,6 +256,14 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
             @Param("accountId") Integer accountId
     );
 
+    /// [CATEGORY] Xóa mềm hàng loạt các giao dịch thuộc một danh mục
+    @Modifying
+    @Query("UPDATE Transaction t SET t.deleted = true, t.deletedAt = CURRENT_TIMESTAMP WHERE t.category.id = :categoryId AND t.account.id = :accountId")
+    void softDeleteAllByCategoryIdAndAccountId(
+            @Param("categoryId") Integer categoryId,
+            @Param("accountId") Integer accountId
+    );
+
     // =================================================================================
     // 8. CÁC HÀM HOÀN TIỀN KHI XÓA DANH MỤC (NATIVE SQL ĐỂ TRÁNH TRANSIENT EXCEPTION)
     // =================================================================================
@@ -255,11 +274,11 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
             "SET balance = balance - ( " +
             "   SELECT COALESCE(SUM(t.amount), 0) FROM tTransactions t " +
             "   JOIN tCategories c ON t.ctg_id = c.id " +
-            "   WHERE t.ctg_id = :categoryId AND c.ctg_type = 1 AND t.wallet_id = tWallets.id AND t.acc_id = :accountId " +
+            "   WHERE t.ctg_id = :categoryId AND c.ctg_type = 1 AND t.wallet_id = tWallets.id AND t.acc_id = :accountId AND t.deleted = 0 " +
             ") " +
             "WHERE id IN ( " +
             "   SELECT DISTINCT wallet_id FROM tTransactions " +
-            "   WHERE ctg_id = :categoryId AND wallet_id IS NOT NULL AND acc_id = :accountId " +
+            "   WHERE ctg_id = :categoryId AND wallet_id IS NOT NULL AND acc_id = :accountId AND deleted = 0 " +
             ")", nativeQuery = true)
     void revertWalletBalanceForIncomeCategory(@Param("categoryId") Integer categoryId, @Param("accountId") Integer accountId);
 
@@ -269,11 +288,11 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
             "SET balance = balance + ( " +
             "   SELECT COALESCE(SUM(t.amount), 0) FROM tTransactions t " +
             "   JOIN tCategories c ON t.ctg_id = c.id " +
-            "   WHERE t.ctg_id = :categoryId AND c.ctg_type = 0 AND t.wallet_id = tWallets.id AND t.acc_id = :accountId " +
+            "   WHERE t.ctg_id = :categoryId AND c.ctg_type = 0 AND t.wallet_id = tWallets.id AND t.acc_id = :accountId AND t.deleted = 0 " +
             ") " +
             "WHERE id IN ( " +
             "   SELECT DISTINCT wallet_id FROM tTransactions " +
-            "   WHERE ctg_id = :categoryId AND wallet_id IS NOT NULL AND acc_id = :accountId " +
+            "   WHERE ctg_id = :categoryId AND wallet_id IS NOT NULL AND acc_id = :accountId AND deleted = 0 " +
             ")", nativeQuery = true)
     void revertWalletBalanceForExpenseCategory(@Param("categoryId") Integer categoryId, @Param("accountId") Integer accountId);
 
@@ -283,11 +302,11 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
             "SET current_amount = current_amount - ( " +
             "   SELECT COALESCE(SUM(t.amount), 0) FROM tTransactions t " +
             "   JOIN tCategories c ON t.ctg_id = c.id " +
-            "   WHERE t.ctg_id = :categoryId AND c.ctg_type = 1 AND t.goal_id = tSavingGoals.id AND t.acc_id = :accountId " +
+            "   WHERE t.ctg_id = :categoryId AND c.ctg_type = 1 AND t.goal_id = tSavingGoals.id AND t.acc_id = :accountId AND t.deleted = 0 " +
             ") " +
             "WHERE id IN ( " +
             "   SELECT DISTINCT goal_id FROM tTransactions " +
-            "   WHERE ctg_id = :categoryId AND goal_id IS NOT NULL AND acc_id = :accountId " +
+            "   WHERE ctg_id = :categoryId AND goal_id IS NOT NULL AND acc_id = :accountId AND deleted = 0 " +
             ")", nativeQuery = true)
     void revertGoalBalanceForIncomeCategory(@Param("categoryId") Integer categoryId, @Param("accountId") Integer accountId);
 
@@ -297,11 +316,11 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
             "SET current_amount = current_amount + ( " +
             "   SELECT COALESCE(SUM(t.amount), 0) FROM tTransactions t " +
             "   JOIN tCategories c ON t.ctg_id = c.id " +
-            "   WHERE t.ctg_id = :categoryId AND c.ctg_type = 0 AND t.goal_id = tSavingGoals.id AND t.acc_id = :accountId " +
+            "   WHERE t.ctg_id = :categoryId AND c.ctg_type = 0 AND t.goal_id = tSavingGoals.id AND t.acc_id = :accountId AND t.deleted = 0 " +
             ") " +
             "WHERE id IN ( " +
             "   SELECT DISTINCT goal_id FROM tTransactions " +
-            "   WHERE ctg_id = :categoryId AND goal_id IS NOT NULL AND acc_id = :accountId " +
+            "   WHERE ctg_id = :categoryId AND goal_id IS NOT NULL AND acc_id = :accountId AND deleted = 0 " +
             ")", nativeQuery = true)
     void revertGoalBalanceForExpenseCategory(@Param("categoryId") Integer categoryId, @Param("accountId") Integer accountId);
 
@@ -352,7 +371,17 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
             @Param("plannedId") Integer plannedId,
             @Param("accountId") Integer accountId);
 
+    // =================================================================================
+    // 11. CÁC HÀM SOFT DELETE CASCADE (Xóa mềm liên kết)
+    // =================================================================================
 
+    /// [WALLET] Xóa mềm tất cả giao dịch thuộc một ví (cascade từ Wallet soft delete)
+    @Modifying
+    @Query("UPDATE Transaction t SET t.deleted = true, t.deletedAt = CURRENT_TIMESTAMP WHERE t.wallet.id = :walletId")
+    void softDeleteAllByWalletId(@Param("walletId") Integer walletId);
 
-
+    /// [SAVING_GOAL] Xóa mềm tất cả giao dịch thuộc một mục tiêu (cascade từ SavingGoal soft delete)
+    @Modifying
+    @Query("UPDATE Transaction t SET t.deleted = true, t.deletedAt = CURRENT_TIMESTAMP WHERE t.savingGoal.id = :goalId")
+    void softDeleteAllBySavingGoalId(@Param("goalId") Integer goalId);
 }
