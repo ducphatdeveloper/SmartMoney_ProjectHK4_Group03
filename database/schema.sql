@@ -155,9 +155,10 @@ GO
 -- ======================================================================
 -- XÓA BẢNG THEO THỨ TỰ NGƯỢC (CON TRƯỚC, CHA SAU)
 -- ======================================================================
+DROP TABLE IF EXISTS tContactRequests;         -- [0]  Bảng liên hệ hỗ trợ admin khóa account và hỗ trợ user gửi request
 DROP TABLE IF EXISTS tBudgetCategories;        -- [1]  Bảng trung gian (N-N) giữa tBudgets và tCategories
 DROP TABLE IF EXISTS tPlannedTransactions;     -- [2]  Con của tAccounts(1-N) + tWallets(1-N) + tCategories(1-N)
-DROP TABLE IF EXISTS tTransactions;            -- [3]  Con của tAccounts(1-N) + tWallets(1-N) + tCategories(1-N)
+DROP TABLE IF EXISTS tTransactions;            -- [3]  Con của tAccounts(1-N) + tWallets(1-N) + tCategories(1-N) + tPlannedTransactions(1-N)
 DROP TABLE IF EXISTS tReceipts;                -- [4]  Con của tAIConversations (quan hệ 1-1: PK = FK)
 DROP TABLE IF EXISTS tAIConversations;         -- [5]  Con của tAccounts (1-N)
 DROP TABLE IF EXISTS tNotifications;           -- [6]  Con của tAccounts (1-N)
@@ -672,6 +673,8 @@ CREATE TABLE tCategories (
     ctg_name NVARCHAR(100) NOT NULL,             -- Tên danh mục (VD: "Ăn uống", "Lương")
     ctg_type BIT NOT NULL,                       -- 0: Chi tiêu | 1: Thu nhập
     ctg_icon_url VARCHAR(2048) NULL,             -- Icon SVG hoặc URL (VD: "icon_food.png")
+    deleted BIT NOT NULL DEFAULT 0, 
+    deleted_at DATETIME NULL,
     
     -- CONSTRAINTS
     CONSTRAINT FK_Categories_Account FOREIGN KEY (acc_id) REFERENCES tAccounts(id),
@@ -683,16 +686,17 @@ GO
 CREATE INDEX idx_system_category_check ON tCategories(ctg_name) WHERE acc_id IS NULL AND parent_id IS NULL;
 -- Index: Tối ưu query danh mục theo User và Parent
 CREATE INDEX idx_categories_lookup ON tCategories(acc_id, parent_id, ctg_type) INCLUDE (ctg_name, ctg_icon_url);
+-- Fix unique NONCLUSTERED ở dưới cùng database sau khi bổ sung xóa mềm.
 -- Chặn User tạo 2 mục con (vd: "Tiền trà đá", "Tiền trà đá") trong cùng một mục cha.
-CREATE UNIQUE NONCLUSTERED INDEX idx_unique_sub_category ON tCategories(acc_id, parent_id, ctg_name, ctg_type) WHERE parent_id IS NOT NULL;
+CREATE UNIQUE NONCLUSTERED INDEX idx_unique_sub_category ON tCategories(acc_id, parent_id, ctg_name, ctg_type) WHERE parent_id IS NOT NULL AND deleted = 0;
 -- Chặn User tạo 2 mục cha (vd: "Ăn uống", "Ăn uống").
 CREATE UNIQUE NONCLUSTERED INDEX idx_unique_user_root ON tCategories(acc_id, ctg_name, ctg_type) 
-WHERE parent_id IS NULL AND acc_id IS NOT NULL;
+WHERE parent_id IS NULL AND acc_id IS NOT NULL AND deleted = 0;
 -- Index Unique: Bảo vệ danh mục gốc System không bị trùng
 CREATE UNIQUE NONCLUSTERED INDEX idx_unique_root_category ON tCategories(ctg_name, ctg_type) 
-WHERE parent_id IS NULL AND acc_id IS NULL;
+WHERE parent_id IS NULL AND acc_id IS NULL AND deleted = 0;
 -- Index Unique: Bảo vệ danh mục con System không bị trùng
-CREATE UNIQUE NONCLUSTERED INDEX idx_unique_system_sub_category ON tCategories(parent_id, ctg_name, ctg_type) WHERE parent_id IS NOT NULL AND acc_id IS NULL;
+CREATE UNIQUE NONCLUSTERED INDEX idx_unique_system_sub_category ON tCategories(parent_id, ctg_name, ctg_type) WHERE parent_id IS NOT NULL AND acc_id IS NULL AND deleted = 0;
 -- Ngăn User tạo danh mục Gốc trùng tên với danh mục Gốc của Hệ thống ( viết trong backend )
 
 /* HƯỚNG DẪN CHO BACKEND hoặc dùng trigger (IMPORTANT):
@@ -701,7 +705,6 @@ CREATE UNIQUE NONCLUSTERED INDEX idx_unique_system_sub_category ON tCategories(p
      đã tồn tại trong các dòng (acc_id IS NULL AND parent_id IS NULL) chưa. 
      Nếu có -> Báo lỗi cho người dùng không được tạo trùng danh mục hệ thống
 */
-
 GO
 -- Chèn danh mục hệ thống (acc_id = NULL)
 -- ==========================================================
@@ -2398,6 +2401,71 @@ PRINT N'✅ Đã tạo 6 budgets: A=' + CAST(@A AS VARCHAR) + ' B=' + CAST(@B AS
     + ' C=' + CAST(@C AS VARCHAR) + ' D=' + CAST(@D AS VARCHAR)
     + ' E=' + CAST(@E AS VARCHAR) + ' F=' + CAST(@F AS VARCHAR);
 GO
+-- ======================================================================
+-- 19 BẢNG YÊU CẦU HỖ TRỢ / LIÊN HỆ TỪ NGƯỜI DÙNG
+-- ======================================================================
+CREATE TABLE tContactRequests (
+    -- PRIMARY KEY
+    id                   INT PRIMARY KEY IDENTITY(1,1),
+
+    -- FOREIGN KEYS
+    acc_id               INT NOT NULL,                               -- FK -> tAccounts (N-1) | Tài khoản gửi yêu cầu
+    processed_by         INT NULL,                                   -- FK -> tAccounts (N-1) | Staff nhận xử lý
+    resolved_by          INT NULL,                                   -- FK -> tAccounts (N-1) | Admin duyệt cuối
+
+    -- DATA COLUMNS
+    request_type         NVARCHAR(30)   NOT NULL,                   -- ACCOUNT_LOCK | ACCOUNT_UNLOCK | BUG_REPORT | SUSPICIOUS_TX | DATA_RECOVERY | DATA_LOSS | GENERAL
+    request_priority     NVARCHAR(10)   NOT NULL DEFAULT 'NORMAL',  -- URGENT | HIGH | NORMAL (Spring Boot tự set khi tạo)
+    title                NVARCHAR(200)  NOT NULL,                   -- Tiêu đề ngắn gọn do user nhập
+    request_description  NVARCHAR(2000) NULL,                       -- Mô tả chi tiết vấn đề
+    contact_phone        NVARCHAR(20)   NULL,                       -- Bắt buộc với ACCOUNT_LOCK/UNLOCK, tùy chọn còn lại
+    request_status       NVARCHAR(20)   NOT NULL DEFAULT 'PENDING', -- PENDING → PROCESSING → APPROVED | REJECTED
+    processed_at         DATETIME       NULL,                       -- Thời điểm staff nhận xử lý
+    resolved_at          DATETIME       NULL,                       -- Thời điểm admin duyệt
+    admin_note           NVARCHAR(1000) NULL,                       -- Ghi chú nội bộ của staff / admin
+    created_at           DATETIME       NOT NULL DEFAULT GETDATE(),
+    updated_at           DATETIME       NOT NULL DEFAULT GETDATE(),
+
+    -- CONSTRAINTS
+    CONSTRAINT CHK_ContactReq_Type     CHECK (request_type     IN ('ACCOUNT_LOCK', 'ACCOUNT_UNLOCK', 'BUG_REPORT', 'SUSPICIOUS_TX', 'DATA_RECOVERY', 'DATA_LOSS', 'GENERAL')),
+    CONSTRAINT CHK_ContactReq_Priority CHECK (request_priority IN ('URGENT', 'HIGH', 'NORMAL')),
+    CONSTRAINT CHK_ContactReq_Status   CHECK (request_status   IN ('PENDING', 'PROCESSING', 'APPROVED', 'REJECTED')),
+    CONSTRAINT FK_ContactReq_Account   FOREIGN KEY (acc_id)       REFERENCES tAccounts(id),
+    CONSTRAINT FK_ContactReq_Staff     FOREIGN KEY (processed_by) REFERENCES tAccounts(id),
+    CONSTRAINT FK_ContactReq_Admin     FOREIGN KEY (resolved_by)  REFERENCES tAccounts(id)
+);
+GO
+
+-- Index: Tối ưu Admin dashboard load danh sách theo trạng thái + độ ưu tiên
+CREATE INDEX idx_contact_status ON tContactRequests(request_status, request_priority, created_at DESC);
+
+-- Index: Tối ưu User xem lịch sử yêu cầu của mình
+CREATE INDEX idx_contact_acc    ON tContactRequests(acc_id, created_at DESC);
+
+-- Index: Tối ưu lọc theo loại yêu cầu (báo cáo thống kê Admin)
+CREATE INDEX idx_contact_type   ON tContactRequests(request_type, request_status);
+GO
+
+-- DỮ LIỆU MẪU: Yêu cầu hỗ trợ
+INSERT INTO tContactRequests (acc_id, request_type, request_priority, title, request_description, contact_phone, request_status, processed_by, processed_at, resolved_by, resolved_at, admin_note) VALUES
+
+-- ── User 6 (Minh Phạm — nhân vật chính) ─────────────────────────────────────
+(6,  'ACCOUNT_LOCK',   'HIGH',   N'Yêu cầu khóa tài khoản khẩn',            N'Điện thoại của tôi bị mất, sợ tài khoản bị truy cập trái phép. Vui lòng khóa tài khoản ngay.',                          '0923456789', 'APPROVED',   1, '2026-03-10 09:15:00', 1, '2026-03-10 10:30:00', N'Đã xác minh qua SĐT, cho phép khóa tài khoản.'),
+(6,  'ACCOUNT_UNLOCK', 'HIGH',   N'Yêu cầu mở khóa tài khoản',              N'Tôi đã tìm lại được điện thoại và đổi mật khẩu. Vui lòng mở khóa tài khoản cho tôi.',                                   '0923456789', 'PROCESSING', 1, '2026-03-15 14:00:00', NULL, NULL,                  N'Đang chờ xác minh thêm qua email.'),
+(6,  'BUG_REPORT',     'NORMAL', N'Lỗi hiển thị biểu đồ tháng 2',           N'Màn hình báo cáo tháng 2/2026 hiển thị sai số liệu tổng chi. Đã thử restart app nhưng vẫn lỗi.',                          NULL,         'PENDING',    NULL, NULL,                NULL, NULL,                  NULL),
+(6,  'SUSPICIOUS_TX',  'URGENT', N'Phát hiện giao dịch lạ trong tài khoản',  N'Tôi thấy có 2 giao dịch -500.000đ lúc 3h sáng ngày 20/03 mà tôi không thực hiện. Nghi bị hack.',                         '0923456789', 'APPROVED',   1, '2026-03-20 08:00:00', 1, '2026-03-20 08:45:00', N'Đã kiểm tra log, xác nhận giao dịch bất thường. Đã khóa tạm thời.'),
+
+-- ── Các user khác ────────────────────────────────────────────────────────────
+(1,  'BUG_REPORT',     'NORMAL', N'App bị crash khi mở tab Ngân sách',       N'Mỗi lần vào tab Ngân sách là app tắt đột ngột. Thiết bị: Samsung S23, Android 14.',                                       NULL,         'APPROVED',   1, '2026-02-05 10:00:00', 1, '2026-02-06 09:00:00', N'Đã tái hiện lỗi, chuyển cho dev fix.'),
+(2,  'DATA_RECOVERY',  'HIGH',   N'Mất toàn bộ giao dịch tháng 1',           N'Sau khi cài lại app, toàn bộ giao dịch tháng 1/2026 của tôi biến mất. Nhờ admin khôi phục giúp.',                         '0912345678', 'PROCESSING', 1, '2026-02-10 11:30:00', NULL, NULL,                  N'Đang truy vấn backup database ngày 31/01.'),
+(3,  'GENERAL',        'NORMAL', N'Hỏi về tính năng xuất báo cáo PDF',       N'App có hỗ trợ xuất báo cáo ra file PDF không? Nếu có thì làm thế nào?',                                                    NULL,         'APPROVED',   1, '2026-01-20 10:00:00', 1, '2026-01-20 14:00:00', N'Ghi nhận góp ý. Đã chuyển cho team product.'),
+(4,  'ACCOUNT_LOCK',   'HIGH',   N'Khóa tài khoản vì nghi bị lộ mật khẩu',  N'Tôi vô tình đăng nhập trên máy tính công cộng và quên đăng xuất. Nhờ khóa tài khoản gấp.',                               '0934567890', 'APPROVED',   1, '2026-03-01 07:45:00', 1, '2026-03-01 08:10:00', N'Xác minh thành công, đã kích hoạt khóa tài khoản.'),
+(5,  'DATA_LOSS',      'URGENT', N'Toàn bộ dữ liệu biến mất sau update',     N'Vừa update app lên version mới thì mất sạch dữ liệu từ trước đến nay. Rất khẩn cấp, nhờ hỗ trợ ngay.',                    '0945678901', 'PROCESSING', 1, '2026-03-05 06:30:00', NULL, NULL,                  N'Đang liên hệ team kỹ thuật kiểm tra migration script version mới.'),
+(7,  'BUG_REPORT',     'NORMAL', N'Không nhận được thông báo nhắc nợ',       N'Tôi đã cài đặt nhắc nhở khoản nợ đến hạn 15/03 nhưng không nhận được thông báo nào.',                                     NULL,         'PENDING',    NULL, NULL,                NULL, NULL,                  NULL),
+(8,  'GENERAL',        'NORMAL', N'Góp ý thêm tính năng chia sẻ ví',         N'Mong app sớm có tính năng chia sẻ ví chung cho vợ chồng hoặc nhóm bạn để quản lý chi tiêu chung.',                         NULL,         'APPROVED',   1, '2026-01-20 10:00:00', 1, '2026-01-20 14:00:00', N'Ghi nhận góp ý. Đã chuyển cho team product.'),
+(9,  'SUSPICIOUS_TX',  'URGENT', N'Giao dịch tự động không rõ nguồn gốc',    N'Có 3 giao dịch chi -200.000đ xuất hiện liên tiếp mỗi ngày mà tôi không tạo. Nghi có giao dịch định kỳ ẩn.',              '0956789012', 'APPROVED',   1, '2026-03-18 09:00:00', 1, '2026-03-18 10:00:00', N'Xác nhận là giao dịch định kỳ user quên tắt. Đã hướng dẫn xử lý.'),
+(10, 'ACCOUNT_UNLOCK', 'HIGH',   N'Yêu cầu mở khóa sau khi xác minh',       N'Tài khoản bị khóa do đăng nhập sai quá nhiều lần. Tôi đã xác minh qua email, nhờ mở khóa.',                              '0967890123', 'REJECTED',   1, '2026-03-08 13:00:00', 1, '2026-03-08 15:30:00', N'Xác minh thất bại — email không khớp với tài khoản đăng ký.');
+GO
 --select * from tWallets
 --select * from tSavingGoals
 --select * from tAccounts
@@ -2408,5 +2476,21 @@ GO
 --select * from tNotifications
 --select * from tCategories
 --select * from tBudgets
+--select * from tDebts
+--select * from tContactRequests
 GO
-ALTER TABLE tBudgets ADD budget_type NVARCHAR(50);
+ALTER TABLE tBudgets ADD budget_type NVARCHAR(50); -- Hỗ trợ thêm 1 field enums cho Budget của Nhật
+GO
+-- =================================================================================================
+-- BỔ SUNG CỘT XÓA MỀM (SOFT DELETE) - TỐI ƯU CHO SPRING BOOT JPA 4/3/2026
+-- =================================================================================================
+--ALTER TABLE tCategories             ADD deleted BIT NOT NULL DEFAULT 0, deleted_at DATETIME NULL; ĐÃ THÊM TRONG CREATE TABLE
+ALTER TABLE tWallets                ADD deleted BIT NOT NULL DEFAULT 0, deleted_at DATETIME NULL;
+ALTER TABLE tSavingGoals            ADD deleted BIT NOT NULL DEFAULT 0, deleted_at DATETIME NULL;
+ALTER TABLE tEvents                 ADD deleted BIT NOT NULL DEFAULT 0, deleted_at DATETIME NULL;
+ALTER TABLE tDebts                  ADD deleted BIT NOT NULL DEFAULT 0, deleted_at DATETIME NULL;
+ALTER TABLE tBudgets                ADD deleted BIT NOT NULL DEFAULT 0, deleted_at DATETIME NULL;
+ALTER TABLE tPlannedTransactions    ADD deleted BIT NOT NULL DEFAULT 0, deleted_at DATETIME NULL;
+ALTER TABLE tTransactions           ADD deleted BIT NOT NULL DEFAULT 0, deleted_at DATETIME NULL;
+GO
+--SELECT * FROM tTransactions ORDER BY deleted_at DESC;
