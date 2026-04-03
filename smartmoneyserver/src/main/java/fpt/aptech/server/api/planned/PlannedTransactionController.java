@@ -75,7 +75,7 @@ public class PlannedTransactionController {
             @PathVariable Integer id,
             @AuthenticationPrincipal Account currentUser) {
         PlannedTransactionResponse data = plannedService.toggleRecurring(id, currentUser.getId());
-        return ResponseEntity.ok(ApiResponse.success(data));
+        return ResponseEntity.ok(ApiResponse.success(data, "Cập nhật trạng thái giao dịch định kỳ thành công."));
     }
 
     // ════════════════════════════════════════════════════════════════════
@@ -136,7 +136,7 @@ public class PlannedTransactionController {
             @PathVariable Integer id,
             @AuthenticationPrincipal Account currentUser) {
         PlannedTransactionResponse data = plannedService.toggleBill(id, currentUser.getId());
-        return ResponseEntity.ok(ApiResponse.success(data));
+        return ResponseEntity.ok(ApiResponse.success(data, "Cập nhật trạng thái hóa đơn thành công."));
     }
 
     // ════════════════════════════════════════════════════════════════════

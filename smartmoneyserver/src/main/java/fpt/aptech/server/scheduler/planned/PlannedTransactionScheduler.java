@@ -1,8 +1,10 @@
 package fpt.aptech.server.scheduler.planned;
 
 import fpt.aptech.server.entity.PlannedTransaction;
+import fpt.aptech.server.entity.Debt;
 import fpt.aptech.server.enums.notification.NotificationType;
 import fpt.aptech.server.repos.PlannedTransactionRepository;
+import fpt.aptech.server.repos.DebtRepository;
 import fpt.aptech.server.service.notification.NotificationMessages;
 import fpt.aptech.server.service.notification.NotificationContent;
 import fpt.aptech.server.service.notification.NotificationService;
@@ -29,6 +31,7 @@ public class PlannedTransactionScheduler {
     private PlannedTransactionScheduler self; //bỏ final
 
     private final PlannedTransactionRepository plannedRepo;
+    private final DebtRepository debtRepo;
     private final PlannedTransactionServiceImpl plannedService;
     private final NotificationService notificationService;
 
@@ -102,6 +105,18 @@ public class PlannedTransactionScheduler {
 
         // Bước 4: Tạo Transaction từ Planned
         plannedService.createTransactionFromPlanned(planned);
+
+        // Bước 4.5: [FIX-AUTODEACTIVATE-RECURRING] Kiểm tra nợ liên kết — nếu đã hoàn thành → deactivate recurring
+        // Nếu recurring liên kết debt và debt vừa được kết thúc (do recalculateDebt() ở createTransactionFromPlanned)
+        // → tự động deactivate recurring này
+        if (planned.getDebt() != null) {
+            Debt updatedDebt = debtRepo.findById(planned.getDebt().getId()).orElse(null);
+            if (updatedDebt != null && Boolean.TRUE.equals(updatedDebt.getFinished())) {
+                planned.setActive(false);
+                log.info("[PlannedScheduler] Giao dịch định kỳ id={} liên kết debt id={}. Debt đã hoàn thành → deactivate recurring.",
+                        planned.getId(), updatedDebt.getId());
+            }
+        }
 
         // Bước 5: Gửi thông báo xác nhận
         boolean isIncome = Boolean.TRUE.equals(planned.getCategory().getCtgType());

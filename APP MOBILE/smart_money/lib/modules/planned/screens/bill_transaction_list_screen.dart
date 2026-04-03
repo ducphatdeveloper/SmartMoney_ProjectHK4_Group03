@@ -6,29 +6,38 @@
 //   • Hiển thị danh sách giao dịch được nhóm theo ngày
 //
 // Layout:
-//   • AppBar: "Giao dịch của hóa đơn: [Tên hóa đơn]"
+//   • AppBar: "Giao dịch của: [Tên hóa đơn]"
 //   • Body:
 //     - Phần tổng quan (summary)
 //     - Danh sách groupedTransactions (DailyTransactionGroup)
+//   • Click transaction → TransactionDetailSheet (icon category, sửa, xóa)
 //
 // Flow:
 //   1. initState: Gọi BillTransactionProvider để load dữ liệu
 //   2. Hiển thị loading/error/data
+//   3. User tap transaction → TransactionDetailSheet (tái sử dụng widget chuẩn)
+//   4. Sửa → TransactionEditScreen → reload list
+//   5. Xóa → confirm dialog → provider.deleteTransaction() → reload list
 //
 // Gọi từ:
 //   • BillScreen → khi user bấm nút "Giao dịch" trong BillDetailSheet
 //
 // API liên quan:
-//   • GET /api/bills/{id}/transactions — lấy danh sách giao dịch của hóa đơn
+//   • GET    /api/bills/{id}/transactions — lấy danh sách giao dịch của hóa đơn
+//   • PUT    /api/transactions/{id}       — cập nhật giao dịch (qua TransactionEditScreen)
+//   • DELETE /api/transactions/{id}       — xóa giao dịch
 // ===========================================================
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:smart_money/core/helpers/format_helper.dart';
 import 'package:smart_money/modules/planned/providers/bill_transaction_provider.dart';
+import 'package:smart_money/modules/transaction/models/view/daily_transaction_group.dart' as model_daily_transaction_group;
+import 'package:smart_money/modules/transaction/models/view/transaction_response.dart';
+import 'package:smart_money/modules/transaction/providers/transaction_provider.dart';
+import 'package:smart_money/modules/transaction/screens/transaction_edit_screen.dart';
 import 'package:smart_money/modules/transaction/widgets/transaction_day_group.dart';
-import 'package:smart_money/modules/transaction/models/view/daily_transaction_group.dart' as model_daily_transaction_group; // Import với alias
-import 'package:smart_money/modules/transaction/models/view/transaction_response.dart'; // Import TransactionResponse
+import 'package:smart_money/modules/transaction/widgets/transaction_detail_sheet.dart';
 
 class BillTransactionListScreen extends StatefulWidget {
   final int billId;
@@ -45,6 +54,7 @@ class BillTransactionListScreen extends StatefulWidget {
 }
 
 class _BillTransactionListScreenState extends State<BillTransactionListScreen> {
+
   // =============================================
   // [8.1.1] initState
   // =============================================
@@ -152,8 +162,9 @@ class _BillTransactionListScreenState extends State<BillTransactionListScreen> {
                   ),
                 )
               else
+                // [FIX] Dùng TransactionDayGroup với callback mở TransactionDetailSheet
+                // → tái sử dụng widget chuẩn (có icon category, nút Sửa/Xóa)
                 ...billTransactions.groupedTransactions.map((group) {
-                  // Sử dụng alias để đảm bảo đúng DailyTransactionGroup được tham chiếu
                   final model_daily_transaction_group.DailyTransactionGroup typedGroup = group;
                   return TransactionDayGroup(
                     date: typedGroup.date,
@@ -161,9 +172,9 @@ class _BillTransactionListScreenState extends State<BillTransactionListScreen> {
                     transactions: typedGroup.transactions,
                     netAmount: typedGroup.netAmount,
                     onTapTransaction: (TransactionResponse tx) {
-                      // [TODO] Xử lý khi người dùng bấm vào một giao dịch
-                      // Có thể mở một sheet chi tiết giao dịch
-                      debugPrint('Tapped on transaction: ${tx.id}');
+                      // [FIX] Tái sử dụng TransactionDetailSheet — giống trang danh sách giao dịch
+                      // Có đầy đủ: icon category, số tiền, ngày, ví, ghi chú, nút Sửa + Xóa
+                      _showDetailSheet(tx);
                     },
                   );
                 }).toList(),
@@ -181,15 +192,111 @@ class _BillTransactionListScreenState extends State<BillTransactionListScreen> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(
-          label,
-          style: const TextStyle(color: Color(0xFF8E8E93), fontSize: 14),
-        ),
-        Text(
-          value,
-          style: TextStyle(color: valueColor, fontSize: 14, fontWeight: FontWeight.w500),
-        ),
+        Text(label, style: const TextStyle(color: Color(0xFF8E8E93), fontSize: 14)),
+        Text(value, style: TextStyle(color: valueColor, fontSize: 14, fontWeight: FontWeight.w500)),
       ],
+    );
+  }
+
+  // =============================================
+  // [8.1.6] DETAIL SHEET — Tái sử dụng TransactionDetailSheet chuẩn
+  // =============================================
+  // [FIX] Dùng TransactionDetailSheet thay vì custom bottom sheet
+  // Giống hệt transaction_list.dart → nhất quán toàn app
+  void _showDetailSheet(TransactionResponse transaction) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => TransactionDetailSheet(
+        transaction: transaction,
+        onEdit: () {
+          Navigator.pop(context); // Đóng sheet trước
+          _openEditScreen(transaction);
+        },
+        onDelete: () {
+          Navigator.pop(context); // Đóng sheet trước
+          _confirmDelete(transaction);
+        },
+      ),
+    );
+  }
+
+  // =============================================
+  // [8.1.7] NAVIGATE — Mở form sửa giao dịch
+  // =============================================
+  // Gọi khi: User bấm "Sửa" trong TransactionDetailSheet
+  Future<void> _openEditScreen(TransactionResponse transaction) async {
+    final result = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => TransactionEditScreen(transaction: transaction),
+      ),
+    );
+
+    // Bước: Sau khi sửa thành công → reload danh sách giao dịch hóa đơn
+    if (result == true && mounted) {
+      _showSnackBar('Đã cập nhật giao dịch');
+      Provider.of<BillTransactionProvider>(context, listen: false)
+          .loadBillTransactions(widget.billId);
+    }
+  }
+
+  // =============================================
+  // [8.1.8] DIALOG — Xác nhận xóa giao dịch
+  // =============================================
+  // Gọi khi: User bấm "Xóa" trong TransactionDetailSheet
+  void _confirmDelete(TransactionResponse transaction) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.grey[900],
+        title: const Text('Xóa giao dịch', style: TextStyle(color: Colors.white)),
+        content: const Text(
+          'Bạn có chắc muốn xóa giao dịch này?',
+          style: TextStyle(color: Colors.grey),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Hủy', style: TextStyle(color: Colors.grey)),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              final provider = Provider.of<TransactionProvider>(context, listen: false);
+              final success = await provider.deleteTransaction(transaction.id);
+
+              // [IMPORTANT] Kiểm tra mounted sau await
+              if (!mounted) return;
+
+              if (success) {
+                _showSnackBar('Đã xóa giao dịch');
+                // Reload danh sách sau khi xóa thành công
+                Provider.of<BillTransactionProvider>(context, listen: false)
+                    .loadBillTransactions(widget.billId);
+              } else {
+                _showSnackBar(provider.errorMessage ?? 'Có lỗi xảy ra', isError: true);
+              }
+            },
+            child: const Text('Xóa', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // =============================================
+  // [8.1.9] HELPER — Hiện SnackBar
+  // =============================================
+  void _showSnackBar(String message, {bool isError = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError ? const Color(0xFFFF3B30) : const Color(0xFF4CAF50),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
+      ),
     );
   }
 }

@@ -124,6 +124,11 @@ class ApiHandler {
       ) {
     final json = jsonDecode(utf8.decode(response.bodyBytes));
 
+    // 2xx → Thành công → parse bình thường
+    if (response.statusCode >= 200 && response.statusCode < 300) {
+      return ApiResponse<T>.fromJson(json, fromJson);
+    }
+
     // 401 → Token hết hạn → cần refresh hoặc logout
     if (response.statusCode == 401) {
       return ApiResponse<T>(
@@ -132,15 +137,21 @@ class ApiHandler {
       );
     }
 
-    // 403 → Không có quyền
-    if (response.statusCode == 403) {
+    // Với tất cả lỗi còn lại (400, 403, 404, 409, 500...) → đọc message từ backend
+    // Backend dùng ApiResponse.error(ex.getMessage()) → json['message'] chứa lỗi thực tế
+    final backendMessage = json['message']?.toString();
+    if (backendMessage != null && backendMessage.isNotEmpty) {
       return ApiResponse<T>(
         success: false,
-        message: "Bạn không có quyền thực hiện thao tác này.",
+        message: backendMessage,
       );
     }
 
-    return ApiResponse<T>.fromJson(json, fromJson);
+    // Fallback nếu backend không trả message
+    return ApiResponse<T>(
+      success: false,
+      message: 'Có lỗi xảy ra (HTTP ${response.statusCode})',
+    );
   }
 
   static ApiResponse<T> _networkError<T>() {

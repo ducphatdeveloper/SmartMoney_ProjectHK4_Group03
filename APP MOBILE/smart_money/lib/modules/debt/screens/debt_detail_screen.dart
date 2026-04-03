@@ -32,7 +32,14 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:smart_money/core/helpers/format_helper.dart';
+import 'package:smart_money/modules/category/models/category_response.dart';
+import 'package:smart_money/modules/transaction/models/view/daily_transaction_group.dart';
 import 'package:smart_money/modules/transaction/models/view/transaction_response.dart';
+import 'package:smart_money/modules/transaction/providers/transaction_provider.dart';
+import 'package:smart_money/modules/transaction/screens/transaction_create_screen.dart';
+import 'package:smart_money/modules/transaction/screens/transaction_edit_screen.dart';
+import 'package:smart_money/modules/transaction/widgets/transaction_day_group.dart';
+import 'package:smart_money/modules/transaction/widgets/transaction_detail_sheet.dart';
 import '../providers/debt_provider.dart';
 import 'debt_edit_screen.dart';
 
@@ -160,26 +167,54 @@ class _DebtDetailScreenState extends State<DebtDetailScreen> {
     }
   }
 
-  // [NOTE] Thêm giao dịch trả/thu nợ → navigate sang TransactionCreateScreen
-  // Truyền debtId + categoryId phù hợp để pre-fill form
-  void _openAddTransaction() {
-    // widget.debtType=false (CẦN TRẢ) → categoryId=22 (Trả nợ)
-    // widget.debtType=true  (CẦN THU) → categoryId=21 (Thu nợ)
-    final categoryId = widget.debtType ? 21 : 22;
+  // [FIX-5] Mở TransactionCreateScreen với tab Vay/Nợ + category + debt pre-filled
+  // debtType=false (CẦN TRẢ) → categoryId=22 (Trả nợ)
+  // debtType=true  (CẦN THU) → categoryId=21 (Thu nợ)
+  Future<void> _openAddTransaction() async {
+    final provider = context.read<DebtProvider>();
+    final debt = provider.currentDebt;
+    if (debt == null) return;
 
-    // [TODO] Navigate đến TransactionCreateScreen với args:
-    //   debtId: widget.debtId, preselectedCategoryId: categoryId
-    // Khi module Transaction đã sẵn sàng nhận params này
-    // Tạm thời hiện SnackBar hướng dẫn
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'Tạo giao dịch "${widget.debtType ? 'Thu nợ' : 'Trả nợ'}" '
-          'và chọn khoản nợ này để cập nhật số dư.',
+    // Bước 1: Tạo CategoryResponse pre-selected
+    // Thu nợ (21) = income (ctgType=true), Trả nợ (22) = expense (ctgType=false)
+    final preCategory = CategoryResponse(
+      id: widget.debtType ? 21 : 22,
+      ctgName: widget.debtType ? 'Thu nợ' : 'Trả nợ',
+      ctgType: widget.debtType,
+    );
+
+    // Bước 2: Navigate sang TransactionCreateScreen
+    final result = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => TransactionCreateScreen(
+          initialTransactionType: 'debt',    // pre-select tab Vay/Nợ
+          initialCategory: preCategory,      // pre-select Thu nợ / Trả nợ
+          initialDebtId: widget.debtId,      // pre-fill khoản nợ này
+          initialDebtDisplay: debt.personName, // tên người nợ
         ),
-        duration: const Duration(seconds: 4),
       ),
     );
+
+    // Bước 3: Nếu tạo thành công → reload detail để cập nhật remainAmount
+    if (result == true && mounted) {
+      _hasChanges = true;
+      await provider.loadDetail(widget.debtId);
+
+      // [FIX] Kiểm tra sau khi reload: nếu debt không còn tồn tại (bị backend
+      // xóa tự động vì không có giao dịch gốc hợp lệ), quay lại list thay vì
+      // bị kẹt ở màn hình lỗi với message "Bạn không có quyền truy cập".
+      if (mounted && provider.currentDebt == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Khoản nợ đã được tất toán hoặc không còn tồn tại'),
+            backgroundColor: Colors.orange,
+            duration: Duration(seconds: 3),
+          ),
+        );
+        Navigator.pop(context, true); // refresh DebtListScreen
+      }
+    }
   }
 
   void _showError(String? msg) {
@@ -297,7 +332,6 @@ class _DebtDetailScreenState extends State<DebtDetailScreen> {
         const SizedBox(height: 8),
 
         if (provider.debtTransactions.isEmpty)
-          // Chưa có giao dịch nào (không nên xảy ra vì debt luôn có ít nhất 1 giao dịch gốc)
           Padding(
             padding: const EdgeInsets.all(16),
             child: Text(
@@ -306,11 +340,22 @@ class _DebtDetailScreenState extends State<DebtDetailScreen> {
               textAlign: TextAlign.center,
             ),
           )
-        else
-          // Danh sách giao dịch
-          ...provider.debtTransactions.map(
-            (tx) => _buildTransactionItem(tx),
+        else ...[
+          // ----- Summary Card giao dịch -----
+          _buildTransactionSummary(provider.debtTransactions),
+          const SizedBox(height: 8),
+
+          // ----- Grouped transactions (theo ngày) — click → TransactionDetailSheet -----
+          ..._groupTransactionsByDay(provider.debtTransactions).map(
+            (group) => TransactionDayGroup(
+              date: group.date,
+              displayDateLabel: group.displayDateLabel,
+              transactions: group.transactions,
+              netAmount: group.netAmount,
+              onTapTransaction: (tx) => _showDetailSheet(tx),
+            ),
           ),
+        ],
 
         const SizedBox(height: 40),
       ],
@@ -326,7 +371,7 @@ class _DebtDetailScreenState extends State<DebtDetailScreen> {
         borderRadius: BorderRadius.circular(14),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.06),
+            color: Colors.black.withValues(alpha: 0.06),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -379,7 +424,7 @@ class _DebtDetailScreenState extends State<DebtDetailScreen> {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                   decoration: BoxDecoration(
-                    color: Colors.green.withOpacity(0.1),
+                    color: Colors.green.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: const Text(
@@ -475,72 +520,181 @@ class _DebtDetailScreenState extends State<DebtDetailScreen> {
     );
   }
 
-  // Item giao dịch trong lịch sử
-  Widget _buildTransactionItem(TransactionResponse tx) {
-    // Phân biệt giao dịch gốc (Cho vay/Đi vay) và giao dịch trả/thu
-    final isOrigin = [19, 20].contains(tx.categoryId); // categoryId Cho vay/Đi vay
-    final isPositive = [19, 21].contains(tx.categoryId); // Thu tiền về ví
+  // =============================================
+  // [8.7] TRANSACTION SUMMARY — Tổng quan giao dịch của khoản nợ
+  // =============================================
+  // Hiển thị Tổng số + Tổng thu + Tổng chi (để người dùng thấy rõ flow tiền)
+  // VD: CẦN THU ban đầu là Chi 20tr (cho vay), sau đó có Thu 5tr (người đó trả lại)
+  Widget _buildTransactionSummary(List<TransactionResponse> txs) {
+    final totalIncome  = txs.where((t) => t.categoryType).fold(0.0, (s, t) => s + t.amount);
+    final totalExpense = txs.where((t) => !t.categoryType).fold(0.0, (s, t) => s + t.amount);
+    final net = totalIncome - totalExpense;
 
     return Container(
-      margin: const EdgeInsets.symmetric(vertical: 4),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: Theme.of(context).cardColor,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(12),
       ),
-      child: Row(
+      child: Column(
         children: [
-          // Icon danh mục
-          Container(
-            width: 38,
-            height: 38,
-            decoration: BoxDecoration(
-              color: isOrigin
-                  ? Colors.orange.withOpacity(0.15)
-                  : Colors.blue.withOpacity(0.12),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(
-              isOrigin ? Icons.swap_horiz : Icons.payment,
-              color: isOrigin ? Colors.orange : Colors.blue,
-              size: 20,
-            ),
+          _buildSummaryRow('Tổng số giao dịch:', '${txs.length}', Colors.white),
+          const SizedBox(height: 6),
+          _buildSummaryRow('Tổng thu:', FormatHelper.formatVND(totalIncome), Colors.green),
+          const SizedBox(height: 6),
+          _buildSummaryRow('Tổng chi:', FormatHelper.formatVND(totalExpense), Colors.red),
+          const Divider(height: 16),
+          _buildSummaryRow(
+            'Còn lại:',
+            FormatHelper.formatVND(net.abs()),
+            net >= 0 ? Colors.green : Colors.red,
           ),
-          const SizedBox(width: 12),
+        ],
+      ),
+    );
+  }
 
-          // Tên danh mục + ghi chú + ngày
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  tx.categoryName ?? 'Giao dịch',
-                  style: const TextStyle(
-                      fontWeight: FontWeight.w500, fontSize: 14),
-                ),
-                if (tx.note != null && tx.note!.isNotEmpty)
-                  Text(
-                    tx.note!,
-                    style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+  Widget _buildSummaryRow(String label, String value, Color valueColor) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(label, style: TextStyle(fontSize: 13, color: Colors.grey[600])),
+        Text(value,  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: valueColor)),
+      ],
+    );
+  }
+
+  // =============================================
+  // [8.8] GROUP TRANSACTIONS BY DAY — Local grouping
+  // =============================================
+  // Vì DebtProvider trả List<TransactionResponse> (flat), cần group local
+  List<DailyTransactionGroup> _groupTransactionsByDay(List<TransactionResponse> txs) {
+    final Map<String, List<TransactionResponse>> grouped = {};
+
+    for (final tx in txs) {
+      // Key = "YYYY-MM-DD" theo local time
+      final local   = tx.transDate.toLocal();
+      final dateKey = '${local.year}-${local.month.toString().padLeft(2, '0')}-${local.day.toString().padLeft(2, '0')}';
+      grouped.putIfAbsent(dateKey, () => []).add(tx);
+    }
+
+    final now       = DateTime.now();
+    final today     = DateTime(now.year, now.month, now.day);
+    final yesterday = today.subtract(const Duration(days: 1));
+
+    // Xây dựng DailyTransactionGroup cho mỗi ngày
+    final groups = grouped.entries.map((entry) {
+      final date    = DateTime.parse(entry.key);
+      final items   = entry.value;
+      final income  = items.where((t) =>  t.categoryType).fold(0.0, (s, t) => s + t.amount);
+      final expense = items.where((t) => !t.categoryType).fold(0.0, (s, t) => s + t.amount);
+
+      // Label hiển thị: "Hôm nay" / "Hôm qua" / "dd/MM/yyyy"
+      final dateOnly = DateTime(date.year, date.month, date.day);
+      String label;
+      if (dateOnly == today) {
+        label = 'Hôm nay';
+      } else if (dateOnly == yesterday) {
+        label = 'Hôm qua';
+      } else {
+        label = FormatHelper.formatDisplayDate(date);
+      }
+
+      return DailyTransactionGroup(
+        date: date,
+        displayDateLabel: label,
+        netAmount: income - expense,
+        transactions: items,
+      );
+    }).toList();
+
+    // Sắp xếp mới nhất trước
+    groups.sort((a, b) => b.date.compareTo(a.date));
+    return groups;
+  }
+
+  // =============================================
+  // [8.9] DETAIL SHEET — Tái sử dụng TransactionDetailSheet chuẩn
+  // =============================================
+  // Giống bill_transaction_list_screen.dart và transaction_list.dart
+  void _showDetailSheet(TransactionResponse transaction) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => TransactionDetailSheet(
+        transaction: transaction,
+        onEdit: () {
+          Navigator.pop(context); // Đóng sheet trước
+          _openEditTransaction(transaction);
+        },
+        onDelete: () {
+          Navigator.pop(context); // Đóng sheet trước
+          _confirmDeleteTransaction(transaction);
+        },
+      ),
+    );
+  }
+
+  // Mở form sửa giao dịch → reload debt detail sau khi sửa xong
+  Future<void> _openEditTransaction(TransactionResponse transaction) async {
+    final result = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => TransactionEditScreen(transaction: transaction),
+      ),
+    );
+
+    // Reload debt detail để cập nhật remainAmount + transaction list
+    if (result == true && mounted) {
+      _hasChanges = true;
+      await context.read<DebtProvider>().loadDetail(widget.debtId);
+    }
+  }
+
+  // Dialog xác nhận xóa giao dịch — reload debt detail sau khi xóa
+  void _confirmDeleteTransaction(TransactionResponse transaction) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.grey[900],
+        title: const Text('Xóa giao dịch', style: TextStyle(color: Colors.white)),
+        content: const Text(
+          'Bạn có chắc muốn xóa giao dịch này?\nSố dư sổ nợ sẽ được tính lại tự động.',
+          style: TextStyle(color: Colors.grey),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Hủy', style: TextStyle(color: Colors.grey)),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              final txProvider = Provider.of<TransactionProvider>(context, listen: false);
+              final success = await txProvider.deleteTransaction(transaction.id);
+
+              // [IMPORTANT] Kiểm tra mounted sau await
+              if (!mounted) return;
+
+              if (success) {
+                _hasChanges = true;
+                // Reload debt detail → remainAmount + transaction list cập nhật
+                await context.read<DebtProvider>().loadDetail(widget.debtId);
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Đã xóa giao dịch'),
+                    backgroundColor: Color(0xFF4CAF50),
+                    behavior: SnackBarBehavior.floating,
+                    duration: Duration(seconds: 2),
                   ),
-                Text(
-                  FormatHelper.formatDisplayDate(tx.transDate),
-                  style: TextStyle(fontSize: 11, color: Colors.grey[500]),
-                ),
-              ],
-            ),
-          ),
-
-          // Số tiền
-          Text(
-            '${isPositive ? '+' : '-'}${FormatHelper.formatVND(tx.amount)}',
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 13,
-              color: isPositive ? Colors.blue[600] : Colors.red[600],
-            ),
+                );
+              } else {
+                _showError(txProvider.errorMessage);
+              }
+            },
+            child: const Text('Xóa', style: TextStyle(color: Colors.red)),
           ),
         ],
       ),

@@ -217,7 +217,7 @@ class BillProvider extends ChangeNotifier {
       return true;
     } else {
       _errorMessage = response.message;
-      notifyListeners();
+      notifyListeners(); // ✅ Notify để UI hiển thị error message rõ ràng
       return false;
     }
   }

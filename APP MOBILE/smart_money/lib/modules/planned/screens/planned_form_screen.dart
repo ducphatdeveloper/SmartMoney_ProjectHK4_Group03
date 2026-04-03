@@ -6,6 +6,7 @@
 //   • [1] Chọn ví (Dropdown)
 //   • [2] Nhập số tiền (TextField format realtime)
 //   • [3] Chọn danh mục (tap → CategoryListScreen)
+//   • [3.5] Chọn khoản nợ (chỉ hiện khi category là 19/20/21/22)
 //   • [4] Ghi chú (TextField)
 //   • [5] Lịch lặp lại (tap → RepeatScheduleSheet)
 //   • [6] Cảnh báo Scheduler nửa đêm
@@ -21,6 +22,8 @@
 //   • "Số tiền phải lớn hơn 0" (400)
 //   • "Không tìm thấy ví" (400)
 //   • "Không tìm thấy danh mục" (400)
+//   • "Khoản nợ không tồn tại hoặc không có quyền." (400 — debtId sai)
+//   • "Khoản nợ đã thanh toán xong, không thể kích hoạt lại" (400 — toggle)
 // ===========================================================
 
 import 'package:flutter/material.dart';
@@ -28,6 +31,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:provider/provider.dart';
 import 'package:smart_money/core/helpers/format_helper.dart';
 import 'package:smart_money/core/helpers/icon_helper.dart';
+import 'package:smart_money/modules/debt/providers/debt_provider.dart';
 import 'package:smart_money/modules/planned/enums/plan_type.dart';
 import 'package:smart_money/modules/planned/enums/repeat_type.dart';
 import 'package:smart_money/modules/planned/models/planned_transaction_request.dart';
@@ -73,6 +77,7 @@ class _PlannedFormScreenState extends State<PlannedFormScreen> {
   String? _categoryIcon;              // icon danh mục
   bool? _categoryType;                // false=chi, true=thu
   int? _debtId;                       // ID nợ (nullable, chỉ dùng khi category là Nợ)
+  String? _debtPersonName;            // tên người vay/cho vay hiển thị trong row chọn nợ
   final _noteController = TextEditingController();    // controller ghi chú
   final _amountController = TextEditingController();  // controller số tiền
 
@@ -93,6 +98,18 @@ class _PlannedFormScreenState extends State<PlannedFormScreen> {
   List<WalletResponse> _wallets = [];
   bool _isLoadingWallets = false;
 
+  // ── DEBT CATEGORY IDS ──
+  // 19: Cho vay, 20: Đi vay, 21: Thu nợ, 22: Trả nợ
+  static const _debtCategoryIds = {19, 20, 21, 22};
+
+  /// true khi category hiện tại yêu cầu chọn khoản nợ liên kết
+  bool get _requiresDebtSelection => _debtCategoryIds.contains(_categoryId);
+
+  /// debtType truyền vào DebtPicker:
+  ///   Cho vay (19) / Thu nợ (21) → CẦN THU (debtType=true)
+  ///   Đi vay (20) / Trả nợ (22) → CẦN TRẢ (debtType=false)
+  bool get _debtTypeForPicker => _categoryId == 19 || _categoryId == 21;
+
   // =============================================
   // [6.2] initState — Pre-fill nếu đang sửa + load wallets
   // =============================================
@@ -112,6 +129,7 @@ class _PlannedFormScreenState extends State<PlannedFormScreen> {
       _categoryIcon = e.categoryIcon;
       _categoryType = e.categoryType;
       _debtId = e.debtId;
+      _debtPersonName = e.debtPersonName;  // pre-fill tên người nợ khi sửa
       _noteController.text = e.note ?? '';
       _repeatType = e.repeatType;
       _repeatInterval = e.repeatInterval ?? 1;
@@ -219,6 +237,12 @@ class _PlannedFormScreenState extends State<PlannedFormScreen> {
             // [3] Chọn danh mục
             _buildCategoryRow(),
             _buildDivider(),
+
+            // [3.5] Chọn khoản nợ (chỉ hiện khi category thuộc nhóm Nợ 19/20/21/22)
+            if (_requiresDebtSelection) ...[
+              _buildDebtRow(),
+              _buildDivider(),
+            ],
 
             // [4] Ghi chú
             _buildNoteRow(),
@@ -598,35 +622,6 @@ class _PlannedFormScreenState extends State<PlannedFormScreen> {
   }
 
   // =============================================
-  // [6.14] MỞ CATEGORY PICKER
-  // =============================================
-  Future<void> _openCategoryPicker() async {
-    // Navigate sang CategoryListScreen với mode chọn (selection mode)
-    // Trả về CategoryResponse khi user chọn xong
-    final result = await Navigator.push<CategoryResponse>(
-      context,
-      MaterialPageRoute(
-        builder: (_) => CategoryListScreen(
-          isSelectMode: true,
-          // Với Bill: chỉ hiện expense + debt
-          // Với Recurring: hiện cả 3 tab
-          initialTab: 'expense',
-        ),
-      ),
-    );
-
-    // [IMPORTANT] Kiểm tra mounted sau await
-    if (!mounted || result == null) return;
-
-    setState(() {
-      _categoryId = result.id;
-      _categoryName = result.ctgName;
-      _categoryIcon = result.ctgIconUrl;
-      _categoryType = result.ctgType;
-    });
-  }
-
-  // =============================================
   // [6.15] MỞ REPEAT SCHEDULE SHEET
   // =============================================
   void _openRepeatScheduleSheet() {
@@ -704,6 +699,216 @@ class _PlannedFormScreenState extends State<PlannedFormScreen> {
   }
 
   // =============================================
+  // [6.14] MỞ CATEGORY PICKER
+  // =============================================
+  Future<void> _openCategoryPicker() async {
+    // Navigate sang CategoryListScreen với mode chọn (selection mode)
+    // Trả về CategoryResponse khi user chọn xong
+    final result = await Navigator.push<CategoryResponse>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => CategoryListScreen(
+          isSelectMode: true,
+          // Với Bill: chỉ hiện expense + debt
+          // Với Recurring: hiện cả 3 tab
+          initialTab: 'expense',
+        ),
+      ),
+    );
+
+    // [IMPORTANT] Kiểm tra mounted sau await
+    if (!mounted || result == null) return;
+
+    setState(() {
+      _categoryId = result.id;
+      _categoryName = result.ctgName;
+      _categoryIcon = result.ctgIconUrl;
+      _categoryType = result.ctgType;
+
+      // [FIX] Reset debt khi đổi sang category không thuộc nhóm Nợ (19/20/21/22)
+      // Tránh gửi debtId cũ lên server khi category mới không liên quan đến nợ
+      if (!_debtCategoryIds.contains(result.id)) {
+        _debtId = null;
+        _debtPersonName = null;
+      }
+    });
+  }
+
+  // =============================================
+  // [6.14b] MỞ DEBT PICKER — BottomSheet chọn khoản nợ
+  // =============================================
+  // Gọi khi: User tap vào row "Chọn khoản nợ" (_buildDebtRow)
+  // Tham số ngầm: _debtTypeForPicker — true=CẦN THU, false=CẦN TRẢ
+  // [NOTE] Load debt từ DebtProvider (đã có sẵn trong context)
+  Future<void> _showDebtPicker() async {
+    final debtProvider = Provider.of<DebtProvider>(context, listen: false);
+    final debtType = _debtTypeForPicker;
+
+    // Bước 1: Load danh sách nợ theo loại (CẦN THU hoặc CẦN TRẢ)
+    await debtProvider.loadDebts(debtType);
+    if (!mounted) return;
+
+    // Bước 2: Lấy danh sách chưa hoàn thành để chọn
+    // finished=false → còn đang nợ → mới được liên kết với planned
+    final debts = debtType
+        ? debtProvider.receivableDebts   // CẦN THU — Cho vay chưa thu
+        : debtProvider.payableDebts;     // CẦN TRẢ — Đi vay chưa trả
+
+    final tabLabel = debtType ? 'CẦN THU' : 'CẦN TRẢ';
+    final activeColor = debtType ? Colors.blue : Colors.orange;
+
+    // Bước 3: Hiện bottom sheet chọn khoản nợ
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.grey[900],
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Header row: icon loại + tiêu đề + nút "Bỏ chọn"
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 8, 8),
+                child: Row(
+                  children: [
+                    Icon(
+                      debtType ? Icons.arrow_downward : Icons.arrow_upward,
+                      color: activeColor,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Chọn khoản $tabLabel',
+                      style: const TextStyle(
+                        color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const Spacer(),
+                    // Nút Bỏ chọn — chỉ hiện khi đã chọn debt
+                    if (_debtId != null)
+                      TextButton(
+                        onPressed: () {
+                          setState(() {
+                            _debtId = null;
+                            _debtPersonName = null;
+                          });
+                          Navigator.pop(ctx);
+                        },
+                        child: const Text(
+                          'Bỏ chọn',
+                          style: TextStyle(color: Colors.red, fontSize: 13),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              const Divider(color: Colors.grey, height: 1),
+
+              // Bước 4: Danh sách khoản nợ hoặc thông báo rỗng
+              if (debts.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.all(32),
+                  child: Text(
+                    'Không có khoản $tabLabel nào chưa hoàn thành',
+                    style: const TextStyle(color: Colors.grey),
+                    textAlign: TextAlign.center,
+                  ),
+                )
+              else
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 350),
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: debts.length,
+                    itemBuilder: (_, i) {
+                      final debt = debts[i];
+                      final isSelected = _debtId == debt.id;
+                      return ListTile(
+                        // Avatar người nợ — đổi màu khi selected
+                        leading: CircleAvatar(
+                          backgroundColor: isSelected ? activeColor : Colors.grey[800],
+                          child: const Icon(Icons.person, color: Colors.white, size: 18),
+                        ),
+                        // Tên người vay/cho vay
+                        title: Text(
+                          debt.personName,
+                          style: TextStyle(
+                            color: isSelected ? activeColor : Colors.white,
+                            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                          ),
+                        ),
+                        // Số tiền còn lại
+                        subtitle: Text(
+                          'Còn lại: ${FormatHelper.formatVND(debt.remainAmount)}',
+                          style: TextStyle(color: Colors.grey[500], fontSize: 12),
+                        ),
+                        // Icon check khi đang selected
+                        trailing: isSelected
+                            ? Icon(Icons.check_circle, color: activeColor)
+                            : null,
+                        onTap: () {
+                          // Bước 5: Gán debtId + debtPersonName, đóng sheet
+                          setState(() {
+                            _debtId = debt.id;
+                            _debtPersonName = debt.personName;
+                          });
+                          Navigator.pop(ctx);
+                        },
+                      );
+                    },
+                  ),
+                ),
+              const SizedBox(height: 16),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  // =============================================
+  // [6.14c] ROW CHỌN KHOẢN NỢ — chỉ hiện khi _requiresDebtSelection = true
+  // =============================================
+  Widget _buildDebtRow() {
+    final debtType = _debtTypeForPicker;
+    final activeColor = debtType ? Colors.blue : Colors.orange;
+
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: _showDebtPicker,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        child: Row(
+          children: [
+            // Icon loại nợ — đổi màu khi đã chọn
+            Icon(
+              Icons.account_balance,
+              color: _debtId != null ? activeColor : const Color(0xFF8E8E93),
+              size: 24,
+            ),
+            const SizedBox(width: 14),
+            // Tên người nợ hoặc placeholder
+            Expanded(
+              child: Text(
+                _debtPersonName ?? 'Chọn khoản nợ liên kết',
+                style: TextStyle(
+                  fontSize: 15,
+                  color: _debtPersonName != null ? Colors.white : const Color(0xFF8E8E93),
+                ),
+              ),
+            ),
+            const Icon(Icons.chevron_right, color: Color(0xFF8E8E93), size: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // =============================================
   // [6.17] SAVE — Validate + Build request + Gọi Provider
   // =============================================
   Future<void> _save() async {
@@ -718,6 +923,13 @@ class _PlannedFormScreenState extends State<PlannedFormScreen> {
     }
     if (_categoryId == null) {
       _showSnackBar('Vui lòng chọn danh mục');
+      return;
+    }
+    // [FIX] Validate debt khi category thuộc nhóm Nợ (19/20/21/22)
+    // Nếu không chọn debt → debtId=null → backend tạo Transaction không liên kết nợ
+    // → sổ nợ không recalculate → số dư sổ nợ sai
+    if (_requiresDebtSelection && _debtId == null) {
+      _showSnackBar('Vui lòng chọn khoản nợ liên kết');
       return;
     }
     if (_repeatType == null) {

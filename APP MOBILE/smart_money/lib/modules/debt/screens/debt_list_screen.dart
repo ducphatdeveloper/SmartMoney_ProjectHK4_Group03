@@ -27,7 +27,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:smart_money/core/helpers/format_helper.dart';
+import 'package:smart_money/modules/transaction/screens/transaction_create_screen.dart';
 import '../models/debt_response.dart';
 import '../providers/debt_provider.dart';
 import '../widgets/debt_card_widget.dart';
@@ -120,6 +120,28 @@ class _DebtListScreenState extends State<DebtListScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: _buildAppBar(),
+      // [FIX-4] FAB mở TransactionCreateScreen với tab Vay/Nợ pre-selected
+      // Bấm + từ Sổ Nợ → tạo giao dịch nợ mới (Cho vay / Đi vay / Thu nợ / Trả nợ)
+      floatingActionButton: FloatingActionButton(
+        onPressed: () async {
+          final result = await Navigator.push<bool>(
+            context,
+            MaterialPageRoute(
+              builder: (_) => const TransactionCreateScreen(
+                initialTransactionType: 'debt', // pre-select tab Vay/Nợ
+              ),
+            ),
+          );
+          // Reload cả 2 tab khi quay về nếu có tạo giao dịch mới
+          if (result == true && mounted) {
+            _loadAll();
+          }
+        },
+        backgroundColor: const Color(0xFF4CAF50),
+        foregroundColor: Colors.white,
+        tooltip: 'Tạo giao dịch nợ mới',
+        child: const Icon(Icons.add),
+      ),
       body: Column(
         children: [
           // TabBar nằm ngoài TabBarView để giữ sticky khi scroll
@@ -154,6 +176,18 @@ class _DebtListScreenState extends State<DebtListScreen>
       color: Theme.of(context).scaffoldBackgroundColor,
       child: TabBar(
         controller: _tabController,
+        // Match CategoryListScreen style: selected tab has green background + white text
+        // and a white underline below the selected tab.
+        indicator: const BoxDecoration(
+          color: Color(0xFF4CAF50), // nền xanh lá cho tab đang chọn
+          border: Border(
+            bottom: BorderSide(color: Colors.white, width: 3),
+          ),
+        ),
+        indicatorSize: TabBarIndicatorSize.tab,
+        // Label colors
+        labelColor: Colors.white,
+        unselectedLabelColor: Colors.grey[500],
         labelStyle: const TextStyle(fontWeight: FontWeight.bold),
         tabs: const [
           Tab(text: 'CẦN TRẢ'),

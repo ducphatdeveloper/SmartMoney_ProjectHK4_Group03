@@ -90,6 +90,9 @@ public class EventController {
             @RequestParam(defaultValue = "false") Boolean deleteTransactions,
             @AuthenticationPrincipal Account currentUser) {
         eventService.deleteEvent(id, currentUser.getId(), deleteTransactions);
-        return ResponseEntity.noContent().build();
+        // Trả về 200 OK + JSON body thay vì 204 No Content.
+        // Flutter ApiHandler._handleResponse() gọi jsonDecode(body) cho mọi status code,
+        // nếu body rỗng (204) → FormatException → bị catch → hiện "Không thể kết nối đến server".
+        return ResponseEntity.ok(ApiResponse.success(null, "Xóa sự kiện thành công."));
     }
 }

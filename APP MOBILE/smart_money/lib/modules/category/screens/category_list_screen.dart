@@ -42,7 +42,7 @@ class CategoryListScreen extends StatefulWidget {
 }
 
 class _CategoryListScreenState extends State<CategoryListScreen>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
 
   // TabController cho 3 tab
   late TabController _tabController;
@@ -75,6 +75,9 @@ class _CategoryListScreenState extends State<CategoryListScreen>
       final provider = Provider.of<CategoryProvider>(context, listen: false);
       provider.loadByGroup(_tabGroups[initialIndex]);
     });
+
+    // Bước 4: Đăng ký lắng nghe app lifecycle (resume từ background)
+    WidgetsBinding.instance.addObserver(this);
   }
 
   // =============================================
@@ -119,6 +122,7 @@ class _CategoryListScreenState extends State<CategoryListScreen>
   // =============================================
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this); // huỷ đăng ký lifecycle
     _tabController.removeListener(_onTabChanged);
     _tabController.dispose();
     super.dispose();

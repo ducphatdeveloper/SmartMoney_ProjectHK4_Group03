@@ -539,6 +539,32 @@ public class TransactionServiceImpl implements TransactionService {
                     "Giao dịch chỉ được thuộc về Ví hoặc Mục tiêu, không được thuộc về cả hai.");
         }
 
+        // [FIX-DEBT-WALLET-LOCK-UPDATE] Kiểm tra: Nếu giao dịch thuộc debt (có debt link HOẶC có category debt)
+        // → Không được phép đổi ví hoặc savinggoal
+        // BUG CŨ: chỉ check transaction.getDebt() != null — bỏ sót trường hợp Thu nợ/Trả nợ
+        //         tạo không chọn debt (debtId=null) → transaction.debt=null → check bị bypass
+        // FIX MỚI: check thêm categoryId thuộc nhóm debt (19=Cho vay, 20=Đi vay, 21=Thu nợ, 22=Trả nợ)
+        Integer currentCatId = transaction.getCategory().getId();
+        boolean isDebtRelatedCategory = currentCatId.equals(SystemCategory.DEBT_LENDING.getId())
+                || currentCatId.equals(SystemCategory.DEBT_BORROWING.getId())
+                || currentCatId.equals(SystemCategory.DEBT_COLLECTION.getId())
+                || currentCatId.equals(SystemCategory.DEBT_REPAYMENT.getId());
+
+        if (transaction.getDebt() != null || isDebtRelatedCategory) {
+            boolean walletChanged = (request.walletId() != null
+                    && !request.walletId().equals(transaction.getWallet() != null ? transaction.getWallet().getId() : null))
+                    || (request.walletId() == null && transaction.getWallet() != null);
+
+            boolean goalChanged = (request.goalId() != null
+                    && !request.goalId().equals(transaction.getSavingGoal() != null ? transaction.getSavingGoal().getId() : null))
+                    || (request.goalId() == null && transaction.getSavingGoal() != null);
+
+            if (walletChanged || goalChanged) {
+                throw new IllegalArgumentException(
+                        "Không thể đổi ví hoặc mục tiêu cho giao dịch vay/nợ. Ví/Mục tiêu đã được xác định bởi khoản nợ liên kết.");
+            }
+        }
+
         // Bước 2: Hoàn tiền giao dịch cũ
         revertTransactionBalance(transaction);
 
@@ -632,17 +658,35 @@ public class TransactionServiceImpl implements TransactionService {
             throw new SecurityException("Bạn không có quyền xóa giao dịch này.");
         }
 
-        // Lưu debtId TRƯỚC khi xóa (sau khi xóa không còn lấy được)
-        Integer debtId = transaction.getDebt() != null
-                ? transaction.getDebt().getId() : null;
+        // Lưu debtId và categoryId TRƯỚC khi xóa (sau khi xóa không còn lấy được)
+        Integer debtId     = transaction.getDebt()     != null ? transaction.getDebt().getId()     : null;
+        Integer categoryId = transaction.getCategory() != null ? transaction.getCategory().getId() : null;
 
         // Bước 2 + 3: Hoàn tiền và xóa
         revertTransactionBalance(transaction);
         transactionRepository.delete(transaction);
 
-        // Bước 4: Tính lại Debt SAU khi xóa
+        // Bước 4: Xử lý Debt SAU khi xóa
         if (debtId != null) {
             Account account = accountRepository.findById(accountId).orElse(null);
+
+            // Nếu giao dịch vừa xóa là giao dịch GỐC (Cho vay / Đi vay):
+            //   → Kiểm tra xem còn giao dịch gốc nào khác không.
+            //   → Nếu không còn → xóa luôn Debt (deleteDebtIfOrphaned).
+            //   → Nếu còn         → chỉ tính lại số liệu (recalculateDebt).
+            // Nếu là giao dịch trả/thu nợ: chỉ cần tính lại.
+            // categoryId là Integer (nullable), getId() trả về int → cần autobox, gọi equals trên Integer
+            boolean isOriginTransaction = categoryId != null && (
+                    categoryId.equals(SystemCategory.DEBT_LENDING.getId()) ||
+                    categoryId.equals(SystemCategory.DEBT_BORROWING.getId()));
+
+            if (isOriginTransaction) {
+                // deleteDebtIfOrphaned() sẽ tự kiểm tra còn origin tx không.
+                // Nếu xóa debt → recalculateDebt() bên dưới sẽ return sớm (findById = null).
+                // Nếu không xóa (còn origin tx khác) → recalculateDebt() cập nhật lại số liệu.
+                debtCalculationService.deleteDebtIfOrphaned(debtId);
+            }
+
             debtCalculationService.recalculateDebt(debtId, account);
         }
     }
@@ -835,6 +879,15 @@ public class TransactionServiceImpl implements TransactionService {
                 Debt debt = debtRepository.findByIdAndAccount_Id(request.debtId(), accountId)
                         .orElseThrow(() -> new IllegalArgumentException(
                                 "Khoản nợ không tồn tại hoặc không có quyền."));
+                // Validate that the payment type matches the debtType:
+                // - Debt.debtType == true  => Cho vay / CẦN THU  (should use Thu nợ)
+                // - Debt.debtType == false => Đi vay / CẦN TRẢ  (should use Trả nợ)
+                if (isCollection && Boolean.FALSE.equals(debt.getDebtType())) {
+                    throw new SecurityException("Khoản nợ này là 'Cần trả' nên không thể thực hiện 'Thu nợ'.");
+                }
+                if (isRepayment && Boolean.TRUE.equals(debt.getDebtType())) {
+                    throw new SecurityException("Khoản nợ này là 'Cần thu' nên không thể thực hiện 'Trả nợ'.");
+                }
                 transaction.setDebt(debt);
             }
         }

@@ -36,6 +36,7 @@ import 'package:smart_money/modules/planned/screens/planned_form_screen.dart';
 import 'package:smart_money/modules/planned/widgets/recurring_list_item.dart';
 import 'package:smart_money/modules/transaction/services/util_service.dart';
 import 'package:smart_money/modules/wallet/models/wallet_response.dart';
+import 'package:smart_money/modules/debt/providers/debt_provider.dart';
 
 class RecurringScreen extends StatefulWidget {
   const RecurringScreen({super.key});
@@ -628,6 +629,8 @@ class _RecurringScreenState extends State<RecurringScreen> with SingleTickerProv
               // =============================================
               // [4.13] SWITCH — Bật/tắt trạng thái active
               // =============================================
+              // [FIX] Khi toggle ON → kiểm tra debt nếu planned có liên kết
+              // Nếu debt đã finished → hiện lỗi, không cho toggle
               SwitchListTile(
                 title: const Text(
                   'Đang diễn ra', // [TODO i18n]
@@ -635,6 +638,60 @@ class _RecurringScreenState extends State<RecurringScreen> with SingleTickerProv
                 ),
                 value: item.active ?? false,
                 onChanged: (newValue) async {
+                  // Bước 1: Nếu đang toggle ON (newValue=true) và planned có debtId
+                  // → kiểm tra debt đã hoàn thành chưa
+                  if (newValue && item.debtId != null) {
+                    // Hiện dialog loading
+                    showDialog(
+                      context: context,
+                      barrierDismissible: false,
+                      builder: (_) => const AlertDialog(
+                        backgroundColor: Color(0xFF2C2C2E),
+                        content: Row(
+                          children: [
+                            CircularProgressIndicator(color: Color(0xFF4CAF50)),
+                            SizedBox(width: 16),
+                            Text('Đang kiểm tra...', style: TextStyle(color: Colors.white)),
+                          ],
+                        ),
+                      ),
+                    );
+
+                    // Load debt details để kiểm tra finished
+                    final debtProvider = Provider.of<DebtProvider>(context, listen: false);
+                    await debtProvider.loadDebts(item.categoryType ?? false);
+
+                    if (!mounted) return;
+                    Navigator.pop(context); // Đóng loading dialog
+
+                    // Bước 2: Tìm debt trong danh sách đã load
+                    final debtsToCheck = item.categoryType ?? false
+                        ? debtProvider.receivableDebts + debtProvider.receivableDone
+                        : debtProvider.payableDebts + debtProvider.payableDone;
+
+                    // Kiểm tra xem debt có được tìm thấy và đã hoàn thành không
+                    bool debtIsFinished = false;
+                    try {
+                      final debtFound = debtsToCheck.firstWhere((d) => d.id == item.debtId);
+                      debtIsFinished = debtFound.finished;
+                    } catch (e) {
+                      // Debt không tìm thấy — có thể đã bị xóa hoặc không thuộc account hiện tại
+                      // Để người dùng toggle thử, lỗi sẽ được báo từ backend nếu có vấn đề
+                    }
+
+                    if (debtIsFinished) {
+                      // Debt đã hoàn thành → hiện lỗi, KHÔNG toggle
+                      if (!mounted) return;
+                      Navigator.pop(ctx); // Đóng bottom sheet
+                      _showSnackBar(
+                        'Khoản nợ đã thanh toán xong, không thể kích hoạt lại',
+                        isError: true,
+                      );
+                      return;
+                    }
+                  }
+
+                  // Bước 3: Nếu không có debt hoặc debt chưa finished → tiến hành toggle
                   Navigator.pop(ctx); // Đóng bottom sheet trước
                   final provider = Provider.of<RecurringProvider>(context, listen: false);
                   final success = await provider.toggle(item.id);

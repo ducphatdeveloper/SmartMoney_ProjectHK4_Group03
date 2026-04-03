@@ -40,6 +40,10 @@ import 'package:smart_money/modules/category/models/category_response.dart';
 import 'package:smart_money/modules/category/screens/category_list_screen.dart';
 import 'package:smart_money/core/helpers/format_helper.dart';
 import 'package:smart_money/core/helpers/icon_helper.dart';
+import 'package:smart_money/modules/event/providers/event_provider.dart';
+import 'package:smart_money/modules/event/models/event_response.dart';
+import 'package:smart_money/modules/debt/providers/debt_provider.dart';
+import 'package:smart_money/modules/debt/models/debt_response.dart';
 
 class TransactionEditScreen extends StatefulWidget {
   final TransactionResponse transaction; // giao dịch cần sửa
@@ -67,13 +71,18 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
   DateTime _transDate = DateTime.now();          // ngày giao dịch
   bool _showDetails = false;                     // hiện/ẩn phần chi tiết bổ sung
   final _withPersonController = TextEditingController(); // controller "Với ai"
-  int? _selectedEventId;                         // sự kiện đã chọn (nullable)
+  int? _selectedEventId;                         // ID sự kiện đã chọn (nullable) — gửi lên server
+  String? _selectedEventDisplay;                // tên sự kiện đã chọn — hiển thị trên UI
+  int? _selectedDebtId;                          // ID khoản nợ đã chọn (nullable) — gửi lên server
+  String? _selectedDebtDisplay;                 // tên/info khoản nợ đã chọn — hiển thị trên UI
   DateTime? _reminderTime;                       // nhắc nhở (nullable, phải > now)
   bool _notReportable = false;                   // checkbox "Không tính vào báo cáo"
   bool _isSaving = false;                        // đang gửi request — disable nút Lưu/Xóa
+  bool _isLoadingSources = false;                // đang load ví/mục tiêu — hiện loading trong wallet row
   String _pendingOperator = '';                   // toán tử đang chờ (+, -, ×, ÷)
   double _previousValue = 0;                     // giá trị trước toán tử
   bool _waitingForNextNumber = false;             // [FIX-4] true = vừa bấm toán tử, chờ user nhập số mới
+  bool _isAmountFocused = false;                 // [FIX-3] true khi user tap vào ô số tiền → hiện calculator
 
   // FocusNodes để theo dõi focus text field → ẩn/hiện calculator keyboard
   final _noteFocusNode = FocusNode();
@@ -144,6 +153,14 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
 
     // Pre-fill sự kiện
     _selectedEventId = tx.eventId;
+    // eventName có sẵn trong TransactionResponse — dùng ngay làm display text
+    _selectedEventDisplay = tx.eventName;
+
+    // Pre-fill khoản nợ liên kết
+    _selectedDebtId = tx.debtId;
+    // TransactionResponse chỉ có debtId, không có tên → hiển thị placeholder
+    // User có thể mở picker để xem và đổi khoản nợ nếu muốn
+    _selectedDebtDisplay = tx.debtId != null ? 'Khoản nợ đã liên kết' : null;
 
     // Pre-fill "Không tính vào báo cáo"
     _notReportable = !tx.reportable;
@@ -152,12 +169,29 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
     if (tx.withPerson != null || tx.eventId != null || !tx.reportable) {
       _showDetails = true;
     }
+
+    // [FIX-SOURCES] Đảm bảo sourceItems (ví + mục tiêu) đã được load.
+    // Trường hợp mở từ màn hình khác không qua TransactionListScreen
+    // → provider.sourceItems có thể rỗng → picker ví hiện trống.
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      final provider = context.read<TransactionProvider>();
+      if (provider.sourceItems.isEmpty) {
+        setState(() => _isLoadingSources = true);
+        await provider.ensureSourceItemsLoaded();
+        if (mounted) setState(() => _isLoadingSources = false);
+      }
+    });
   }
 
   void _onFocusChanged() {
     final focused = _noteFocusNode.hasFocus || _withPersonFocusNode.hasFocus;
     if (focused != _isTextFieldFocused) {
-      setState(() => _isTextFieldFocused = focused);
+      setState(() {
+        _isTextFieldFocused = focused;
+        // [FIX-3] Khi text field được focus → ẩn bàn phím tính toán
+        if (focused) _isAmountFocused = false;
+      });
     }
   }
 
@@ -212,6 +246,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
           ? _withPersonController.text.trim()
           : null,
       eventId: _selectedEventId,
+      debtId: _selectedDebtId, // liên kết khoản nợ — chỉ khi category Thu nợ (21) hoặc Trả nợ (22)
       reminderDate: _reminderTime,
       reportable: !_notReportable,
     );
@@ -301,21 +336,53 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
     );
 
     if (result != null && mounted) {
+      final inferredType = _inferTabFromCategory(result);
       setState(() {
         _selectedCategory = result;
+        // [FIX-1] Auto-switch tab để đồng bộ với category đã chọn
+        _transactionType = inferredType;
+        // [FIX] Nếu đổi sang category không phải Thu nợ (21) hoặc Trả nợ (22)
+        // → xóa khoản nợ đã liên kết vì không còn phù hợp
+        if (result.id != 21 && result.id != 22) {
+          _selectedDebtId = null;
+          _selectedDebtDisplay = null;
+        }
       });
     }
+  }
+
+  // =============================================
+  // [6.6c] _inferTabFromCategory — xác định tab từ category đã chọn
+  // =============================================
+  String _inferTabFromCategory(CategoryResponse category) {
+    const debtIds = {19, 20, 21, 22};
+    if (debtIds.contains(category.id)) return 'debt';
+    return (category.ctgType == true) ? 'income' : 'expense';
   }
 
   // =============================================
   // [6.6b] _showSourceBottomSheet — mở bottom sheet chọn ví
   // =============================================
   void _showSourceBottomSheet() {
+    // Guard: đang tải thì không mở
+    if (_isLoadingSources) return;
+
     final provider = Provider.of<TransactionProvider>(context, listen: false);
     final sources = provider.sourceItems;
 
     // Lọc bỏ item "Tổng cộng" — khi sửa giao dịch phải chọn ví cụ thể
     final selectableSources = sources.where((s) => s.type != 'all').toList();
+
+    // Nếu chưa có ví nào → hiện thông báo
+    if (selectableSources.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Không tìm thấy ví nào. Vui lòng tạo ví trước.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
 
     showModalBottomSheet(
       context: context,
@@ -349,17 +416,302 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
               trailing: isSelected
                   ? const Icon(Icons.check_circle, color: Colors.green)
                   : null,
-              onTap: () {
-                setState(() {
-                  _selectedSourceItem = item;
-                  if (item.type == 'saving_goal') {
-                    _selectedCategory = null;
-                  }
-                });
-                Navigator.pop(ctx);
-              },
+               onTap: () {
+                 setState(() {
+                   _selectedSourceItem = item;
+                   // [FIX] Chỉ cập nhật ví, không reset category/event/debt — để user tự quản lý
+                 });
+                 Navigator.pop(ctx);
+               },
             );
           },
+        );
+      },
+    );
+  }
+
+  // =============================================
+  // [6.7] Helper getters — xác định trạng thái nợ
+  // =============================================
+
+  // true khi category là Thu nợ (21) hoặc Trả nợ (22) — hiện row liên kết khoản nợ
+  bool get _requiresDebtSelection =>
+      _selectedCategory?.id == 21 || _selectedCategory?.id == 22;
+
+  // debtType truyền vào picker:
+  //   Thu nợ (21) → CẦN THU (debtType=true)
+  //   Trả nợ (22) → CẦN TRẢ (debtType=false)
+  bool get _debtTypeForPicker => _selectedCategory?.id == 21;
+
+  // =============================================
+  // [6.8] _showEventPicker — bottom sheet chọn sự kiện đang diễn ra
+  // =============================================
+  // Gọi khi: User bấm vào dòng "Chọn sự kiện" trong phần chi tiết
+  // API: GET /api/events?isFinished=false (tái dùng EventProvider)
+  Future<void> _showEventPicker() async {
+    // Bước 1: Load danh sách sự kiện đang diễn ra
+    // [FIX-2] forceRefresh=true để luôn lấy totals mới nhất từ server
+    final eventProvider = Provider.of<EventProvider>(context, listen: false);
+    await eventProvider.loadEvents(false, forceRefresh: true);
+
+    // Bước 2: Kiểm tra mounted sau await
+    if (!mounted) return;
+
+    final events = eventProvider.events;
+
+    // Bước 3: Hiện bottom sheet
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.grey[900],
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Header
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 8, 8),
+                child: Row(
+                  children: [
+                    const Icon(Icons.event, color: Color(0xFF4CAF50), size: 20),
+                    const SizedBox(width: 8),
+                    const Text(
+                      'Chọn sự kiện đang diễn ra',
+                      style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
+                    ),
+                    const Spacer(),
+                    if (_selectedEventId != null)
+                      TextButton(
+                        onPressed: () {
+                          setState(() {
+                            _selectedEventId = null;
+                            _selectedEventDisplay = null;
+                          });
+                          Navigator.pop(ctx);
+                        },
+                        child: const Text('Bỏ chọn', style: TextStyle(color: Colors.red, fontSize: 13)),
+                      ),
+                  ],
+                ),
+              ),
+              const Divider(color: Colors.grey, height: 1),
+
+              if (events.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.all(32),
+                  child: Text(
+                    'Không có sự kiện đang diễn ra',
+                    style: TextStyle(color: Colors.grey),
+                    textAlign: TextAlign.center,
+                  ),
+                )
+              else
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 350),
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: events.length,
+                    itemBuilder: (_, i) {
+                      final EventResponse event = events[i];
+                      final isSelected = _selectedEventId == event.id;
+                      return ListTile(
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                        // Icon thật của sự kiện từ Cloudinary (cùng nguồn wallet/category)
+                        leading: IconHelper.buildCircleAvatar(
+                          iconUrl: event.eventIconUrl,
+                          radius: 22,
+                          backgroundColor: isSelected
+                              ? const Color(0xFF4CAF50)
+                              : Colors.grey.shade800,
+                          placeholder: Icon(Icons.event, color: Colors.grey, size: 22),
+                        ),
+                        title: Text(
+                          event.eventName,
+                          style: TextStyle(
+                            color: isSelected ? const Color(0xFF4CAF50) : Colors.white,
+                            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                          ),
+                        ),
+                        // Hiện ngày kết thúc + thu/chi/còn lại của sự kiện
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Đến ${FormatHelper.formatDate(event.endDate)}',
+                              style: TextStyle(color: Colors.grey[500], fontSize: 11),
+                            ),
+                            Row(
+                              children: [
+                                Text(
+                                  'Thu: ${FormatHelper.formatShort(event.totalIncome)}',
+                                  style: const TextStyle(color: Colors.green, fontSize: 11),
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Chi: ${FormatHelper.formatShort(event.totalExpense)}',
+                                  style: const TextStyle(color: Colors.red, fontSize: 11),
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Còn: ${FormatHelper.formatShort(event.netAmount)}',
+                                  style: TextStyle(
+                                    color: event.netAmount >= 0 ? Colors.blue : Colors.orange,
+                                    fontSize: 11,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                        isThreeLine: true,
+                        trailing: isSelected
+                            ? const Icon(Icons.check_circle, color: Color(0xFF4CAF50))
+                            : null,
+                        onTap: () {
+                          setState(() {
+                            _selectedEventId = event.id;
+                            _selectedEventDisplay = event.eventName;
+                          });
+                          Navigator.pop(ctx);
+                        },
+                      );
+                    },
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  // =============================================
+  // [6.9] _showDebtPicker — bottom sheet chọn khoản nợ
+  // =============================================
+  // Gọi khi: User bấm vào dòng "Chọn khoản nợ" (chỉ khi category là Thu nợ/Trả nợ)
+  // API: GET /api/debts?debtType=false|true (tái dùng DebtProvider)
+  Future<void> _showDebtPicker() async {
+    // Bước 1: Load khoản nợ phù hợp
+    final debtProvider = Provider.of<DebtProvider>(context, listen: false);
+    final debtType = _debtTypeForPicker;
+    await debtProvider.loadDebts(debtType);
+
+    // Bước 2: Kiểm tra mounted sau await
+    if (!mounted) return;
+
+    // Bước 3: Lấy danh sách chưa hoàn thành
+    final debts = debtType
+        ? debtProvider.receivableDebts
+        : debtProvider.payableDebts;
+
+    final tabLabel = debtType ? 'CẦN THU' : 'CẦN TRẢ';
+
+    // Bước 4: Hiện bottom sheet
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.grey[900],
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 8, 8),
+                child: Row(
+                  children: [
+                    Icon(
+                      debtType ? Icons.arrow_downward : Icons.arrow_upward,
+                      color: debtType ? Colors.blue : Colors.orange,
+                      size: 20,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Chọn khoản $tabLabel',
+                      style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
+                    ),
+                    const Spacer(),
+                    if (_selectedDebtId != null)
+                      TextButton(
+                        onPressed: () {
+                          setState(() {
+                            _selectedDebtId = null;
+                            _selectedDebtDisplay = null;
+                          });
+                          Navigator.pop(ctx);
+                        },
+                        child: const Text('Bỏ chọn', style: TextStyle(color: Colors.red, fontSize: 13)),
+                      ),
+                  ],
+                ),
+              ),
+              const Divider(color: Colors.grey, height: 1),
+
+              if (debts.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.all(32),
+                  child: Text(
+                    'Không có khoản $tabLabel nào chưa hoàn thành',
+                    style: const TextStyle(color: Colors.grey),
+                    textAlign: TextAlign.center,
+                  ),
+                )
+              else
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 350),
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: debts.length,
+                    itemBuilder: (_, i) {
+                      final DebtResponse debt = debts[i];
+                      final isSelected = _selectedDebtId == debt.id;
+                      return ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor: isSelected
+                              ? (debtType ? Colors.blue : Colors.orange)
+                              : Colors.grey[800],
+                          child: const Icon(Icons.person, color: Colors.white, size: 18),
+                        ),
+                        title: Text(
+                          debt.personName,
+                          style: TextStyle(
+                            color: isSelected
+                                ? (debtType ? Colors.blue : Colors.orange)
+                                : Colors.white,
+                            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                          ),
+                        ),
+                        subtitle: Text(
+                          'Còn lại: ${FormatHelper.formatVND(debt.remainAmount)}',
+                          style: TextStyle(color: Colors.grey[500], fontSize: 12),
+                        ),
+                        trailing: isSelected
+                            ? Icon(Icons.check_circle,
+                                color: debtType ? Colors.blue : Colors.orange)
+                            : null,
+                        onTap: () {
+                          // Chọn khoản nợ → cập nhật ID, tên hiển thị
+                          // [FIX] Auto-fill withPerson từ tên người trong khoản nợ đã chọn
+                          setState(() {
+                            _selectedDebtId = debt.id;
+                            _selectedDebtDisplay = debt.personName;
+                            _withPersonController.text = debt.personName; // auto-fill
+                          });
+                          Navigator.pop(ctx);
+                        },
+                      );
+                    },
+                  ),
+                ),
+            ],
+          ),
         );
       },
     );
@@ -429,6 +781,8 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
             _previousValue = 0;
             _waitingForNextNumber = false;
           }
+          // [FIX-3] Ẩn bàn phím sau khi bấm ✓
+          _isAmountFocused = false;
           break;
 
         default:
@@ -503,6 +857,8 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
       body: GestureDetector(
         onTap: () {
           FocusScope.of(context).unfocus();
+          // [FIX-3] Ẩn bàn phím khi bấm ra ngoài ô số tiền
+          setState(() => _isAmountFocused = false);
         },
         child: Column(
           children: [
@@ -531,9 +887,17 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
                     const Divider(color: Colors.grey, height: 1),
 
                     // [C] Row hiển thị số tiền
-                    TransactionAmountField(
-                      amount: _amountStr,
-                      transactionType: _transactionType,
+                    // [FIX-3] Bọc GestureDetector để bắt tap → hiện calculator keyboard
+                    GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () {
+                        FocusScope.of(context).unfocus();
+                        setState(() => _isAmountFocused = true);
+                      },
+                      child: TransactionAmountField(
+                        amount: _amountStr,
+                        transactionType: _transactionType,
+                      ),
                     ),
 
                     const Divider(color: Colors.grey, height: 1),
@@ -559,11 +923,20 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
 
                     const Divider(color: Colors.grey, height: 1),
 
+                    // [G-debt] Row liên kết khoản nợ — chỉ hiện khi category là Thu nợ (21) hoặc Trả nợ (22)
+                    if (_requiresDebtSelection) ...[
+                      _buildDebtRow(),
+                      const Divider(color: Colors.grey, height: 1),
+                    ],
+
                     // Nút "THÊM CHI TIẾT"
                     _buildToggleDetailsButton(),
 
                     // Phần chi tiết (ẩn/hiện)
                     if (_showDetails) ...[
+                      const Divider(color: Colors.grey, height: 1),
+                      // [H] Row chọn sự kiện đang diễn ra — tái dùng EventProvider
+                      _buildEventRow(),
                       const Divider(color: Colors.grey, height: 1),
                       _buildWithPersonRow(),
                       const Divider(color: Colors.grey, height: 1),
@@ -576,8 +949,8 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
               ),
             ),
 
-            // ===== Bàn phím tính toán — ẩn khi đang focus text field =====
-            if (!_isTextFieldFocused)
+            // ===== Bàn phím tính toán — chỉ hiện khi user tap vào ô số tiền =====
+            if (_isAmountFocused && !_isTextFieldFocused)
               _buildCalculatorKeyboard(),
 
             // ===== Nút LƯU =====
@@ -592,41 +965,144 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
   }
 
   // ----- Widget: Row chọn ví -----
-  // ----- Widget: Row chọn ví -----
   Widget _buildWalletRow() {
     return GestureDetector(
-      onTap: _showSourceBottomSheet,
+      // [FIX-SOURCES] Disable tap khi đang load danh sách ví
+      onTap: _isLoadingSources ? null : _showSourceBottomSheet,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Row(
           children: [
-            // Icon ví đã chọn (hoặc placeholder)
-            _selectedSourceItem != null
-                ? _buildSourceIcon(_selectedSourceItem!)
-                : Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade800,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Icon(
-                      Icons.account_balance_wallet_outlined,
-                      color: Colors.grey,
-                      size: 20,
-                    ),
-                  ),
+            // Icon ví: loading spinner / icon ví đã chọn / placeholder
+            if (_isLoadingSources)
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade800,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Padding(
+                  padding: EdgeInsets.all(10),
+                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.grey),
+                ),
+              )
+            else if (_selectedSourceItem != null)
+              _buildSourceIcon(_selectedSourceItem!)
+            else
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade800,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Icons.account_balance_wallet_outlined,
+                  color: Colors.grey,
+                  size: 20,
+                ),
+              ),
             const SizedBox(width: 12),
             Expanded(
               child: Text(
-                _selectedSourceItem?.name ?? 'Chọn ví',
+                _isLoadingSources
+                    ? 'Đang tải danh sách ví...'
+                    : (_selectedSourceItem?.name ?? 'Chọn ví'),
                 style: TextStyle(
-                  color: _selectedSourceItem != null ? Colors.white : Colors.grey,
+                  color: (_isLoadingSources || _selectedSourceItem == null)
+                      ? Colors.grey
+                      : Colors.white,
                   fontSize: 16,
                 ),
               ),
             ),
-            const Icon(Icons.chevron_right, color: Colors.grey, size: 20),
+            if (_isLoadingSources)
+              const SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.grey),
+              )
+            else
+              const Icon(Icons.chevron_right, color: Colors.grey, size: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ----- Widget: Row liên kết sự kiện (trong phần THÊM CHI TIẾT) -----
+  Widget _buildEventRow() {
+    return GestureDetector(
+      onTap: _showEventPicker,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          children: [
+            const Icon(Icons.event_note, color: Colors.grey, size: 20),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                _selectedEventDisplay ?? 'Chọn sự kiện (tuỳ chọn)',
+                style: TextStyle(
+                  color: _selectedEventId != null ? Colors.white : Colors.grey,
+                  fontSize: 15,
+                ),
+              ),
+            ),
+            if (_selectedEventId != null)
+              GestureDetector(
+                onTap: () => setState(() {
+                  _selectedEventId = null;
+                  _selectedEventDisplay = null;
+                }),
+                child: const Icon(Icons.close, color: Colors.grey, size: 18),
+              )
+            else
+              const Icon(Icons.chevron_right, color: Colors.grey, size: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ----- Widget: Row liên kết khoản nợ (chỉ hiện khi category là Thu nợ/Trả nợ) -----
+  Widget _buildDebtRow() {
+    final isCollect = _selectedCategory?.id == 21;
+    final hintText = isCollect
+        ? 'Chọn khoản Cần Thu (tuỳ chọn)'
+        : 'Chọn khoản Cần Trả (tuỳ chọn)';
+    final iconColor = isCollect ? Colors.blue : Colors.orange;
+
+    return GestureDetector(
+      onTap: _showDebtPicker,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          children: [
+            Icon(Icons.account_balance_wallet, color: iconColor, size: 20),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                _selectedDebtDisplay != null
+                    ? _selectedDebtDisplay!
+                    : hintText,
+                style: TextStyle(
+                  color: _selectedDebtId != null ? Colors.white : Colors.grey,
+                  fontSize: 15,
+                ),
+              ),
+            ),
+            if (_selectedDebtId != null)
+              GestureDetector(
+                onTap: () => setState(() {
+                  _selectedDebtId = null;
+                  _selectedDebtDisplay = null;
+                }),
+                child: const Icon(Icons.close, color: Colors.grey, size: 18),
+              )
+            else
+              const Icon(Icons.chevron_right, color: Colors.grey, size: 20),
           ],
         ),
       ),
@@ -750,7 +1226,9 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
 
   // ----- Widget: Bàn phím tính toán -----
   Widget _buildCalculatorKeyboard() {
-    final quickKeys = ['10', '50', '100', '500', '1000', '5000'];
+    // [FIX-3] Phím nhanh — đơn vị VND thực tế, phổ biến nhất trong chi tiêu
+    // [TODO] Khi tích hợp đa tiền tệ (USD/EUR): đổi values theo tỷ giá, label "$5" / "$10"
+    final quickKeyValues = [50000.0, 100000.0, 200000.0, 300000.0, 500000.0, 1000000.0, 2000000.0];
 
     final mainKeys = [
       ['7', '8', '9', '÷'],
@@ -769,12 +1247,12 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
             child: ListView(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 8),
-              children: quickKeys.map((key) {
+              children: quickKeyValues.map((value) {
                 return Material(
                   color: Colors.transparent,
                   child: InkWell(
                     onTap: () {
-                      setState(() => _amountStr = key);
+                      setState(() => _amountStr = value.toInt().toString());
                     },
                     borderRadius: BorderRadius.circular(6),
                     splashColor: Colors.grey.withValues(alpha: 0.3),
@@ -787,7 +1265,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
                       ),
                       alignment: Alignment.center,
                       child: Text(
-                        FormatHelper.formatNumber(double.parse(key)),
+                        FormatHelper.formatShort(value),
                         style: const TextStyle(color: Colors.white, fontSize: 13),
                       ),
                     ),

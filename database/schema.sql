@@ -330,6 +330,13 @@ CREATE TABLE tAccounts (
     hash_password VARCHAR(255) NOT NULL,         -- Mật khẩu đã hash (BCrypt/Argon2)
     avatar_url VARCHAR(2048) NULL,               -- URL avatar (upload hoặc CDN)
     locked BIT DEFAULT 0 NOT NULL,            -- 0: Active | 1: Locked (không thể login)
+	
+    -- THÔNG TIN CÁ NHÂN (optional - user tự cập nhật sau đăng ký)
+    fullname      NVARCHAR(60)  NULL,            -- Họ và tên đầy đủ
+    gender        NVARCHAR(10)  NULL,            -- 'Nam' | 'Nữ' | 'Khác'
+    dateofbirth   DATE          NULL,            -- Ngày sinh (dùng cho UX & thống kê)
+    identity_card VARCHAR(20)   NULL,            -- Số CCCD (unique, optional)
+    [address]     NVARCHAR(255) NULL,            -- Địa chỉ thường trú
     
     -- METADATA
     created_at DATETIME DEFAULT GETDATE() NOT NULL,
@@ -337,19 +344,24 @@ CREATE TABLE tAccounts (
     
     -- CONSTRAINTS
     CONSTRAINT CHK_Account_Identity CHECK (acc_phone IS NOT NULL OR acc_email IS NOT NULL), -- Bắt buộc có 1 trong 2
+	CONSTRAINT CHK_Account_Gender   CHECK (gender IS NULL OR gender IN (N'Nam', N'Nữ', N'Khác')),
 
     CONSTRAINT FK_Account_Role FOREIGN KEY (role_id) REFERENCES tRoles(id),
     CONSTRAINT FK_Account_Currency FOREIGN KEY (currency) REFERENCES tCurrencies(currency_code)
 );
 GO
 
--- Index: Unique cho Phone (chặn trùng lặp)
+-- Index: Unique cho Phone
 CREATE UNIQUE NONCLUSTERED INDEX idx_unique_acc_phone ON tAccounts(acc_phone) 
 WHERE acc_phone IS NOT NULL;
 
--- Index: Unique cho Email (chặn trùng lặp)
+-- Index: Unique cho Email
 CREATE UNIQUE NONCLUSTERED INDEX idx_unique_acc_email ON tAccounts(acc_email) 
 WHERE acc_email IS NOT NULL;
+
+-- Index: Unique cho CCCD (bỏ qua NULL)
+CREATE UNIQUE NONCLUSTERED INDEX idx_unique_identity_card ON tAccounts(identity_card)
+WHERE identity_card IS NOT NULL;
 
 -- Index: Tối ưu Admin search User theo status và role
 CREATE INDEX idx_accounts_admin ON tAccounts(locked, role_id, created_at DESC) 
@@ -360,27 +372,27 @@ CREATE INDEX idx_accounts_currency ON tAccounts(currency, created_at DESC);
 GO
 
 -- DỮ LIỆU MẪU: Tài khoản
-INSERT INTO tAccounts (role_id, acc_phone, acc_email, hash_password, avatar_url, currency, locked) VALUES 
-(1, '0901234567', 'admin@smartmoney.vn', '$2a$10$tF5hUn6YqBEMNkVi/0SlhOKYXEIzQwoGMXY1wIcRqRWSiG2Z.Id5K', 'https://api.dicebear.com/7.x/avataaars/svg?seed=AdminPRO', 'VND', 0),
-(2, '0912345678', 'mai.tran@gmail.com', '$2a$10$tF5hUn6YqBEMNkVi/0SlhOKYXEIzQwoGMXY1wIcRqRWSiG2Z.Id5K', 'https://api.dicebear.com/7.x/avataaars/svg?seed=Mai', 'VND', 1),
-(2, '0987654321', 'nam.le@yahoo.com', '$2a$10$tF5hUn6YqBEMNkVi/0SlhOKYXEIzQwoGMXY1wIcRqRWSiG2Z.Id5K', 'https://api.dicebear.com/7.x/avataaars/svg?seed=Nam', 'VND', 0),
-(2, '0987654332', 'test3@gmail.com', '$2a$10$tF5hUn6YqBEMNkVi/0SlhOKYXEIzQwoGMXY1wIcRqRWSiG2Z.Id5K', NULL, 'VND', 0),
-(1, '0909876543', 'huong.nguyen@gmail.com', '$2a$10$tF5hUn6YqBEMNkVi/0SlhOKYXEIzQwoGMXY1wIcRqRWSiG2Z.Id5K', 'https://api.dicebear.com/7.x/avataaars/svg?seed=Huong', 'VND', 0),
-(2, '0923456789', 'minh.pham@gmail.com', '$2a$10$tF5hUn6YqBEMNkVi/0SlhOKYXEIzQwoGMXY1wIcRqRWSiG2Z.Id5K', 'https://api.dicebear.com/7.x/avataaars/svg?seed=Minh', 'VND', 0),
-(2, '0934567890', 'linhvo@yahoo.com', '$2a$10$tF5hUn6YqBEMNkVi/0SlhOKYXEIzQwoGMXY1wIcRqRWSiG2Z.Id5K', 'https://api.dicebear.com/7.x/avataaars/svg?seed=Linh', 'VND', 1),
-(2, '0945678901', 'quanhoang@gmail.com', '$2a$10$tF5hUn6YqBEMNkVi/0SlhOKYXEIzQwoGMXY1wIcRqRWSiG2Z.Id5K', 'https://api.dicebear.com/7.x/avataaars/svg?seed=Quan', 'VND', 0),
-(2, '0956789012', 'thaodang@gmail.com', '$2a$10$tF5hUn6YqBEMNkVi/0SlhOKYXEIzQwoGMXY1wIcRqRWSiG2Z.Id5K', NULL, 'VND', 0),
-(2, '0967890123', 'khanhbui@outlook.com', '$2a$10$tF5hUn6YqBEMNkVi/0SlhOKYXEIzQwoGMXY1wIcRqRWSiG2Z.Id5K', 'https://api.dicebear.com/7.x/avataaars/svg?seed=Khanh', 'VND', 0),
-(2, '0978901234', 'anhtruong@gmail.com', '$2a$10$tF5hUn6YqBEMNkVi/0SlhOKYXEIzQwoGMXY1wIcRqRWSiG2Z.Id5K', 'https://api.dicebear.com/7.x/avataaars/svg?seed=Anh', 'VND', 1),
-(2, '0989012345', 'ducdo@gmail.com', '$2a$10$tF5hUn6YqBEMNkVi/0SlhOKYXEIzQwoGMXY1wIcRqRWSiG2Z.Id5K', 'https://api.dicebear.com/7.x/avataaars/svg?seed=Duc', 'VND', 0),
-(2, '0911223344', 'hoanguyen@gmail.com', '$2a$10$tF5hUn6YqBEMNkVi/0SlhOKYXEIzQwoGMXY1wIcRqRWSiG2Z.Id5K', 'https://api.dicebear.com/7.x/avataaars/svg?seed=Hoa', 'VND', 0),
-(2, '0922334455', 'tuanvu@gmail.com', '$2a$10$tF5hUn6YqBEMNkVi/0SlhOKYXEIzQwoGMXY1wIcRqRWSiG2Z.Id5K', 'https://api.dicebear.com/7.x/avataaars/svg?seed=Tuan', 'VND', 0),
-(2, '0933445566', 'lanphan@yahoo.com', '$2a$10$tF5hUn6YqBEMNkVi/0SlhOKYXEIzQwoGMXY1wIcRqRWSiG2Z.Id5K', NULL, 'VND', 1),
-(2, '0944556677', 'hung.ngo@gmail.com', '$2a$10$tF5hUn6YqBEMNkVi/0SlhOKYXEIzQwoGMXY1wIcRqRWSiG2Z.Id5K', 'https://api.dicebear.com/7.x/avataaars/svg?seed=Hung', 'VND', 0),
-(2, '0955667788', 'my.tran@outlook.com', '$2a$10$tF5hUn6YqBEMNkVi/0SlhOKYXEIzQwoGMXY1wIcRqRWSiG2Z.Id5K', 'https://api.dicebear.com/7.x/avataaars/svg?seed=My', 'VND', 0),
-(2, '0966778899', 'son.le@gmail.com', '$2a$10$tF5hUn6YqBEMNkVi/0SlhOKYXEIzQwoGMXY1wIcRqRWSiG2Z.Id5K', 'https://api.dicebear.com/7.x/avataaars/svg?seed=Son', 'VND', 0),
-(2, '0977889900', 'thu.hoang@gmail.com', '$2a$10$tF5hUn6YqBEMNkVi/0SlhOKYXEIzQwoGMXY1wIcRqRWSiG2Z.Id5K', NULL, 'VND', 1),
-(2, '0988990011', 'long.dang@gmail.com', '$2a$10$tF5hUn6YqBEMNkVi/0SlhOKYXEIzQwoGMXY1wIcRqRWSiG2Z.Id5K', 'https://api.dicebear.com/7.x/avataaars/svg?seed=Long', 'VND', 0);
+INSERT INTO tAccounts (role_id, acc_phone, acc_email, hash_password, avatar_url, currency, locked, fullname, gender, dateofbirth, identity_card, [address]) VALUES 
+(1, '0901234567', 'admin@smartmoney.vn',   '$2a$10$tF5hUn6YqBEMNkVi/0SlhOKYXEIzQwoGMXY1wIcRqRWSiG2Z.Id5K', 'https://api.dicebear.com/7.x/avataaars/svg?seed=AdminPRO', 'VND', 0, N'Nguyễn Văn Admin',  N'Nam', '1988-03-15', '001088012345', N'12 Lý Thường Kiệt, Hoàn Kiếm, Hà Nội'),
+(2, '0912345678', 'mai.tran@gmail.com',    '$2a$10$tF5hUn6YqBEMNkVi/0SlhOKYXEIzQwoGMXY1wIcRqRWSiG2Z.Id5K', 'https://api.dicebear.com/7.x/avataaars/svg?seed=Mai',      'VND', 1, N'Trần Thị Mai',      N'Nữ',  '1995-07-22', '079095023456', N'45 Nguyễn Trãi, Thanh Xuân, Hà Nội'),
+(2, '0987654321', 'nam.le@yahoo.com',      '$2a$10$tF5hUn6YqBEMNkVi/0SlhOKYXEIzQwoGMXY1wIcRqRWSiG2Z.Id5K', 'https://api.dicebear.com/7.x/avataaars/svg?seed=Nam',      'VND', 0, N'Lê Hoàng Nam',      N'Nam', '1993-11-08', '034093034567', N'78 Trần Hưng Đạo, Quận 1, TP.HCM'),
+(2, '0987654332', 'test3@gmail.com',       '$2a$10$tF5hUn6YqBEMNkVi/0SlhOKYXEIzQwoGMXY1wIcRqRWSiG2Z.Id5K', NULL,                                                          'VND', 0, NULL,                NULL,   NULL,         NULL,          NULL),
+(1, '0909876543', 'huong.nguyen@gmail.com','$2a$10$tF5hUn6YqBEMNkVi/0SlhOKYXEIzQwoGMXY1wIcRqRWSiG2Z.Id5K', 'https://api.dicebear.com/7.x/avataaars/svg?seed=Huong',    'VND', 0, N'Nguyễn Thị Hương',  N'Nữ',  '1990-05-30', '001090045678', N'23 Đinh Tiên Hoàng, Bình Thạnh, TP.HCM'),
+(2, '0923456789', 'minh.pham@gmail.com',   '$2a$10$tF5hUn6YqBEMNkVi/0SlhOKYXEIzQwoGMXY1wIcRqRWSiG2Z.Id5K', 'https://api.dicebear.com/7.x/avataaars/svg?seed=Minh',     'VND', 0, N'Phạm Quốc Minh',    N'Nam', '1997-02-14', '079097056789', N'56 Lê Lợi, Hải Châu, Đà Nẵng'),
+(2, '0934567890', 'linhvo@yahoo.com',      '$2a$10$tF5hUn6YqBEMNkVi/0SlhOKYXEIzQwoGMXY1wIcRqRWSiG2Z.Id5K', 'https://api.dicebear.com/7.x/avataaars/svg?seed=Linh',     'VND', 1, N'Võ Thị Linh',       N'Nữ',  '1998-09-03', '048098067890', NULL),
+(2, '0945678901', 'quanhoang@gmail.com',   '$2a$10$tF5hUn6YqBEMNkVi/0SlhOKYXEIzQwoGMXY1wIcRqRWSiG2Z.Id5K', 'https://api.dicebear.com/7.x/avataaars/svg?seed=Quan',     'VND', 0, N'Hoàng Minh Quân',   N'Nam', '1994-12-25', '092094078901', N'89 Hùng Vương, Hồng Bàng, Hải Phòng'),
+(2, '0956789012', 'thaodang@gmail.com',    '$2a$10$tF5hUn6YqBEMNkVi/0SlhOKYXEIzQwoGMXY1wIcRqRWSiG2Z.Id5K', NULL,                                                          'VND', 0, N'Đặng Khánh Thảo',   N'Nữ',  '1999-04-18', NULL,           NULL),
+(2, '0967890123', 'khanhbui@outlook.com',  '$2a$10$tF5hUn6YqBEMNkVi/0SlhOKYXEIzQwoGMXY1wIcRqRWSiG2Z.Id5K', 'https://api.dicebear.com/7.x/avataaars/svg?seed=Khanh',    'VND', 0, N'Bùi Tiến Khánh',    N'Nam', '1996-08-11', '074096090123', N'34 Nguyễn Huệ, Ninh Kiều, Cần Thơ'),
+(2, '0978901234', 'anhtruong@gmail.com',   '$2a$10$tF5hUn6YqBEMNkVi/0SlhOKYXEIzQwoGMXY1wIcRqRWSiG2Z.Id5K', 'https://api.dicebear.com/7.x/avataaars/svg?seed=Anh',      'VND', 1, N'Trương Ngọc Anh',   N'Nữ',  '2000-01-07', NULL,           N'67 Trần Phú, Nha Trang, Khánh Hòa'),
+(2, '0989012345', 'ducdo@gmail.com',       '$2a$10$tF5hUn6YqBEMNkVi/0SlhOKYXEIzQwoGMXY1wIcRqRWSiG2Z.Id5K', 'https://api.dicebear.com/7.x/avataaars/svg?seed=Duc',      'VND', 0, N'Đỗ Mạnh Đức',       N'Nam', '1992-06-20', '027092112345', N'90 Lê Duẩn, Đông Hà, Quảng Trị'),
+(2, '0911223344', 'hoanguyen@gmail.com',   '$2a$10$tF5hUn6YqBEMNkVi/0SlhOKYXEIzQwoGMXY1wIcRqRWSiG2Z.Id5K', 'https://api.dicebear.com/7.x/avataaars/svg?seed=Hoa',      'VND', 0, N'Nguyễn Thị Hoa',    N'Nữ',  '1995-03-28', '001095123456', NULL),
+(2, '0922334455', 'tuanvu@gmail.com',      '$2a$10$tF5hUn6YqBEMNkVi/0SlhOKYXEIzQwoGMXY1wIcRqRWSiG2Z.Id5K', 'https://api.dicebear.com/7.x/avataaars/svg?seed=Tuan',     'VND', 0,    NULL,         NULL,     NULL,       NULL,          NULL),
+(2, '0933445566', 'lanphan@yahoo.com',     '$2a$10$tF5hUn6YqBEMNkVi/0SlhOKYXEIzQwoGMXY1wIcRqRWSiG2Z.Id5K', NULL,                                                          'VND', 1, N'Phan Thị Lan',      N'Nữ',  '1997-07-15', NULL,           NULL),
+(2, '0944556677', 'hung.ngo@gmail.com',    '$2a$10$tF5hUn6YqBEMNkVi/0SlhOKYXEIzQwoGMXY1wIcRqRWSiG2Z.Id5K', 'https://api.dicebear.com/7.x/avataaars/svg?seed=Hung',     'VND', 0, N'Ngô Xuân Hùng',     N'Nam', '1989-12-01', '064089156789', N'120 Phạm Văn Đồng, Cầu Giấy, Hà Nội'),
+(2, '0955667788', 'my.tran@outlook.com',   '$2a$10$tF5hUn6YqBEMNkVi/0SlhOKYXEIzQwoGMXY1wIcRqRWSiG2Z.Id5K', 'https://api.dicebear.com/7.x/avataaars/svg?seed=My',       'VND', 0, N'Trần Thị Mỹ',       N'Nữ',  '2001-05-12', NULL,           N'33 Võ Thị Sáu, Quận 3, TP.HCM'),
+(2, '0966778899', 'son.le@gmail.com',      '$2a$10$tF5hUn6YqBEMNkVi/0SlhOKYXEIzQwoGMXY1wIcRqRWSiG2Z.Id5K', 'https://api.dicebear.com/7.x/avataaars/svg?seed=Son',      'VND', 0, N'Lê Thanh Sơn',      N'Nam', '1993-08-23', '079093178901', N'55 Hai Bà Trưng, Quận 1, TP.HCM'),
+(2, '0977889900', 'thu.hoang@gmail.com',   '$2a$10$tF5hUn6YqBEMNkVi/0SlhOKYXEIzQwoGMXY1wIcRqRWSiG2Z.Id5K', NULL,                                                          'VND', 1, N'Hoàng Thị Thu',     N'Nữ',  '1998-11-30', NULL,           NULL),
+(2, '0988990011', 'long.dang@gmail.com',   '$2a$10$tF5hUn6YqBEMNkVi/0SlhOKYXEIzQwoGMXY1wIcRqRWSiG2Z.Id5K', 'https://api.dicebear.com/7.x/avataaars/svg?seed=Long',     'VND', 0, N'Đặng Văn Long',     N'Nam', '1990-04-09', '001090190011', N'78 Nguyễn Chí Thanh, Đống Đa, Hà Nội');
 GO
 
 -- ======================================================================

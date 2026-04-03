@@ -176,6 +176,19 @@ class TransactionProvider extends ChangeNotifier {
   }
 
   // =============================================
+  // [2.4b] ENSURE SOURCE ITEMS LOADED
+  // =============================================
+  // Gọi khi: TransactionCreateScreen / TransactionEditScreen được mở
+  // từ màn hình khác (DebtListScreen, FAB, v.v.) mà chưa qua TransactionListScreen.
+  // Logic: Chỉ load nếu sourceItems chưa có dữ liệu (rỗng).
+  // Không đụng đến dateRanges hay transactions — chỉ load ví + mục tiêu.
+  Future<void> ensureSourceItemsLoaded() async {
+    if (_sourceItems.isNotEmpty) return; // đã có data rồi, bỏ qua
+    await _loadSourceItems();
+    notifyListeners();
+  }
+
+  // =============================================
   // [2.5] CREATE — Tạo giao dịch mới
   // =============================================
   // Gọi khi: User bấm "Lưu" ở TransactionCreateScreen

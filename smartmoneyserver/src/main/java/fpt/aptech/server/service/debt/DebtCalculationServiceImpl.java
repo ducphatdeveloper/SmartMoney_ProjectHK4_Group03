@@ -51,7 +51,10 @@ public class DebtCalculationServiceImpl implements DebtCalculationService {
      *
      * Bước 1 — Tìm Debt theo ID. Nếu không tồn tại → bỏ qua.
      * Bước 2 — Tính tổng gốc nợ (Cho vay + Đi vay).
-     *           Nếu total = 0 → không còn giao dịch gốc → xóa Debt + deactivate Planned.
+     *           Nếu total = 0 → KHÔNG xóa, fallback về debt.totalAmount đã lưu.
+     *           (Trường hợp khoản nợ tạo thủ công hoặc không có giao dịch gốc liên kết)
+     *           Việc xóa debt khi xóa giao dịch gốc cuối cùng được thực hiện tại
+     *           TransactionServiceImpl.deleteTransaction() → deleteDebtIfOrphaned().
      * Bước 3 — Tính tổng đã trả/thu (Thu nợ + Trả nợ).
      * Bước 4 — Cập nhật totalAmount (guard CHK_Debts_TotalAmount: total_amount > 0).
      * Bước 5 — Cập nhật remainAmount (không cho âm).
@@ -70,12 +73,22 @@ public class DebtCalculationServiceImpl implements DebtCalculationService {
         BigDecimal total = transactionRepository
                 .sumAmountByDebtIdAndCategoryIds(debtId, DEBT_ORIGIN_IDS);
 
-        // Nếu không còn giao dịch gốc → xóa debt + deactivate planned liên kết
+        // [FIX-2] Nếu không tìm thấy giao dịch gốc (Cho vay / Đi vay) liên kết debt này:
+        //   → KHÔNG xóa debt (đây là lỗi logic cũ gây ra việc xóa nhầm khoản nợ thủ công).
+        //   → Fallback về debt.totalAmount đã lưu trong DB (do người dùng nhập hoặc recalculate trước đó).
+        //
+        // Trường hợp xảy ra:
+        //   a) Khoản nợ tạo thủ công trong DB (không qua luồng tạo giao dịch Cho vay).
+        //   b) Khoản nợ tạo từ phiên bản cũ không link debt_id vào transaction gốc.
+        //   c) Giao dịch gốc đã bị xóa — trong trường hợp này TransactionServiceImpl
+        //      sẽ gọi deleteDebtIfOrphaned() TRƯỚC khi gọi recalculateDebt(), và debt
+        //      sẽ không còn tồn tại khi recalculateDebt() được gọi → Bước 1 trả về null.
         if (total.compareTo(BigDecimal.ZERO) <= 0) {
-            plannedTransactionRepository.deactivateAllByDebtId(debtId);
-            plannedTransactionRepository.setDebtIdToNullByDebtId(debtId);
-            debtRepository.delete(debt);
-            return;
+            total = debt.getTotalAmount();
+            // Edge case: totalAmount trong DB cũng không hợp lệ → bỏ qua
+            if (total == null || total.compareTo(BigDecimal.ZERO) <= 0) {
+                return;
+            }
         }
 
         // Bước 3: Tính tổng đã trả/thu
@@ -126,4 +139,40 @@ public class DebtCalculationServiceImpl implements DebtCalculationService {
         // Bước 7: Lưu Debt
         debtRepository.save(debt);
     }
+
+    // =================================================================================
+    // 2. XÓA NỢ NẾU KHÔNG CÒN GIAO DỊCH GỐC (DELETE IF ORPHANED)
+    // =================================================================================
+
+    /**
+     * [2.1] Xóa khoản nợ nếu không còn giao dịch gốc nào (Cho vay / Đi vay) liên kết.
+     *
+     * Được gọi từ TransactionServiceImpl.deleteTransaction() SAU khi đã xóa giao dịch
+     * thuộc loại Cho vay (19) hoặc Đi vay (20).
+     *
+     * Nếu vẫn còn giao dịch gốc khác → không xóa (caller gọi recalculateDebt() tiếp).
+     * Nếu không còn → dọn dẹp FK + xóa Debt bằng JPQL DELETE (an toàn với Hibernate session).
+     */
+    @Override
+    @Transactional
+    public void deleteDebtIfOrphaned(Integer debtId) {
+        // Kiểm tra còn giao dịch gốc nào không
+        BigDecimal remainingOrigin = transactionRepository
+                .sumAmountByDebtIdAndCategoryIds(debtId, DEBT_ORIGIN_IDS);
+
+        if (remainingOrigin.compareTo(BigDecimal.ZERO) > 0) {
+            // Còn giao dịch gốc → không xóa, caller sẽ gọi recalculateDebt()
+            return;
+        }
+
+        // Không còn giao dịch gốc → xóa Debt và dọn dẹp FK liên kết
+        // Bước 1: NULL hóa debt_id trong Transaction (tránh FK violation)
+        transactionRepository.setDebtIdToNullByDebtId(debtId);
+        // Bước 2: Deactivate + NULL hóa debt_id trong PlannedTransaction
+        plannedTransactionRepository.deactivateAllByDebtId(debtId);
+        plannedTransactionRepository.setDebtIdToNullByDebtId(debtId);
+        // Bước 3: JPQL DELETE (không qua entity lifecycle → không gây TransientObjectException)
+        debtRepository.deleteByDebtId(debtId);
+    }
 }
+

@@ -40,7 +40,8 @@ public class PlannedTransaction {
 
     // NULL nếu không liên quan đến nợ
     // Chỉ điền khi ctg là: Cho vay(19), Đi vay(20), Thu nợ(21), Trả nợ(22)
-    @ManyToOne(fetch = FetchType.LAZY)
+    // ⚠️ EAGER load để tránh LazyInitializationException trong toggle/view operations
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "debt_id")
     private Debt debt;
 

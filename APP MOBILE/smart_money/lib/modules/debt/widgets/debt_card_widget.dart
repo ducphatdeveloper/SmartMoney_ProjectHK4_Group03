@@ -44,7 +44,7 @@ class DebtCardWidget extends StatelessWidget {
           border: Border.all(
             // Viền đỏ nhạt nếu nợ sắp đến hạn (trong vòng 7 ngày)
             color: _isNearDue
-                ? Colors.red.withOpacity(0.4)
+                ? Colors.red.withValues(alpha: 0.4)
                 : Colors.transparent,
             width: 1.2,
           ),
@@ -74,19 +74,19 @@ class DebtCardWidget extends StatelessWidget {
     final initial = debt.personName.isNotEmpty
         ? debt.personName[0].toUpperCase()
         : '?';
+    // [FIX-6] Màu đồng bộ app: Xanh lá nếu xong, Cam nếu CẦN TRẢ, Xanh dương nếu CẦN THU
+    // Không dùng colorScheme.primary (có thể là tím — không đồng bộ với Xám-Xanh-Đen-Trắng)
+    final activeColor = debt.debtType ? Colors.blue : Colors.orange;
     return CircleAvatar(
       radius: 22,
-      // Màu xanh lá nếu đã xong, màu primary nếu chưa xong
       backgroundColor: debt.finished
-          ? Colors.green.withOpacity(0.3)
-          : Theme.of(context).colorScheme.primary.withOpacity(0.15),
+          ? Colors.green.withValues(alpha: 0.3)
+          : activeColor.withValues(alpha: 0.18),
       child: Text(
         initial,
         style: TextStyle(
           fontWeight: FontWeight.bold,
-          color: debt.finished
-              ? Colors.green
-              : Theme.of(context).colorScheme.primary,
+          color: debt.finished ? Colors.green : activeColor,
         ),
       ),
     );
@@ -94,6 +94,7 @@ class DebtCardWidget extends StatelessWidget {
 
   /// Cột giữa: tên người, ghi chú, thanh tiến trình
   Widget _buildInfo(BuildContext context) {
+    final activeColor = debt.debtType ? Colors.blue : Colors.orange;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -119,12 +120,14 @@ class DebtCardWidget extends StatelessWidget {
         const SizedBox(height: 6),
 
         // Thanh tiến trình đã trả/thu
+        // [FIX] Tăng chiều cao thanh tiến trình lên chút: dễ nhìn hơn trên tab Cần Trả / Cần Thu
         LinearProgressIndicator(
           value: debt.progress,
           backgroundColor: Colors.grey[200],
-          color: debt.finished ? Colors.green : Theme.of(context).colorScheme.primary,
-          minHeight: 4,
-          borderRadius: BorderRadius.circular(2),
+          // Màu progress bar: xanh lá nếu xong, cam/xanh nếu chưa
+          color: debt.finished ? Colors.green : activeColor,
+          minHeight: 6, // tăng từ 4 -> 6 (nhỏ nhưng rõ rệt)
+          borderRadius: BorderRadius.circular(3),
         ),
 
         const SizedBox(height: 4),

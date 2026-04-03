@@ -65,7 +65,8 @@ public class DebtController {
             @PathVariable Integer id,
             @AuthenticationPrincipal Account currentUser) {
         return ResponseEntity.ok(ApiResponse.success(
-                debtService.updateDebtStatus(id, currentUser.getId())));
+                debtService.updateDebtStatus(id, currentUser.getId()),
+                "Cập nhật trạng thái khoản nợ thành công."));
     }
 
     @DeleteMapping("/{id}")
@@ -73,6 +74,9 @@ public class DebtController {
             @PathVariable Integer id,
             @AuthenticationPrincipal Account currentUser) {
         debtService.deleteDebt(id, currentUser.getId());
-        return ResponseEntity.noContent().build();
+        // Trả về 200 OK + JSON body thay vì 204 No Content.
+        // Flutter ApiHandler._handleResponse() gọi jsonDecode(body) cho mọi status code,
+        // nếu body rỗng (204) → FormatException → bị catch → hiện "Không thể kết nối đến server".
+        return ResponseEntity.ok(ApiResponse.success(null, "Xóa khoản nợ thành công."));
     }
 }

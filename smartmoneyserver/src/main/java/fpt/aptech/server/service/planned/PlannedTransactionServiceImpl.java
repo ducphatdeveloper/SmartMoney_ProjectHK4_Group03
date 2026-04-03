@@ -241,12 +241,24 @@ public class PlannedTransactionServiceImpl implements PlannedTransactionService 
         // Nếu tất cả validate đều qua, tiến hành tạo giao dịch
         createTransactionFromPlanned(planned);
 
-        // --- Bước 5: Cập nhật lịch trình cho kỳ tiếp theo ---
+        // --- Bước 5: Kiểm tra nợ liên kết — nếu đã hoàn thành → deactivate bill ---
+        // [FIX-AUTODEACTIVATE] Nếu hóa đơn liên kết debt và debt vừa được kết thúc
+        // (do recalculateDebt() gọi ở Bước 4) → tự động deactivate bill này
+        // Lý do: Khi trả đủ hoặc vượt số tiền nợ → hóa đơn không cần tạo transaction lần nữa
+        if (planned.getDebt() != null) {
+            // Reload debt từ DB để kiểm tra trạng thái mới nhất (vừa được update)
+            Debt updatedDebt = debtRepo.findById(planned.getDebt().getId()).orElse(null);
+            if (updatedDebt != null && Boolean.TRUE.equals(updatedDebt.getFinished())) {
+                planned.setActive(false);
+            }
+        }
+
+        // --- Bước 6: Cập nhật lịch trình cho kỳ tiếp theo ---
         LocalDate nextDue = calculateNextDueDate(planned, planned.getNextDueDate());
         planned.setLastExecutedAt(today);
         planned.setNextDueDate(nextDue);
 
-        // --- Bước 6: Lưu và trả về DTO mới nhất ---
+        // --- Bước 7: Lưu và trả về DTO mới nhất ---
         // Mapper sẽ tự động tính lại displayStatus và các label khác
         return mapper.toDto(plannedRepo.save(planned));
     }
@@ -254,11 +266,21 @@ public class PlannedTransactionServiceImpl implements PlannedTransactionService 
 
     /**
      * [2.7] Toggle active của Bill (đánh dấu hoàn tất / chưa hoàn tất).
+     * Không cho reactivate nếu khoản nợ liên kết đã finished.
      */
     @Override
     @Transactional
     public PlannedTransactionResponse toggleBill(Integer id, Integer userId) {
         PlannedTransaction planned = getOwnedPlanned(id, userId);
+
+        // Không cho reactivate nếu khoản nợ đã trả xong
+        if (!planned.getActive()
+                && planned.getDebt() != null
+                && Boolean.TRUE.equals(planned.getDebt().getFinished())) {
+            throw new IllegalArgumentException(
+                    "Khoản nợ đã thanh toán xong, không thể kích hoạt lại");
+        }
+
         planned.setActive(!planned.getActive());
         return mapper.toDto(plannedRepo.save(planned));
     }
@@ -437,6 +459,16 @@ public class PlannedTransactionServiceImpl implements PlannedTransactionService 
                 .orElseThrow(() -> new IllegalArgumentException("Ví không tồn tại"));
         if (!wallet.getAccount().getId().equals(userId))
             throw new SecurityException("Không có quyền sử dụng ví này");
+
+        // [FIX-DEBT-WALLET-LOCK] Kiểm tra: nếu giao dịch định kỳ thuộc vay nợ (category 19/20/21/22)
+        // → không được phép đổi ví (vì các transaction liên kết debt đã ghi trong ví cũ)
+        if (DEBT_CATEGORY_IDS.contains(req.categoryId())) {
+            if (!req.walletId().equals(planned.getWallet().getId())) {
+                throw new IllegalArgumentException(
+                        "Không thể đổi ví cho giao dịch định kỳ/hóa đơn thuộc vay nợ. " +
+                        "Ví đã được xác định bởi các giao dịch nợ trước đó.");
+            }
+        }
 
         Category category = categoryRepo.findById(req.categoryId())
                 .orElseThrow(() -> new IllegalArgumentException("Danh mục không tồn tại"));

@@ -39,13 +39,18 @@
 // ===========================================================
 
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 import 'package:smart_money/core/helpers/format_helper.dart';
+import 'package:smart_money/core/helpers/icon_helper.dart';
 import 'package:smart_money/modules/transaction/models/request/transaction_search_request.dart';
 import 'package:smart_money/modules/transaction/models/view/transaction_response.dart';
 import 'package:smart_money/modules/transaction/services/transaction_service.dart';
 import 'package:smart_money/modules/transaction/services/util_service.dart';
 import 'package:smart_money/modules/transaction/widgets/transaction_detail_sheet.dart';
+import 'package:smart_money/modules/transaction/screens/transaction_edit_screen.dart';
+import 'package:smart_money/modules/transaction/providers/transaction_provider.dart';
 import 'package:smart_money/modules/category/models/category_response.dart';
 import 'package:smart_money/modules/category/screens/category_list_screen.dart';
 import 'package:smart_money/modules/wallet/models/wallet_response.dart';
@@ -334,25 +339,15 @@ class _TransactionSearchScreenState extends State<TransactionSearchScreen> {
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: _buildAppBar(),
-      body: Column(
-        children: [
-          // Phần bộ lọc (cuộn được cùng với kết quả)
-          Expanded(
-            child: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // ===== [A] Bộ lọc nâng cao (luôn hiển thị) =====
-                  _buildFilterSection(),
-
-                  const Divider(color: Color(0xFF2C2C2E), height: 1),
-
-                  // ===== [B] Kết quả tìm kiếm =====
-                  _buildResultSection(),
-                ],
-              ),
-            ),
+      body: CustomScrollView(
+        slivers: [
+          // Phần bộ lọc (fixed at top)
+          SliverToBoxAdapter(
+            child: _buildFilterSection(),
           ),
+          const SliverToBoxAdapter(child: Divider(color: Color(0xFF2C2C2E), height: 1)),
+          // Phần kết quả (scrollable)
+          SliverToBoxAdapter(child: _buildResultSection()),
         ],
       ),
     );
@@ -535,62 +530,253 @@ class _TransactionSearchScreenState extends State<TransactionSearchScreen> {
   // =============================================
   // [7.10d] Widget: Bộ lọc ví / mục tiêu
   // =============================================
+  // [FIX] Đổi từ DropdownButton → GestureDetector + showModalBottomSheet
+  // Vì DropdownButton không hỗ trợ tốt CachedNetworkImage trong DropdownMenuItem
+  // → Giờ dùng bottom sheet như transaction_app_bar.dart và create/edit screen
   Widget _buildWalletFilter() {
-    // Bước 1: Tạo danh sách lựa chọn: "Tất cả" + từng ví + từng goal
-    final allItems = <Map<String, dynamic>>[
-      {'label': 'Tất cả các ví', 'type': 'all'},
-      ...(_wallets.map((w) => {'label': w.walletName, 'type': 'wallet', 'data': w})),
-      ...(_goals.map((g) => {'label': g.goalName, 'type': 'goal', 'data': g})),
-    ];
-
-    // Bước 2: Tìm label hiện tại dựa theo state đang chọn
+    // Xác định tên + iconUrl đang chọn để hiện trên row
     String currentLabel = 'Tất cả các ví';
-    if (_selectedWallet != null) currentLabel = _selectedWallet!.walletName;
-    if (_selectedGoal   != null) currentLabel = _selectedGoal!.goalName;
+    String? currentIconUrl;
+    String currentType = 'all'; // 'all' | 'wallet' | 'saving_goal'
+
+    if (_selectedWallet != null) {
+      currentLabel = _selectedWallet!.walletName;
+      currentIconUrl = _selectedWallet!.goalImageUrl; // WalletResponse.goalImageUrl
+      currentType = 'wallet';
+    } else if (_selectedGoal != null) {
+      currentLabel = _selectedGoal!.goalName;
+      currentIconUrl = _selectedGoal!.imageUrl; // SavingGoalResponse.imageUrl
+      currentType = 'saving_goal';
+    }
 
     return _buildFilterRow(
       label: "VÍ",
       child: _loadingDropdowns
+          // Đang load → hiện spinner nhỏ
           ? const SizedBox(
               height: 20, width: 20,
-              child: CircularProgressIndicator(color: Colors.green, strokeWidth: 2))
-          : DropdownButton<int>(
-              value: null, // không dùng value — hiển thị label qua hint
-              hint: Text(currentLabel, style: const TextStyle(color: Colors.white)),
-              icon: const Icon(Icons.chevron_right, color: Colors.grey),
-              dropdownColor: const Color(0xFF1C1C1E),
-              underline: const SizedBox(),
-              // [FIX] Trước đây onChanged rỗng → chọn ví không có tác dụng gì
-              // Giờ gán đúng _selectedWallet / _selectedGoal để request gửi lên server đúng
-              onChanged: (index) {
-                if (index == null || index >= allItems.length) return;
-                final item = allItems[index];
-                setState(() {
-                  if (item['type'] == 'all') {
-                    // Chọn "Tất cả" → reset cả 2
-                    _selectedWallet = null;
-                    _selectedGoal = null;
-                  } else if (item['type'] == 'wallet') {
-                    // Chọn ví thường → gán wallet, xóa goal
-                    _selectedWallet = item['data'] as WalletResponse;
-                    _selectedGoal = null;
-                  } else if (item['type'] == 'goal') {
-                    // Chọn mục tiêu tiết kiệm → gán goal, xóa wallet
-                    _selectedGoal = item['data'] as SavingGoalResponse;
-                    _selectedWallet = null;
-                  }
-                });
-              },
-              items: allItems.asMap().entries.map((entry) {
-                return DropdownMenuItem<int>(
-                  value: entry.key, // dùng index làm value
-                  child: Text(
-                    entry.value['label'] as String,
-                    style: const TextStyle(color: Colors.white),
+              child: CircularProgressIndicator(color: Colors.green, strokeWidth: 2),
+            )
+          // Đã load → hiện row bấm mở sheet
+          : GestureDetector(
+              onTap: _showWalletBottomSheet, // bấm → mở bottom sheet chọn ví
+              child: Row(
+                children: [
+                  // Icon ví hiện tại: Cloudinary nếu có, fallback nếu không
+                  _buildWalletRowIcon(currentIconUrl, currentType),
+                  const SizedBox(width: 10),
+                  // Tên ví hiện tại
+                  Expanded(
+                    child: Text(
+                      currentLabel,
+                      style: TextStyle(
+                        color: (_selectedWallet != null || _selectedGoal != null)
+                            ? Colors.white
+                            : Colors.grey,
+                        fontSize: 14,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
-                );
-              }).toList(),
+                  // Nút X xóa chọn ví (chỉ hiện khi đang chọn ví cụ thể)
+                  if (_selectedWallet != null || _selectedGoal != null)
+                    GestureDetector(
+                      onTap: () => setState(() {
+                        _selectedWallet = null;
+                        _selectedGoal = null;
+                      }),
+                      child: const Icon(Icons.close, color: Colors.grey, size: 18),
+                    )
+                  else
+                    const Icon(Icons.chevron_right, color: Colors.grey, size: 18),
+                ],
+              ),
             ),
+    );
+  }
+
+  // =============================================
+  // [7.10d-1] _buildWalletRowIcon — icon nhỏ hiển thị trên row
+  // =============================================
+  // Dùng CachedNetworkImage qua IconHelper, fallback icon Material
+  Widget _buildWalletRowIcon(String? iconUrl, String type) {
+    final url = IconHelper.buildCloudinaryUrl(iconUrl);
+    if (url != null) {
+      return CachedNetworkImage(
+        imageUrl: url,
+        width: 32,
+        height: 32,
+        imageBuilder: (context, imageProvider) => Container(
+          width: 32,
+          height: 32,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(6),
+            image: DecorationImage(image: imageProvider, fit: BoxFit.cover),
+          ),
+        ),
+        placeholder: (_, __) => _buildWalletFallbackIcon(type, 32),
+        errorWidget: (_, __, ___) => _buildWalletFallbackIcon(type, 32),
+      );
+    }
+    return _buildWalletFallbackIcon(type, 32);
+  }
+
+  // =============================================
+  // [7.10d-2] _buildWalletFallbackIcon — icon mặc định khi không có URL
+  // =============================================
+  Widget _buildWalletFallbackIcon(String type, double size) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: type == 'saving_goal'
+            ? Colors.orange.shade400
+            : (type == 'wallet' ? Colors.green.shade400 : Colors.grey.shade700),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Icon(
+        type == 'saving_goal'
+            ? Icons.savings
+            : (type == 'wallet'
+                ? Icons.account_balance_wallet
+                : Icons.wallet_giftcard),
+        color: Colors.white,
+        size: size * 0.55,
+      ),
+    );
+  }
+
+  // =============================================
+  // [7.10d-3] _showWalletBottomSheet — bottom sheet chọn ví/goal
+  // =============================================
+  // Pattern giống transaction_app_bar.dart và transaction_create_screen.dart
+  void _showWalletBottomSheet() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.grey[900],
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) {
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Handle bar
+            Container(
+              margin: const EdgeInsets.only(top: 8, bottom: 4),
+              width: 40, height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey[600],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            // Tiêu đề sheet
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Chọn ví',
+                  style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ),
+            const Divider(color: Color(0xFF2C2C2E), height: 1),
+            // Danh sách: Tất cả + wallets + goals
+            Flexible(
+              child: ListView(
+                shrinkWrap: true,
+                children: [
+                  // --- Tất cả các ví ---
+                  ListTile(
+                    leading: _buildWalletFallbackIcon('all', 40),
+                    title: const Text('Tất cả các ví', style: TextStyle(color: Colors.white)),
+                    trailing: (_selectedWallet == null && _selectedGoal == null)
+                        ? const Icon(Icons.check_circle, color: Colors.green)
+                        : null,
+                    onTap: () {
+                      setState(() {
+                        _selectedWallet = null;
+                        _selectedGoal = null;
+                      });
+                      Navigator.pop(ctx);
+                    },
+                  ),
+                  // --- Danh sách ví thường ---
+                  if (_wallets.isNotEmpty) ...[
+                    const Padding(
+                      padding: EdgeInsets.fromLTRB(16, 8, 16, 4),
+                      child: Text('VÍ CÁ NHÂN', style: TextStyle(color: Colors.grey, fontSize: 11)),
+                    ),
+                    ..._wallets.map((w) {
+                      final isSelected = _selectedWallet?.id == w.id;
+                      return ListTile(
+                        leading: _buildWalletRowIcon(w.goalImageUrl, 'wallet'),
+                        title: Text(
+                          w.walletName,
+                          style: TextStyle(
+                            color: isSelected ? Colors.green : Colors.white,
+                            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                          ),
+                        ),
+                        subtitle: Text(
+                          FormatHelper.formatVND(w.balance),
+                          style: const TextStyle(color: Colors.grey, fontSize: 12),
+                        ),
+                        trailing: isSelected
+                            ? const Icon(Icons.check_circle, color: Colors.green)
+                            : null,
+                        onTap: () {
+                          setState(() {
+                            _selectedWallet = w;
+                            _selectedGoal = null;
+                          });
+                          Navigator.pop(ctx);
+                        },
+                      );
+                    }),
+                  ],
+                  // --- Danh sách mục tiêu tiết kiệm ---
+                  if (_goals.isNotEmpty) ...[
+                    const Padding(
+                      padding: EdgeInsets.fromLTRB(16, 8, 16, 4),
+                      child: Text('MỤC TIÊU TIẾT KIỆM', style: TextStyle(color: Colors.grey, fontSize: 11)),
+                    ),
+                    ..._goals.map((g) {
+                      final isSelected = _selectedGoal?.id == g.id;
+                      return ListTile(
+                        leading: _buildWalletRowIcon(g.imageUrl, 'saving_goal'),
+                        title: Text(
+                          g.goalName,
+                          style: TextStyle(
+                            color: isSelected ? Colors.green : Colors.white,
+                            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                          ),
+                        ),
+                        subtitle: Text(
+                          FormatHelper.formatVND(g.currentAmount),
+                          style: const TextStyle(color: Colors.grey, fontSize: 12),
+                        ),
+                        trailing: isSelected
+                            ? const Icon(Icons.check_circle, color: Colors.green)
+                            : null,
+                        onTap: () {
+                          setState(() {
+                            _selectedGoal = g;
+                            _selectedWallet = null;
+                          });
+                          Navigator.pop(ctx);
+                        },
+                      );
+                    }),
+                  ],
+                  const SizedBox(height: 16),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -644,23 +830,35 @@ class _TransactionSearchScreenState extends State<TransactionSearchScreen> {
         onTap: _openCategoryPicker, // mở CategoryListScreen ở chế độ chọn
         child: Row(
           children: [
-            // Icon nhỏ của category (nếu có)
-            if (_selectedCategory?.ctgIconUrl != null) ...[
-              CircleAvatar(
-                radius: 12,
-                backgroundColor: Colors.grey.shade800,
-                child: const Icon(Icons.category, size: 14, color: Colors.white),
-              ),
-              const SizedBox(width: 8),
-            ],
+            // Icon nhỏ của category
+            if (_selectedCategory != null)
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade800,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Center(
+                  child: IconHelper.buildCategoryIcon(
+                    iconName: _selectedCategory!.ctgIconUrl,
+                    size: 20,
+                    placeholder: const Icon(Icons.category, color: Colors.grey, size: 18),
+                  ),
+                ),
+              )
+            else
+              Icon(Icons.category, color: Colors.grey, size: 18),
+            const SizedBox(width: 8),
             // Tên category
-            Text(
-              _selectedCategory?.ctgName ?? "Tất cả các nhóm",
-              style: TextStyle(
-                color: _selectedCategory != null ? Colors.white : Colors.grey,
+            Expanded(
+              child: Text(
+                _selectedCategory?.ctgName ?? "Tất cả các nhóm",
+                style: TextStyle(
+                  color: _selectedCategory != null ? Colors.white : Colors.grey,
+                ),
               ),
             ),
-            const Spacer(),
             // Nút X xóa nhóm đã chọn
             if (_selectedCategory != null)
               GestureDetector(
@@ -744,16 +942,16 @@ class _TransactionSearchScreenState extends State<TransactionSearchScreen> {
             style: const TextStyle(color: Colors.grey, fontSize: 13),
           ),
         ),
-        // Danh sách giao dịch
-        ListView.separated(
-          shrinkWrap: true,                              // cuộn cùng với Column cha
-          physics: const NeverScrollableScrollPhysics(), // tắt scroll riêng của list
-          itemCount: _results.length,
-          separatorBuilder: (_, __) => const Divider(height: 1, color: Color(0xFF2C2C2E)),
-          itemBuilder: (context, index) {
-            return _buildResultItem(_results[index]);
-          },
-        ),
+        // Danh sách giao dịch (dùng Column thay ListView để tránh lag)
+        ..._results.asMap().entries.expand((entry) {
+          final index = entry.key;
+          final tx = entry.value;
+          return [
+            _buildResultItem(tx),
+            if (index < _results.length - 1)
+              const Divider(height: 1, color: Color(0xFF2C2C2E)),
+          ];
+        }).toList(),
       ],
     );
   }
@@ -766,9 +964,20 @@ class _TransactionSearchScreenState extends State<TransactionSearchScreen> {
 
     return ListTile(
       onTap: () => _openTransactionDetail(tx), // bấm → mở chi tiết
-      leading: CircleAvatar(
-        backgroundColor: Colors.grey.shade800,
-        child: const Icon(Icons.category, color: Colors.white, size: 18),
+      leading: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          color: Colors.grey.shade800,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Center(
+          child: IconHelper.buildCategoryIcon(
+            iconName: tx.categoryIconUrl,
+            size: 20,
+            placeholder: const Icon(Icons.category, color: Colors.grey, size: 18),
+          ),
+        ),
       ),
       title: Text(
         tx.categoryName ?? "Không có nhóm",
@@ -809,15 +1018,87 @@ class _TransactionSearchScreenState extends State<TransactionSearchScreen> {
       builder: (_) => TransactionDetailSheet(
         transaction: tx,
         onEdit: () {
-          // Đóng sheet → navigate tới EditScreen (nếu cần)
+          // Đóng sheet trước
           Navigator.pop(context);
-          // TODO: Navigator.push EditScreen nếu muốn
+          // Navigate tới EditScreen
+          _openEditTransaction(tx);
         },
-        onDelete: () async {
+        onDelete: () {
           Navigator.pop(context);
-          // Xóa xong → search lại để cập nhật kết quả
-          await _search();
+          // Xác nhận xóa
+          _confirmDelete(tx);
         },
+      ),
+    );
+  }
+
+  // =============================================
+  // [7.10j] _openEditTransaction — Mở màn sửa giao dịch
+  // =============================================
+  Future<void> _openEditTransaction(TransactionResponse tx) async {
+    final result = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => TransactionEditScreen(transaction: tx),
+      ),
+    );
+
+    // Nếu sửa thành công → tìm kiếm lại để cập nhật kết quả
+    if (result == true && mounted) {
+      await _search();
+    }
+  }
+
+  // =============================================
+  // [7.10k] _confirmDelete — Xác nhận xóa giao dịch
+  // =============================================
+  void _confirmDelete(TransactionResponse tx) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.grey[900],
+        title: const Text('Xóa giao dịch', style: TextStyle(color: Colors.white)),
+        content: const Text(
+          'Bạn có chắc muốn xóa giao dịch này?',
+          style: TextStyle(color: Colors.grey),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Hủy', style: TextStyle(color: Colors.grey)),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              final provider = Provider.of<TransactionProvider>(context, listen: false);
+              final success = await provider.deleteTransaction(tx.id);
+
+              if (!mounted) return;
+
+              if (success) {
+                // Tìm kiếm lại sau khi xóa
+                await _search();
+              } else {
+                _showSnackBar(provider.errorMessage ?? 'Xóa thất bại', isError: true);
+              }
+            },
+            child: const Text('Xóa', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // =============================================
+  // [7.10l] _showSnackBar — Hiện thông báo
+  // =============================================
+  void _showSnackBar(String message, {bool isError = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError ? Colors.red : Colors.green,
+        duration: const Duration(seconds: 2),
       ),
     );
   }

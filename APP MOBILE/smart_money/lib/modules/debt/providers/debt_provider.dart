@@ -115,9 +115,9 @@ class DebtProvider extends ChangeNotifier {
   // Gọi khi: User click vào 1 khoản nợ trong list → DebtDetailScreen
   // Gọi song song 2 API để tối ưu thời gian tải
   Future<void> loadDetail(int debtId) async {
-    // Bước 1: Bật loading, clear state cũ
+    // Bước 1: Bật loading — giữ nguyên _currentDebt để tránh flash error state
+    // [FIX] Không set _currentDebt = null ngay — chỉ clear khi API thất bại
     _isLoadingDetail = true;
-    _currentDebt = null;
     _debtTransactions = [];
     _errorMessage = null;
     notifyListeners();
@@ -134,7 +134,8 @@ class DebtProvider extends ChangeNotifier {
       // Thành công → gán vào state
       _currentDebt = debtResp.data as DebtResponse;
     } else {
-      // Thất bại → lưu lỗi
+      // Thất bại → xóa currentDebt + lưu lỗi
+      _currentDebt = null;
       _errorMessage = debtResp.message as String?;
     }
 

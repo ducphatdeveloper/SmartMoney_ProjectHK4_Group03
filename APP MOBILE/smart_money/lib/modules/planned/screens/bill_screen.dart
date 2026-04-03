@@ -38,6 +38,7 @@ import 'package:smart_money/modules/planned/widgets/bill_list_item.dart';
 import 'package:smart_money/modules/transaction/services/util_service.dart';
 import 'package:smart_money/modules/wallet/models/wallet_response.dart';
 import 'package:smart_money/modules/planned/screens/bill_transaction_list_screen.dart'; // Import mới
+import 'package:smart_money/modules/debt/providers/debt_provider.dart';
 
 class BillScreen extends StatefulWidget {
   const BillScreen({super.key});
@@ -655,37 +656,91 @@ class _BillScreenState extends State<BillScreen> with SingleTickerProviderStateM
                 const SizedBox(height: 8),
               ],
 
-              // ── Nút: ĐÁNH DẤU HOÀN TẤT ──
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  icon: Icon(
-                    item.active == true ? Icons.check_circle_outline : Icons.undo,
-                    color: const Color(0xFF4CAF50),
-                  ),
-                  label: Text(
-                    item.active == true ? 'ĐÁNH DẤU HOÀN TẤT' : 'ĐÁNH DẤU CHƯA HOÀN TẤT',
-                    style: const TextStyle(color: Color(0xFF4CAF50)),
-                  ),
-                  style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: Color(0xFF4CAF50)),
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                  ),
-                  onPressed: () async {
-                    Navigator.pop(ctx);
-                    final provider = Provider.of<BillProvider>(context, listen: false);
-                    final success = await provider.toggle(item.id);
-                    if (!mounted) return;
-                    if (success) {
-                      // Reload list after toggle to update UI immediately
-                      provider.loadAll();
-                      _showSnackBar('Đã cập nhật trạng thái hóa đơn');
-                    } else {
-                      _showSnackBar(provider.errorMessage ?? 'Có lỗi xảy ra', isError: true);
-                    }
-                  },
-                ),
-              ),
+               // ── Nút: ĐÁNH DẤU HOÀN TẤT ──
+               SizedBox(
+                 width: double.infinity,
+                 child: OutlinedButton.icon(
+                   icon: Icon(
+                     item.active == true ? Icons.check_circle_outline : Icons.undo,
+                     color: const Color(0xFF4CAF50),
+                   ),
+                   label: Text(
+                     item.active == true ? 'ĐÁNH DẤU HOÀN TẤT' : 'ĐÁNH DẤU CHƯA HOÀN TẤT',
+                     style: const TextStyle(color: Color(0xFF4CAF50)),
+                   ),
+                   style: OutlinedButton.styleFrom(
+                     side: const BorderSide(color: Color(0xFF4CAF50)),
+                     padding: const EdgeInsets.symmetric(vertical: 10),
+                   ),
+                   onPressed: () async {
+                     // [FIX] Khi toggle ON → kiểm tra debt nếu bill có liên kết
+                     // Nếu debt đã finished → hiện lỗi, không cho toggle
+                     if (item.active == false && item.debtId != null) {
+                       // Hiện dialog loading
+                       showDialog(
+                         context: context,
+                         barrierDismissible: false,
+                         builder: (_) => const AlertDialog(
+                           backgroundColor: Color(0xFF2C2C2E),
+                           content: Row(
+                             children: [
+                               CircularProgressIndicator(color: Color(0xFF4CAF50)),
+                               SizedBox(width: 16),
+                               Text('Đang kiểm tra...', style: TextStyle(color: Colors.white)),
+                             ],
+                           ),
+                         ),
+                       );
+
+                       // Load debt details để kiểm tra finished
+                       final debtProvider = Provider.of<DebtProvider>(context, listen: false);
+                       await debtProvider.loadDebts(item.categoryType ?? false);
+
+                       if (!mounted) return;
+                       Navigator.pop(context); // Đóng loading dialog
+
+                       // Tìm debt trong danh sách đã load
+                       final debtsToCheck = item.categoryType ?? false
+                           ? debtProvider.receivableDebts + debtProvider.receivableDone
+                           : debtProvider.payableDebts + debtProvider.payableDone;
+
+                       // Kiểm tra xem debt có được tìm thấy và đã hoàn thành không
+                       bool debtIsFinished = false;
+                       try {
+                         final debtFound = debtsToCheck.firstWhere((d) => d.id == item.debtId);
+                         debtIsFinished = debtFound.finished;
+                       } catch (e) {
+                         // Debt không tìm thấy — có thể đã bị xóa hoặc không thuộc account hiện tại
+                         // Để người dùng toggle thử, lỗi sẽ được báo từ backend nếu có vấn đề
+                       }
+
+                       if (debtIsFinished) {
+                         // Debt đã hoàn thành → hiện lỗi, KHÔNG toggle
+                         if (!mounted) return;
+                         Navigator.pop(ctx); // Đóng bottom sheet
+                         _showSnackBar(
+                           'Khoản nợ đã thanh toán xong, không thể kích hoạt lại',
+                           isError: true,
+                         );
+                         return;
+                       }
+                     }
+
+                     // Nếu không có debt hoặc debt chưa finished → tiến hành toggle
+                     Navigator.pop(ctx);
+                     final provider = Provider.of<BillProvider>(context, listen: false);
+                     final success = await provider.toggle(item.id);
+                     if (!mounted) return;
+                     if (success) {
+                       // Reload list after toggle to update UI immediately
+                       provider.loadAll();
+                       _showSnackBar('Đã cập nhật trạng thái hóa đơn');
+                     } else {
+                       _showSnackBar(provider.errorMessage ?? 'Có lỗi xảy ra', isError: true);
+                     }
+                   },
+                 ),
+               ),
               const SizedBox(height: 6),
 
               // ── Nút: DANH SÁCH GIAO DỊCH (vị trí giữa, full width) ──

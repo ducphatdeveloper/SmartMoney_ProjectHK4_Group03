@@ -218,6 +218,7 @@ class RecurringProvider extends ChangeNotifier {
       return true;
     } else {
       _errorMessage = response.message;
+      notifyListeners(); // ✅ Notify trước khi reload để UI hiển thị error message
       await loadAll();
       return false;
     }

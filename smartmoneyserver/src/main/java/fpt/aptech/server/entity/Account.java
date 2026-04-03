@@ -12,6 +12,7 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -60,6 +61,33 @@ public class Account implements UserDetails {
     @Column(name = "locked", nullable = false)
     @Builder.Default
     private Boolean locked = false;
+
+    // =====================================================================
+    // THÔNG TIN CÁ NHÂN (optional - user tự cập nhật sau đăng ký)
+    // =====================================================================
+
+    // Họ và tên đầy đủ.
+    @Column(name = "fullname", length = 60)
+    private String fullname;
+
+    // Giới tính: 'Nam' | 'Nữ' | 'Khác' — null nếu chưa cập nhật.
+    @Column(name = "gender", length = 10)
+    private String gender;
+
+    // Ngày sinh — dùng cho UX & thống kê độ tuổi.
+    // Dùng LocalDate vì DB là DATE (không có giờ phút giây).
+    @Column(name = "dateofbirth")
+    private LocalDate dateofbirth;
+
+    // Số CCCD — unique ở DB, nullable ở đây vì optional.
+    @Column(name = "identity_card", length = 20, unique = true)
+    private String identityCard;
+
+    // Địa chỉ thường trú.
+    @Column(name = "address", length = 255)
+    private String address;
+
+    // =====================================================================
 
     // Tự động gán ngày giờ tạo, không thể cập nhật.
     @CreationTimestamp
