@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../../core/helpers/token_helper.dart';
 import '../providers/event_provider.dart';
-import '../models/event_response.dart';
 import 'add_event_screen.dart';
-import 'event_detail_screen.dart'; // Import trang detail mới
+import 'event_list_view.dart';
 
 class EventScreen extends StatefulWidget {
   const EventScreen({super.key});
@@ -14,89 +14,50 @@ class EventScreen extends StatefulWidget {
 
 class EventScreenState extends State<EventScreen> {
   bool _isFinished = false;
+  String? _accessToken;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      Provider.of<EventProvider>(context, listen: false).loadEvents(false);
-    });
+    _initData();
+  }
+
+  Future<void> _initData() async {
+    final token = await TokenHelper.getAccessToken();
+    if (mounted) {
+      setState(() => _accessToken = token);
+      _refreshData();
+    }
+  }
+
+  void _refreshData() {
+    Provider.of<EventProvider>(context, listen: false).loadEvents(_isFinished);
   }
 
   void _changeTab(bool value) {
+    if (_isFinished == value) return;
     setState(() => _isFinished = value);
-    Provider.of<EventProvider>(context, listen: false).loadEvents(value);
-  }
-
-  // ITEM UI - Đã bỏ PopupMenu, thêm InkWell để click
-  Widget _buildItem(EventResponse e) {
-    return GestureDetector(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => EventDetailScreen(event: e)),
-        );
-      },
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: const Color(0xFF1C1C1E),
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Row(
-          children: [
-            const Icon(Icons.event, color: Colors.white),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    e.eventName ?? "No name",
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    "End: ${e.endDate ?? ''}",
-                    style: const TextStyle(color: Colors.grey, fontSize: 13),
-                  ),
-                ],
-              ),
-            ),
-            const Icon(Icons.chevron_right, color: Colors.grey),
-          ],
-        ),
-      ),
-    );
+    _refreshData();
   }
 
   @override
   Widget build(BuildContext context) {
-    final provider = Provider.of<EventProvider>(context);
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
         backgroundColor: Colors.black,
         elevation: 0,
-        centerTitle: true,
-        title: const Text("Events", style: TextStyle(fontWeight: FontWeight.w600)),
+        title: const Text("My Events", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 24, color: Colors.white)),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.add),
-            onPressed: () async {
-              final result = await Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const AddEventScreen()),
-              );
-              if (result == true && mounted) {
-                provider.loadEvents(_isFinished, forceRefresh: true);
-              }
-            },
+          Padding(
+            padding: const EdgeInsets.only(right: 12),
+            child: IconButton(
+              onPressed: () async {
+                final res = await Navigator.push(context, MaterialPageRoute(builder: (_) => const AddEventScreen()));
+                if (res == true) _refreshData();
+              },
+              icon: const Icon(Icons.add_circle, color: Colors.greenAccent, size: 32),
+            ),
           )
         ],
       ),
@@ -104,20 +65,9 @@ class EventScreenState extends State<EventScreen> {
         children: [
           _buildSegment(),
           Expanded(
-            child: RefreshIndicator(
-              onRefresh: () async {
-                provider.clearCache();
-                await provider.loadEvents(_isFinished);
-              },
-              child: provider.isLoading
-                  ? const Center(child: CircularProgressIndicator())
-                  : provider.events.isEmpty
-                  ? const Center(child: Text("No events", style: TextStyle(color: Colors.grey)))
-                  : ListView.builder(
-                itemCount: provider.events.length,
-                itemBuilder: (_, i) => _buildItem(provider.events[i]),
-              ),
-            ),
+            child: (_accessToken == null)
+                ? const Center(child: CircularProgressIndicator(color: Colors.greenAccent))
+                : EventListView(accessToken: _accessToken),
           ),
         ],
       ),
@@ -126,8 +76,9 @@ class EventScreenState extends State<EventScreen> {
 
   Widget _buildSegment() {
     return Container(
-      margin: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: const Color(0xFF1C1C1E), borderRadius: BorderRadius.circular(8)),
+      margin: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+      height: 50,
+      decoration: BoxDecoration(color: const Color(0xFF1C1C1E), borderRadius: BorderRadius.circular(16)),
       child: Row(
         children: [
           _segmentItem("Active", !_isFinished, () => _changeTab(false)),
@@ -142,13 +93,13 @@ class EventScreenState extends State<EventScreen> {
       child: GestureDetector(
         onTap: onTap,
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 10),
+          margin: const EdgeInsets.all(4),
           decoration: BoxDecoration(
-            color: isActive ? Colors.green : Colors.transparent,
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(12),
+            color: isActive ? const Color(0xFF2C2C2E) : Colors.transparent,
           ),
           alignment: Alignment.center,
-          child: Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w500)),
+          child: Text(title, style: TextStyle(color: isActive ? Colors.greenAccent : Colors.grey, fontWeight: isActive ? FontWeight.w900 : FontWeight.w500)),
         ),
       ),
     );

@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:cached_network_image/cached_network_image.dart';
+import 'package:intl/intl.dart';
+import 'package:smart_money/core/helpers/icon_helper.dart';
+
+import '../../../core/constants/app_constants.dart';
 import '../providers/event_provider.dart';
 import '../models/event_response.dart';
 import '../models/event_update_request.dart';
-import '../../category/models/icon_dto.dart';
+
+// Import IconPicker
 import '../../category/screens/icon_picker_screen.dart';
 
 class EditEventScreen extends StatefulWidget {
@@ -21,17 +25,18 @@ class EditEventScreenState extends State<EditEventScreen> {
   DateTime? _endDate;
   final String _currency = 'VND';
   bool _isSaving = false;
-  IconDto? _selectedIcon;
+
+  /// URL dùng để hiển thị preview và gửi về server (đồng bộ với SavingGoal)
+  String? _selectedIconUrl;
 
   @override
   void initState() {
     super.initState();
-    // Khởi tạo dữ liệu cũ từ object event truyền vào
     _nameController = TextEditingController(text: widget.event.eventName);
     _endDate = widget.event.endDate;
 
-    // Nếu có icon cũ, bạn có thể khởi tạo ở đây (tùy thuộc vào cách bạn lưu IconDto)
-    // _selectedIcon = IconDto(fileName: widget.event.eventIconUrl, url: ...);
+    /// Khởi tạo giá trị icon từ dữ liệu hiện có của sự kiện
+    _selectedIconUrl = widget.event.eventIconUrl;
   }
 
   @override
@@ -40,58 +45,77 @@ class EditEventScreenState extends State<EditEventScreen> {
     super.dispose();
   }
 
+  // ================= ICON PICKER LOGIC (Giống SavingGoal) =================
   void _openIconPicker() async {
-    final result = await Navigator.push<IconDto>(
+    final result = await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => IconPickerScreen(
-          currentIconFileName: _selectedIcon?.fileName ?? widget.event.eventIconUrl,
-        ),
+        builder: (_) => const IconPickerScreen(),
       ),
     );
 
     if (result != null && mounted) {
       setState(() {
-        _selectedIcon = result;
+        // Nhận trực tiếp URL từ IconPicker giống SavingGoal
+        _selectedIconUrl = result.url;
       });
     }
   }
 
+  // ================= DATE PICKER =================
   Future<void> _pickDate() async {
-    final now = DateTime.now();
     final picked = await showDatePicker(
       context: context,
-      initialDate: _endDate ?? now,
+      initialDate: _endDate ?? DateTime.now(),
       firstDate: DateTime(2000),
       lastDate: DateTime(2100),
+      builder: (context, child) {
+        return Theme(
+          data: ThemeData.dark().copyWith(
+            colorScheme: const ColorScheme.dark(
+              primary: Colors.greenAccent,
+              onPrimary: Colors.black,
+              surface: Color(0xFF1C1C1E),
+              onSurface: Colors.white,
+            ),
+          ),
+          child: child!,
+        );
+      },
     );
     if (picked != null && mounted) setState(() => _endDate = picked);
   }
 
+  // ================= UPDATE LOGIC =================
   Future<void> _update() async {
     final name = _nameController.text.trim();
-    if (name.isEmpty) return _showError("Event name is required");
-    if (_endDate == null) return _showError("Please select end date");
+    if (name.isEmpty) {
+      _showError("Event name is required");
+      return;
+    }
+    if (_endDate == null) {
+      _showError("Please select an end date");
+      return;
+    }
     if (_isSaving) return;
 
     setState(() => _isSaving = true);
 
-    // Sử dụng EventUpdateRequest để gửi lên server
+    // Đóng gói dữ liệu gửi về Server
     final request = EventUpdateRequest(
       eventName: name,
       endDate: _endDate!,
       currencyCode: _currency,
-      eventIconUrl: _selectedIcon?.fileName ?? widget.event.eventIconUrl,
+      eventIconUrl: _selectedIconUrl, // Gửi Full URL Cloudinary
     );
 
     final provider = Provider.of<EventProvider>(context, listen: false);
-    final success = await provider.update(widget.event.id!, request);
+    final success = await provider.update(widget.event.id, request);
 
     if (!mounted) return;
     setState(() => _isSaving = false);
 
     if (success) {
-      // Trả về true và pop sâu 2 lần (hoặc pop về trang list) để cập nhật lại data
       Navigator.pop(context, true);
     } else {
       _showError(provider.errorMessage ?? "Update failed");
@@ -100,35 +124,10 @@ class EditEventScreenState extends State<EditEventScreen> {
 
   void _showError(String msg) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(msg), backgroundColor: Colors.redAccent),
-    );
-  }
-
-  Widget _buildItem({
-    required Widget leading,
-    required String title,
-    VoidCallback? onTap,
-    bool showArrow = true,
-    bool isLast = false,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: isLast ? const BorderRadius.vertical(bottom: Radius.circular(16)) : BorderRadius.zero,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
-        decoration: BoxDecoration(
-          border: isLast ? null : const Border(bottom: BorderSide(color: Color(0xFF2C2C2E), width: 0.5)),
-        ),
-        child: Row(
-          children: [
-            leading,
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(title, style: const TextStyle(color: Colors.white, fontSize: 15)),
-            ),
-            if (showArrow) const Icon(Icons.chevron_right, color: Colors.grey, size: 20),
-          ],
-        ),
+      SnackBar(
+        content: Text(msg),
+        backgroundColor: Colors.redAccent,
+        behavior: SnackBarBehavior.floating,
       ),
     );
   }
@@ -141,94 +140,156 @@ class EditEventScreenState extends State<EditEventScreen> {
         backgroundColor: Colors.black,
         elevation: 0,
         centerTitle: true,
-        title: const Text("Edit Event", style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
-        leadingWidth: 80,
-        leading: TextButton(
+        title: const Text("Edit Event",
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 20),
           onPressed: () => Navigator.pop(context),
-          child: const Text("Cancel", style: TextStyle(color: Colors.redAccent, fontSize: 15)),
         ),
         actions: [
           TextButton(
             onPressed: _isSaving ? null : _update,
             child: _isSaving
-                ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.green))
-                : const Text("Save", style: TextStyle(color: Colors.green, fontSize: 16, fontWeight: FontWeight.w600)),
+                ? const SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                    strokeWidth: 2, color: Colors.greenAccent))
+                : const Text("Done",
+                style: TextStyle(
+                    color: Colors.greenAccent,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold)),
           ),
         ],
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.symmetric(horizontal: 16),
         child: Column(
           children: [
+            const SizedBox(height: 24),
+
+            // --- ICON PICKER PREVIEW (Đã đồng bộ dùng IconHelper) ---
+            Center(
+              child: GestureDetector(
+                onTap: _openIconPicker,
+                child: Stack(
+                  children: [
+                    IconHelper.buildCircleAvatar(
+                      iconUrl: _selectedIconUrl,
+                      radius: 48,
+                      backgroundColor: const Color(0xFF1C1C1E),
+                    ),
+                    Positioned(
+                      bottom: 0,
+                      right: 4,
+                      child: Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: const BoxDecoration(
+                            color: Colors.blueAccent, shape: BoxShape.circle),
+                        child: const Icon(Icons.edit_rounded,
+                            color: Colors.white, size: 16),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 32),
+
+            // --- INPUT FORM GROUP ---
             Container(
               decoration: BoxDecoration(
                 color: const Color(0xFF1C1C1E),
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.white.withOpacity(0.05)),
               ),
               child: Column(
-                mainAxisSize: MainAxisSize.min,
                 children: [
-                  // ===== EVENT NAME & ICON =====
                   Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Row(
-                      children: [
-                        GestureDetector(
-                          onTap: _openIconPicker,
-                          child: Container(
-                            width: 45, height: 45,
-                            decoration: BoxDecoration(
-                              color: Colors.grey.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(10),
-                              border: Border.all(color: Colors.grey.withOpacity(0.3)),
-                            ),
-                            child: _selectedIcon != null
-                                ? Padding(
-                              padding: const EdgeInsets.all(6),
-                              child: CachedNetworkImage(
-                                imageUrl: _selectedIcon!.url,
-                                errorWidget: (_, __, ___) => const Icon(Icons.event, color: Colors.blueAccent),
-                              ),
-                            )
-                                : const Icon(Icons.event, color: Colors.blueAccent, size: 26),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: TextField(
-                            controller: _nameController,
-                            style: const TextStyle(color: Colors.white, fontSize: 16),
-                            decoration: const InputDecoration(
-                              hintText: "Event Name",
-                              hintStyle: TextStyle(color: Colors.grey),
-                              border: InputBorder.none,
-                            ),
-                          ),
-                        ),
-                      ],
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                    child: TextField(
+                      controller: _nameController,
+                      style: const TextStyle(color: Colors.white, fontSize: 17),
+                      decoration: const InputDecoration(
+                        labelText: "Event Name",
+                        labelStyle: TextStyle(color: Colors.grey, fontSize: 14),
+                        border: InputBorder.none,
+                      ),
                     ),
                   ),
-                  const Divider(height: 1, color: Color(0xFF2C2C2E)),
+                  const Divider(color: Color(0xFF2C2C2E), thickness: 1, height: 1),
 
-                  // ===== END DATE =====
-                  _buildItem(
-                    leading: const Icon(Icons.calendar_today, color: Colors.grey, size: 22),
-                    title: _endDate == null
-                        ? "End Date"
-                        : "${_endDate!.day}/${_endDate!.month}/${_endDate!.year}",
+                  _buildListTile(
+                    icon: Icons.calendar_month_rounded,
+                    iconColor: Colors.redAccent,
+                    title: "End Date",
+                    trailing: Text(
+                      _endDate == null
+                          ? "Select"
+                          : DateFormat('dd/MM/yyyy').format(_endDate!),
+                      style: const TextStyle(color: Colors.white, fontSize: 16),
+                    ),
                     onTap: _pickDate,
                   ),
+                  const Divider(color: Color(0xFF2C2C2E), thickness: 1, height: 1),
 
-                  // ===== CURRENCY =====
-                  _buildItem(
-                    leading: const Icon(Icons.payments_outlined, color: Colors.grey, size: 22),
-                    title: "Currency (VND)",
-                    onTap: () {},
-                    isLast: true,
+                  _buildListTile(
+                    icon: Icons.currency_exchange,
+                    iconColor: Colors.orangeAccent,
+                    title: "Currency",
+                    trailing: Text(_currency,
+                        style: const TextStyle(color: Colors.grey, fontSize: 16)),
+                    onTap: null,
                   ),
                 ],
               ),
             ),
+            const SizedBox(height: 12),
+            Text(
+              "Created at: ${widget.event.beginDate != null ? DateFormat('dd/MM/yyyy').format(widget.event.beginDate!) : 'Unknown'}",
+              style: TextStyle(color: Colors.white.withOpacity(0.3), fontSize: 12),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildListTile({
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    required Widget trailing,
+    VoidCallback? onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: iconColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, color: iconColor, size: 20),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Text(title,
+                  style: const TextStyle(color: Colors.white, fontSize: 16)),
+            ),
+            trailing,
+            if (onTap != null)
+              const Padding(
+                padding: EdgeInsets.only(left: 8),
+                child: Icon(Icons.chevron_right, color: Colors.grey, size: 20),
+              ),
           ],
         ),
       ),
