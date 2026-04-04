@@ -4,6 +4,8 @@ import fpt.aptech.server.dto.transaction.report.CategoryReportDTO;
 import fpt.aptech.server.dto.transaction.report.DailyTrendDTO;
 import fpt.aptech.server.dto.transaction.report.TransactionTotalDTO;
 import fpt.aptech.server.entity.Transaction;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Modifying;
@@ -118,7 +120,6 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
             "  AND (:walletId IS NULL OR t.wallet.id = :walletId) " +
             "  AND (:savingGoalId IS NULL OR t.savingGoal.id = :savingGoalId) " +
             "  AND (:categoryId IS NULL OR c.id = :categoryId) " +
-            "  AND t.deleted = false " + // Chỉ lấy giao dịch chưa bị xóa mềm
             "GROUP BY CAST(t.transDate AS date) " +
             "ORDER BY CAST(t.transDate AS date) ASC")
     List<DailyTrendDTO> getDailyTrend(
@@ -329,11 +330,11 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
     // =================================================================================
 
     @Query("SELECT c.ctgName, COALESCE(SUM(t.amount), 0), c.ctgType, c.ctgIconUrl, p.ctgName " +
-           "FROM Category c " +
-           "LEFT JOIN c.parent p " +
-           "LEFT JOIN Transaction t ON t.category = c " +
-           "AND t.transDate BETWEEN :startDate AND :endDate " +
-           "GROUP BY c.id, c.ctgName, c.ctgType, c.ctgIconUrl, p.ctgName")
+            "FROM Category c " +
+            "LEFT JOIN c.parent p " +
+            "LEFT JOIN Transaction t ON t.category = c " +
+            "AND t.transDate BETWEEN :startDate AND :endDate " +
+            "GROUP BY c.id, c.ctgName, c.ctgType, c.ctgIconUrl, p.ctgName")
     List<Object[]> getGlobalCategoryStats(@Param("startDate") LocalDateTime startDate,
                                           @Param("endDate") LocalDateTime endDate);
     // Tìm các giao dịch có số tiền lớn hơn ngưỡng và phát sinh sau thời điểm xác định
@@ -384,4 +385,20 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
     @Modifying
     @Query("UPDATE Transaction t SET t.deleted = true, t.deletedAt = CURRENT_TIMESTAMP WHERE t.savingGoal.id = :goalId")
     void softDeleteAllBySavingGoalId(@Param("goalId") Integer goalId);
+    // Tìm tất cả giao dịch của một tài khoản cụ thể, sắp xếp theo ngày giao dịch giảm dần
+    @Query("SELECT t FROM Transaction t WHERE t.account.id = :accountId ORDER BY t.transDate DESC")
+    Page<Transaction> findAllByAccount_IdOrderByTransDateDesc(@Param("accountId") Integer accountId, Pageable pageable);
+
+    @Query("SELECT t FROM Transaction t WHERE t.transDate > :since")
+    List<Transaction> findAllByTransDateAfter(@Param("since") LocalDateTime since);
+
+    /**
+     * Tính tổng số tiền (Thu hoặc Chi) trọn đời của một tài khoản.
+     */
+    @Query("SELECT COALESCE(SUM(t.amount), 0) FROM Transaction t WHERE t.account.id = :accountId AND t.category.ctgType = :isIncome")
+    BigDecimal sumAmountByAccountAndType(@Param("accountId") Integer accountId, @Param("isIncome") Boolean isIncome);
+
+    // Lấy toàn bộ lịch sử giao dịch của một tài khoản (không phân trang)
+    @Query("SELECT t FROM Transaction t WHERE t.account.id = :accountId ORDER BY t.transDate DESC")
+    List<Transaction> findAllByAccount_IdOrderByTransDateDesc(@Param("accountId") Integer accountId);
 }

@@ -7,6 +7,8 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -35,10 +37,10 @@ public interface AccountRepository extends JpaRepository<Account, Integer>, JpaS
     @Query("SELECT COUNT(DISTINCT d.account.id) FROM UserDevice d " +
             "WHERE d.refreshToken IS NOT NULL AND d.lastActive >= :activeLimit")
     long countOnlineUsers(@Param("activeLimit") LocalDateTime activeLimit);
-    
+
     // Lấy danh sách ID tài khoản đang online (Dùng làm bước đệm cho lọc nâng cao)
     @Query("SELECT DISTINCT d.account.id FROM UserDevice d " +
-           "WHERE d.refreshToken IS NOT NULL AND d.lastActive > :since")
+            "WHERE d.refreshToken IS NOT NULL AND d.lastActive > :since")
     List<Integer> findOnlineAccountIds(@Param("since") LocalDateTime since);
 
     @Query("SELECT new map(MONTH(a.createdAt) as month, YEAR(a.createdAt) as year, COUNT(a) as count) " +
@@ -46,4 +48,14 @@ public interface AccountRepository extends JpaRepository<Account, Integer>, JpaS
             "GROUP BY YEAR(a.createdAt), MONTH(a.createdAt) " +
             "ORDER BY YEAR(a.createdAt) DESC, MONTH(a.createdAt) DESC")
     List<Map<String, Object>> countNewUsersByMonth();
+
+    // Tìm kiếm phân trang với filter Locked và Online
+    @Query("SELECT DISTINCT a FROM Account a " +
+           "LEFT JOIN UserDevice d ON d.account.id = a.id " +
+           "WHERE (:search IS NULL OR a.accEmail LIKE %:search% OR a.accPhone LIKE %:search%) " +
+           "AND (:locked IS NULL OR a.locked = :locked) " +
+           "AND (:online IS NULL OR (:online = true AND d.refreshToken IS NOT NULL AND d.lastActive >= :activeLimit) " +
+           "OR (:online = false AND (d.refreshToken IS NULL OR d.lastActive < :activeLimit)))")
+    Page<Account> findUsersWithFilters(@Param("search") String search, @Param("locked") Boolean locked, 
+                                       @Param("online") Boolean online, @Param("activeLimit") LocalDateTime activeLimit, Pageable pageable);
 }

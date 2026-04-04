@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:image_picker/image_picker.dart';
 import '../modules/auth/providers/auth_provider.dart';
 
 class AccountManagementScreen extends StatelessWidget {
@@ -9,7 +10,8 @@ class AccountManagementScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // Lấy instance của AuthProvider
-    final authProvider = context.read<AuthProvider>();
+    final authProvider = context.watch<AuthProvider>();
+    final user = authProvider.currentUser;
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -32,13 +34,29 @@ class AccountManagementScreen extends StatelessWidget {
             child: Column(
               children: [
 
-                // Avatar
-                const CircleAvatar(
-                  radius: 35,
-                  backgroundColor: Colors.purple,
-                  child: Text(
-                    "T",
-                    style: TextStyle(fontSize: 28, color: Colors.white),
+                // Avatar với chức năng cập nhật
+                GestureDetector(
+                  onTap: () => _pickAndUploadImage(context, authProvider),
+                  child: Stack(
+                    children: [
+                      CircleAvatar(
+                        radius: 35,
+                        backgroundColor: Colors.purple,
+                        backgroundImage: user?.avatarUrl != null ? NetworkImage(user!.avatarUrl!) : null,
+                        child: user?.avatarUrl == null
+                            ? Text(
+                                (user?.fullname != null && user!.fullname!.isNotEmpty)
+                                    ? user.fullname![0].toUpperCase()
+                                    : "U", 
+                                style: const TextStyle(fontSize: 28, color: Colors.white))
+                            : null,
+                      ),
+                      Positioned(
+                        right: 0,
+                        bottom: 0,
+                        child: CircleAvatar(radius: 10, backgroundColor: Colors.green, child: Icon(Icons.camera_alt, size: 12, color: Colors.white)),
+                      )
+                    ],
                   ),
                 ),
 
@@ -60,16 +78,16 @@ class AccountManagementScreen extends StatelessWidget {
 
                 const SizedBox(height: 12),
 
-                const Text(
-                  "tranminhnhat231205",
-                  style: TextStyle(fontSize: 18, color: Colors.white),
+                Text(
+                  user?.fullname ?? "Chưa đặt tên",
+                  style: const TextStyle(fontSize: 18, color: Colors.white),
                 ),
 
                 const SizedBox(height: 4),
 
-                const Text(
-                  "tranminhnhat231205@gmail.com",
-                  style: TextStyle(color: Colors.grey),
+                Text(
+                  user?.accEmail ?? "",
+                  style: const TextStyle(color: Colors.grey),
                 ),
               ],
             ),
@@ -77,14 +95,27 @@ class AccountManagementScreen extends StatelessWidget {
 
           const SizedBox(height: 20),
 
+          // ===== EDIT PROFILE =====
+          _button(
+            title: "Chỉnh sửa hồ sơ",
+            color: Colors.blueAccent,
+            onTap: () => context.push('/edit-profile'),
+          ),
+
+          const SizedBox(height: 12),
+
           // ===== CHANGE PASSWORD =====
           _button(
             title: "Thay đổi mật khẩu",
             color: Colors.green,
-            onTap: () {},
+            onTap: () async {
+              final email = user?.accEmail;
+              if (email != null) {
+                context.push('/reset-password', extra: email);
+              }
+            },
           ),
-
-          const SizedBox(height: 20),
+          const SizedBox(height: 12),
 
           // ===== LOGOUT =====
           _button(
@@ -189,5 +220,47 @@ class AccountManagementScreen extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  Future<void> _pickAndUploadImage(BuildContext context, AuthProvider auth) async {
+    final ImagePicker picker = ImagePicker();
+    final XFile? image = await showModalBottomSheet<XFile?>(
+      context: context,
+      backgroundColor: const Color(0xFF1C1C1E),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (BuildContext context) {
+        return SafeArea(
+          child: Wrap(
+            children: <Widget>[
+              ListTile(
+                leading: const Icon(Icons.photo_library, color: Colors.white),
+                title: const Text('Thư viện ảnh', style: TextStyle(color: Colors.white)),
+                onTap: () async {
+                  final XFile? file = await picker.pickImage(source: ImageSource.gallery, imageQuality: 70);
+                  if (context.mounted) Navigator.pop(context, file);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.camera_alt, color: Colors.white),
+                title: const Text('Chụp ảnh mới', style: TextStyle(color: Colors.white)),
+                onTap: () async {
+                  final XFile? file = await picker.pickImage(source: ImageSource.camera, imageQuality: 70);
+                  if (context.mounted) Navigator.pop(context, file);
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (image != null) {
+      final String? newUrl = await auth.updateAvatar(image.path);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(newUrl != null ? "Cập nhật ảnh đại diện thành công!" : "Cập nhật thất bại.")),
+        );
+      }
+    }
   }
 }

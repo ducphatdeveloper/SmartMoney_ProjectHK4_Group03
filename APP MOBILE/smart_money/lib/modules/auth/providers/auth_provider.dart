@@ -11,6 +11,8 @@ import '../../../core/helpers/token_helper.dart';
 import '../models/login_request.dart';
 import '../models/auth_response.dart';
 import '../models/register_request.dart';
+import '../models/update_profile_request.dart';
+import '../models/reset_password_request.dart';
 
 class AuthProvider extends ChangeNotifier {
   final AuthService _authService = getIt<AuthService>();
@@ -26,9 +28,13 @@ class AuthProvider extends ChangeNotifier {
     _loadCurrentUser();
   }
 
-  Future<void> _loadCurrentUser() async {
-    _isLoading = true;
+  void _setLoading(bool value) {
+    _isLoading = value;
     notifyListeners();
+  }
+
+  Future<void> _loadCurrentUser() async {
+    _setLoading(true);
 
     final accessToken = await TokenHelper.getAccessToken();
     if (accessToken != null && !JwtDecoder.isExpired(accessToken)) {
@@ -40,6 +46,7 @@ class AuthProvider extends ChangeNotifier {
       List<dynamic> authorities = decodedToken['authorities'] ?? [];
       String? roleCode;
       List<String> permissions = [];
+      final String sub = decodedToken['sub']?.toString() ?? "";
       
       for (var auth in authorities) {
         if (auth.toString().startsWith('ROLE_')) {
@@ -53,20 +60,18 @@ class AuthProvider extends ChangeNotifier {
       // Lưu ý: Các field như avatarUrl, currency sẽ null cho đến khi gọi API /users/profile
       _currentUser = UserModel(
         userId: decodedToken['userId'],
-        accEmail: decodedToken['sub'].contains('@') ? decodedToken['sub'] : null,
-        accPhone: !decodedToken['sub'].contains('@') ? decodedToken['sub'] : null,
+        accEmail: sub.contains('@') ? sub : null,
+        accPhone: !sub.contains('@') ? sub : null,
         roleCode: roleCode,
         permissions: permissions,
       );
     }
 
-    _isLoading = false;
-    notifyListeners();
+    _setLoading(false);
   }
 
   Future<bool> login(String username, String password) async {
-    _isLoading = true;
-    notifyListeners();
+    _setLoading(true);
 
     try {
       final deviceInfo = DeviceInfoPlugin();
@@ -102,29 +107,24 @@ class AuthProvider extends ChangeNotifier {
 
       final response = await _authService.login(request);
 
-      if (response.success && response.data != null) {
-        // Có đầy đủ data từ API
+      if (response.success == true && response.data != null) {
         _currentUser = UserModel.fromAuthResponse(response.data!);
-        _isLoading = false;
-        notifyListeners();
         return true;
       } else {
         _currentUser = null;
-        _isLoading = false;
-        notifyListeners();
         return false;
       }
     } catch (e) {
+      debugPrint("Login Error: $e");
       _currentUser = null;
-      _isLoading = false;
-      notifyListeners();
       return false;
+    } finally {
+      _setLoading(false);
     }
   }
 
   Future<bool> register(String? email, String? phone, String password, String confirmPassword) async {
-    _isLoading = true;
-    notifyListeners();
+    _setLoading(true);
 
     try {
       final request = RegisterRequest(
@@ -135,36 +135,147 @@ class AuthProvider extends ChangeNotifier {
       );
 
       final response = await _authService.register(request);
-
-      if (response.success) {
-        _isLoading = false;
-        notifyListeners();
-        return true;
-      } else {
-        _isLoading = false;
-        notifyListeners();
-        return false;
-      }
+      return response.success == true;
     } catch (e) {
-      _isLoading = false;
-      notifyListeners();
+      debugPrint("Register Error: $e");
       return false;
+    } finally {
+      _setLoading(false);
     }
   }
 
   Future<void> logout() async {
-    _isLoading = true;
-    notifyListeners();
+    _setLoading(true);
 
-    String? deviceToken;
-    // if (Firebase.apps.isNotEmpty) {
-    //   deviceToken = await FirebaseMessaging.instance.getToken();
-    // }
+    try {
+      String? deviceToken;
+      await _authService.logout(deviceToken: deviceToken ?? "");
+    } catch (e) {
+      debugPrint("Logout Error: $e");
+    } finally {
+      _currentUser = null;
+      _setLoading(false);
+    }
+  }
 
-    await _authService.logout(deviceToken: deviceToken ?? "");
+  /// Yêu cầu gửi mã OTP đặt lại mật khẩu qua Email (Alias cho requestPasswordReset)
+  Future<bool> requestPasswordReset(String email) async {
+    _setLoading(true);
 
-    _currentUser = null;
-    _isLoading = false;
-    notifyListeners();
+    try {
+      final response = await _authService.forgotPassword(email);
+      return response.success == true;
+    } catch (e) {
+      debugPrint("RequestPasswordReset Error: $e");
+      return false;
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  /// Xác nhận OTP và đặt mật khẩu mới
+  Future<bool> confirmResetPassword({
+    required String email,
+    required String otp,
+    required String newPassword,
+  }) async {
+    _setLoading(true);
+
+    try {
+      final response = await _authService.resetPassword(email, otp, newPassword);
+      return response.success == true;
+    } catch (e) {
+      debugPrint("ConfirmResetPassword Error: $e");
+      return false;
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  /// Lấy thông tin hồ sơ chi tiết từ Server
+  Future<void> getProfile() async {
+    _setLoading(true);
+    try {
+      final response = await _authService.getProfile();
+      if (response.success == true && response.data != null) {
+        _currentUser = UserModel.fromAuthResponse(response.data!);
+      }
+    } catch (e) {
+      debugPrint("GetProfile Error: $e");
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  /// Cập nhật ảnh đại diện
+  Future<String?> updateAvatar(String filePath) async {
+    _setLoading(true);
+
+    try {
+      final response = await _authService.updateAvatar(filePath);
+
+      if (response.success == true && response.data != null) {
+        if (_currentUser != null) {
+          _currentUser = _currentUser!.copyWith(avatarUrl: response.data);
+        }
+        return response.data; // Trả về avatarUrl mới
+      }
+      return null;
+    } catch (e) {
+      debugPrint("UpdateAvatar Error: $e");
+      return null;
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  /// Cập nhật thông tin hồ sơ
+  Future<bool> updateProfile(UpdateProfileRequest request) async {
+    _setLoading(true);
+
+    try {
+      final response = await _authService.updateProfile(request);
+
+      if (response.success == true && response.data != null) {
+        _currentUser = UserModel.fromAuthResponse(response.data!);
+        return true;
+      }
+      return false;
+    } catch (e) {
+      debugPrint("UpdateProfile Error: $e");
+      return false;
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  /// Gửi OTP khóa khẩn cấp
+  Future<bool> sendEmergencyLockOTP(String identityCard) async {
+    _setLoading(true);
+
+    try {
+      final response = await _authService.sendEmergencyLockOTP(identityCard);
+      return response.success == true;
+    } catch (e) {
+      debugPrint("EmergencyLock Error: $e");
+      return false;
+    } finally {
+      _setLoading(false);
+    }
+  }
+
+  /// Xác nhận và khóa tài khoản
+  Future<bool> verifyAndLockAccount(String otpCode) async {
+    _setLoading(true);
+
+    try {
+      final response = await _authService.verifyAndLockAccount(otpCode);
+      return response.success == true;
+    } catch (e) {
+      debugPrint("VerifyAndLock Error: $e");
+      return false;
+    } finally {
+      _setLoading(false);
+    }
   }
 }

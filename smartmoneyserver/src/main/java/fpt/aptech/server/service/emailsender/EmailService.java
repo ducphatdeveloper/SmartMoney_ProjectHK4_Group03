@@ -9,4 +9,6 @@ public interface EmailService {
 
     // 3. Gửi hóa đơn kèm ảnh giao dịch (Attachment)
     void sendMailWithAttachment(String to, String subject, String content, String pathToAttachment);
+    // 4. Gửi OTP khóa tài khoản khẩn cấp (HTML & Asynchronous)
+    void sendEmergencyLockOtp(String to, String fullname, String otp);
 }

@@ -1,23 +1,24 @@
 package fpt.aptech.server.service.Admin;
 
 import fpt.aptech.server.dto.AccountDto;
+import fpt.aptech.server.dto.TransactionDto;
 import fpt.aptech.server.dto.PageResponse;
 import fpt.aptech.server.entity.Account;
 import fpt.aptech.server.entity.Transaction;
 import fpt.aptech.server.entity.Notification;
 import fpt.aptech.server.entity.UserDevice;
+import fpt.aptech.server.entity.Wallet;
 import fpt.aptech.server.enums.notification.NotificationType;
 import fpt.aptech.server.repos.AccountRepository;
-import fpt.aptech.server.repos.BudgetRepository;
 import fpt.aptech.server.repos.UserDeviceRepository;
 import fpt.aptech.server.repos.TransactionRepository;
-import fpt.aptech.server.service.UserActivityService;
 import fpt.aptech.server.service.notification.NotificationService;
 import fpt.aptech.server.service.notification.NotificationContent;
 import fpt.aptech.server.service.notification.NotificationMessages;
 import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.criteria.Root;
 import jakarta.persistence.criteria.Subquery;
+import lombok.extern.slf4j.Slf4j;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -39,6 +40,7 @@ import java.util.Objects;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class AdminServiceImp implements AdminService {
@@ -47,7 +49,6 @@ public class AdminServiceImp implements AdminService {
     private final UserDeviceRepository userDeviceRepository;
     private final NotificationService notificationService;
     private final TransactionRepository transactionRepository;
-    private final UserActivityService userActivityService;
 
     @Override
     public PageResponse<AccountDto> getUsers(String search, Boolean locked, String onlineStatus, Pageable pageable) {
@@ -131,6 +132,7 @@ public class AdminServiceImp implements AdminService {
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy tài khoản ID: " + id));
         
         account.setLocked(true);
+        // Đây là một dạng khóa mềm/vô hiệu hóa tài khoản. Dữ liệu không bị xóa vật lý.
         accountRepository.saveAndFlush(account);
 
         try {
@@ -142,7 +144,7 @@ public class AdminServiceImp implements AdminService {
                 userDeviceRepository.flush();
             }
         } catch (Exception e) {
-            System.err.println("Cảnh báo: Không thể thu hồi token của user " + id + ": " + e.getMessage());
+            log.warn("Cảnh báo: Không thể thu hồi token của user {}: {}", id, e.getMessage());
         }
 
         try {
@@ -150,7 +152,7 @@ public class AdminServiceImp implements AdminService {
             notificationService.createNotification(account, msg.title(), msg.content(), 
                     NotificationType.SYSTEM, null, LocalDateTime.now());
         } catch (Exception e) {
-            System.err.println("Cảnh báo: Không thể gửi thông báo khóa cho user " + id);
+            log.warn("Cảnh báo: Không thể gửi thông báo khóa cho user {}: {}", id, e.getMessage());
         }
     }
 
@@ -169,7 +171,7 @@ public class AdminServiceImp implements AdminService {
             notificationService.createNotification(account, msg.title(), msg.content(), 
                     NotificationType.SYSTEM, null, LocalDateTime.now());
         } catch (Exception e) {
-            System.err.println("Cảnh báo: Không thể gửi thông báo mở khóa cho user " + id);
+            log.warn("Cảnh báo: Không thể gửi thông báo mở khóa cho user {}: {}", id, e.getMessage());
         }
     }
 
@@ -190,6 +192,31 @@ public class AdminServiceImp implements AdminService {
         // Lấy tất cả thông báo loại SYSTEM (Hành động quản trị, Cảnh báo bảo mật)
         // Đây là luồng thông báo tập trung để Admin theo dõi biến động hệ thống.
         return notificationService.getNotificationsByType(NotificationType.SYSTEM); 
+    }
+
+    /**
+     * [1.4] Xem lịch sử giao dịch của một người dùng cụ thể (Có phân trang).
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public PageResponse<TransactionDto> getUserTransactions(Integer userId, Pageable pageable) {
+        // Sử dụng phương thức findAllByAccount_IdOrderByTransDateDesc từ Repository
+        Page<Transaction> transactions = transactionRepository.findAllByAccount_IdOrderByTransDateDesc(userId, pageable);
+        List<TransactionDto> dtoList = transactions.getContent().stream().map(TransactionDto::new).collect(Collectors.toList());
+        return new PageResponse<>(new PageImpl<>(dtoList, pageable, transactions.getTotalElements()));
+    }
+
+    /**
+     * [1.5] Lấy toàn bộ lịch sử giao dịch của một người dùng cụ thể (Không phân trang - Dùng cho xuất báo cáo).
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public List<TransactionDto> getAllUserTransactions(Integer userId) {
+        // Sử dụng phương thức List từ Repository
+        return transactionRepository.findAllByAccount_IdOrderByTransDateDesc(userId)
+                .stream()
+                .map(TransactionDto::new)
+                .collect(Collectors.toList());
     }
 
     /**
@@ -215,7 +242,7 @@ public class AdminServiceImp implements AdminService {
 
         for (Object[] row : rawStats) {
             BigDecimal amount = row[1] != null ? (BigDecimal) row[1] : BigDecimal.ZERO;
-            
+
             totalVolume = totalVolume.add(amount);
             if (Boolean.TRUE.equals(row[2])) income = income.add(amount);
             else expense = expense.add(amount);
@@ -229,9 +256,9 @@ public class AdminServiceImp implements AdminService {
             String ctgIconUrl = (String) row[3];
             String parentName = (String) row[4];
 
-            BigDecimal pct = (totalVolume.compareTo(BigDecimal.ZERO) > 0) 
-                ? amount.multiply(new BigDecimal("100")).divide(totalVolume, 2, RoundingMode.HALF_UP)
-                : BigDecimal.ZERO;
+            BigDecimal pct = (totalVolume.compareTo(BigDecimal.ZERO) > 0)
+                    ? amount.multiply(new BigDecimal("100")).divide(totalVolume, 2, RoundingMode.HALF_UP)
+                    : BigDecimal.ZERO;
 
             Map<String, Object> item = new HashMap<>();
             item.put("categoryName", ctgName);
@@ -239,7 +266,7 @@ public class AdminServiceImp implements AdminService {
             item.put("isChild", parentName != null);
             item.put("displayName", parentName != null ? parentName + " > " + ctgName : ctgName);
             item.put("amount", amount);
-            item.put("percentage", pct); 
+            item.put("percentage", pct);
             item.put("type", Boolean.TRUE.equals(ctgType) ? "INCOME" : "EXPENSE");
             item.put("iconUrl", ctgIconUrl);
             breakdown.add(item);
@@ -248,12 +275,12 @@ public class AdminServiceImp implements AdminService {
         Map<String, Object> result = new HashMap<>();
         result.put("totalSystemVolume", totalVolume); // Mốc 100%
         result.put("summary", Map.of(
-            "incomeTotal", income,
-            "expenseTotal", expense,
-            "incomePercentage", totalVolume.compareTo(BigDecimal.ZERO) > 0 
-                    ? income.multiply(new BigDecimal("100")).divide(totalVolume, 2, RoundingMode.HALF_UP) : BigDecimal.ZERO,
-            "expensePercentage", totalVolume.compareTo(BigDecimal.ZERO) > 0 
-                    ? expense.multiply(new BigDecimal("100")).divide(totalVolume, 2, RoundingMode.HALF_UP) : BigDecimal.ZERO
+                "incomeTotal", income,
+                "expenseTotal", expense,
+                "incomePercentage", totalVolume.compareTo(BigDecimal.ZERO) > 0
+                        ? income.multiply(new BigDecimal("100")).divide(totalVolume, 2, RoundingMode.HALF_UP) : BigDecimal.ZERO,
+                "expensePercentage", totalVolume.compareTo(BigDecimal.ZERO) > 0
+                        ? expense.multiply(new BigDecimal("100")).divide(totalVolume, 2, RoundingMode.HALF_UP) : BigDecimal.ZERO
         ));
         result.put("breakdown", breakdown);
         result.put("range", rangeMode);
@@ -263,78 +290,109 @@ public class AdminServiceImp implements AdminService {
 
     /**
      * [1.2] Thông báo giao dịch bất thường:
-     * Quét các giao dịch lớn của tất cả người dùng trong 24h qua.
+     * Phân tích hành vi: Phát hiện tần suất giao dịch cao và tổng khối lượng chi tiêu lớn trên từng ví.
      */
     @Override
     @Transactional
     public void notifyAbnormalTransactions(BigDecimal threshold) {
+        // Ngưỡng tần suất: ví dụ hơn 10 giao dịch chi tiêu/ngày là bất thường
+        int frequencyThreshold = 10; 
         LocalDateTime since = LocalDateTime.now().minusDays(1);
-        List<Transaction> largeTransactions = transactionRepository.findAllByAmountGreaterThanAndTransDateAfter(threshold, since);
 
-        if (largeTransactions.isEmpty()) {
-            return;
-        }
+        // 1. Lấy tất cả giao dịch trong 24h qua (Khớp với phương thức Repository mới)
+        List<Transaction> recentTransactions = transactionRepository.findAllByTransDateAfter(since);
 
-        BigDecimal totalAmount = BigDecimal.ZERO;
-        int transactionCount = largeTransactions.size();
+        // 2. Gom nhóm theo Ví và lọc các giao dịch CHI TIÊU (Expense)
+        Map<Wallet, List<Transaction>> walletActivity = recentTransactions.stream()
+                .filter(t -> t.getCategory() != null && Boolean.FALSE.equals(t.getCategory().getCtgType()))
+                .filter(t -> t.getWallet() != null)
+                .collect(Collectors.groupingBy(Transaction::getWallet));
 
-        for (Transaction trans : largeTransactions) {
-            totalAmount = totalAmount.add(trans.getAmount());
+        walletActivity.forEach((wallet, transList) -> {
+            BigDecimal walletTotalExpense = transList.stream()
+                    .map(Transaction::getAmount)
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            int activityCount = transList.size();
 
-            // Vẫn gửi cảnh báo riêng tư cho từng người dùng để họ kiểm tra tài khoản
-            NotificationContent content = NotificationMessages.largeTransactionAlert(
-                trans.getAmount(), 
-                trans.getCategory().getCtgName()
-            );
-            notificationService.createNotification(trans.getAccount(), content.title(), content.content(),
-                    NotificationType.TRANSACTION, trans.getId().longValue(), LocalDateTime.now());
-        }
+            // 3. Kiểm tra điều kiện: (Tổng tiền chi > ngưỡng) HOẶC (Số lượng giao dịch > ngưỡng tần suất)
+            if (walletTotalExpense.compareTo(threshold) > 0 || activityCount >= frequencyThreshold) {
+                Account userAccount = transList.get(0).getAccount();
+                // Lấy tên thật của Ví từ thực thể
+                String walletName = (wallet.getWalletName() != null && !wallet.getWalletName().isEmpty()) 
+                        ? wallet.getWalletName() : "Ví người dùng";
+                
+                // Gửi thông báo cho User về chiếc ví cụ thể đang có vấn đề
+                NotificationContent userMsg = NotificationMessages.abnormalWalletActivity(
+                        walletName, activityCount, walletTotalExpense);
+                notificationService.createNotification(userAccount, userMsg.title(), userMsg.content(),
+                        NotificationType.TRANSACTION, null, LocalDateTime.now());
 
-        // TẠO THÔNG BÁO TỔNG CHO ADMIN (SYSTEM ALERT)
-        // Thay vì mỗi giao dịch 1 thông báo, ta gom lại thành 1 cảnh báo tổng hợp hệ thống
-        String adminTitle = "Hệ thống: Cảnh báo rủi ro giao dịch";
-        String adminContent = String.format(
-            "Phát hiện tổng cộng %d giao dịch bất thường vượt ngưỡng %s VNĐ trong 24h qua. " +
-            "Tổng giá trị nghi vấn: %s VNĐ. Vui lòng kiểm tra danh sách đối soát.",
-            transactionCount, threshold.stripTrailingZeros().toPlainString(), totalAmount.stripTrailingZeros().toPlainString()
-        );
-
-        notificationService.createNotification(null, adminTitle, adminContent, 
-                NotificationType.SYSTEM, null, LocalDateTime.now());
+                // Gửi thông báo cho Admin để theo dõi rủi ro hệ thống
+                NotificationContent adminMsg = NotificationMessages.adminWalletRiskAlert(
+                        userAccount.getAccEmail(), walletName, activityCount, walletTotalExpense);
+                notificationService.createNotification(null, adminMsg.title(), adminMsg.content(), 
+                        NotificationType.SYSTEM, null, LocalDateTime.now());
+            }
+        });
     }
 
     /**
      * [1.3] Danh sách người dùng giao dịch bất thường để Admin đối soát trên Dashboard.
      */
     @Override
+    @Transactional(readOnly = true)
     public List<Map<String, Object>> getAbnormalTransactionUsers(BigDecimal threshold) {
+        int frequencyThreshold = 10;
         LocalDateTime since = LocalDateTime.now().minusDays(1);
-        List<Transaction> largeTransactions = transactionRepository.findAllByAmountGreaterThanAndTransDateAfter(threshold, since);
+        List<Transaction> recentTransactions = transactionRepository.findAllByTransDateAfter(since);
 
-        Map<Account, List<Transaction>> groupedByAccount = largeTransactions.stream()
+        // Nhóm theo Account trước
+        Map<Account, List<Transaction>> groupedByAccount = recentTransactions.stream()
+                .filter(t -> t.getCategory() != null && Boolean.FALSE.equals(t.getCategory().getCtgType()))
                 .collect(Collectors.groupingBy(Transaction::getAccount));
 
         return groupedByAccount.entrySet().stream().map(entry -> {
             Account acc = entry.getKey();
             List<Transaction> userTrans = entry.getValue();
+            
+            // Nhóm giao dịch của user này theo từng Ví
+            Map<Wallet, List<Transaction>> byWallet = userTrans.stream()
+                    .filter(t -> t.getWallet() != null)
+                    .collect(Collectors.groupingBy(t -> t.getWallet()));
+
+            List<Map<String, Object>> abnormalWallets = new ArrayList<>();
+            BigDecimal userTotalAbnormalAmount = BigDecimal.ZERO;
+
+            for (Map.Entry<Wallet, List<Transaction>> walletEntry : byWallet.entrySet()) {
+                List<Transaction> transList = walletEntry.getValue();
+                BigDecimal walletTotal = transList.stream().map(Transaction::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
+                
+                if (walletTotal.compareTo(threshold) > 0 || transList.size() >= frequencyThreshold) {
+                    Map<String, Object> wMap = new HashMap<>();
+                    wMap.put("walletName", walletEntry.getKey().getWalletName() != null 
+                            ? walletEntry.getKey().getWalletName() : "Ví người dùng");
+                    wMap.put("transactionCount", transList.size());
+                    wMap.put("totalSpent", walletTotal);
+                    // Bổ sung chi tiết các giao dịch để Admin đối soát
+                    wMap.put("details", transList.stream()
+                            .map(TransactionDto::new)
+                            .collect(Collectors.toList()));
+
+                    abnormalWallets.add(wMap);
+                    userTotalAbnormalAmount = userTotalAbnormalAmount.add(walletTotal);
+                }
+            }
+
+            if (abnormalWallets.isEmpty()) return null;
 
             Map<String, Object> userMap = new HashMap<>();
             userMap.put("userId", acc.getId());
             userMap.put("email", acc.getAccEmail());
-            
-            List<Map<String, Object>> transDetails = userTrans.stream().map(t -> {
-                Map<String, Object> d = new HashMap<>();
-                d.put("id", t.getId());
-                d.put("amount", t.getAmount());
-                d.put("category", t.getCategory().getCtgName());
-                d.put("time", t.getTransDate());
-                return d;
-            }).collect(Collectors.toList());
 
-            userMap.put("abnormalTransactions", transDetails);
-            userMap.put("totalViolatingAmount", userTrans.stream().map(Transaction::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add));
+            userMap.put("abnormalWallets", abnormalWallets);
+            userMap.put("totalAbnormalAmount", userTotalAbnormalAmount);
             return userMap;
-        }).collect(Collectors.toList());
+        }).filter(Objects::nonNull).collect(Collectors.toList());
     }
 
     @Override
@@ -408,5 +466,26 @@ public class AdminServiceImp implements AdminService {
                     .orElse(null));
             return dto;
         }).collect(Collectors.toList());
+    }
+
+    /**
+     * Xem chi tiết các chỉ số tài chính của một User cụ thể (Read-only)
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public Map<String, Object> getUserFinancialInsights(Integer userId) {
+        Account account = accountRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        Map<String, Object> insights = new HashMap<>();
+        insights.put("userInfo", new AccountDto(account));
+        
+        // Sử dụng phương thức sumAmountByAccountAndType mới thêm vào Repository
+        BigDecimal totalIncome = transactionRepository.sumAmountByAccountAndType(userId, true);
+        BigDecimal totalExpense = transactionRepository.sumAmountByAccountAndType(userId, false);
+        
+        insights.put("totalIncome", totalIncome != null ? totalIncome : BigDecimal.ZERO);
+        insights.put("totalExpense", totalExpense != null ? totalExpense : BigDecimal.ZERO);
+        return insights;
     }
 }

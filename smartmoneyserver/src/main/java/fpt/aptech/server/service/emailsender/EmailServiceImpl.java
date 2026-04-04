@@ -73,4 +73,28 @@ public class EmailServiceImpl implements EmailService {
             log.error("Lỗi khi gửi mail đính kèm: ", e);
         }
     }
+
+    @Override
+    public void sendEmergencyLockOtp(String to, String fullname, String otp) {
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+
+            helper.setFrom(fromEmail);
+            helper.setTo(to);
+            helper.setSubject("[SmartMoney] Mã xác nhận khóa tài khoản khẩn cấp");
+
+            String htmlBody = "<h3>Yêu cầu khóa tài khoản khẩn cấp</h3>" +
+                    "<p>Chào " + fullname + ",</p>" +
+                    "<p>Bạn vừa yêu cầu khóa tài khoản khẩn cấp. Mã xác nhận của bạn là:</p>" +
+                    "<h2 style='color:red;'>" + otp + "</h2>" +
+                    "<p>Mã này có hiệu lực trong 5 phút. Nếu không phải bạn thực hiện, hãy đổi mật khẩu ngay.</p>";
+
+            helper.setText(htmlBody, true);
+            mailSender.send(message);
+            log.info("Đã gửi OTP khẩn cấp bất đồng bộ thành công đến: {}", to);
+        } catch (MessagingException e) {
+            log.error("Lỗi khi gửi email OTP khẩn cấp: ", e);
+        }
+    }
 }

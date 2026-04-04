@@ -15,6 +15,7 @@ import 'modules/planned/providers/bill_transaction_provider.dart'; // Import má»
 import 'package:smart_money/modules/event/providers/event_provider.dart';
 import 'package:smart_money/modules/saving_goal/providers/saving_goal_provider.dart';
 import 'modules/debt/providers/debt_provider.dart';
+import 'package:smart_money/modules/notification/providers/notification_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -51,6 +52,7 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => EventProvider()),
         ChangeNotifierProvider(create: (_) => SavingGoalProvider()),
         ChangeNotifierProvider(create: (_) => DebtProvider()),
+        ChangeNotifierProvider(create: (_) => NotificationProvider()),
       ],
       child: const SmartMoneyApp(),
     );
