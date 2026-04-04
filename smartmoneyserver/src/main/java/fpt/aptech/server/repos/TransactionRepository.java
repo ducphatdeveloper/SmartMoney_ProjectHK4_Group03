@@ -120,6 +120,7 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
             "  AND (:walletId IS NULL OR t.wallet.id = :walletId) " +
             "  AND (:savingGoalId IS NULL OR t.savingGoal.id = :savingGoalId) " +
             "  AND (:categoryId IS NULL OR c.id = :categoryId) " +
+            "  AND t.deleted = false " + // Chỉ lấy giao dịch chưa bị xóa mềm
             "GROUP BY CAST(t.transDate AS date) " +
             "ORDER BY CAST(t.transDate AS date) ASC")
     List<DailyTrendDTO> getDailyTrend(

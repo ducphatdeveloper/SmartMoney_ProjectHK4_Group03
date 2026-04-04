@@ -60,6 +60,8 @@ class AuthProvider extends ChangeNotifier {
       // Lưu ý: Các field như avatarUrl, currency sẽ null cho đến khi gọi API /users/profile
       _currentUser = UserModel(
         userId: decodedToken['userId'],
+        // accEmail: decodedToken['sub'].contains('@') ? decodedToken['sub'] : null,
+        // accPhone: !decodedToken['sub'].contains('@') ? decodedToken['sub'] : null,
         accEmail: sub.contains('@') ? sub : null,
         accPhone: !sub.contains('@') ? sub : null,
         roleCode: roleCode,

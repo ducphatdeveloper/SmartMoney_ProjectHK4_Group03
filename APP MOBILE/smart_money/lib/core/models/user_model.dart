@@ -12,9 +12,10 @@ class UserModel {
   final String? accEmail;
   final bool locked; // New field
   final String? avatarUrl;
+  final String? currency;
   final String? createdAt; // New field
   final String? updatedAt; // New field
-  final String? roleName; // New field
+  final String? roleName; // Quản trị viên / Người dùng
   final String? currencyCode; // Changed from 'currency'
 
   final bool isOnline; // New field
@@ -42,6 +43,7 @@ class UserModel {
     this.accEmail,
     this.locked = false,
     this.avatarUrl,
+    this.currency,
     this.createdAt,
     this.updatedAt,
     this.roleName,
