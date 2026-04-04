@@ -15,13 +15,16 @@ import fpt.aptech.server.enums.notification.NotificationType;
 import fpt.aptech.server.enums.transaction.TransactionSourceType;
 import fpt.aptech.server.mapper.transaction.TransactionMapper;
 import fpt.aptech.server.repos.*;
+import fpt.aptech.server.service.contact.ContactRequestService;
 import fpt.aptech.server.service.debt.DebtCalculationService;
 import fpt.aptech.server.service.notification.NotificationContent;
 import fpt.aptech.server.service.notification.NotificationMessages;
 import fpt.aptech.server.service.notification.NotificationService;
+import fpt.aptech.server.utils.currency.CurrencyUtils;
 import fpt.aptech.server.utils.date.DateUtils;
 import jakarta.persistence.criteria.Predicate;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -50,6 +53,14 @@ public class TransactionServiceImpl implements TransactionService {
     private final DebtCalculationService       debtCalculationService;
     private final NotificationService          notificationService;
     private final TransactionMapper            transactionMapper;
+
+    // [NOTE] Inject @Lazy để tránh circular dependency (ContactRequestService ↔ TransactionService) — thêm 4/2026
+    private ContactRequestService contactRequestService;
+    @Lazy
+    @org.springframework.beans.factory.annotation.Autowired
+    public void setContactRequestService(ContactRequestService contactRequestService) {
+        this.contactRequestService = contactRequestService;
+    }
 
     // =================================================================================
     // 1. TẠO MỚI (CREATE)
@@ -177,6 +188,31 @@ public class TransactionServiceImpl implements TransactionService {
                     savedTransaction.getId(),
                     null
             );
+        }
+
+        // [NOTE] Bước 11: Kiểm tra giao dịch bất thường — thêm 4/2026
+        // Điều kiện 1: Số tiền chi > 50,000,000 VND (50 triệu) và là khoản CHI (category type = false)
+        // Điều kiện 2: Giao dịch được tạo trong khung giờ lạ (0h00 - 5h00)
+        boolean isLargeAmount = savedTransaction.getAmount().compareTo(new BigDecimal("50000000")) > 0
+                && Boolean.FALSE.equals(category.getCtgType());
+        boolean isOddHour = java.time.LocalTime.now().getHour() < 5;
+
+        if (isLargeAmount || isOddHour) {
+            String desc = "Giao dịch " + CurrencyUtils.formatVND(savedTransaction.getAmount())
+                    + " lúc " + java.time.LocalTime.now().withNano(0) + " có dấu hiệu bất thường.";
+
+            // 11a. Thông báo cho user biết
+            notificationService.createNotification(
+                    currentUser,
+                    "Cảnh báo giao dịch bất thường",
+                    desc,
+                    NotificationType.SYSTEM,
+                    savedTransaction.getId(),
+                    null
+            );
+
+            // 11b. Tạo ticket cho admin xử lý
+            contactRequestService.createSuspiciousRequest(accountId, desc);
         }
 
         return transactionMapper.toDto(savedTransaction);
