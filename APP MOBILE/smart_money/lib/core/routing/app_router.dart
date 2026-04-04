@@ -4,6 +4,9 @@ import '../../screens/splash_screen.dart';
 import '../../modules/auth/screens/login_screen.dart';
 import '../../screens/main_navigation.dart';
 import '../helpers/token_helper.dart';
+import '../../modules/notification/screens/notification_screen.dart';
+import '../../screens/profile_editing_screen.dart';
+import '../../modules/auth/screens/reset_password_screen.dart';
 
 class AppRouter {
 
@@ -18,12 +21,14 @@ class AppRouter {
       // Đọc token từ bộ nhớ
       final accessToken = await TokenHelper.getAccessToken();
       final isLoggedIn = accessToken != null && accessToken.isNotEmpty;
+      final isGoingToReset = state.matchedLocation == "/reset-password";
+
 
       final isGoingToLogin = state.matchedLocation == "/login";
       final isGoingToRegister = state.matchedLocation == "/register";
 
       // Đang chưa login mà đòi vào trang khác -> Bắt về login
-      if (!isLoggedIn && !isGoingToLogin && !isGoingToRegister) {
+      if (!isLoggedIn && !isGoingToLogin && !isGoingToRegister && !isGoingToReset) {
         return "/login";
       }
 
@@ -52,6 +57,19 @@ class AppRouter {
       GoRoute(
         path: "/main",
         builder: (context, state) => const MainNavigation(),
+      ),
+      GoRoute(
+        path: "/reset-password",
+        builder: (context, state) => const ResetPasswordScreen(),
+      ),
+
+      GoRoute(
+        path: '/notifications',
+        builder: (context, state) => const NotificationScreen(),
+      ),
+      GoRoute(
+        path: '/edit-profile',
+        builder: (context, state) => const ProfileEditingScreen(),
       ),
     ],
   );

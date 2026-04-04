@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:go_router/go_router.dart';
 import 'package:smart_money/widgets/chart_card.dart';
 import 'package:smart_money/widgets/summary_card.dart';
+import '../modules/notification/providers/notification_provider.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -12,6 +15,13 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
 
   bool isBalanceHidden = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // Tự động tải danh sách thông báo khi vào trang chủ
+    Future.microtask(() => context.read<NotificationProvider>().fetchNotifications());
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -50,34 +60,41 @@ class _HomeScreenState extends State<HomeScreen> {
                         onPressed: () {},
                       ),
 
-                      Stack(
-                        children: [
+                      Consumer<NotificationProvider>(
+                        builder: (context, provider, child) {
+                          final unreadCount = provider.unreadCount;
 
-                          IconButton(
-                            icon: const Icon(Icons.notifications_none),
-                            onPressed: () {},
-                          ),
-
-                          Positioned(
-                            right: 6,
-                            top: 6,
-                            child: Container(
-                              padding: const EdgeInsets.all(4),
-                              decoration: const BoxDecoration(
-                                color: Colors.red,
-                                shape: BoxShape.circle,
+                          return Stack(
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.notifications_none),
+                                onPressed: () {
+                                  context.push('/notifications');
+                                },
                               ),
-                              child: const Text(
-                                "2",
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 10,
-                                ),
-                              ),
-                            ),
-                          )
 
-                        ],
+                              if (unreadCount > 0)
+                                Positioned(
+                                  right: 8,
+                                  top: 5,
+                                  child: Container(
+                                    padding: const EdgeInsets.all(4),
+                                    decoration: BoxDecoration(
+                                      color: Colors.red,
+                                      shape: BoxShape.circle,
+                                      border: Border.all(color: Theme.of(context).scaffoldBackgroundColor, width: 1.5),
+                                    ),
+                                    constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                                    child: Text(
+                                      unreadCount > 9 ? "9+" : unreadCount.toString(),
+                                      style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold),
+                                      textAlign: TextAlign.center,
+                                    ),
+                                  ),
+                                )
+                            ],
+                          );
+                        },
                       )
 
                     ],

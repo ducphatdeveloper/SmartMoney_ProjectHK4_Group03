@@ -219,6 +219,40 @@ public final class NotificationMessages {
         String content = "Tài khoản của bạn đã được mở khóa. Bạn có thể tiếp tục sử dụng dịch vụ.";
         return new NotificationContent(title, content);
     }
+    /**
+            * Thông báo cập nhật thông tin cá nhân.
+            */
+    public static NotificationContent profileUpdated() {
+        String title = "Cập nhật thông tin 📝";
+        String content = "Thông tin tài khoản của bạn đã được thay đổi thành công.";
+        return new NotificationContent(title, content);
+    }
+    /**
+     * Thông báo cập nhật ảnh đại diện thành công.
+     */
+    public static NotificationContent avatarUpdated() {
+        String title = "Cập nhật hồ sơ ✨";
+        String content = "Ảnh đại diện của bạn đã được cập nhật thành công.";
+        return new NotificationContent(title, content);
+    }
+    /**
+     * Thông báo cho Admin khi người dùng thực hiện khóa khẩn cấp.
+     */
+    public static NotificationContent userEmergencyLockAlert(String email, String phone) {
+        String title = "YÊU CẦU KHÓA KHẨN CẤP 🚨";
+        String content = String.format(
+                "Người dùng %s đã yêu cầu khóa tài khoản khẩn cấp qua gmail xác minh: %s.",
+                email, phone);
+        return new NotificationContent(title, content);
+    }
+    /**
+     * Thông báo xác nhận khóa khẩn cấp cho người dùng.
+     */
+    public static NotificationContent accountEmergencyLockedConfirm() {
+        String title = "Tài khoản đã được khóa khẩn cấp 🔒";
+        String content = "Mọi quyền truy cập đã bị vô hiệu hóa để bảo vệ tài sản của bạn. Vui lòng liên hệ hỗ trợ để mở lại.";
+        return new NotificationContent(title, content);
+    }
 
     // ════════════════════════════════════════════════════════════════════════
     // TYPE 5 — CHAT_AI
@@ -253,6 +287,7 @@ public final class NotificationMessages {
         return new NotificationContent(title, reminderContent);
     }
 
+
     // ════════════════════════════════════════════════════════════════════════
     // TYPE 6 — WALLETS
     // ════════════════════════════════════════════════════════════════════════
@@ -282,6 +317,27 @@ public final class NotificationMessages {
         String content = String.format(
                 "Ví \"%s\" đang âm %s. Hãy kiểm tra lại các giao dịch!",
                 walletName, CurrencyUtils.formatVND(balance.abs()));
+        return new NotificationContent(title, content);
+    }
+    /**
+     * Cảnh báo hoạt động chi tiêu bất thường trên ví.
+     */
+    public static NotificationContent abnormalWalletActivity(String walletName, int count, BigDecimal totalAmount) {
+        String title = "Cảnh báo chi tiêu bất thường 🚩";
+        String content = String.format(
+                "Ví '%s' phát sinh %d giao dịch chi tiêu với tổng %s trong 24h qua. Hãy kiểm tra lại!",
+                walletName, count, CurrencyUtils.formatVND(totalAmount));
+        return new NotificationContent(title, content);
+    }
+
+    /**
+     * Thông báo cho Admin về rủi ro ví người dùng.
+     */
+    public static NotificationContent adminWalletRiskAlert(String userEmail, String walletName, int count, BigDecimal totalAmount) {
+        String title = "Cảnh báo rủi ro ví người dùng 🚨";
+        String content = String.format(
+                "Người dùng [%s] tại ví '%s' phát sinh %d giao dịch bất thường (%s).",
+                userEmail, walletName, count, CurrencyUtils.formatVND(totalAmount));
         return new NotificationContent(title, content);
     }
 

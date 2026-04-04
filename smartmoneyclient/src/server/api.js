@@ -46,33 +46,45 @@ export const categoryApi = {
 
 // --- ADMIN API (Updated based on latest AdminController) ---
 export const adminApi = {
-    // 1. Quản lý người dùng
-    getUsers: (params) => api.get('/admin/users', { params }), 
+    // 1. Quản lý người dùng - Lấy danh sách & Lọc (search, locked, onlineStatus, pageable)
+    getUsers: (params) => api.get('/admin/users', { params: cleanParams(params) }),
 
-    // 2. Khóa/Mở khóa
+    // 2 & 3. Khóa/Mở khóa tài khoản
     lockAccount: (id) => api.put(`/admin/users/${id}/lock`),
     unlockAccount: (id) => api.put(`/admin/users/${id}/unlock`),
 
-    // 4. Thống kê tổng quan
-    getStats: () => api.get('/admin/stats'),
+    // 3.1 Xem chỉ số tài chính chi tiết của một User (Read-only)
+    getUserFinancialInsights: (id) => api.get(`/admin/users/${id}/insights`),
 
-    // 5. Online Users
+    // 3.2 Xem lịch sử giao dịch chi tiết của một User cụ thể (Backend default size: 5)
+    getUserTransactions: (id, pageable) => api.get(`/admin/users/${id}/transactions`, { params: cleanParams(pageable) }),
+
+    // 3.3 Lấy toàn bộ giao dịch của User (không phân trang) - Dùng cho xuất file
+    getAllUserTransactions: (id) => api.get(`/admin/users/${id}/transactions/all`),
+
+    // 4. Widget tổng quan (Dashboard Overview)
+    getStats: () => api.get('/admin/stats'), 
+
+    // 5. Chi tiết số lượng Online Users
     getOnlineUsers: () => api.get('/admin/analytics/online-users'),
-    
-    // 5.1 Toàn bộ danh sách người dùng đang trực tuyến
-    getAllLiveOnlineUsers: () => api.get('/admin/analytics/online-users'),
 
-    // 6. Biểu đồ giao dịch
+    // 5.1 Toàn bộ danh sách người dùng đang trực tuyến (Live View)
+    getAllLiveOnlineUsers: () => api.get('/admin/analytics/live-online-users'),
+
+    // 6. Phân tích tài chính hệ thống (rangeMode: DAILY, WEEKLY, MONTHLY, YEARLY)
     getSystemTransactionStats: (rangeMode = "MONTHLY") => api.get('/admin/system/transaction-stats', {
-        params: { rangeMode }
+        params: cleanParams({ rangeMode })
     }),
 
-    // 7. Xử lý giao dịch bất thường
-    notifyAbnormalTransactions: (threshold) => api.post('/admin/system/notify-abnormal', null, {
-        params: { threshold }
+    // 7. Bảo mật: Kích hoạt quét và cảnh báo giao dịch bất thường 
+    // Backend sử dụng @RequestParam nên threshold được truyền qua params thay vì body
+    notifyAbnormalTransactions: (threshold) => api.post('/admin/system/notify-abnormal', null, { 
+        params: cleanParams({ threshold }) 
     }),
-    getAbnormalUsers: (threshold) => api.get('/admin/system/abnormal-users', {
-        params: { threshold }
+
+    // 7.1 Lấy danh sách người dùng có giao dịch bất thường
+    getAbnormalUsers: (threshold) => api.get('/admin/system/abnormal-users', { 
+        params: cleanParams({ threshold }) 
     }),
 
     // 7.2 Thu hồi phiên đăng nhập quá hạn

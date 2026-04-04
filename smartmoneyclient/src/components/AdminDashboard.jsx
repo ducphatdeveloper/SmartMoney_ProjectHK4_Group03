@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { adminApi, authApi, userApi } from '../server/api';
+import { adminApi, authApi } from '../server/api';
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Tooltip, Legend, ArcElement } from 'chart.js';
 import { Bar, Doughnut } from 'react-chartjs-2';
 
@@ -38,6 +38,11 @@ const translations = {
         actions: "Thao tác",
         logout: "Đăng xuất",
         sysNotify: "Thông báo hệ thống",
+        userDetails: "Chi tiết người dùng",
+        userInsights: "Phân tích tài chính cá nhân",
+        userTransHistory: "Lịch sử giao dịch chi tiết",
+        viewAll: "Xem tất cả",
+        noTrans: "Chưa có giao dịch nào",
         noNotify: "Không có thông báo mới",
         confirmLock: "Khóa tài khoản?",
         confirmUnlock: "Mở khóa tài khoản?",
@@ -83,6 +88,11 @@ const translations = {
         actions: "Actions",
         logout: "Logout",
         sysNotify: "System Notifications",
+        userDetails: "User Details",
+        userInsights: "Personal Financial Insights",
+        userTransHistory: "Detailed Transaction History",
+        viewAll: "View All",
+        noTrans: "No transactions found",
         noNotify: "No new notifications",
         confirmLock: "Lock Account?",
         confirmUnlock: "Unlock Account?",
@@ -106,13 +116,13 @@ const AdminDashboard = () => {
     const [activeTab, setActiveTab] = useState('overview'); 
     const [lang, setLang] = useState(localStorage.getItem('adminLang') || 'vi');
 
-    const t = (key, params = {}) => {
+    const t = useCallback((key, params = {}) => {
         let text = translations[lang][key] || key;
         Object.keys(params).forEach(p => {
             text = text.replace(`{${p}}`, params[p]);
         });
         return text;
-    };
+    }, [lang]);
 
     const toggleLang = (l) => {
         setLang(l);
@@ -124,6 +134,7 @@ const AdminDashboard = () => {
     const [users, setUsers] = useState([]);
     const [transactionStats, setTransactionStats] = useState(null);
     const [notifications, setNotifications] = useState([]);
+    const [isSyncing, setIsSyncing] = useState(false);
     const [abnormalUsers, setAbnormalUsers] = useState([]);
 
     const navigate = useNavigate();
@@ -132,19 +143,34 @@ const AdminDashboard = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [filterLocked, setFilterLocked] = useState('');
     const [filterOnline, setFilterOnline] = useState('');
-    const [threshold, setThreshold] = useState(5000000); 
+    const [threshold] = useState(5000000); 
     const [page, setPage] = useState(0);
     const [totalPages, setTotalPages] = useState(0);
     const [rangeMode, setRangeMode] = useState('MONTHLY');
     
     // UI State
     const [loading, setLoading] = useState(false);
-    const [currentUser, setCurrentUser] = useState(null);
     const [notifying, setNotifying] = useState(false);
     const [autoLoggingOut, setAutoLoggingOut] = useState(false);
     const [loadingAbnormal, setLoadingAbnormal] = useState(false);
     const [showNotifications, setShowNotifications] = useState(false);
     const [confirmModal, setConfirmModal] = useState({ show: false, userId: null, isLocked: false });
+    const [detailModal, setDetailModal] = useState({ show: false, user: null, insights: null, transactions: [] });
+    const [loadingDetail, setLoadingDetail] = useState(false);
+    const [viewingAllTrans, setViewingAllTrans] = useState(false);
+
+    const handleViewAllTransactions = useCallback(async () => {
+        if (!detailModal.user?.id) return;
+        setViewingAllTrans(true);
+        try {
+            const res = await adminApi.getAllUserTransactions(Number(detailModal.user.id));
+            if (res.data.success) {
+                setDetailModal(prev => ({ ...prev, transactions: res.data.data }));
+            }
+        } catch (err) {
+            console.error("Error fetching all transactions:", err);
+        } finally { setViewingAllTrans(false); }
+    }, [detailModal.user]);
 
     // --- API CALLS ---
     
@@ -162,18 +188,26 @@ const AdminDashboard = () => {
         }
     }, [navigate]);
 
-    const fetchStats = async () => {
+    const fetchOnlineCount = useCallback(async () => {
         try {
-            const res = await adminApi.getStats();
-            const data = res.data.success ? res.data.data : res.data;
-            if (data) setStats(data);
-            
             const onlineRes = await adminApi.getOnlineUsers();
             if (onlineRes.data && onlineRes.data.success) {
-                setStats(prev => ({ ...prev, activeDevices: onlineRes.data.data }));
+                const newCount = onlineRes.data.data;
+                setStats(prev => prev.activeDevices === newCount ? prev : { ...prev, activeDevices: newCount });
             }
+        } catch (err) { console.error("Heartbeat error:", err); }
+    }, []);
+
+    const fetchStats = useCallback(async () => {
+        try {
+            setIsSyncing(true);
+            const res = await adminApi.getStats();
+            const data = res.data.success ? res.data.data : res.data;
+            if (data) setStats(prev => ({ ...data, activeDevices: prev.activeDevices }));
+            await fetchOnlineCount();
         } catch (err) { console.error(err); }
-    };
+        finally { setTimeout(() => setIsSyncing(false), 1000); }
+    }, [fetchOnlineCount]);
 
     const fetchTransactionStats = useCallback(async () => {
         try {
@@ -187,7 +221,7 @@ const AdminDashboard = () => {
     const fetchAbnormalUsers = useCallback(async () => {
         setLoadingAbnormal(true);
         try {
-            const res = await adminApi.getAbnormalUsers(threshold);
+            const res = await adminApi.getAbnormalUsers(Number(threshold));
             if (res.data && res.data.success) {
                 setAbnormalUsers(res.data.data || []);
             }
@@ -199,7 +233,7 @@ const AdminDashboard = () => {
     const handleNotifyAbnormal = async () => {
         setNotifying(true);
         try {
-            await adminApi.notifyAbnormalTransactions(threshold);
+            await adminApi.notifyAbnormalTransactions(Number(threshold));
             alert(t('notifySuccess', { count: abnormalUsers.length }));
         } catch (err) {
             alert(t('notifyError'));
@@ -223,27 +257,29 @@ const AdminDashboard = () => {
         }
     };
 
-    const fetchNotifications = async (adminId) => {
+    const fetchNotifications = useCallback(async (adminId) => {
         try {
-            const res = await adminApi.getAdminNotifications(adminId);
+            const res = await adminApi.getAdminNotifications(Number(adminId));
             const data = res.data.success ? res.data.data : res.data;
             setNotifications(data || []);
         } catch (err) { console.error(err); }
-    };
+    }, []);
 
     const fetchUsers = useCallback(async (isBackground = false) => {
         if (!isBackground) setLoading(true);
         try {
-            const params = {
-                page, size: 8,
-                search: searchTerm && searchTerm.trim() !== '' ? searchTerm.trim() : null,
-                locked: filterLocked === 'true' ? true : (filterLocked === 'false' ? false : null),
-                onlineStatus: filterOnline === 'true' ? 'ONLINE' : (filterOnline === 'false' ? 'OFFLINE' : null)
-            };
+            const params = { page, size: 8 };
+            if (searchTerm?.trim()) params.search = searchTerm.trim();
+            if (filterLocked === 'true' || filterLocked === 'false') {
+                params.locked = filterLocked === 'true';
+            }
+            if (filterOnline === 'true') params.onlineStatus = 'ONLINE';
+            if (filterOnline === 'false') params.onlineStatus = 'OFFLINE';
+
             const res = await adminApi.getUsers(params);
             const apiData = res.data.success ? res.data.data : res.data;
             if (apiData) {
-                setUsers(apiData.content || []);
+                setUsers(prev => JSON.stringify(prev) === JSON.stringify(apiData.content) ? prev : (apiData.content || []));
                 setTotalPages(apiData.totalPages || 0);
             }
         } catch (err) { 
@@ -252,6 +288,26 @@ const AdminDashboard = () => {
         } 
         finally { if (!isBackground) setLoading(false); }
     }, [page, searchTerm, filterLocked, filterOnline]);
+
+    const handleViewDetails = useCallback(async (user) => {
+        const userId = Number(user.id);
+        setLoadingDetail(true);
+        setDetailModal({ show: true, user, insights: null, transactions: [] });
+        try {
+            const [insightsRes, transRes] = await Promise.all([
+                adminApi.getUserFinancialInsights(userId),
+                adminApi.getUserTransactions(userId, { page: 0, size: 5 })
+            ]);
+
+            setDetailModal(prev => ({
+                ...prev,
+                insights: insightsRes.data.success ? insightsRes.data.data : null,
+                transactions: transRes.data.success ? transRes.data.data.content : []
+            }));
+        } catch (err) {
+            console.error("Error fetching user details:", err);
+        } finally { setLoadingDetail(false); }
+    }, []);
 
     // --- EFFECTS ---
 
@@ -264,13 +320,14 @@ const AdminDashboard = () => {
             navigate('/login');
             return;
         }
-        setCurrentUser(storedUser);
         fetchStats();
         fetchTransactionStats();
-        if (storedUser.userId || storedUser.id) {
-             fetchNotifications(storedUser.userId || storedUser.id);
+        
+        const adminId = Number(storedUser.userId || storedUser.id);
+        if (!isNaN(adminId)) {
+             fetchNotifications(adminId);
         }
-    }, [navigate, fetchTransactionStats]);
+    }, [navigate, fetchStats, fetchTransactionStats, fetchNotifications]);
 
     useEffect(() => {
         const delayDebounceFn = setTimeout(() => {
@@ -288,22 +345,29 @@ const AdminDashboard = () => {
 
     useEffect(() => {
         const checkAccountStatus = async () => {
-            try {
-                const res = await userApi.getProfile();
-                if (res.data && res.data.locked) handleLogout(t('accountLocked'));
-            } catch (error) {
-                if (error.response && (error.response.status === 401 || error.response.status === 403)) {
-                    handleLogout(t('sessionExpired'));
-                }
-            }
+            /* Check session logic */
         };
-        const interval = setInterval(() => {
-            fetchStats();
-            if (activeTab === 'users') fetchUsers(true);
-            checkAccountStatus();
+
+        // Heartbeat cho Online Users (Real-time 5s)
+        const onlineInterval = setInterval(() => {
+            if (activeTab === 'overview') fetchOnlineCount();
         }, 5000);
-        return () => clearInterval(interval);
-    }, [fetchUsers, handleLogout, activeTab]);
+
+        // Cập nhật các chỉ số nặng hơn (30s)
+        const statsInterval = setInterval(() => {
+            checkAccountStatus();
+            if (activeTab === 'overview') {
+                fetchStats();
+                fetchTransactionStats();
+            }
+            if (activeTab === 'users') fetchUsers(true);
+        }, 30000);
+
+        return () => {
+            clearInterval(onlineInterval);
+            clearInterval(statsInterval);
+        };
+    }, [fetchUsers, fetchStats, fetchOnlineCount, fetchTransactionStats, handleLogout, activeTab, t]);
 
     // --- HANDLERS ---
 
@@ -321,8 +385,9 @@ const AdminDashboard = () => {
 
     const confirmAction = async () => {
         const { userId, isLocked } = confirmModal;
+        const targetId = Number(userId);
         try {
-            isLocked ? await adminApi.unlockAccount(userId) : await adminApi.lockAccount(userId);
+            isLocked ? await adminApi.unlockAccount(targetId) : await adminApi.lockAccount(targetId);
             fetchUsers(false);
             fetchStats();
         } catch (err) { alert(lang === 'vi' ? "Thao tác thất bại." : "Action failed."); }
@@ -338,57 +403,48 @@ const AdminDashboard = () => {
     };
 
     // --- CHART CONFIG ---
-    const breakdown = transactionStats?.breakdown || [];
-    const totalVolume = breakdown.reduce((acc, item) => acc + item.amount, 0);
-    const totalIncome = breakdown.filter(i => i.type === 'INCOME').reduce((acc, i) => acc + i.amount, 0);
-    const totalExpense = breakdown.filter(i => i.type === 'EXPENSE').reduce((acc, i) => acc + i.amount, 0);
-    const totalInExp = totalIncome + totalExpense;
-    const incomePerc = totalInExp > 0 ? ((totalIncome / totalInExp) * 100).toFixed(1) : 0;
-    const expensePerc = totalInExp > 0 ? ((totalExpense / totalInExp) * 100).toFixed(1) : 0;
+    const chartStats = React.useMemo(() => {
+        const breakdown = transactionStats?.breakdown || [];
+        const totalVolume = breakdown.reduce((acc, item) => acc + item.amount, 0);
+        const totalIncome = breakdown.filter(i => i.type === 'INCOME').reduce((acc, i) => acc + i.amount, 0);
+        const totalExpense = breakdown.filter(i => i.type === 'EXPENSE').reduce((acc, i) => acc + i.amount, 0);
+        const totalInExp = totalIncome + totalExpense;
+        return {
+            breakdown,
+            totalVolume,
+            incomePerc: totalInExp > 0 ? ((totalIncome / totalInExp) * 100).toFixed(1) : 0,
+            expensePerc: totalInExp > 0 ? ((totalExpense / totalInExp) * 100).toFixed(1) : 0,
+            sortedBreakdown: [...breakdown].sort((a, b) => (a.type !== b.type ? (a.type === 'INCOME' ? -1 : 1) : b.amount - a.amount))
+        };
+    }, [transactionStats]);
 
     const wrapLabel = (label, maxLength = 18) => {
         if (label.length <= maxLength) return label;
-        const words = label.split(' ');
-        const lines = [];
-        let currentLine = "";
-        words.forEach(word => {
-            if ((currentLine + word).length > maxLength) {
-                lines.push(currentLine.trim());
-                currentLine = word + " ";
-            } else {
-                currentLine += word + " ";
-            }
-        });
-        lines.push(currentLine.trim());
-        return lines;
+        return label.length > maxLength ? label.substring(0, maxLength) + '...' : label;
     };
 
-    const sortedBreakdown = [...breakdown].sort((a, b) => {
-        if (a.type !== b.type) return a.type === 'INCOME' ? -1 : 1;
-        return b.amount - a.amount;
-    });
-    
-    const dynamicChartHeight = Math.max(400, sortedBreakdown.length * 55);
+    const dynamicChartHeight = Math.max(400, chartStats.sortedBreakdown.length * 55);
 
-    const barChartData = {
-        labels: sortedBreakdown.map(item => wrapLabel(`${item.type === 'INCOME' ? '↑' : '↓'} ${item.categoryName}`)),
+    const barChartData = React.useMemo(() => ({
+        labels: chartStats.sortedBreakdown.map(item => wrapLabel(`${item.type === 'INCOME' ? '↑' : '↓'} ${item.categoryName}`)),
         datasets: [
             {
                 label: 'Tỷ trọng hệ thống',
-                data: sortedBreakdown.map(item => totalVolume > 0 ? ((item.amount / totalVolume) * 100).toFixed(1) : 0),
-                backgroundColor: sortedBreakdown.map(item => item.type === 'INCOME' ? '#10b981' : '#f43f5e'),
-                hoverBackgroundColor: sortedBreakdown.map(item => item.type === 'INCOME' ? '#059669' : '#e11d48'),
+                data: chartStats.sortedBreakdown.map(item => chartStats.totalVolume > 0 ? ((item.amount / chartStats.totalVolume) * 100).toFixed(1) : 0),
+                backgroundColor: chartStats.sortedBreakdown.map(item => item.type === 'INCOME' ? 'rgba(16, 185, 129, 0.8)' : 'rgba(244, 63, 94, 0.8)'),
+                hoverBackgroundColor: chartStats.sortedBreakdown.map(item => item.type === 'INCOME' ? '#10b981' : '#f43f5e'),
                 borderRadius: 4,
                 barPercentage: 0.6,
                 categoryPercentage: 0.8,
             }
         ]
-    };
+    }), [chartStats, wrapLabel]);
     
     const barOptions = {
         indexAxis: 'y',
         responsive: true,
         maintainAspectRatio: false,
+        animation: { duration: 1000, easing: 'easeOutQuart' },
         plugins: {
             legend: { display: false },
             title: { 
@@ -410,20 +466,21 @@ const AdminDashboard = () => {
         }
     };
 
-    const doughnutData = {
+    const doughnutData = React.useMemo(() => ({
         labels: [`${t('income')} (%)`, `${t('expense')} (%)`],
         datasets: [{
-            data: [incomePerc, expensePerc],
+            data: [chartStats.incomePerc, chartStats.expensePerc],
             backgroundColor: ['#10b981', '#f43f5e'],
             hoverBackgroundColor: ['#059669', '#e11d48'],
             borderWidth: 0,
             cutout: '70%'
         }]
-    };
+    }), [chartStats, t]);
 
     const doughnutOptions = {
         responsive: true,
         maintainAspectRatio: false,
+        animation: { duration: 1000, animateRotate: true },
         plugins: {
             legend: { position: 'bottom' },
             title: {
@@ -440,7 +497,7 @@ const AdminDashboard = () => {
         <div className="d-flex flex-column flex-shrink-0 p-3 text-white bg-dark" style={{ width: '260px', height: '100vh', position: 'sticky', top: 0 }}>
             <div className="d-flex align-items-center mb-3 mb-md-0 me-md-auto text-white text-decoration-none px-2">
                 <i className="bi bi-wallet2 fs-4 me-2 text-info"></i>
-                <span className="fs-5 fw-bold">Admin Portal</span>
+                <span className="fs-5 fw-bold">Smart Money</span>
             </div>
             <hr />
             <ul className="nav nav-pills flex-column mb-auto">
@@ -521,13 +578,50 @@ const AdminDashboard = () => {
         <div className="container-fluid py-4 px-lg-4">
             <style>{`
                 .card-hover-up { transition: all 0.3s ease; }
-                .card-hover-up:hover { transform: translateY(-5px); box-shadow: 0 10px 20px rgba(0,0,0,0.1) !important; }
-                .animate-pulse { animation: pulse 2s infinite; }
-                @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+                .card-hover-up:hover { transform: translateY(-4px); box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1) !important; }
+                
+                .skeleton-shimmer {
+                    background: linear-gradient(90deg, #f3f4f6 25%, #e5e7eb 50%, #f3f4f6 75%);
+                    background-size: 200% 100%;
+                    animation: shimmer 2s infinite linear;
+                    border-radius: 12px;
+                }
+                @keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+                .value-update-flash {
+                    transition: color 0.5s ease;
+                }
+                .sync-active { color: #3b82f6; }
+
+                .live-dot {
+                    width: 10px; height: 10px; background: #10b981; border-radius: 50%;
+                    display: inline-block; margin-right: 10px;
+                    animation: pulse-dot 2s infinite;
+                }
+                @keyframes pulse-dot {
+                    0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+                    70% { box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); }
+                    100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+                }
+
                 .custom-scrollbar::-webkit-scrollbar { width: 6px; }
                 .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
+                
+                .refresh-progress {
+                    position: fixed; top: 0; left: 0; height: 3px; background: #3b82f6;
+                    transition: width 0.4s ease; z-index: 9999;
+                }
+                .new-item-fade { animation: slideInUp 0.5s ease-out forwards; }
+                @keyframes slideInUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+                
+                .stat-card-icon {
+                    background: linear-gradient(135deg, rgba(255,255,255,1) 0%, rgba(255,255,255,0.4) 100%);
+                    backdrop-filter: blur(4px);
+                }
             `}</style>
             
+            {isSyncing && <div className="refresh-progress" style={{ width: '100%', animation: 'shimmer 2s infinite' }}></div>}
+
             <div className="row g-4 mb-5">
                 {[
                     { key: 'TOTAL', label: t('totalUsers'), value: stats.totalUsers, icon: 'bi-people-fill', color: '#6366f1', bg: '#eef2ff' },
@@ -536,19 +630,27 @@ const AdminDashboard = () => {
                 ].map((item, idx) => (
                     <div className="col-xl-4 col-md-6" key={idx}>
                         <div 
-                            className="card shadow-sm border-0 rounded-4 card-hover-up h-100"
+                            className="card shadow-sm border-0 rounded-4 card-hover-up h-100" 
+                            style={{ background: 'linear-gradient(145deg, #ffffff 0%, #f9fafb 100%)' }}
                             onClick={() => item.key !== 'TRANS' && handleCardClick(item.key)}
                             style={{ cursor: item.key !== 'TRANS' ? 'pointer' : 'default' }}
                         >
-                            <div className="card-body p-4">
-                                <div className="d-flex justify-content-between align-items-center mb-3">
-                                    <div className="rounded-4 d-flex align-items-center justify-content-center" style={{ width: '56px', height: '56px', backgroundColor: item.bg }}>
-                                        <i className={`bi ${item.icon} fs-3`} style={{ color: item.color }}></i>
+                            <div className="card-body p-4 position-relative">
+                                <div className="d-flex justify-content-between align-items-start mb-3">
+                                    <div className="rounded-4 d-flex align-items-center justify-content-center shadow-sm stat-card-icon" style={{ width: '52px', height: '52px', border: `1px solid ${item.bg}` }}>
+                                        <i className={`bi ${item.icon} fs-4`} style={{ color: item.color }}></i>
                                     </div>
-                                    {item.isLive && <span className="badge bg-success-subtle text-success border border-success-subtle rounded-pill px-3 py-2 animate-pulse small fw-bold">LIVE</span>}
+                                    {item.isLive && (
+                                        <div className="d-flex align-items-center gap-2">
+                                            <span className="live-dot"></span>
+                                            <span className="text-success small fw-bold text-uppercase" style={{fontSize: '0.7rem', letterSpacing: '1px'}}>Live Now</span>
+                                        </div>
+                                    )}
                                 </div>
-                                <p className="text-muted mb-1 fw-bold text-uppercase small" style={{ letterSpacing: '1px' }}>{item.label}</p>
-                                <h2 className="mb-0 fw-bold text-dark">{(item.value || 0).toLocaleString()}</h2>
+                                <p className="text-secondary mb-1 fw-bold text-uppercase" style={{ letterSpacing: '0.5px', fontSize: '0.75rem' }}>{item.label}</p>
+                                <h2 className={`mb-0 fw-bold text-dark value-update-flash ${isSyncing ? 'sync-active' : ''}`}>
+                                    {(item.value || 0).toLocaleString()}
+                                </h2>
                             </div>
                         </div>
                     </div>
@@ -579,20 +681,20 @@ const AdminDashboard = () => {
                                                 <div style={{ height: '280px', width: '100%' }}><Doughnut data={doughnutData} options={doughnutOptions} /></div>
                                             </div>
                                             <div className="col-md-7">
-                                                <div className="p-4 bg-light rounded-4 shadow-sm border border-white mt-4 mt-md-0">
+                                                <div className="p-4 bg-white rounded-4 shadow-sm border mt-4 mt-md-0">
                                                     <div className="mb-4">
                                                         <div className="d-flex justify-content-between mb-2">
-                                                            <span className="small fw-bold text-secondary text-uppercase">{t('income')}</span>
-                                                            <span className="small fw-bold text-success">{incomePerc}%</span>
+                                                            <span className="small fw-bold text-dark text-uppercase">{t('income')}</span>
+                                                            <span className="small fw-bold text-success">{chartStats.incomePerc}%</span>
                                                         </div>
-                                                        <div className="progress rounded-pill" style={{height: '10px', backgroundColor: '#e2e8f0'}}><div className="progress-bar bg-success" style={{width: `${incomePerc}%`}}></div></div>
+                                                        <div className="progress rounded-pill" style={{height: '10px', backgroundColor: '#e2e8f0'}}><div className="progress-bar bg-success" style={{width: `${chartStats.incomePerc}%`}}></div></div>
                                                     </div>
                                                     <div>
                                                         <div className="d-flex justify-content-between mb-2">
-                                                            <span className="small fw-bold text-secondary text-uppercase">{t('expense')}</span>
-                                                            <span className="small fw-bold text-danger">{expensePerc}%</span>
+                                                            <span className="small fw-bold text-dark text-uppercase">{t('expense')}</span>
+                                                            <span className="small fw-bold text-danger">{chartStats.expensePerc}%</span>
                                                         </div>
-                                                        <div className="progress rounded-pill" style={{height: '10px', backgroundColor: '#e2e8f0'}}><div className="progress-bar bg-danger" style={{width: `${expensePerc}%`}}></div></div>
+                                                        <div className="progress rounded-pill" style={{height: '10px', backgroundColor: '#e2e8f0'}}><div className="progress-bar bg-danger" style={{width: `${chartStats.expensePerc}%`}}></div></div>
                                                     </div>
                                                 </div>
                                             </div>
@@ -601,14 +703,14 @@ const AdminDashboard = () => {
                                     <div className="col-12 pt-4 border-top border-light">
                                         <div className="d-flex justify-content-between align-items-center mb-4">
                                             <h6 className="small fw-bold text-uppercase text-muted mb-0">{t('categoryDetail')}</h6>
-                                            <span className="badge bg-light text-dark border px-3 py-2 rounded-pill">{sortedBreakdown.length} {t('items', {count: ''})}</span>
+                                            <span className="badge bg-light text-dark border px-3 py-2 rounded-pill">{chartStats.sortedBreakdown.length} {t('items', {count: ''})}</span>
                                         </div>
                                         <div className="custom-scrollbar pe-2" style={{ height: '450px', overflowY: 'auto' }}>
                                             <div style={{ height: `${dynamicChartHeight}px` }}><Bar data={barChartData} options={barOptions} /></div>
                                         </div>
                                     </div>
                                 </div>
-                            ) : <div className="text-center py-5">Đang tải biểu đồ...</div>}
+                            ) : <div className="skeleton-shimmer" style={{height: '300px', width: '100%'}}></div>}
                         </div>
                     </div>
                 </div>
@@ -628,15 +730,15 @@ const AdminDashboard = () => {
                                     {abnormalUsers.length > 0 && <span className="badge bg-danger rounded-pill px-2">RISK</span>}
                                 </div>
                                 {loadingAbnormal ? (
-                                    <div className="text-center py-5 text-muted small"><div className="spinner-border spinner-border-sm me-2 text-warning"></div>{t('scanning')}</div>
+                                    [1,2,3].map(i => <div key={i} className="skeleton-shimmer mb-3" style={{height: '70px'}}></div>)
                                 ) : abnormalUsers.length === 0 ? (
                                     <div className="text-center py-5"><i className="bi bi-check2-circle fs-1 text-success opacity-25"></i><p className="text-muted small mt-2">{t('noAbnormal')}</p></div>
                                 ) : (
                                     abnormalUsers.map((item, idx) => (
-                                        <div key={idx} className="d-flex justify-content-between align-items-center mb-3 p-3 bg-light rounded-4 border-start border-4 border-warning">
+                                        <div key={idx} className="d-flex justify-content-between align-items-center mb-3 p-3 bg-light rounded-4 border-start border-4 border-warning new-item-fade">
                                             <div>
                                                 <div className="fw-bold text-dark small">{item.username || 'N/A'}</div>
-                                                <div className="text-muted extra-small">{item.transactionCount} {t('transactions').toLowerCase()}</div>
+                                                <div className="text-muted extra-small">{item.transactionCount} lần giao dịch</div>
                                             </div>
                                             <span className="fw-bold text-danger extra-small">{formatCurrency(item.totalAmount)}</span>
                                         </div>
@@ -688,17 +790,24 @@ const AdminDashboard = () => {
                             </tr>
                         </thead>
                         <tbody>
-                            {loading ? <tr><td colSpan="6" className="text-center py-5">Đang tải...</td></tr> : 
+                            {loading && users.length === 0 ? (
+                                [1,2,3,4,5].map(i => (
+                                    <tr key={i}>
+                                        <td colSpan="6" className="p-3"><div className="skeleton-shimmer" style={{height: '30px'}}></div></td>
+                                    </tr>
+                                ))
+                            ) : 
                              users.length === 0 ? <tr><td colSpan="6" className="text-center py-5">Không tìm thấy dữ liệu</td></tr> :
                              users.map(u => (
-                                 <tr key={u.id} className="border-bottom-0">
+                                 <tr key={u.id} className="border-bottom-0 new-item-fade">
                                      <td className="ps-4 fw-bold text-muted">#{u.id}</td>
                                      <td className="fw-medium">{u.accEmail}</td>
                                      <td>{u.accPhone || '-'}</td>
                                      <td>{u.locked ? <span className="badge bg-danger-subtle text-danger px-3 py-2 rounded-pill">{t('locked')}</span> : <span className="badge bg-success-subtle text-success px-3 py-2 rounded-pill">{t('active')}</span>}</td>
                                      <td>{u.online ? <div className="d-flex align-items-center gap-2"><span className="p-1 bg-success rounded-circle animate-pulse"></span><span className="small">{t('online')}</span></div> : <div className="d-flex align-items-center gap-2"><span className="p-1 bg-secondary rounded-circle"></span><span className="small">{t('offline')}</span></div>}</td>
-                                     <td className="text-end pe-4">
-                                         <button className={`btn btn-sm ${u.locked ? 'btn-light text-success' : 'btn-light text-danger'} rounded-circle shadow-sm border p-2`}
+                                     <td className="text-end pe-4 d-flex justify-content-end gap-2">
+                                         <button className="btn btn-sm btn-light border rounded-circle" onClick={() => handleViewDetails(u)} title={t('userDetails')}><i className="bi bi-eye"></i></button>
+                                         <button className={`btn btn-sm ${u.locked ? 'btn-light text-success' : 'btn-light text-danger'} rounded-circle shadow-sm border p-2`} title={u.locked ? t('confirmUnlock') : t('confirmLock')}
                                                  onClick={() => setConfirmModal({show: true, userId: u.id, isLocked: u.locked})}>
                                              <i className={`bi ${u.locked ? 'bi-unlock' : 'bi-lock'}`}></i>
                                          </button>
@@ -743,6 +852,81 @@ const AdminDashboard = () => {
                                     <button className="btn btn-light px-5 py-2 rounded-pill fw-bold" onClick={() => setConfirmModal({...confirmModal, show: false})}>{t('cancel')}</button>
                                     <button className={`btn ${confirmModal.isLocked ? 'btn-success' : 'btn-danger'} px-5 py-2 rounded-pill fw-bold text-white shadow-sm`} onClick={confirmAction}>{t('confirm')}</button>
                                 </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* User Detail Modal - Tích hợp Insights & Transactions API mới */}
+            {detailModal.show && (
+                <div className="modal fade show d-block" style={{backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)'}}>
+                    <div className="modal-dialog modal-lg modal-dialog-centered">
+                        <div className="modal-content shadow-2xl border-0 rounded-4 overflow-hidden">
+                            <div className="modal-header bg-dark text-white border-0 py-3">
+                                <h5 className="modal-title fw-bold"><i className="bi bi-person-badge me-2"></i>{t('userDetails')}</h5>
+                                <button type="button" className="btn-close btn-close-white" onClick={() => setDetailModal({ ...detailModal, show: false })}></button>
+                            </div>
+                            <div className="modal-body p-4 bg-light custom-scrollbar" style={{maxHeight: '80vh', overflowY: 'auto'}}>
+                                {loadingDetail ? (
+                                    <div className="text-center py-5">
+                                        <div className="spinner-border text-primary mb-3"></div>
+                                        <p className="text-muted">Đang phân tích dữ liệu...</p>
+                                    </div>
+                                ) : (
+                                    <div className="row g-4">
+                                        <div className="col-12">
+                                            <div className="bg-white p-3 rounded-4 shadow-sm border-start border-4 border-primary">
+                                                <h6 className="fw-bold mb-3">{t('userInsights')}</h6>
+                                                <div className="row text-center">
+                                                    <div className="col-6 border-end">
+                                                        <div className="text-muted small">Tổng thu nhập</div>
+                                                        <div className="fw-bold text-success fs-5">{formatCurrency(detailModal.insights?.totalIncome || 0)}</div>
+                                                    </div>
+                                                    <div className="col-6">
+                                                        <div className="text-muted small">Tổng chi tiêu</div>
+                                                        <div className="fw-bold text-danger fs-5">{formatCurrency(detailModal.insights?.totalExpense || 0)}</div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div className="col-12">
+                                            <div className="bg-white p-3 rounded-4 shadow-sm">
+                                                <div className="d-flex justify-content-between align-items-center mb-3">
+                                                    <h6 className="fw-bold mb-0">{t('userTransHistory')}</h6>
+                                                    <button 
+                                                        className="btn btn-link btn-sm text-decoration-none fw-bold p-0" 
+                                                        onClick={handleViewAllTransactions}
+                                                        disabled={viewingAllTrans || detailModal.transactions.length === 0}
+                                                    >
+                                                        {viewingAllTrans ? <span className="spinner-border spinner-border-sm me-1"></span> : <i className="bi bi-list-ul me-1"></i>}
+                                                        {t('viewAll')}
+                                                    </button>
+                                                </div>
+                                                <div className="table-responsive">
+                                                    <table className="table table-sm table-hover align-middle">
+                                                        <thead className="table-light">
+                                                            <tr className="extra-small text-uppercase text-muted">
+                                                                <th>Ngày</th><th>Danh mục</th><th className="text-end">Số tiền</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody className="small">
+                                                            {detailModal.transactions.length === 0 ? <tr><td colSpan="3" className="text-center py-3">{t('noTrans')}</td></tr> :
+                                                                detailModal.transactions.map((tr, idx) => (
+                                                                    <tr key={idx}>
+                                                                        <td>{formatDate(tr.transDate)}</td>
+                                                                        <td><span className={`badge ${tr.isIncome ? 'bg-success-subtle text-success' : 'bg-danger-subtle text-danger'}`}>{tr.categoryName}</span></td>
+                                                                        <td className={`text-end fw-bold ${tr.isIncome ? 'text-success' : 'text-danger'}`}>{formatCurrency(tr.amount)}</td>
+                                                                    </tr>
+                                                                ))
+                                                            }
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>

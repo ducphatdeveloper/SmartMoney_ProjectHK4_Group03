@@ -43,13 +43,14 @@ class AppConstants {
     if (_devIp.isNotEmpty) return 'http://$_devIp:9999/api';
     // Web browser
     if (kIsWeb) return "http://localhost:9999/api";
-    if (Platform.isAndroid) {
+    // Chỉ kiểm tra Platform nếu KHÔNG phải môi trường Web
+    if (!kIsWeb && Platform.isAndroid) {
       // CHỖ NÀY QUAN TRỌNG:
       // 10.0.2.2 là dành cho máy ảo.
       // 192.168.x.x (IP máy tính) là dành cho máy thật.
 
       // Gán ip máy tính thật để test
-      String computerIp = "192.168.1.11"; // <--- THAY BẰNG IP MÁY TÍNH (Gõ ipconfig để lấy)
+      String computerIp = "192.168.100.74"; // <--- THAY BẰNG IP MÁY TÍNH (Gõ ipconfig để lấy)
 
       return "http://$computerIp:9999/api";
     }
@@ -72,7 +73,15 @@ class AppConstants {
   static String get authLogin         => "$baseUrl/auth/login";
   static String get authRegister      => "$baseUrl/auth/register";
   static String get authLogout        => "$baseUrl/auth/logout";
+  static String get authForgotPassword => "$baseUrl/auth/forgot-password";
+  static String get authResetPassword => "$baseUrl/auth/reset-password";
   static String get authRefreshToken  => "$baseUrl/auth/refresh-token";
+
+  // --- User ---
+  static String get userProfile       => "$baseUrl/users/profile";
+  static String get userAvatar        => "$baseUrl/users/avatar";
+  static String get userSendLockOtp   => "$baseUrl/users/emergency-lock/send-otp";
+  static String get userVerifyAndLock => "$baseUrl/users/emergency-lock/verify-and-lock";
 
   // --- Wallet ---
   static String get walletsBase           => "$baseUrl/user/wallets";
@@ -113,4 +122,9 @@ class AppConstants {
   static String billToggle(int id)        => "$baseUrl/bills/$id/toggle";
   static String billPay(int id)           => "$baseUrl/bills/$id/pay";
   static String billTransactions(int id)  => "$baseUrl/bills/$id/transactions"; // Endpoint mới
+  // --- Notification ---
+  static String get notificationsBase        => "$baseUrl/notifications";
+  static String get notificationsUnreadCount => "$baseUrl/notifications/unread-count";
+  static String markNotificationRead(int id) => "$baseUrl/notifications/$id/read";
+  static String get markAllNotificationsRead => "$baseUrl/notifications/read-all";
 }

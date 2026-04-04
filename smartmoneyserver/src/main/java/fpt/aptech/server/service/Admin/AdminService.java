@@ -1,6 +1,7 @@
 package fpt.aptech.server.service.Admin;
 
 import fpt.aptech.server.dto.AccountDto;
+import fpt.aptech.server.dto.TransactionDto;
 import fpt.aptech.server.dto.PageResponse;
 import fpt.aptech.server.entity.Notification;
 import org.springframework.data.domain.Pageable;
@@ -22,6 +23,9 @@ public interface AdminService {
     // Lấy thông báo hệ thống (SYSTEM) để Admin giám sát
     List<Notification> getAdminNotifications(Integer adminId);
 
+    // Xem chi tiết các chỉ số tài chính của một User cụ thể (Read-only)
+    Map<String, Object> getUserFinancialInsights(Integer userId);
+
     // Thống kê phân bổ giao dịch toàn hệ thống (Tính % trên 100% Volume, hỗ trợ cha-con)
     Map<String, Object> getSystemTransactionStats(String rangeMode);
 
@@ -39,4 +43,10 @@ public interface AdminService {
 
     // Tự động đăng xuất (thu hồi session) cho các người dùng đã ngoại tuyến quá hạn
     void handleAutoLogout();
+
+    // Xem lịch sử giao dịch của một người dùng cụ thể
+    PageResponse<TransactionDto> getUserTransactions(Integer userId, Pageable pageable);
+
+    // Lấy tất cả giao dịch của một người dùng (không phân trang)
+    List<TransactionDto> getAllUserTransactions(Integer userId);
 }
