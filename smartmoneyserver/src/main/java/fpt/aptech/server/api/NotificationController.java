@@ -3,6 +3,7 @@ package fpt.aptech.server.api;
 import fpt.aptech.server.dto.notification.NotificationResponse;
 import fpt.aptech.server.dto.response.ApiResponse;
 import fpt.aptech.server.entity.Account;
+import fpt.aptech.server.enums.notification.NotificationType;
 import fpt.aptech.server.mapper.notification.NotificationMapper;
 import fpt.aptech.server.service.notification.NotificationService;
 import lombok.RequiredArgsConstructor;
@@ -21,50 +22,66 @@ public class NotificationController {
     private final NotificationService notificationService;
     private final NotificationMapper notificationMapper;
 
-    /**
-     * Lấy danh sách thông báo của user đang đăng nhập.
-     * accId được lấy từ JWT token, không cần truyền qua URL.
-     */
+    // =================================================================================
+    // [1] USER/ADMIN — Lấy danh sách thông báo của account đang login
+    // GET /api/notifications
+    // =================================================================================
     @GetMapping
-    @PreAuthorize("hasAuthority('USER_STANDARD_MANAGE')")
+    @PreAuthorize("hasAuthority('USER_STANDARD_MANAGE') or hasAuthority('ADMIN_SYSTEM_ALL')")
     public ResponseEntity<ApiResponse<List<NotificationResponse>>> getMyNotifications(
             @AuthenticationPrincipal Account currentUser) {
 
-        // Lấy danh sách Entity từ service
         var notifications = notificationService.getMyNotifications(currentUser.getId());
-
-        // Dùng mapper để chuyển đổi sang danh sách DTO
         List<NotificationResponse> result = notificationMapper.toResponseList(notifications);
 
         return ResponseEntity.ok(ApiResponse.success(result));
     }
 
-    /**
-     * Đánh dấu một thông báo đã đọc.
-     * Service sẽ kiểm tra quyền sở hữu trước khi thực hiện.
-     */
+    // =================================================================================
+    // [2] USER/ADMIN — Đánh dấu một thông báo đã đọc
+    // PUT /api/notifications/{id}/read
+    // =================================================================================
     @PutMapping("/{id}/read")
-    @PreAuthorize("hasAuthority('USER_STANDARD_MANAGE')")
+    @PreAuthorize("hasAuthority('USER_STANDARD_MANAGE') or hasAuthority('ADMIN_SYSTEM_ALL')")
     public ResponseEntity<ApiResponse<Void>> markAsRead(
             @PathVariable Integer id,
             @AuthenticationPrincipal Account currentUser) {
-        
-        // Truyền cả ID thông báo và ID của user xuống service để check quyền
+
         notificationService.markAsRead(id, currentUser.getId());
-        
+
         return ResponseEntity.ok(ApiResponse.success("Đã đánh dấu đã đọc."));
     }
 
-    /**
-     * Đánh dấu tất cả thông báo là đã đọc.
-     */
+    // =================================================================================
+    // [3] USER/ADMIN — Đánh dấu tất cả thông báo là đã đọc
+    // PUT /api/notifications/read-all
+    // =================================================================================
     @PutMapping("/read-all")
-    @PreAuthorize("hasAuthority('USER_STANDARD_MANAGE')")
+    @PreAuthorize("hasAuthority('USER_STANDARD_MANAGE') or hasAuthority('ADMIN_SYSTEM_ALL')")
     public ResponseEntity<ApiResponse<Void>> markAllAsRead(
             @AuthenticationPrincipal Account currentUser) {
-        
+
         notificationService.markAllAsRead(currentUser.getId());
-        
+
         return ResponseEntity.ok(ApiResponse.success("Đã đánh dấu tất cả là đã đọc."));
+    }
+
+    // =================================================================================
+    // [4] ADMIN — Lấy thông báo SYSTEM (notify_type=4) của Admin đang login
+    // GET /api/notifications/admin/system
+    // Admin web React gọi API này để đổ lên chuông thông báo (bell icon)
+    // Bao gồm: cảnh báo giao dịch bất thường, yêu cầu hỗ trợ mới, thông báo hệ thống...
+    // =================================================================================
+    @GetMapping("/admin/system")
+    @PreAuthorize("hasAuthority('ADMIN_SYSTEM_ALL')")
+    public ResponseEntity<ApiResponse<List<NotificationResponse>>> getAdminSystemNotifications(
+            @AuthenticationPrincipal Account currentUser) {
+
+        // notify_type = 4 = SYSTEM
+        var notifications = notificationService.getMyNotificationsByType(
+                currentUser.getId(), NotificationType.SYSTEM.getValue());
+        List<NotificationResponse> result = notificationMapper.toResponseList(notifications);
+
+        return ResponseEntity.ok(ApiResponse.success(result));
     }
 }

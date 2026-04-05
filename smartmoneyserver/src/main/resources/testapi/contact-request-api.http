@@ -2,11 +2,14 @@
 ### SMARTMONEY - CONTACT REQUEST API TEST
 ### Module: Yêu cầu hỗ trợ / Liên hệ Admin
 ### Flow: PENDING → PROCESSING → APPROVED | REJECTED
+### Auth: hasAuthority('USER_STANDARD_MANAGE') hoặc hasAuthority('ADMIN_SYSTEM_ALL')
 ### =================================================================
 
-### =================================================================
-### [1] AUTH — Đăng nhập User thường (minh.pham@gmail.com)
-### =================================================================
+### ══════════════════════════════════════════════════════════════════
+###  🔐 ĐĂNG NHẬP
+### ══════════════════════════════════════════════════════════════════
+
+### [1] Đăng nhập USER (minh.pham@gmail.com — acc_id=6)
 POST http://localhost:9999/api/auth/login
 Content-Type: application/json
 
@@ -23,58 +26,7 @@ Content-Type: application/json
     client.log("User Token: " + response.body.data.accessToken);
 %}
 
-### =================================================================
-### [2] USER — Gửi yêu cầu ACCOUNT_LOCK (bắt buộc có contactPhone)
-### Kỳ vọng: 200 OK, status=PENDING, priority=NORMAL
-### =================================================================
-POST http://localhost:9999/api/contact-requests
-Authorization: Bearer {{user_token}}
-Content-Type: application/json
-
-{
-  "requestType": "ACCOUNT_LOCK",
-  "title": "Yêu cầu khóa tài khoản gấp",
-  "requestDescription": "Tôi nghi tài khoản bị truy cập trái phép, xin khóa gấp.",
-  "contactPhone": "0923456789"
-}
-
-### =================================================================
-### [3] USER — Gửi yêu cầu BUG_REPORT (không cần phone)
-### Kỳ vọng: 200 OK, status=PENDING, priority=NORMAL
-### =================================================================
-POST http://localhost:9999/api/contact-requests
-Authorization: Bearer {{user_token}}
-Content-Type: application/json
-
-{
-  "requestType": "BUG_REPORT",
-  "title": "Lỗi hiển thị biểu đồ tháng 4",
-  "requestDescription": "Màn hình báo cáo hiển thị sai tổng chi tháng 4/2026."
-}
-
-### =================================================================
-### [4] USER — Gửi yêu cầu ACCOUNT_LOCK nhưng THIẾU phone
-### Kỳ vọng: 400 Bad Request — bắt buộc phone
-### =================================================================
-POST http://localhost:9999/api/contact-requests
-Authorization: Bearer {{user_token}}
-Content-Type: application/json
-
-{
-  "requestType": "ACCOUNT_LOCK",
-  "title": "Khóa tài khoản"
-}
-
-### =================================================================
-### [5] USER — Xem lịch sử yêu cầu của mình
-### Kỳ vọng: 200 OK, danh sách request mới nhất lên đầu
-### =================================================================
-GET http://localhost:9999/api/contact-requests/my
-Authorization: Bearer {{user_token}}
-
-### =================================================================
-### [6] AUTH — Đăng nhập Admin (admin@smartmoney.vn)
-### =================================================================
+### [2] Đăng nhập ADMIN (admin@smartmoney.vn — acc_id=1)
 POST http://localhost:9999/api/auth/login
 Content-Type: application/json
 
@@ -91,32 +43,97 @@ Content-Type: application/json
     client.log("Admin Token: " + response.body.data.accessToken);
 %}
 
-### =================================================================
-### [7] ADMIN — Xem danh sách tất cả yêu cầu PENDING
-### Kỳ vọng: 200 OK, danh sách filter theo status=PENDING
-### =================================================================
-GET http://localhost:9999/api/contact-requests?status=PENDING
-Authorization: Bearer {{admin_token}}
+### ══════════════════════════════════════════════════════════════════
+###  👤 USER — Gửi yêu cầu hỗ trợ (POST /api/contact-requests)
+### ══════════════════════════════════════════════════════════════════
 
-### =================================================================
-### [8] ADMIN — Xem danh sách theo type=ACCOUNT_LOCK
-### Kỳ vọng: 200 OK, chỉ hiện yêu cầu khóa tài khoản
-### =================================================================
-GET http://localhost:9999/api/contact-requests?type=ACCOUNT_LOCK
-Authorization: Bearer {{admin_token}}
+### [3] USER — Gửi yêu cầu ACCOUNT_LOCK (có phone + email)
+### Kỳ vọng: 200 OK, status=PENDING, priority=HIGH
+POST http://localhost:9999/api/contact-requests
+Authorization: Bearer {{user_token}}
+Content-Type: application/json
 
-### =================================================================
-### [9] ADMIN — Xem tất cả (không filter)
-### Kỳ vọng: 200 OK, toàn bộ yêu cầu
-### =================================================================
+{
+  "requestType": "ACCOUNT_LOCK",
+  "title": "Yêu cầu khóa tài khoản gấp",
+  "requestDescription": "Tôi nghi tài khoản bị truy cập trái phép, xin khóa gấp.",
+  "fullname": "Phạm Quốc Minh",
+  "contactPhone": "0923456789",
+  "contactEmail": "minh.pham@gmail.com"
+}
+
+### [4] USER — Gửi yêu cầu BUG_REPORT (chỉ có email, không phone)
+### Kỳ vọng: 200 OK, status=PENDING, priority=NORMAL
+POST http://localhost:9999/api/contact-requests
+Authorization: Bearer {{user_token}}
+Content-Type: application/json
+
+{
+  "requestType": "BUG_REPORT",
+  "title": "Lỗi hiển thị biểu đồ tháng 4",
+  "requestDescription": "Màn hình báo cáo hiển thị sai tổng chi tháng 4/2026.",
+  "contactEmail": "minh.pham@gmail.com"
+}
+
+### [5] USER — Gửi yêu cầu EMERGENCY (priority tự động URGENT)
+### Kỳ vọng: 200 OK, status=PENDING, priority=URGENT
+POST http://localhost:9999/api/contact-requests
+Authorization: Bearer {{user_token}}
+Content-Type: application/json
+
+{
+  "requestType": "EMERGENCY",
+  "title": "Khẩn cấp: Phát hiện giao dịch lạ lúc 3h sáng",
+  "requestDescription": "Tôi không thực hiện giao dịch chi 50.000.000đ lúc 3h sáng. Nhờ kiểm tra gấp.",
+  "contactPhone": "0923456789"
+}
+
+### [6] USER — LỖI: Thiếu cả phone lẫn email
+### Kỳ vọng: 400 Bad Request — "Vui lòng cung cấp ít nhất SĐT hoặc email"
+POST http://localhost:9999/api/contact-requests
+Authorization: Bearer {{user_token}}
+Content-Type: application/json
+
+{
+  "requestType": "ACCOUNT_LOCK",
+  "title": "Khóa tài khoản"
+}
+
+### ══════════════════════════════════════════════════════════════════
+###  👤 USER — Xem lịch sử yêu cầu (GET /api/contact-requests/my)
+### ══════════════════════════════════════════════════════════════════
+
+### [7] USER — Xem lịch sử yêu cầu của mình
+### Kỳ vọng: 200 OK, danh sách request mới nhất lên đầu
+GET http://localhost:9999/api/contact-requests/my
+Authorization: Bearer {{user_token}}
+
+### ══════════════════════════════════════════════════════════════════
+###  🛡️ ADMIN — Xem danh sách yêu cầu (GET /api/contact-requests)
+### ══════════════════════════════════════════════════════════════════
+
+### [8] ADMIN — Xem tất cả (không filter)
+### Kỳ vọng: 200 OK, toàn bộ yêu cầu sắp theo priority + thời gian
 GET http://localhost:9999/api/contact-requests
 Authorization: Bearer {{admin_token}}
 
-### =================================================================
-### [10] ADMIN — Tiếp nhận xử lý (PENDING → PROCESSING)
-### Thay {id} bằng ID yêu cầu từ bước [2]
-### Kỳ vọng: 200 OK, processedBy=admin, processedAt!=null
-### =================================================================
+### [9] ADMIN — Lọc theo status=PENDING
+GET http://localhost:9999/api/contact-requests?status=PENDING
+Authorization: Bearer {{admin_token}}
+
+### [10] ADMIN — Lọc theo type=SUSPICIOUS_TX
+GET http://localhost:9999/api/contact-requests?type=SUSPICIOUS_TX
+Authorization: Bearer {{admin_token}}
+
+### [11] ADMIN — Lọc kết hợp: status=PENDING & type=ACCOUNT_LOCK
+GET http://localhost:9999/api/contact-requests?status=PENDING&type=ACCOUNT_LOCK
+Authorization: Bearer {{admin_token}}
+
+### ══════════════════════════════════════════════════════════════════
+###  🛡️ ADMIN — Duyệt yêu cầu (PATCH /api/contact-requests/{id}/resolve)
+### ══════════════════════════════════════════════════════════════════
+
+### [12] ADMIN — Tiếp nhận xử lý (PENDING → PROCESSING)
 PATCH http://localhost:9999/api/contact-requests/1/resolve
 Authorization: Bearer {{admin_token}}
 Content-Type: application/json
@@ -126,11 +143,9 @@ Content-Type: application/json
   "adminNote": "Đang xác minh thông tin qua SĐT."
 }
 
-### =================================================================
-### [11] ADMIN — Duyệt yêu cầu (PROCESSING → APPROVED)
-### Kỳ vọng: 200 OK, resolvedBy=admin, resolvedAt!=null
-### Nếu type=ACCOUNT_LOCK → tài khoản user bị khóa
-### =================================================================
+### [13] ADMIN — Duyệt (PROCESSING → APPROVED)
+### Nếu type=ACCOUNT_LOCK → backend tự gọi lockAccount()
+### Nếu type=ACCOUNT_UNLOCK → backend tự gọi unlockAccount()
 PATCH http://localhost:9999/api/contact-requests/1/resolve
 Authorization: Bearer {{admin_token}}
 Content-Type: application/json
@@ -140,10 +155,7 @@ Content-Type: application/json
   "adminNote": "Đã xác minh, chấp nhận khóa tài khoản."
 }
 
-### =================================================================
-### [12] ADMIN — Từ chối yêu cầu (→ REJECTED)
-### Test với yêu cầu BUG_REPORT từ bước [3]
-### =================================================================
+### [14] ADMIN — Từ chối (→ REJECTED)
 PATCH http://localhost:9999/api/contact-requests/2/resolve
 Authorization: Bearer {{admin_token}}
 Content-Type: application/json
@@ -153,10 +165,8 @@ Content-Type: application/json
   "adminNote": "Không tái hiện được lỗi, yêu cầu bổ sung thông tin."
 }
 
-### =================================================================
-### [13] ADMIN — Lỗi: Đặt status=PENDING
+### [15] ADMIN — LỖI: Đặt status=PENDING (không cho phép)
 ### Kỳ vọng: 400 Bad Request
-### =================================================================
 PATCH http://localhost:9999/api/contact-requests/1/resolve
 Authorization: Bearer {{admin_token}}
 Content-Type: application/json
@@ -166,10 +176,20 @@ Content-Type: application/json
   "adminNote": "Test lỗi"
 }
 
-### =================================================================
-### [14] USER — Lỗi: Truy cập API Admin
-### Kỳ vọng: 403 Forbidden
-### =================================================================
+### ══════════════════════════════════════════════════════════════════
+###  ⛔ PHÂN QUYỀN — User không được gọi API Admin
+### ══════════════════════════════════════════════════════════════════
+
+### [16] USER gọi API Admin (GET tất cả) → 403 Forbidden
 GET http://localhost:9999/api/contact-requests
 Authorization: Bearer {{user_token}}
 
+### [17] USER gọi API Admin (PATCH resolve) → 403 Forbidden
+PATCH http://localhost:9999/api/contact-requests/1/resolve
+Authorization: Bearer {{user_token}}
+Content-Type: application/json
+
+{
+  "requestStatus": "APPROVED",
+  "adminNote": "Hack thử"
+}

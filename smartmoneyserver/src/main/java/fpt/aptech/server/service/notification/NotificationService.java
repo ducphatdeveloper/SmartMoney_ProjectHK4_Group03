@@ -10,8 +10,14 @@ import java.util.List;
 public interface NotificationService {
     List<Notification> getMyNotifications(Integer accId);
     void markAsSent(Integer notificationId);
-    void markAsRead(Integer notificationId, Integer accId); // Sửa userId thành accId
+    void markAsRead(Integer notificationId, Integer accId);
     void markAllAsRead(Integer accId);
     void createNotification(Account account, String title, String content, NotificationType type, Long relatedId, LocalDateTime scheduledTime);
-    List<Notification> getNotificationsByType(NotificationType type);
+    List<Notification> getNotificationsByType(Integer notifyType);
+
+    /**
+     * Lấy thông báo của 1 user theo notifyType.
+     * Dùng cho Admin đọc thông báo SYSTEM (type=4) của chính mình.
+     */
+    List<Notification> getMyNotificationsByType(Integer accId, Integer notifyType);
 }

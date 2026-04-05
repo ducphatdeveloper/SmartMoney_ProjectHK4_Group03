@@ -101,8 +101,17 @@ public class NotificationServiceImp implements NotificationService {
     }
 
     @Override
-    public List<Notification> getNotificationsByType(NotificationType type) {
-        // Gọi repository để lấy thông báo theo notifyType và sắp xếp mới nhất lên đầu
-        return notificationRepository.findAllByNotifyTypeOrderByScheduledTimeDesc(type);
+    public List<Notification> getNotificationsByType(Integer notifyType) {
+        // Gọi repository để lấy thông báo theo notifyType (Integer) và sắp xếp mới nhất lên đầu
+        return notificationRepository.findAllByNotifyTypeOrderByScheduledTimeDesc(notifyType);
+    }
+
+    /**
+     * Lấy thông báo của 1 user theo notifyType.
+     * Admin dùng để đọc thông báo SYSTEM (type=4) của chính mình.
+     */
+    @Override
+    public List<Notification> getMyNotificationsByType(Integer accId, Integer notifyType) {
+        return notificationRepository.findAllByAccount_IdAndNotifyTypeOrderByScheduledTimeDesc(accId, notifyType);
     }
 }

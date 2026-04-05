@@ -39,45 +39,61 @@ public class ContactRequestServiceImpl implements ContactRequestService {
     @Transactional
     public ContactRequestResponse createRequest(int accId, ContactRequestCreateRequest request) {
 
-        // [1] Validate: ACCOUNT_LOCK / ACCOUNT_UNLOCK bắt buộc có contact_phone
-        if ((request.requestType() == ContactRequestType.ACCOUNT_LOCK
-                || request.requestType() == ContactRequestType.ACCOUNT_UNLOCK)
-                && (request.contactPhone() == null || request.contactPhone().isBlank())) {
-            throw new IllegalArgumentException(
-                    "Yêu cầu khóa/mở khóa tài khoản bắt buộc phải cung cấp số điện thoại liên hệ.");
-        }
-
-        // [2] Lấy thông tin User
+        // [1] Lấy thông tin User
         Account currentUser = accountRepository.findById(accId)
                 .orElseThrow(() -> new IllegalArgumentException("Tài khoản không tồn tại."));
+
+        // [2] Validate: phải có ít nhất phone HOẶC email liên hệ
+        boolean hasPhone = request.contactPhone() != null && !request.contactPhone().isBlank();
+        boolean hasEmail = request.contactEmail() != null && !request.contactEmail().isBlank();
+        if (!hasPhone && !hasEmail) {
+            throw new IllegalArgumentException(
+                    "Vui lòng cung cấp ít nhất một số điện thoại hoặc địa chỉ email để liên hệ.");
+        }
 
         // [3] Map DTO → Entity
         ContactRequest entity = contactRequestMapper.toEntity(request);
         entity.setAccount(currentUser);
         entity.setRequestStatus(ContactRequestStatus.PENDING);
 
-        // [4] Tự động set URGENT nếu type là SUSPICIOUS_TX
-        if (request.requestType() == ContactRequestType.SUSPICIOUS_TX) {
+        // [4] Set fullname: ưu tiên user tự nhập, fallback về account.fullname
+        if (request.fullname() != null && !request.fullname().isBlank()) {
+            entity.setFullname(request.fullname());
+        } else if (currentUser.getFullname() != null && !currentUser.getFullname().isBlank()) {
+            entity.setFullname(currentUser.getFullname());
+        } else {
+            entity.setFullname(currentUser.getAccEmail()); // fallback tối thiểu
+        }
+
+        // [5] Set priority theo rule database:
+        //     URGENT : SUSPICIOUS_TX, EMERGENCY
+        //     HIGH   : ACCOUNT_LOCK, ACCOUNT_UNLOCK, DATA_LOSS
+        //     NORMAL : BUG_REPORT, DATA_RECOVERY, GENERAL, FORGOT_PASSWORD
+        ContactRequestType rType = request.requestType();
+        if (rType == ContactRequestType.SUSPICIOUS_TX || rType == ContactRequestType.EMERGENCY) {
             entity.setRequestPriority(ContactRequestPriority.URGENT);
+        } else if (rType == ContactRequestType.ACCOUNT_LOCK
+                || rType == ContactRequestType.ACCOUNT_UNLOCK
+                || rType == ContactRequestType.DATA_LOSS) {
+            entity.setRequestPriority(ContactRequestPriority.HIGH);
         } else {
             entity.setRequestPriority(ContactRequestPriority.NORMAL);
         }
 
-        // [5] Lưu vào DB
+        // [6] Lưu vào DB
         ContactRequest saved = contactRequestRepository.save(entity);
 
-        // [6] Gửi thông báo cho tất cả Admin: "Có yêu cầu mới cần xử lý"
+        // [7] Gửi thông báo cho tất cả Admin: "Có yêu cầu mới cần xử lý"
         List<Account> admins = accountRepository.findByRole_RoleCode("ROLE_ADMIN");
         for (Account admin : admins) {
             notificationService.createNotification(
                     admin,
                     "Yêu cầu hỗ trợ mới",
-                    "Có yêu cầu mới [" + request.requestType() + "] từ "
-                            + (currentUser.getFullname() != null ? currentUser.getFullname() : currentUser.getAccEmail())
-                            + " cần xử lý.",
+                    "Có yêu cầu [" + request.requestType() + "] từ "
+                            + entity.getFullname() + " cần xử lý.",
                     NotificationType.SYSTEM,
                     saved.getId().longValue(),
-                    null // Gửi ngay, không hẹn lịch
+                    null
             );
         }
 
@@ -148,9 +164,8 @@ public class ContactRequestServiceImpl implements ContactRequestService {
             entity.setAdminNote(request.adminNote());
         }
 
-        // [5] Nếu chuyển sang PROCESSING → set processedBy + processedAt
-        if (newStatus == ContactRequestStatus.PROCESSING) {
-            entity.setProcessedBy(admin);
+        // [5] Nếu chuyển sang PROCESSING → set processedAt
+        if (newStatus == ContactRequestStatus.PROCESSING && entity.getProcessedAt() == null) {
             entity.setProcessedAt(LocalDateTime.now());
         }
 
@@ -158,22 +173,18 @@ public class ContactRequestServiceImpl implements ContactRequestService {
         if (newStatus == ContactRequestStatus.APPROVED || newStatus == ContactRequestStatus.REJECTED) {
             entity.setResolvedBy(admin);
             entity.setResolvedAt(LocalDateTime.now());
-
             // Nếu chưa ai nhận xử lý → Admin vừa nhận vừa duyệt luôn
-            if (entity.getProcessedBy() == null) {
-                entity.setProcessedBy(admin);
+            if (entity.getProcessedAt() == null) {
                 entity.setProcessedAt(LocalDateTime.now());
             }
         }
 
         // [7] Xử lý nghiệp vụ đặc biệt khi APPROVED
-        if (newStatus == ContactRequestStatus.APPROVED) {
+        if (newStatus == ContactRequestStatus.APPROVED && entity.getAccount() != null) {
             if (entity.getRequestType() == ContactRequestType.ACCOUNT_LOCK) {
-                // Khóa tài khoản của user gửi yêu cầu
                 adminService.lockAccount(entity.getAccount().getId());
             }
             if (entity.getRequestType() == ContactRequestType.ACCOUNT_UNLOCK) {
-                // Mở khóa tài khoản của user gửi yêu cầu
                 adminService.unlockAccount(entity.getAccount().getId());
             }
         }
@@ -181,21 +192,23 @@ public class ContactRequestServiceImpl implements ContactRequestService {
         // [8] Lưu vào DB
         ContactRequest saved = contactRequestRepository.save(entity);
 
-        // [9] Gửi thông báo cho User: "Yêu cầu của bạn đã được xử lý"
-        String statusLabel = switch (newStatus) {
-            case PROCESSING -> "đang được xử lý";
-            case APPROVED   -> "đã được chấp nhận";
-            case REJECTED   -> "đã bị từ chối";
-            default         -> "đã được cập nhật";
-        };
-        notificationService.createNotification(
-                entity.getAccount(),
-                "Cập nhật yêu cầu hỗ trợ",
-                "Yêu cầu \"" + entity.getTitle() + "\" " + statusLabel + ".",
-                NotificationType.SYSTEM,
-                saved.getId().longValue(),
-                null
-        );
+        // [9] Gửi thông báo cho User (nếu có account — guest không nhận được)
+        if (entity.getAccount() != null) {
+            String statusLabel = switch (newStatus) {
+                case PROCESSING -> "đang được xử lý";
+                case APPROVED   -> "đã được chấp nhận";
+                case REJECTED   -> "đã bị từ chối";
+                default         -> "đã được cập nhật";
+            };
+            notificationService.createNotification(
+                    entity.getAccount(),
+                    "Cập nhật yêu cầu hỗ trợ",
+                    "Yêu cầu \"" + entity.getTitle() + "\" " + statusLabel + ".",
+                    NotificationType.SYSTEM,
+                    saved.getId().longValue(),
+                    null
+            );
+        }
 
         return contactRequestMapper.toResponse(saved);
     }
@@ -206,10 +219,14 @@ public class ContactRequestServiceImpl implements ContactRequestService {
 
     @Override
     @Transactional
-    public void createSuspiciousRequest(int accId, String description) {
+    public ContactRequest createSuspiciousRequest(int accId, String description) {
 
         Account user = accountRepository.findById(accId)
                 .orElseThrow(() -> new IllegalArgumentException("Tài khoản không tồn tại."));
+
+        // fullname: ưu tiên fullname của account, fallback về email
+        String displayName = (user.getFullname() != null && !user.getFullname().isBlank())
+                ? user.getFullname() : user.getAccEmail();
 
         ContactRequest entity = ContactRequest.builder()
                 .account(user)
@@ -217,11 +234,15 @@ public class ContactRequestServiceImpl implements ContactRequestService {
                 .requestPriority(ContactRequestPriority.URGENT)
                 .title("Hệ thống phát hiện giao dịch bất thường")
                 .requestDescription(description)
+                .fullname(displayName)
+                .contactPhone(user.getAccPhone())
+                .contactEmail(user.getAccEmail())
                 .requestStatus(ContactRequestStatus.PENDING)
                 .build();
 
-        contactRequestRepository.save(entity);
-        // KHÔNG gửi notification ở đây — TransactionService sẽ tự gửi cho user.
+        // Trả về entity đã lưu để TransactionService lấy ID làm related_id cho notification Admin
+        // KHÔNG gửi notification ở đây — TransactionService tự gửi cho User VÀ tất cả Admin.
+        return contactRequestRepository.save(entity);
     }
 }
 

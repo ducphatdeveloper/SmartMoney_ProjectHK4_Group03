@@ -15,15 +15,13 @@ import java.time.LocalDateTime;
 public record ContactRequestResponse(
         Integer id,
 
-        // Thông tin người gửi (để Admin dễ xem, không trả password)
+        // Thông tin tài khoản gửi (nullable nếu guest)
         Integer accId,
         String accEmail,
         String accPhone,
         String accFullname,
 
-        // Thông tin người xử lý
-        Integer processedById,
-        String processedByName,
+        // Người duyệt cuối (Admin)
         Integer resolvedById,
         String resolvedByName,
 
@@ -32,7 +30,11 @@ public record ContactRequestResponse(
         ContactRequestPriority requestPriority,
         String title,
         String requestDescription,
+
+        // Thông tin liên hệ người gửi (do user tự nhập hoặc backend gán)
+        String fullname,
         String contactPhone,
+        String contactEmail,
 
         // Trạng thái & ghi chú
         ContactRequestStatus requestStatus,
@@ -44,4 +46,3 @@ public record ContactRequestResponse(
         LocalDateTime createdAt,
         LocalDateTime updatedAt
 ) {}
-

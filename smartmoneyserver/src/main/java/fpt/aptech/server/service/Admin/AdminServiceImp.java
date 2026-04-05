@@ -191,7 +191,7 @@ public class AdminServiceImp implements AdminService {
     public List<Notification> getAdminNotifications(Integer adminId) {
         // Lấy tất cả thông báo loại SYSTEM (Hành động quản trị, Cảnh báo bảo mật)
         // Đây là luồng thông báo tập trung để Admin theo dõi biến động hệ thống.
-        return notificationService.getNotificationsByType(NotificationType.SYSTEM); 
+        return notificationService.getNotificationsByType(NotificationType.SYSTEM.getValue());
     }
 
     /**

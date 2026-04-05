@@ -402,4 +402,36 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
     // Lấy toàn bộ lịch sử giao dịch của một tài khoản (không phân trang)
     @Query("SELECT t FROM Transaction t WHERE t.account.id = :accountId ORDER BY t.transDate DESC")
     List<Transaction> findAllByAccount_IdOrderByTransDateDesc(@Param("accountId") Integer accountId);
+
+    // =================================================================================
+    // 12. CÁC HÀM PHÁT HIỆN GIAO DỊCH BẤT THƯỜNG (SUSPICIOUS DETECTION)
+    // =================================================================================
+
+    /// [SUSPICIOUS-SPAM] Đếm số giao dịch cùng amount của 1 user được TẠO RA trong N phút gần nhất.
+    /// Dùng created_at (thời điểm hệ thống ghi nhận) thay vì trans_date để tránh false-positive
+    /// khi user nhập giao dịch ngược về quá khứ.
+    @Query("SELECT COUNT(t) FROM Transaction t " +
+           "WHERE t.account.id = :accountId " +
+           "  AND t.amount = :amount " +
+           "  AND t.createdAt >= :since " +
+           "  AND t.deleted = false")
+    long countSameAmountCreatedAfter(
+            @Param("accountId") Integer accountId,
+            @Param("amount") BigDecimal amount,
+            @Param("since") LocalDateTime since
+    );
+
+    /// [SUSPICIOUS-REPEAT] Kiểm tra có giao dịch cùng amount trong khung thời gian nhất định hay không.
+    /// Dùng cho phát hiện lặp ngày: cùng số tiền, cùng giờ ±30 phút, trong 3 ngày liên tiếp.
+    @Query("SELECT CASE WHEN COUNT(t) > 0 THEN true ELSE false END FROM Transaction t " +
+           "WHERE t.account.id = :accountId " +
+           "  AND t.amount = :amount " +
+           "  AND t.transDate BETWEEN :from AND :to " +
+           "  AND t.deleted = false")
+    boolean existsSameAmountInWindow(
+            @Param("accountId") Integer accountId,
+            @Param("amount") BigDecimal amount,
+            @Param("from") LocalDateTime from,
+            @Param("to") LocalDateTime to
+    );
 }

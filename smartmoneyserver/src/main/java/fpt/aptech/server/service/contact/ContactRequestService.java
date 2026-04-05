@@ -3,6 +3,7 @@ package fpt.aptech.server.service.contact;
 import fpt.aptech.server.dto.contact.ContactRequestCreateRequest;
 import fpt.aptech.server.dto.contact.ContactRequestResolveRequest;
 import fpt.aptech.server.dto.contact.ContactRequestResponse;
+import fpt.aptech.server.entity.ContactRequest;
 
 import java.util.List;
 
@@ -37,8 +38,10 @@ public interface ContactRequestService {
 
     /**
      * Tạo yêu cầu tự động khi hệ thống phát hiện giao dịch bất thường.
-     * INTERNAL — gọi từ TransactionService, KHÔNG gửi notification ở đây.
+     * INTERNAL — gọi từ TransactionService.
+     * Trả về entity đã lưu để TransactionService lấy ID làm related_id cho notification Admin.
+     * KHÔNG gửi notification ở đây — TransactionService tự gửi cho User VÀ tất cả Admin.
      */
-    void createSuspiciousRequest(int accId, String description);
+    ContactRequest createSuspiciousRequest(int accId, String description);
 }
 

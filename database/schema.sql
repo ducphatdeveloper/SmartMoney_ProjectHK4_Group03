@@ -2180,7 +2180,136 @@ VALUES
 -- Type 8: DEBT_LOAN
 (6, 8, 6,    N'Nhắc khoản nợ',        N'Khoản vay bạn thân mua laptop còn 9,000,000đ. Hạn trả tiếp theo: 15/03/2026',   '2026-03-01 09:00:00', 1, 0),
 -- Type 9: REMINDER
-(6, 9, NULL, N'Nhắc ghi chép',        N'Bạn chưa ghi chép chi tiêu hôm nay! Hãy dành 2 phút cập nhật sổ chi tiêu 📝',   '2026-03-13 21:00:00', 0, 0);
+(6, 9, NULL, N'Nhắc ghi chép',        N'Bạn chưa ghi chép chi tiêu hôm nay! Hãy dành 2 phút cập nhật sổ chi tiêu 📝',   '2026-03-13 21:00:00', 0, 0),
+(6, 9, NULL, N'Nhắc ghi chép',        N'Bạn chưa ghi chép chi tiêu hôm nay! Hãy dành 2 phút cập nhật sổ chi tiêu 📝',   '2026-05-9 21:00:00', 0, 0);
+GO
+-- ======================================================================
+-- FIX: DỮ LIỆU MẪU BỔ SUNG — Thông báo cảnh báo giao dịch bất thường
+-- ======================================================================
+-- Quy ước related_id:
+--   (A) Thông báo USER  → related_id = ID giao dịch bất thường (tTransactions)
+--                         → Flutter click → nhảy tới chi tiết giao dịch
+--   (B) Thông báo ADMIN → related_id = ID ticket tương ứng (tContactRequests)
+--                         → Admin click → nhảy tới ticket cần xử lý
+--
+-- Kịch bản phát hiện bất thường (đã bỏ rule giờ khuya):
+--   NHÓM 1: Phạm Quốc Minh   (acc=6)  — Chi 75tr vượt ngưỡng 50tr
+--   NHÓM 2: Đặng Khánh Thảo  (acc=9)  — Chi 200k lặp lại 3 lần liên tiếp
+--   NHÓM 3: Đỗ Mạnh Đức      (acc=12) — Chi 80tr vượt ngưỡng 50tr
+--   NHÓM 4: Nguyễn Thị Hoa   (acc=13) — Chi 60tr vượt ngưỡng 50tr
+--
+-- Tham chiếu tx_id giả định (thay bằng ID thực trong tTransactions):
+--   tx_id=101 → Phạm Quốc Minh   chi 75.000.000đ ngày 20/03
+--   tx_id=102 → Đặng Khánh Thảo  chi 200.000đ lần 3 ngày 18/03
+--   tx_id=103 → Đỗ Mạnh Đức      chi 80.000.000đ ngày 03/04
+--   tx_id=104 → Nguyễn Thị Hoa   chi 60.000.000đ ngày 02/04
+-- ======================================================================
+
+-- ======================================================================
+-- FIX: DỮ LIỆU MẪU BỔ SUNG — Thông báo cảnh báo giao dịch bất thường (ALL FOR ACC=6)
+-- ======================================================================
+
+INSERT INTO tNotifications (acc_id, notify_type, related_id, title, content, scheduled_time, notify_sent, notify_read) VALUES
+
+-- Kịch bản 1: Chi 75tr vượt ngưỡng (APPROVED / Đã xử lý)
+(6,  4, 101, N'⚠️ Cảnh báo giao dịch bất thường',
+ N'Giao dịch chi 75.000.000đ vượt ngưỡng cảnh báo 50.000.000đ. Không phải bạn thực hiện? Liên hệ hỗ trợ ngay.',
+ '2026-03-20 03:17:43', 1, 1),
+
+(1,  4, 2,   N'🚨 [URGENT] Giao dịch bất thường cần xử lý',
+ N'Phạm Quốc Minh (0923456789): Chi 75.000.000đ vượt ngưỡng 50tr. Ticket #2 đang chờ duyệt.',
+ '2026-03-20 03:17:43', 1, 1),
+
+-- Kịch bản 2: Lặp 3 lần liên tiếp
+(6,  4, 102, N'⚠️ Cảnh báo giao dịch bất thường',
+ N'Phát hiện giao dịch 200.000đ xuất hiện đúng 3 lần vào cùng khung giờ 14h trong 3 ngày liên tiếp. Vui lòng kiểm tra tài khoản.',
+ '2026-03-18 14:05:12', 1, 1),
+
+(1,  4, 2,  N'🚨 [URGENT] Giao dịch bất thường cần xử lý',
+ N'Phạm Quốc Minh (0923456789): 200.000đ lặp 3 lần tại khung giờ 14h. Ticket chờ kiểm tra.',
+ '2026-03-18 14:05:12', 1, 1),
+
+-- Kịch bản 3: Chi 80tr vượt ngưỡng, PENDING (User chưa đọc)
+(6,  4, 103, N'⚠️ Cảnh báo giao dịch bất thường',
+ N'Giao dịch chi 80.000.000đ vượt ngưỡng cảnh báo 50.000.000đ. Không phải bạn thực hiện? Liên hệ hỗ trợ ngay.',
+ '2026-04-03 09:23:06', 1, 0),
+
+(1,  4, 2,  N'🚨 [URGENT] Giao dịch bất thường cần xử lý',
+ N'Phạm Quốc Minh (0923456789): Chi 80.000.000đ vượt ngưỡng 50tr. Ticket đang chờ xử lý.',
+ '2026-04-03 09:23:06', 1, 0),
+
+-- Kịch bản 4: Chi 60tr vượt ngưỡng, PROCESSING
+(6,  4, 104, N'⚠️ Cảnh báo giao dịch bất thường',
+ N'Giao dịch chi 60.000.000đ vượt ngưỡng cảnh báo 50.000.000đ. Tài khoản đang được kiểm tra, vui lòng chờ.',
+ '2026-04-02 16:01:39', 1, 0),
+
+(1,  4, 2,  N'🚨 [URGENT] Giao dịch bất thường cần xử lý',
+ N'Phạm Quốc Minh (0923456789): Chi 60.000.000đ vượt ngưỡng 50tr. Ticket đang xử lý.',
+ '2026-04-02 16:01:39', 1, 1),
+
+-- ══════════════════════════════════════════════════════════════════════
+-- NHÓM 2: Đặng Khánh Thảo (acc_id=9) — 200k lặp 3 lần liên tiếp
+-- ══════════════════════════════════════════════════════════════════════
+
+-- (A) User
+-- Cũ: "lặp lại 3 lần liên tiếp cùng số tiền"
+-- Mới:
+(9,  4, 102, N'⚠️ Cảnh báo giao dịch bất thường',
+ N'Phát hiện giao dịch 200.000đ xuất hiện đúng 3 lần vào cùng khung giờ 14h trong 3 ngày liên tiếp. Vui lòng kiểm tra tài khoản.',
+ '2026-03-18 14:05:12', 1, 1),
+
+-- (B) Admin
+(1,  4, 12,  N'🚨 [URGENT] Giao dịch bất thường cần xử lý',
+ N'Đặng Khánh Thảo (0956789012): 200.000đ lặp 3 lần tại khung giờ 14h trong 3 ngày liên tiếp. Ticket #12.',
+ '2026-03-18 14:05:12', 1, 1),
+
+-- ══════════════════════════════════════════════════════════════════════
+-- NHÓM 3: Đỗ Mạnh Đức (acc_id=12) — Chi 80tr vượt ngưỡng, PENDING
+-- ══════════════════════════════════════════════════════════════════════
+
+-- (A) User — chưa đọc (notify_read=0)
+(12, 4, 103, N'⚠️ Cảnh báo giao dịch bất thường',
+ N'Giao dịch chi 80.000.000đ vượt ngưỡng cảnh báo 50.000.000đ. Không phải bạn thực hiện? Liên hệ hỗ trợ ngay.',
+ '2026-04-03 09:23:06', 1, 0),
+
+-- (B) Admin — chưa đọc
+(1,  4, 16,  N'🚨 [URGENT] Giao dịch bất thường cần xử lý',
+ N'Đỗ Mạnh Đức (0989012345): Chi 80.000.000đ vượt ngưỡng 50tr. Ticket #16 đang chờ xử lý.',
+ '2026-04-03 09:23:06', 1, 0),
+
+-- ══════════════════════════════════════════════════════════════════════
+-- NHÓM 4: Nguyễn Thị Hoa (acc_id=13) — Chi 60tr vượt ngưỡng, PROCESSING
+-- ══════════════════════════════════════════════════════════════════════
+
+-- (A) User — chưa đọc
+(13, 4, 104, N'⚠️ Cảnh báo giao dịch bất thường',
+ N'Giao dịch chi 60.000.000đ vượt ngưỡng cảnh báo 50.000.000đ. Tài khoản đang được kiểm tra, vui lòng chờ.',
+ '2026-04-02 16:01:39', 1, 0),
+
+-- (B) Admin — đã đọc (đang xử lý)
+(1,  4, 17,  N'🚨 [URGENT] Giao dịch bất thường cần xử lý',
+ N'Nguyễn Thị Hoa (0911223344): Chi 60.000.000đ vượt ngưỡng 50tr. Ticket #17 đang xử lý.',
+ '2026-04-02 16:01:39', 1, 1),
+
+-- ══════════════════════════════════════════════════════════════════════
+-- NHÓM 5: User tự gửi ContactRequest — Admin nhận thông báo
+-- Không có thông báo (A) cho user vì họ tự gửi, đã biết rồi
+-- ══════════════════════════════════════════════════════════════════════
+
+-- Phạm Quốc Minh gửi ACCOUNT_LOCK (contactRequest.id=1)
+(1,  4, 1,   N'📋 Yêu cầu hỗ trợ mới: ACCOUNT_LOCK',
+ N'Phạm Quốc Minh (0923456789): Yêu cầu khóa tài khoản khẩn — điện thoại bị mất. Ticket #1.',
+ '2026-03-10 09:00:01', 1, 1),
+
+-- Trần Thị Mai gửi DATA_RECOVERY (contactRequest.id=6)
+(1,  4, 6,   N'📋 Yêu cầu hỗ trợ mới: DATA_RECOVERY',
+ N'Trần Thị Mai (0912345678): Mất toàn bộ giao dịch tháng 1 sau cài lại app. Ticket #6.',
+ '2026-02-10 11:00:01', 1, 1),
+
+-- Võ Thị Linh gửi ACCOUNT_UNLOCK (contactRequest.id=10)
+(1,  4, 10,  N'📋 Yêu cầu hỗ trợ mới: ACCOUNT_UNLOCK',
+ N'Võ Thị Linh (0967890123): Yêu cầu mở khóa tài khoản sau xác minh. Ticket #10.',
+ '2026-03-08 13:00:01', 1, 0);
 GO
 --------------
 --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -2402,69 +2531,214 @@ PRINT N'✅ Đã tạo 6 budgets: A=' + CAST(@A AS VARCHAR) + ' B=' + CAST(@B AS
     + ' E=' + CAST(@E AS VARCHAR) + ' F=' + CAST(@F AS VARCHAR);
 GO
 -- ======================================================================
--- 19 BẢNG YÊU CẦU HỖ TRỢ / LIÊN HỆ TỪ NGƯỜI DÙNG
+-- 19. BẢNG YÊU CẦU HỖ TRỢ / LIÊN HỆ TỪ NGƯỜI DÙNG
+-- ======================================================================
+-- acc_id = NULL  → Guest chưa có tài khoản hoặc user bị khóa dùng form public
+-- acc_id != NULL → User đã login hoặc hệ thống tạo tự động (SUSPICIOUS_TX)
+--
+-- request_type    | Cần login?
+-- ----------------+------------------------------------------------------
+-- ACCOUNT_LOCK    | Cần login   — đang dùng app, muốn tự khóa tài khoản
+-- SUSPICIOUS_TX   | Cần login   — TransactionService tự tạo, không qua API
+-- ACCOUNT_UNLOCK  | Không login — bị khóa, vào form public ở trang Login
+-- FORGOT_PASSWORD | Không login — quên mật khẩu, vào form public
+-- EMERGENCY       | Không login — bị hack / giao dịch lạ khi đang bị khóa
+-- BUG_REPORT      | Cả 2        — báo lỗi app
+-- DATA_RECOVERY   | Cả 2        — yêu cầu khôi phục dữ liệu bị mất
+-- DATA_LOSS       | Cả 2        — báo mất dữ liệu sau update app
+-- GENERAL         | Cả 2        — góp ý / câu hỏi thông thường
+--
+-- request_priority (Độ ưu tiên) — backend tự set theo rule, client KHÔNG truyền:
+--   URGENT  (Khẩn cấp) : SUSPICIOUS_TX, EMERGENCY
+--   HIGH    (Cao)       : ACCOUNT_LOCK, ACCOUNT_UNLOCK, DATA_LOSS
+--   NORMAL  (Bình thường): BUG_REPORT, DATA_RECOVERY, GENERAL, FORGOT_PASSWORD
+--
+-- request_status (Trạng thái xử lý) — luồng duyệt:
+--   PENDING    (Chờ xử lý)  → PROCESSING (Đang xử lý)
+--   PROCESSING (Đang xử lý) → APPROVED   (Đã duyệt) | REJECTED (Từ chối)
+--   APPROVED type ACCOUNT_LOCK / ACCOUNT_UNLOCK / SUSPICIOUS_TX / EMERGENCY
+--            → backend tự UPDATE tAccounts SET locked = 1 / 0
+--
+-- fullname — tên người gửi:
+--   User đã login : backend tự gán từ tAccounts.fullname, user có thể sửa lại
+--   Guest         : user tự nhập, bắt buộc phải có
 -- ======================================================================
 CREATE TABLE tContactRequests (
     -- PRIMARY KEY
     id                   INT PRIMARY KEY IDENTITY(1,1),
-
+ 
     -- FOREIGN KEYS
-    acc_id               INT NOT NULL,                               -- FK -> tAccounts (N-1) | Tài khoản gửi yêu cầu
-    processed_by         INT NULL,                                   -- FK -> tAccounts (N-1) | Staff nhận xử lý
-    resolved_by          INT NULL,                                   -- FK -> tAccounts (N-1) | Admin duyệt cuối
-
+    acc_id               INT            NULL,                               -- FK -> tAccounts (N-1) | NULL nếu guest/bị khóa dùng form public
+    resolved_by          INT            NULL,                               -- FK -> tAccounts (N-1) | Admin duyệt cuối (PROCESSING → APPROVED/REJECTED)
+ 
     -- DATA COLUMNS
-    request_type         NVARCHAR(30)   NOT NULL,                   -- ACCOUNT_LOCK | ACCOUNT_UNLOCK | BUG_REPORT | SUSPICIOUS_TX | DATA_RECOVERY | DATA_LOSS | GENERAL
-    request_priority     NVARCHAR(10)   NOT NULL DEFAULT 'NORMAL',  -- URGENT | HIGH | NORMAL (Spring Boot tự set khi tạo)
-    title                NVARCHAR(200)  NOT NULL,                   -- Tiêu đề ngắn gọn do user nhập
-    request_description  NVARCHAR(2000) NULL,                       -- Mô tả chi tiết vấn đề
-    contact_phone        NVARCHAR(20)   NULL,                       -- Bắt buộc với ACCOUNT_LOCK/UNLOCK, tùy chọn còn lại
-    request_status       NVARCHAR(20)   NOT NULL DEFAULT 'PENDING', -- PENDING → PROCESSING → APPROVED | REJECTED
-    processed_at         DATETIME       NULL,                       -- Thời điểm staff nhận xử lý
-    resolved_at          DATETIME       NULL,                       -- Thời điểm admin duyệt
-    admin_note           NVARCHAR(1000) NULL,                       -- Ghi chú nội bộ của staff / admin
+    request_type         NVARCHAR(30)   NOT NULL,                          -- Loại yêu cầu — xem bảng phân loại ở header
+    request_priority     NVARCHAR(10)   NOT NULL DEFAULT 'NORMAL',         -- Độ ưu tiên: URGENT (Khẩn cấp) | HIGH (Cao) | NORMAL (Bình thường) — backend tự set
+    title                NVARCHAR(200)  NOT NULL,                          -- Tiêu đề ngắn gọn (user nhập hoặc hệ thống tự tạo)
+    request_description  NVARCHAR(2000) NULL,                              -- Mô tả chi tiết vấn đề
+ 
+    -- Thông tin người gửi — dùng để Admin liên hệ lại xác minh
+    -- Nếu user đã login: backend tự gán từ tAccounts, user có thể sửa lại
+    -- Nếu guest (acc_id=NULL): user tự nhập, bắt buộc phải có tên
+    fullname             NVARCHAR(60)   NOT NULL,                          -- Họ tên người gửi — bắt buộc (tự gán từ acc nếu đã login)
+    contact_phone        NVARCHAR(20)   NULL,                              -- SĐT liên hệ    — bắt buộc có phone HOẶC email, validate ở backend
+    contact_email        NVARCHAR(100)  NULL,                              -- Email liên hệ  — bắt buộc có phone HOẶC email, validate ở backend
+ 
+    request_status       NVARCHAR(20)   NOT NULL DEFAULT 'PENDING',        -- Trạng thái xử lý — xem luồng duyệt ở header
+    processed_at         DATETIME       NULL,                              -- Thời điểm Admin nhận xử lý (chuyển sang PROCESSING)
+    resolved_at          DATETIME       NULL,                              -- Thời điểm Admin duyệt xong (chuyển sang APPROVED/REJECTED)
+    admin_note           NVARCHAR(1000) NULL,                              -- Ghi chú nội bộ của Admin khi xử lý (user không thấy)
     created_at           DATETIME       NOT NULL DEFAULT GETDATE(),
     updated_at           DATETIME       NOT NULL DEFAULT GETDATE(),
-
+ 
     -- CONSTRAINTS
-    CONSTRAINT CHK_ContactReq_Type     CHECK (request_type     IN ('ACCOUNT_LOCK', 'ACCOUNT_UNLOCK', 'BUG_REPORT', 'SUSPICIOUS_TX', 'DATA_RECOVERY', 'DATA_LOSS', 'GENERAL')),
+    CONSTRAINT CHK_ContactReq_Type CHECK (
+        request_type IN (
+            'ACCOUNT_LOCK',      -- Cần login    — tự khóa tài khoản
+            'SUSPICIOUS_TX',     -- Cần login    — hệ thống tự tạo khi giao dịch bất thường
+            'ACCOUNT_UNLOCK',    -- Không login  — mở khóa tài khoản đang bị khóa
+            'FORGOT_PASSWORD',   -- Không login  — quên mật khẩu
+            'EMERGENCY',         -- Không login  — khẩn cấp khi bị hack / giao dịch lạ
+            'BUG_REPORT',        -- Cả 2         — báo lỗi app
+            'DATA_RECOVERY',     -- Cả 2         — khôi phục dữ liệu
+            'DATA_LOSS',         -- Cả 2         — mất dữ liệu
+            'GENERAL'            -- Cả 2         — góp ý / câu hỏi
+        )
+    ),
     CONSTRAINT CHK_ContactReq_Priority CHECK (request_priority IN ('URGENT', 'HIGH', 'NORMAL')),
     CONSTRAINT CHK_ContactReq_Status   CHECK (request_status   IN ('PENDING', 'PROCESSING', 'APPROVED', 'REJECTED')),
     CONSTRAINT FK_ContactReq_Account   FOREIGN KEY (acc_id)       REFERENCES tAccounts(id),
-    CONSTRAINT FK_ContactReq_Staff     FOREIGN KEY (processed_by) REFERENCES tAccounts(id),
     CONSTRAINT FK_ContactReq_Admin     FOREIGN KEY (resolved_by)  REFERENCES tAccounts(id)
 );
 GO
-
+ 
 -- Index: Tối ưu Admin dashboard load danh sách theo trạng thái + độ ưu tiên
-CREATE INDEX idx_contact_status ON tContactRequests(request_status, request_priority, created_at DESC);
-
--- Index: Tối ưu User xem lịch sử yêu cầu của mình
-CREATE INDEX idx_contact_acc    ON tContactRequests(acc_id, created_at DESC);
-
+CREATE INDEX idx_contact_status ON tContactRequests(request_status, request_priority, created_at DESC); 
+-- Index: Tối ưu User xem lịch sử yêu cầu của mình (chỉ index dòng có acc_id — bỏ qua guest)
+CREATE INDEX idx_contact_acc    ON tContactRequests(acc_id, created_at DESC) WHERE acc_id IS NOT NULL; 
 -- Index: Tối ưu lọc theo loại yêu cầu (báo cáo thống kê Admin)
 CREATE INDEX idx_contact_type   ON tContactRequests(request_type, request_status);
 GO
+ 
+-- ======================================================================
+-- FIX: DỮ LIỆU MẪU: tContactRequests (Bỏ processed_by, Cập nhật mẫu thông báo)
+-- ======================================================================
+INSERT INTO tContactRequests (
+    acc_id, request_type, request_priority, title, request_description, 
+    fullname, contact_phone, contact_email, 
+    request_status, processed_at, resolved_by, resolved_at, admin_note
+) VALUES
 
--- DỮ LIỆU MẪU: Yêu cầu hỗ trợ
-INSERT INTO tContactRequests (acc_id, request_type, request_priority, title, request_description, contact_phone, request_status, processed_by, processed_at, resolved_by, resolved_at, admin_note) VALUES
+-- ══════════════════════════════════════════════════════════════════════
+-- USER 6 — Phạm Quốc Minh — Đủ 9 loại Request
+-- ══════════════════════════════════════════════════════════════════════
 
--- ── User 6 (Minh Phạm — nhân vật chính) ─────────────────────────────────────
-(6,  'ACCOUNT_LOCK',   'HIGH',   N'Yêu cầu khóa tài khoản khẩn',            N'Điện thoại của tôi bị mất, sợ tài khoản bị truy cập trái phép. Vui lòng khóa tài khoản ngay.',                          '0923456789', 'APPROVED',   1, '2026-03-10 09:15:00', 1, '2026-03-10 10:30:00', N'Đã xác minh qua SĐT, cho phép khóa tài khoản.'),
-(6,  'ACCOUNT_UNLOCK', 'HIGH',   N'Yêu cầu mở khóa tài khoản',              N'Tôi đã tìm lại được điện thoại và đổi mật khẩu. Vui lòng mở khóa tài khoản cho tôi.',                                   '0923456789', 'PROCESSING', 1, '2026-03-15 14:00:00', NULL, NULL,                  N'Đang chờ xác minh thêm qua email.'),
-(6,  'BUG_REPORT',     'NORMAL', N'Lỗi hiển thị biểu đồ tháng 2',           N'Màn hình báo cáo tháng 2/2026 hiển thị sai số liệu tổng chi. Đã thử restart app nhưng vẫn lỗi.',                          NULL,         'PENDING',    NULL, NULL,                NULL, NULL,                  NULL),
-(6,  'SUSPICIOUS_TX',  'URGENT', N'Phát hiện giao dịch lạ trong tài khoản',  N'Tôi thấy có 2 giao dịch -500.000đ lúc 3h sáng ngày 20/03 mà tôi không thực hiện. Nghi bị hack.',                         '0923456789', 'APPROVED',   1, '2026-03-20 08:00:00', 1, '2026-03-20 08:45:00', N'Đã kiểm tra log, xác nhận giao dịch bất thường. Đã khóa tạm thời.'),
+-- [1] ACCOUNT_LOCK (APPROVED)
+(6, 'ACCOUNT_LOCK', 'HIGH', N'Yêu cầu khóa tài khoản khẩn',
+ N'Điện thoại của tôi bị mất trên xe buýt. Sợ tài khoản bị truy cập trái phép, nhờ khóa ngay.',
+ N'Phạm Quốc Minh', '0923456789', 'minh.pham@gmail.com', 
+ 'APPROVED', '2026-03-10 09:15:00', 1, '2026-03-10 10:30:00', N'Đã xác minh qua SĐT. Cho phép khóa.'),
 
--- ── Các user khác ────────────────────────────────────────────────────────────
-(1,  'BUG_REPORT',     'NORMAL', N'App bị crash khi mở tab Ngân sách',       N'Mỗi lần vào tab Ngân sách là app tắt đột ngột. Thiết bị: Samsung S23, Android 14.',                                       NULL,         'APPROVED',   1, '2026-02-05 10:00:00', 1, '2026-02-06 09:00:00', N'Đã tái hiện lỗi, chuyển cho dev fix.'),
-(2,  'DATA_RECOVERY',  'HIGH',   N'Mất toàn bộ giao dịch tháng 1',           N'Sau khi cài lại app, toàn bộ giao dịch tháng 1/2026 của tôi biến mất. Nhờ admin khôi phục giúp.',                         '0912345678', 'PROCESSING', 1, '2026-02-10 11:30:00', NULL, NULL,                  N'Đang truy vấn backup database ngày 31/01.'),
-(3,  'GENERAL',        'NORMAL', N'Hỏi về tính năng xuất báo cáo PDF',       N'App có hỗ trợ xuất báo cáo ra file PDF không? Nếu có thì làm thế nào?',                                                    NULL,         'APPROVED',   1, '2026-01-20 10:00:00', 1, '2026-01-20 14:00:00', N'Ghi nhận góp ý. Đã chuyển cho team product.'),
-(4,  'ACCOUNT_LOCK',   'HIGH',   N'Khóa tài khoản vì nghi bị lộ mật khẩu',  N'Tôi vô tình đăng nhập trên máy tính công cộng và quên đăng xuất. Nhờ khóa tài khoản gấp.',                               '0934567890', 'APPROVED',   1, '2026-03-01 07:45:00', 1, '2026-03-01 08:10:00', N'Xác minh thành công, đã kích hoạt khóa tài khoản.'),
-(5,  'DATA_LOSS',      'URGENT', N'Toàn bộ dữ liệu biến mất sau update',     N'Vừa update app lên version mới thì mất sạch dữ liệu từ trước đến nay. Rất khẩn cấp, nhờ hỗ trợ ngay.',                    '0945678901', 'PROCESSING', 1, '2026-03-05 06:30:00', NULL, NULL,                  N'Đang liên hệ team kỹ thuật kiểm tra migration script version mới.'),
-(7,  'BUG_REPORT',     'NORMAL', N'Không nhận được thông báo nhắc nợ',       N'Tôi đã cài đặt nhắc nhở khoản nợ đến hạn 15/03 nhưng không nhận được thông báo nào.',                                     NULL,         'PENDING',    NULL, NULL,                NULL, NULL,                  NULL),
-(8,  'GENERAL',        'NORMAL', N'Góp ý thêm tính năng chia sẻ ví',         N'Mong app sớm có tính năng chia sẻ ví chung cho vợ chồng hoặc nhóm bạn để quản lý chi tiêu chung.',                         NULL,         'APPROVED',   1, '2026-01-20 10:00:00', 1, '2026-01-20 14:00:00', N'Ghi nhận góp ý. Đã chuyển cho team product.'),
-(9,  'SUSPICIOUS_TX',  'URGENT', N'Giao dịch tự động không rõ nguồn gốc',    N'Có 3 giao dịch chi -200.000đ xuất hiện liên tiếp mỗi ngày mà tôi không tạo. Nghi có giao dịch định kỳ ẩn.',              '0956789012', 'APPROVED',   1, '2026-03-18 09:00:00', 1, '2026-03-18 10:00:00', N'Xác nhận là giao dịch định kỳ user quên tắt. Đã hướng dẫn xử lý.'),
-(10, 'ACCOUNT_UNLOCK', 'HIGH',   N'Yêu cầu mở khóa sau khi xác minh',       N'Tài khoản bị khóa do đăng nhập sai quá nhiều lần. Tôi đã xác minh qua email, nhờ mở khóa.',                              '0967890123', 'REJECTED',   1, '2026-03-08 13:00:00', 1, '2026-03-08 15:30:00', N'Xác minh thất bại — email không khớp với tài khoản đăng ký.');
+-- [2] SUSPICIOUS_TX — Mẫu 1: Vượt ngưỡng (APPROVED) [cite: 470, 471, 472]
+(6, 'SUSPICIOUS_TX', 'URGENT', N'[AUTO] Cảnh báo giao dịch bất thường',
+ N'Giao dịch chi 75.000.000đ vượt ngưỡng cảnh báo 50.000.000đ.',
+ N'Phạm Quốc Minh', '0923456789', 'minh.pham@gmail.com', 
+ 'APPROVED', '2026-03-20 08:00:00', 1, '2026-03-20 08:45:00', N'User xác nhận giao dịch hợp lệ (mua xe máy). Đóng ticket.'),
+
+-- [3] ACCOUNT_UNLOCK (PROCESSING) [cite: 473]
+(6, 'ACCOUNT_UNLOCK', 'HIGH', N'Yêu cầu mở khóa tài khoản',
+ N'Tôi đã tìm lại được điện thoại và đổi mật khẩu email. Vui lòng mở khóa tài khoản giúp tôi.',
+ N'Phạm Quốc Minh', '0923456789', 'minh.pham@gmail.com', 
+ 'PROCESSING', '2026-03-15 14:00:00', NULL, NULL, N'Đang chờ user xác minh thêm qua email.'),
+
+-- [4] FORGOT_PASSWORD (APPROVED) [cite: 474]
+(6, 'FORGOT_PASSWORD', 'NORMAL', N'Quên mật khẩu sau khi đổi điện thoại mới',
+ N'Tôi vừa đổi điện thoại và không nhớ mật khẩu. Email xác nhận bị gửi vào hộp thư cũ.',
+ N'Phạm Quốc Minh', '0923456789', 'minh.pham@gmail.com', 
+ 'APPROVED', '2026-02-20 10:00:00', 1, '2026-02-20 11:30:00', N'Đã cấp lại mật khẩu tạm thời.'),
+
+-- [5] EMERGENCY (APPROVED) [cite: 475, 476]
+(6, 'EMERGENCY', 'URGENT', N'Khẩn cấp: Nghi tài khoản bị hack',
+ N'Tôi nhận được thông báo giao dịch lạ lúc 3 giờ sáng mà tôi không thực hiện. Nhờ khóa tài khoản và điều tra gấp.',
+ N'Phạm Quốc Minh', '0923456789', 'minh.pham@gmail.com', 
+ 'APPROVED', '2026-03-20 03:30:00', 1, '2026-03-20 04:00:00', N'Xác nhận là giao dịch do user tạo từ thiết bị lạ. Đã yêu cầu đổi pass.'),
+
+-- [6] BUG_REPORT (PENDING) [cite: 477]
+(6, 'BUG_REPORT', 'NORMAL', N'Lỗi hiển thị biểu đồ báo cáo tháng 2',
+ N'Màn hình báo cáo tháng 2/2026 hiển thị sai số liệu tổng chi. Tổng hiển thị 5tr trong khi thực tế 7.2tr.',
+ N'Phạm Quốc Minh', '0923456789', 'minh.pham@gmail.com', 
+ 'PENDING', NULL, NULL, NULL, NULL),
+
+-- [7] DATA_RECOVERY (APPROVED) [cite: 478]
+(6, 'DATA_RECOVERY', 'HIGH', N'Yêu cầu khôi phục dữ liệu tháng 1',
+ N'Sau khi cài lại app do lỗi, toàn bộ giao dịch tháng 1/2026 không hiển thị dù đã đăng nhập đúng tài khoản.',
+ N'Phạm Quốc Minh', '0923456789', 'minh.pham@gmail.com', 
+ 'APPROVED', '2026-01-25 10:00:00', 1, '2026-01-25 14:00:00', N'Lỗi cache app. Đã khôi phục thành công.'),
+
+-- [8] DATA_LOSS (PROCESSING) [cite: 479, 480]
+(6, 'DATA_LOSS', 'URGENT', N'Mất toàn bộ dữ liệu sau khi update app',
+ N'Vừa update app lên version 1.2 thì toàn bộ giao dịch từ tháng 10/2025 đến nay biến mất.',
+ N'Phạm Quốc Minh', '0923456789', 'minh.pham@gmail.com', 
+ 'PROCESSING', '2026-04-01 08:00:00', NULL, NULL, N'Đang liên hệ team kỹ thuật kiểm tra migration script.'),
+
+-- [9] GENERAL (APPROVED) [cite: 481, 482]
+(6, 'GENERAL', 'NORMAL', N'Góp ý thêm tính năng xuất báo cáo PDF',
+ N'Mong app sớm có tính năng xuất báo cáo hàng tháng ra file PDF để lưu trữ và gửi cho kế toán.',
+ N'Phạm Quốc Minh', '0923456789', 'minh.pham@gmail.com', 
+ 'APPROVED', '2026-02-15 14:00:00', 1, '2026-02-15 16:00:00', N'Ghi nhận góp ý. Nằm trong roadmap Q2/2026.'),
+
+
+-- ══════════════════════════════════════════════════════════════════════
+-- CÁC USER KHÁC — Bổ sung mẫu Thông báo bất thường mới
+-- ══════════════════════════════════════════════════════════════════════
+
+-- [10] User 1 — BUG_REPORT [cite: 482, 483]
+(1, 'BUG_REPORT', 'NORMAL', N'App bị crash khi mở tab Ngân sách',
+ N'Mỗi lần vào tab Ngân sách là app tắt đột ngột không báo lỗi. Android 14, app v1.1.',
+ N'Nguyễn Văn Admin', '0901234567', 'admin@smartmoney.vn', 
+ 'APPROVED', '2026-02-05 10:00:00', 1, '2026-02-06 09:00:00', N'Chuyển dev fix null pointer budget.'),
+
+-- [11] User 2 — DATA_RECOVERY [cite: 483]
+(2, 'DATA_RECOVERY', 'HIGH', N'Mất toàn bộ giao dịch tháng 1/2026',
+ N'Sau khi cài lại app, toàn bộ giao dịch tháng 1/2026 biến mất.',
+ N'Trần Thị Mai', '0912345678', 'mai.tran@gmail.com', 
+ 'PROCESSING', '2026-02-10 11:30:00', NULL, NULL, N'Dữ liệu server còn, khả năng lỗi sync.'),
+
+-- [12] User 9 — SUSPICIOUS_TX — Mẫu 2: Lặp theo ngày (APPROVED) [cite: 484, 485]
+(9, 'SUSPICIOUS_TX', 'URGENT', N'[AUTO] Cảnh báo giao dịch bất thường',
+ N'Phát hiện giao dịch 200.000đ xuất hiện liên tiếp trong 3 ngày tại khung giờ 14h.',
+ N'Đặng Khánh Thảo', '0956789012', 'thaodang@gmail.com', 
+ 'APPROVED', '2026-03-18 09:00:00', 1, '2026-03-18 10:00:00', N'User xác nhận là giao dịch định kỳ. Đóng ticket.'),
+
+-- [13] User 11 — SUSPICIOUS_TX — Mẫu 3: Lặp theo phút/Spam (PROCESSING)
+(11, 'SUSPICIOUS_TX', 'URGENT', N'[AUTO] Cảnh báo giao dịch bất thường',
+ N'Phát hiện 3 giao dịch 300.000đ xuất hiện liên tiếp chỉ trong 10 phút.',
+ N'Trương Ngọc Anh', '0978901234', 'anhtruong@gmail.com', 
+ 'PROCESSING', '2026-04-03 15:00:00', NULL, NULL, N'Đã tạm khóa ví. Đang liên hệ user để xác minh.'),
+
+-- [14] User 4 — ACCOUNT_LOCK [cite: 485, 486]
+(4, 'ACCOUNT_LOCK', 'HIGH', N'Khóa tài khoản khẩn vì nghi lộ mật khẩu',
+ N'Đăng nhập máy công cộng quên đăng xuất. Nhờ khóa tài khoản gấp.',
+ N'Người dùng test3', '0987654332', 'test3@gmail.com', 
+ 'APPROVED', '2026-03-01 07:45:00', 1, '2026-03-01 08:10:00', N'Đã kích hoạt khóa tài khoản.'),
+
+-- [15] User 5 — DATA_LOSS [cite: 486]
+(5, 'DATA_LOSS', 'URGENT', N'Toàn bộ dữ liệu biến mất sau update app',
+ N'Vừa update app lên version mới thì mất sạch dữ liệu từ trước đến nay.',
+ N'Nguyễn Thị Hương', '0909876543', 'huong.nguyen@gmail.com', 
+ 'PROCESSING', '2026-03-05 06:30:00', NULL, NULL, N'Đang liên hệ team kỹ thuật kiểm tra migration script.'),
+
+-- [16] User 7 — BUG_REPORT [cite: 487]
+(7, 'BUG_REPORT', 'NORMAL', N'Không nhận được thông báo nhắc nợ đến hạn',
+ N'Tôi đã cài đặt nhắc nhở khoản nợ đến hạn ngày 15/03 nhưng không nhận được thông báo nào.',
+ N'Võ Thị Linh', '0934567890', 'linhvo@yahoo.com', 
+ 'PENDING', NULL, NULL, NULL, NULL),
+
+-- [17] Guest — Góp ý (Acc_id = NULL)
+(NULL, 'GENERAL', 'NORMAL', N'Góp ý từ người dùng mới',
+ N'App có hỗ trợ đồng bộ đa thiết bị không admin?',
+ N'Nguyễn Hoàng Phúc', '0911000111', 'phuc.nguyen@gmail.com', 
+ 'PENDING', NULL, NULL, NULL, NULL);
 GO
 --select * from tWallets
 --select * from tSavingGoals
@@ -2473,7 +2747,7 @@ GO
 --select * from tUserDevices
 --select * from tReceipts
 --select * from tPlannedTransactions
---select * from tNotifications
+--select * from tNotifications where acc_id = 6 ORDER BY notify_read DESC
 --select * from tCategories
 --select * from tBudgets
 --select * from tDebts
@@ -2494,3 +2768,9 @@ ALTER TABLE tPlannedTransactions    ADD deleted BIT NOT NULL DEFAULT 0, deleted_
 ALTER TABLE tTransactions           ADD deleted BIT NOT NULL DEFAULT 0, deleted_at DATETIME NULL;
 GO
 --SELECT * FROM tTransactions ORDER BY deleted_at DESC;
+--SELECT * FROM tDebts ORDER BY deleted_at DESC;
+--SELECT * FROM tPlannedTransactions ORDER BY deleted_at DESC;
+--SELECT * FROM tEvents ORDER BY deleted_at DESC;
+
+
+

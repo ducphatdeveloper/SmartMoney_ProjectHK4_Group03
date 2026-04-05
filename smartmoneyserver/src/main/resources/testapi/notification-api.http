@@ -1,4 +1,14 @@
-### 1. Đăng nhập
+### =================================================================
+### SMARTMONEY - NOTIFICATION API TEST
+### Module: Thông báo (tNotifications)
+### Auth: hasAuthority('USER_STANDARD_MANAGE') hoặc hasAuthority('ADMIN_SYSTEM_ALL')
+### =================================================================
+
+### ══════════════════════════════════════════════════════════════════
+###  🔐 ĐĂNG NHẬP
+### ══════════════════════════════════════════════════════════════════
+
+### [1] Đăng nhập USER (minh.pham@gmail.com — acc_id=6)
 POST http://localhost:9999/api/auth/login
 Content-Type: application/json
 
@@ -11,24 +21,61 @@ Content-Type: application/json
 }
 
 > {%
-    client.global.set("auth_token", response.body.data.accessToken);
-    client.global.set("user_id", response.body.data.userId);
+    client.global.set("user_token", response.body.data.accessToken);
+    client.log("User Token: " + response.body.data.accessToken);
 %}
 
-### 2. Lấy danh sách thông báo của tôi
-# API hiện tại yêu cầu truyền ID user vào URL
-GET http://localhost:9999/api/notifications/user/{{user_id}}
-Authorization: Bearer {{auth_token}}
+### [2] Đăng nhập ADMIN (admin@smartmoney.vn — acc_id=1)
+POST http://localhost:9999/api/auth/login
+Content-Type: application/json
 
-### 3. Đánh dấu 1 thông báo là Đã đọc
-# Thay ID 100 bằng ID thông báo thật
-PUT http://localhost:9999/api/notifications/100/read
-Authorization: Bearer {{auth_token}}
+{
+  "username": "admin@smartmoney.vn",
+  "password": "Test@123",
+  "deviceToken": "device_token_test_admin_notify",
+  "deviceType": "Postman",
+  "deviceName": "Admin Client"
+}
 
-### 4. Đánh dấu TẤT CẢ thông báo là Đã đọc
-PUT http://localhost:9999/api/notifications/user/{{user_id}}/read-all
-Authorization: Bearer {{auth_token}}
+> {%
+    client.global.set("admin_token", response.body.data.accessToken);
+    client.log("Admin Token: " + response.body.data.accessToken);
+%}
 
-### 5. Đánh dấu 1 thông báo là Đã gửi (Sent)
-PUT http://localhost:9999/api/notifications/100/sent
-Authorization: Bearer {{auth_token}}
+### ══════════════════════════════════════════════════════════════════
+###  👤 USER — Đọc thông báo
+### ══════════════════════════════════════════════════════════════════
+
+### [3] USER — Lấy tất cả thông báo của mình
+### GET /api/notifications (accId lấy từ JWT, không cần truyền qua URL)
+GET http://localhost:9999/api/notifications
+Authorization: Bearer {{user_token}}
+
+### [4] USER — Đánh dấu 1 thông báo đã đọc (thay 1 bằng ID thực)
+PUT http://localhost:9999/api/notifications/1/read
+Authorization: Bearer {{user_token}}
+
+### [5] USER — Đánh dấu tất cả đã đọc
+PUT http://localhost:9999/api/notifications/read-all
+Authorization: Bearer {{user_token}}
+
+### ══════════════════════════════════════════════════════════════════
+###  🛡️ ADMIN — Đọc thông báo SYSTEM (notify_type=4)
+###  Dùng cho: chuông thông báo trên Admin Web React
+###  Bao gồm: cảnh báo giao dịch bất thường, yêu cầu hỗ trợ mới...
+### ══════════════════════════════════════════════════════════════════
+
+### [6] ADMIN — Lấy thông báo SYSTEM (notify_type=4) của Admin đang login
+### GET /api/notifications/admin/system
+### Kỳ vọng: 200 OK, danh sách thông báo SYSTEM mới nhất lên đầu
+### Trả về: id, notifyType=4, relatedId (= tContactRequests.id), title, content, notifyRead...
+GET http://localhost:9999/api/notifications/admin/system
+Authorization: Bearer {{admin_token}}
+
+### [7] ADMIN — Đánh dấu 1 thông báo SYSTEM đã đọc (thay 35 bằng ID thực)
+PUT http://localhost:9999/api/notifications/35/read
+Authorization: Bearer {{admin_token}}
+
+### [8] ADMIN — Đánh dấu tất cả đã đọc
+PUT http://localhost:9999/api/notifications/read-all
+Authorization: Bearer {{admin_token}}

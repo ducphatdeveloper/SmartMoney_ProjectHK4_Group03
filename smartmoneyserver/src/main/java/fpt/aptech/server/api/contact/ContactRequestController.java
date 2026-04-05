@@ -27,11 +27,11 @@ public class ContactRequestController {
     private final ContactRequestService contactRequestService;
 
     // =================================================================================
-    // [1] USER — Gửi yêu cầu hỗ trợ mới
+    // [1] USER/ADMIN — Gửi yêu cầu hỗ trợ mới
     // POST /api/contact-requests
     // =================================================================================
     @PostMapping
-    @PreAuthorize("hasAnyRole('USER','ADMIN')")
+    @PreAuthorize("hasAuthority('USER_STANDARD_MANAGE') or hasAuthority('ADMIN_SYSTEM_ALL')")
     public ResponseEntity<ApiResponse<ContactRequestResponse>> createRequest(
             @Valid @RequestBody ContactRequestCreateRequest request,
             @AuthenticationPrincipal Account currentUser) {
@@ -44,11 +44,11 @@ public class ContactRequestController {
     }
 
     // =================================================================================
-    // [2] USER — Xem lịch sử yêu cầu của mình
+    // [2] USER/ADMIN — Xem lịch sử yêu cầu của mình
     // GET /api/contact-requests/my
     // =================================================================================
     @GetMapping("/my")
-    @PreAuthorize("hasAnyRole('ROLE_USER','ROLE_ADMIN')")
+    @PreAuthorize("hasAuthority('USER_STANDARD_MANAGE') or hasAuthority('ADMIN_SYSTEM_ALL')")
     public ResponseEntity<ApiResponse<List<ContactRequestResponse>>> getMyRequests(
             @AuthenticationPrincipal Account currentUser) {
 
@@ -63,7 +63,7 @@ public class ContactRequestController {
     // GET /api/contact-requests
     // =================================================================================
     @GetMapping
-    @PreAuthorize("hasRole('ROLE_ADMIN') or hasAuthority('ADMIN_SYSTEM_ALL')")
+    @PreAuthorize("hasAuthority('ADMIN_SYSTEM_ALL')")
     public ResponseEntity<ApiResponse<List<ContactRequestResponse>>> getAllRequests(
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String type) {
@@ -78,7 +78,7 @@ public class ContactRequestController {
     // PATCH /api/contact-requests/{id}/resolve
     // =================================================================================
     @PatchMapping("/{id}/resolve")
-    @PreAuthorize("hasRole('ROLE_ADMIN') or hasAuthority('ADMIN_SYSTEM_ALL')")
+    @PreAuthorize("hasAuthority('ADMIN_SYSTEM_ALL')")
     public ResponseEntity<ApiResponse<ContactRequestResponse>> resolveRequest(
             @PathVariable Integer id,
             @Valid @RequestBody ContactRequestResolveRequest request,
@@ -91,4 +91,3 @@ public class ContactRequestController {
                 ApiResponse.success(response, "Cập nhật yêu cầu hỗ trợ thành công."));
     }
 }
-

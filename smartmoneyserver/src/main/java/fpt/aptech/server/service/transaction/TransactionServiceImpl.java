@@ -190,30 +190,12 @@ public class TransactionServiceImpl implements TransactionService {
             );
         }
 
-        // [NOTE] Bước 11: Kiểm tra giao dịch bất thường — thêm 4/2026
-        // Điều kiện 1: Số tiền chi > 50,000,000 VND (50 triệu) và là khoản CHI (category type = false)
-        // Điều kiện 2: Giao dịch được tạo trong khung giờ lạ (0h00 - 5h00)
-        boolean isLargeAmount = savedTransaction.getAmount().compareTo(new BigDecimal("50000000")) > 0
-                && Boolean.FALSE.equals(category.getCtgType());
-        boolean isOddHour = java.time.LocalTime.now().getHour() < 5;
-
-        if (isLargeAmount || isOddHour) {
-            String desc = "Giao dịch " + CurrencyUtils.formatVND(savedTransaction.getAmount())
-                    + " lúc " + java.time.LocalTime.now().withNano(0) + " có dấu hiệu bất thường.";
-
-            // 11a. Thông báo cho user biết
-            notificationService.createNotification(
-                    currentUser,
-                    "Cảnh báo giao dịch bất thường",
-                    desc,
-                    NotificationType.SYSTEM,
-                    savedTransaction.getId(),
-                    null
-            );
-
-            // 11b. Tạo ticket cho admin xử lý
-            contactRequestService.createSuspiciousRequest(accountId, desc);
-        }
+        // [NOTE] Bước 11: Phát hiện giao dịch bất thường — thêm 4/2026
+        // 3 kịch bản được kiểm tra theo thứ tự (chỉ ném cảnh báo cho kịch bản đầu tiên phát hiện được):
+        //   (1) Vượt ngưỡng : khoản CHI > 50.000.000đ
+        //   (2) Spam         : cùng số tiền xuất hiện ≥ 3 lần trong 10 phút (dựa theo created_at)
+        //   (3) Lặp ngày     : cùng số tiền, cùng khung giờ ±30 phút, trong 3 ngày liên tiếp
+        checkSuspiciousTransaction(savedTransaction, currentUser, accountId);
 
         return transactionMapper.toDto(savedTransaction);
     }
@@ -948,5 +930,105 @@ public class TransactionServiceImpl implements TransactionService {
         // Cập nhật lại số tiền mục tiêu tiết kiệm
         transactionRepository.revertGoalBalanceForIncomeCategory(categoryId, accountId);
         transactionRepository.revertGoalBalanceForExpenseCategory(categoryId, accountId);
+    }
+
+    /**
+     * [5.6] Phát hiện giao dịch bất thường và tạo cảnh báo cho User + tất cả Admin.
+     *
+     * Kịch bản 1 — Vượt ngưỡng: khoản CHI > 50.000.000đ.
+     * Kịch bản 2 — Spam       : cùng số tiền xuất hiện ≥ 3 lần trong 10 phút (theo created_at).
+     * Kịch bản 3 — Lặp ngày   : cùng số tiền, cùng khung giờ ±30 phút, trong 3 ngày liên tiếp.
+     *
+     * Luồng khi phát hiện:
+     *   A. Tạo ticket tContactRequests (SUSPICIOUS_TX | URGENT | PENDING) → lấy ticket.id
+     *   B. Notify User   — related_id = giao dịch bất thường (để Flutter navigate đến chi tiết giao dịch)
+     *   C. Notify N Admin — related_id = ticket.id (để Admin navigate đến ticket cần xử lý)
+     *
+     * CHÚ Ý: Chỉ kiểm tra kịch bản đầu tiên phát hiện được → 1 ticket / 1 giao dịch.
+     */
+    private void checkSuspiciousTransaction(Transaction tx, Account currentUser, Integer accountId) {
+        String reason = null;
+        BigDecimal amount  = tx.getAmount();
+        LocalDateTime transDate = tx.getTransDate();
+        boolean isExpense  = Boolean.FALSE.equals(tx.getCategory().getCtgType());
+
+        // [KB-1] Vượt ngưỡng: chỉ áp dụng cho khoản CHI > 50.000.000đ
+        if (reason == null && isExpense && amount.compareTo(new BigDecimal("50000000")) > 0) {
+            reason = String.format(
+                    "Giao dịch chi %s vượt ngưỡng cảnh báo 50.000.000đ. Không phải bạn thực hiện? Liên hệ hỗ trợ ngay.",
+                    CurrencyUtils.formatVND(amount));
+        }
+
+        // [KB-2] Spam: cùng số tiền ≥ 3 lần trong 10 phút (dùng created_at để tránh false-positive)
+        if (reason == null) {
+            LocalDateTime tenMinsAgo = LocalDateTime.now().minusMinutes(10);
+            long spamCount = transactionRepository.countSameAmountCreatedAfter(accountId, amount, tenMinsAgo);
+            if (spamCount >= 3) {
+                reason = String.format(
+                        "Phát hiện %d giao dịch %s xuất hiện liên tiếp trong vòng 10 phút. Vui lòng kiểm tra tài khoản.",
+                        spamCount, CurrencyUtils.formatVND(amount));
+            }
+        }
+
+        // [KB-3] Lặp ngày: cùng số tiền, cùng khung giờ ±30 phút, trong 3 ngày liên tiếp
+        if (reason == null) {
+            int currentHour   = transDate.getHour();
+            int currentMinute = transDate.getMinute();
+
+            // Xây dựng cửa sổ thời gian hôm qua và hôm kia (±30 phút cùng giờ phút)
+            LocalDateTime baseYesterday   = transDate.minusDays(1)
+                    .withHour(currentHour).withMinute(currentMinute).withSecond(0).withNano(0);
+            LocalDateTime base2DaysAgo    = transDate.minusDays(2)
+                    .withHour(currentHour).withMinute(currentMinute).withSecond(0).withNano(0);
+
+            boolean hadYesterday  = transactionRepository.existsSameAmountInWindow(
+                    accountId, amount, baseYesterday.minusMinutes(30), baseYesterday.plusMinutes(30));
+            boolean had2DaysAgo   = transactionRepository.existsSameAmountInWindow(
+                    accountId, amount, base2DaysAgo.minusMinutes(30),  base2DaysAgo.plusMinutes(30));
+
+            if (hadYesterday && had2DaysAgo) {
+                reason = String.format(
+                        "Phát hiện giao dịch %s xuất hiện vào cùng khung giờ %dh trong 3 ngày liên tiếp. Vui lòng kiểm tra tài khoản.",
+                        CurrencyUtils.formatVND(amount), currentHour);
+            }
+        }
+
+        // Không phát hiện bất thường → kết thúc
+        if (reason == null) return;
+
+        // [A] Tạo 1 ticket duy nhất (SUSPICIOUS_TX | URGENT | PENDING)
+        ContactRequest ticket = contactRequestService.createSuspiciousRequest(accountId, reason);
+
+        // [B] Thông báo USER — related_id = id giao dịch để Flutter navigate đến chi tiết
+        // Dùng TRANSACTION (type=1) vì related_id = tTransactions.id → Flutter mở chi tiết giao dịch đó
+        notificationService.createNotification(
+                currentUser,
+                "⚠️ Cảnh báo giao dịch bất thường",
+                reason,
+                NotificationType.TRANSACTION,
+                tx.getId(),
+                null
+        );
+
+        // [C] Thông báo TẤT CẢ ADMIN — related_id = ticket.id để Admin navigate đến ContactRequest
+        String displayName = currentUser.getFullname() != null
+                ? currentUser.getFullname() : currentUser.getAccEmail();
+        String displayPhone = currentUser.getAccPhone() != null
+                ? currentUser.getAccPhone() : "N/A";
+        String adminContent = String.format(
+                "%s (%s): %s Ticket #%d.",
+                displayName, displayPhone, reason, ticket.getId());
+
+        List<Account> admins = accountRepository.findByRole_RoleCode("ROLE_ADMIN");
+        for (Account admin : admins) {
+            notificationService.createNotification(
+                    admin,
+                    "🚨 [URGENT] Giao dịch bất thường cần xử lý",
+                    adminContent,
+                    NotificationType.SYSTEM,
+                    ticket.getId().longValue(),
+                    null
+            );
+        }
     }
 }
