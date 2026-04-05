@@ -29,11 +29,11 @@ class _EditWalletScreenState extends State<EditWalletScreen> {
   void initState() {
     super.initState();
 
-    nameController =
-        TextEditingController(text: widget.wallet.walletName);
+    nameController = TextEditingController(text: widget.wallet.walletName);
 
-    balanceController =
-        TextEditingController(text: _formatNumber(widget.wallet.balance));
+    balanceController = TextEditingController(
+      text: _formatNumber(widget.wallet.balance),
+    );
 
     currency = widget.wallet.currencyCode ?? "VND";
     excludeFromTotal = !(widget.wallet.reportable ?? true);
@@ -55,28 +55,24 @@ class _EditWalletScreenState extends State<EditWalletScreen> {
             onPressed: (!canSave || isSaving) ? null : _save,
             child: isSaving
                 ? const SizedBox(
-              width: 18,
-              height: 18,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            )
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
                 : Text(
-              "Lưu",
-              style: TextStyle(
-                color: canSave ? Colors.white : Colors.grey,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          )
+                    "Lưu",
+                    style: TextStyle(
+                      color: canSave ? Colors.white : Colors.grey,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+          ),
         ],
       ),
 
       body: ListView(
         padding: const EdgeInsets.all(16),
-        children: [
-          _mainCard(),
-          const SizedBox(height: 20),
-          _switchCard(),
-        ],
+        children: [_mainCard(), const SizedBox(height: 20), _switchCard()],
       ),
     );
   }
@@ -208,7 +204,7 @@ class _EditWalletScreenState extends State<EditWalletScreen> {
 
     return value.replaceAllMapped(
       RegExp(r'\B(?=(\d{3})+(?!\d))'),
-          (match) => '.',
+      (match) => '.',
     );
   }
 
@@ -219,7 +215,7 @@ class _EditWalletScreenState extends State<EditWalletScreen> {
 
     final formatted = digits.replaceAllMapped(
       RegExp(r'\B(?=(\d{3})+(?!\d))'),
-          (match) => '.',
+      (match) => '.',
     );
 
     balanceController.value = TextEditingValue(
@@ -233,11 +229,9 @@ class _EditWalletScreenState extends State<EditWalletScreen> {
   Future<void> _save() async {
     setState(() => isSaving = true);
 
-    final provider =
-    Provider.of<WalletProvider>(context, listen: false);
+    final provider = Provider.of<WalletProvider>(context, listen: false);
 
-    final rawBalance =
-    balanceController.text.replaceAll('.', '');
+    final rawBalance = balanceController.text.replaceAll('.', '');
 
     final request = WalletRequest(
       walletName: nameController.text,
@@ -247,10 +241,7 @@ class _EditWalletScreenState extends State<EditWalletScreen> {
       goalImageUrl: _selectedIconUrl,
     );
 
-    final success = await provider.updateWallet(
-      widget.wallet.id,
-      request,
-    );
+    final success = await provider.updateWallet(widget.wallet.id, request);
 
     setState(() => isSaving = false);
 

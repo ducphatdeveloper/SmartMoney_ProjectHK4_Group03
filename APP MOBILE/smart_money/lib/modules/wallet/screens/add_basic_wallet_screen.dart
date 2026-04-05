@@ -16,9 +16,9 @@ class AddBasicWalletScreen extends StatefulWidget {
 class CurrencyInputFormatter extends TextInputFormatter {
   @override
   TextEditingValue formatEditUpdate(
-      TextEditingValue oldValue,
-      TextEditingValue newValue,
-      ) {
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
     String newText = newValue.text.replaceAll(',', '');
 
     if (newText.isEmpty) {
@@ -84,18 +84,18 @@ class _AddBasicWalletScreenState extends State<AddBasicWalletScreen> {
             onPressed: (!canSave || isSaving) ? null : _saveWallet,
             child: isSaving
                 ? const SizedBox(
-              width: 18,
-              height: 18,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            )
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
                 : Text(
-              "Lưu",
-              style: TextStyle(
-                color: canSave ? Colors.white : Colors.grey,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          )
+                    "Lưu",
+                    style: TextStyle(
+                      color: canSave ? Colors.white : Colors.grey,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+          ),
         ],
       ),
       body: ListView(
@@ -206,7 +206,6 @@ class _AddBasicWalletScreenState extends State<AddBasicWalletScreen> {
     );
   }
 
-
   Widget _buildSwitchCard() {
     return Container(
       decoration: _card(),
@@ -279,9 +278,9 @@ class _AddBasicWalletScreenState extends State<AddBasicWalletScreen> {
   }
 
   void _showError(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   BoxDecoration _card() => BoxDecoration(

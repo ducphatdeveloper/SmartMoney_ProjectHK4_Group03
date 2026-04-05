@@ -49,8 +49,7 @@ class _WalletDetailScreenState extends State<WalletDetailScreen> {
               );
 
               if (result == true) {
-                Provider.of<WalletProvider>(context, listen: false)
-                    .loadAll();
+                Provider.of<WalletProvider>(context, listen: false).loadAll();
                 Navigator.pop(context);
               }
             },
@@ -90,7 +89,7 @@ class _WalletDetailScreenState extends State<WalletDetailScreen> {
 
     final result = value.replaceAllMapped(
       RegExp(r'\B(?=(\d{3})+(?!\d))'),
-          (match) => '.',
+      (match) => '.',
     );
 
     return "$result đ";
@@ -105,10 +104,7 @@ class _WalletDetailScreenState extends State<WalletDetailScreen> {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(24),
         gradient: const LinearGradient(
-          colors: [
-            Color(0xFF2C2C2E),
-            Color(0xFF1C1C1E),
-          ],
+          colors: [Color(0xFF2C2C2E), Color(0xFF1C1C1E)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -117,7 +113,7 @@ class _WalletDetailScreenState extends State<WalletDetailScreen> {
             color: Colors.black.withOpacity(0.4),
             blurRadius: 10,
             offset: const Offset(0, 6),
-          )
+          ),
         ],
       ),
       child: Column(
@@ -157,10 +153,7 @@ class _WalletDetailScreenState extends State<WalletDetailScreen> {
 
           const SizedBox(height: 6),
 
-          const Text(
-            "Số dư hiện tại",
-            style: TextStyle(color: Colors.grey),
-          ),
+          const Text("Số dư hiện tại", style: TextStyle(color: Colors.grey)),
 
           const SizedBox(height: 20),
 
@@ -174,10 +167,7 @@ class _WalletDetailScreenState extends State<WalletDetailScreen> {
             children: const [
               Icon(Icons.attach_money, color: Colors.grey, size: 18),
               SizedBox(width: 6),
-              Text(
-                "Việt Nam Đồng",
-                style: TextStyle(color: Colors.grey),
-              ),
+              Text("Việt Nam Đồng", style: TextStyle(color: Colors.grey)),
             ],
           ),
         ],
@@ -207,9 +197,7 @@ class _WalletDetailScreenState extends State<WalletDetailScreen> {
       style: ElevatedButton.styleFrom(
         backgroundColor: const Color(0xFF1C1C1E),
         padding: const EdgeInsets.symmetric(vertical: 16),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       ),
       onPressed: () => _confirmDelete(context),
       child: const Text(
@@ -240,8 +228,10 @@ class _WalletDetailScreenState extends State<WalletDetailScreen> {
           ),
           TextButton(
             onPressed: () async {
-              final provider =
-              Provider.of<WalletProvider>(context, listen: false);
+              final provider = Provider.of<WalletProvider>(
+                context,
+                listen: false,
+              );
 
               await provider.deleteWallet(widget.wallet.id);
 
