@@ -18,4 +18,7 @@ public interface WalletRepository extends JpaRepository<Wallet, Integer> {
     // Tính tổng số dư của tất cả các ví được tính vào báo cáo (reportable = true)
     @Query("SELECT SUM(w.balance) FROM Wallet w WHERE w.account.id = :accountId AND w.reportable = true AND w.deleted = false")
     BigDecimal sumBalanceByAccountIdAndReportableTrue(Integer accountId);
+
+    // Hàm Check trùng ví
+    boolean existsByAccountIdAndWalletNameIgnoreCase(Integer accountId, String walletName);
 }
