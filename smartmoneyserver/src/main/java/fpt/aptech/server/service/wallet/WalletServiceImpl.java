@@ -16,7 +16,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.Currency;
 import java.util.List;
 
 @Service
@@ -25,7 +24,7 @@ public class WalletServiceImpl implements WalletService {
 
     private final WalletRepository walletRepository;
     private final AccountRepository accountRepository;
-    private final CurrencyRepository currencyRepository;
+    private final Repository currencyRepository;
     private final TransactionRepository transactionRepository;
     private final CategoryRepository categoryRepository;
     private final SavingGoalRepository savingGoalRepository;
@@ -113,7 +112,7 @@ public class WalletServiceImpl implements WalletService {
         // ===== Init Transaction =====
         if (initBalance.compareTo(BigDecimal.ZERO) > 0) {
             Category category = categoryRepository.findById(SystemCategory.INCOME_OTHER.getId())
-                    .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy category"));
+                    .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy danh mục hệ thống 'Thu nhập khác'"));
 
             Transaction initTransaction = Transaction.builder()
                     .account(account)
@@ -121,7 +120,7 @@ public class WalletServiceImpl implements WalletService {
                     .category(category)
                     .amount(initBalance)
                     .note("Số dư ban đầu")
-                    .reportable(false)
+                    .reportable(false) // Không tính vào báo cáo
                     .transDate(LocalDateTime.now())
                     .build();
 
@@ -143,7 +142,7 @@ public class WalletServiceImpl implements WalletService {
     @Override
     @Transactional
     public WalletResponse updateWallet(Integer accountId, Integer walletId, WalletRequest request) {
-
+        // Bước 1: Tìm ví và kiểm tra quyền
         Wallet wallet = walletRepository.findById(walletId)
                 .orElseThrow(() -> new IllegalArgumentException("Ví không tồn tại"));
 
@@ -151,6 +150,7 @@ public class WalletServiceImpl implements WalletService {
             throw new SecurityException("Bạn không có quyền sửa ví này");
         }
 
+        // Bước 2: Xử lý điều chỉnh số dư
         // ===== walletName =====
         if (request.getWalletName() != null) {
             String name = request.getWalletName().trim();
@@ -161,10 +161,6 @@ public class WalletServiceImpl implements WalletService {
 
             boolean exists = walletRepository
                     .existsByAccountIdAndWalletNameIgnoreCase(accountId, name);
-
-            if (exists && !wallet.getWalletName().equalsIgnoreCase(name)) {
-                throw new IllegalArgumentException("Tên ví đã tồn tại");
-            }
 
             wallet.setWalletName(name);
         }
@@ -181,30 +177,33 @@ public class WalletServiceImpl implements WalletService {
             BigDecimal currentBalance = wallet.getBalance();
             int comparison = newBalance.compareTo(currentBalance);
 
-            if (comparison != 0) {
+            if (comparison != 0) { // Chỉ tạo giao dịch khi số dư thay đổi
 
                 BigDecimal adjustmentAmount = newBalance.subtract(currentBalance).abs();
-                boolean isIncome = comparison > 0;
+                boolean isIncome = comparison > 0; // true nếu số dư mới > số dư cũ (THU)
 
+                 // Xác định category tương ứng
                 SystemCategory systemCategory = isIncome
                         ? SystemCategory.INCOME_OTHER
                         : SystemCategory.OTHER_EXPENSE;
-
+                
                 Category category = categoryRepository.findById(systemCategory.getId())
-                        .orElseThrow(() -> new IllegalStateException("Không tìm thấy category"));
+                        .orElseThrow(() -> new IllegalStateException("Không tìm thấy danh mục hệ thống: " + systemCategory.name()));
 
-                Transaction transaction = Transaction.builder()
+                // Tạo giao dịch điều chỉnh
+                Transaction adjustmentTransaction = Transaction.builder()
                         .account(wallet.getAccount())
                         .wallet(wallet)
                         .category(category)
                         .amount(adjustmentAmount)
                         .note("Điều chỉnh số dư")
-                        .reportable(false)
+                        .reportable(false)  //Giao dịch điều chỉnh không tính vào báo cáo
                         .transDate(LocalDateTime.now())
                         .build();
 
-                transactionRepository.save(transaction);
+                transactionRepository.save(adjustmentTransaction);
 
+                // Cập nhật số dư mới cho ví
                 wallet.setBalance(newBalance);
 
                 // ===== 🔥 LOW BALANCE ALERT =====
@@ -222,11 +221,10 @@ public class WalletServiceImpl implements WalletService {
             }
         }
 
+        // Bước 3: Cập nhật các thông tin khác
         // ===== currency =====
         if (request.getCurrencyCode() != null) {
-            String currencyCode = request.getCurrencyCode().trim().toUpperCase();
-
-            Currency currency = currencyRepository.findById(currencyCode)
+            Currency currency = currencyRepository.findById(request.getCurrencyCode())            
                     .orElseThrow(() -> new IllegalArgumentException("Loại tiền tệ không tồn tại"));
 
             wallet.setCurrency(currency);
