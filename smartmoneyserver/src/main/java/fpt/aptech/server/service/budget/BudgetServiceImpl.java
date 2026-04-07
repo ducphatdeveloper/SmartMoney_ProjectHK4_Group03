@@ -95,13 +95,8 @@ public class BudgetServiceImpl implements BudgetService {
         LocalDateTime start = budget.getBeginDate().atStartOfDay();
         LocalDateTime end = budget.getEndDate().atTime(23, 59, 59);
 
-        // 🔥 FIX QUAN TRỌNG
-        Set<Integer> categoryIds = Boolean.TRUE.equals(budget.getAllCategories())
-                ? null // ❗ KHÔNG dùng Set rỗng nữa
-                : budget.getCategories()
-                        .stream()
-                        .map(Category::getId)
-                        .collect(Collectors.toSet());
+        // ✅ Dùng lại resolveCategoryIds như file cũ, KHÔNG inline lại
+        Set<Integer> categoryIds = resolveCategoryIds(budget);
 
         List<Transaction> transactions = transactionRepository.findTransactionsForBudget(
                 userId,
@@ -163,7 +158,7 @@ public class BudgetServiceImpl implements BudgetService {
     @Transactional
     public BudgetResponse updateBudget(Integer budgetId, BudgetRequest request, Integer userId) {
 
-        // 1. Validate date cơ bản
+        // 1. Validate ngày
         validateDates(request.beginDate(), request.endDate());
 
         // 2. Lấy budget
@@ -185,8 +180,8 @@ public class BudgetServiceImpl implements BudgetService {
                 request.endDate(),
                 request.budgetType().name());
 
-        // ❌ BỎ HOÀN TOÀN validateDuplicate
-        // validateDuplicateBudget(...); <-- XOÁ DÒNG NÀY
+        // ✅ PHẢI GIỮ LẠI - file mới XÓA SAI
+        validateDuplicateBudget(request, userId, budgetId);
 
         // 6. Update toàn bộ field
         budget.setAmount(request.amount());
@@ -246,9 +241,10 @@ public class BudgetServiceImpl implements BudgetService {
     @Transactional
     public void deleteBudget(Integer budgetId, Integer userId) {
         Budget budget = getOwnedBudget(budgetId, userId);
-        // Chỉ xóa ngân sách, không xóa giao dịch (FK budget_id ở tTransactions là
-        // nullable)
-        budgetRepository.delete(budget);
+        // Soft delete ngân sách (không xóa giao dịch vì FK budget_id ở tTransactions là nullable)
+        budget.setDeleted(true);
+        budget.setDeletedAt(java.time.LocalDateTime.now());
+        budgetRepository.save(budget);
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
