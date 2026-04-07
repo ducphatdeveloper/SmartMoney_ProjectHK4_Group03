@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
-import '../../../core/helpers/icon_helper.dart';
+import 'package:smart_money/core/helpers/icon_helper.dart';
 
 import '../providers/saving_goal_provider.dart';
 import '../models/saving_goal_request.dart';
@@ -24,11 +24,10 @@ class _AddSavingGoalScreenState extends State<AddSavingGoalScreen> {
   bool _notify = true;
   bool _reportable = true;
   DateTime? _endDate;
+  bool _isSaving = false;
 
-  // 🔥 GÁN LUÔN ICON MẶC ĐỊNH Ở ĐÂY
-  // Thay URL này bằng icon "quốc dân" trong hệ thống của bạn
+  /// Default Icon from Cloud
   String? _selectedIconUrl = "https://res.cloudinary.com/drd2hsocc/image/upload/v1774385006/icon_basic_wallet.png";
-  String? _selectedIconFileName;
 
   @override
   void dispose() {
@@ -38,57 +37,93 @@ class _AddSavingGoalScreenState extends State<AddSavingGoalScreen> {
     super.dispose();
   }
 
-  Future<void> _handleSave() async {
+  // ===============================
+  // 🎯 STRICT VALIDATION LOGIC
+  // ===============================
+  String? _validateData() {
     final name = _nameController.text.trim();
     final targetStr = _targetController.text.trim();
+    final initialStr = _initialController.text.trim();
 
-    if (name.isEmpty || targetStr.isEmpty || _endDate == null) {
-      _showSnackBar("Please fill in all required fields", isError: true);
-      return;
+    if (name.isEmpty) return "Please enter a goal name";
+    if (targetStr.isEmpty) return "Please enter your target amount";
+
+    final targetAmount = double.tryParse(targetStr);
+    // Requirement: Must be > 1000
+    if (targetAmount == null || targetAmount < 1000) {
+      return "Target amount must be greater than 1,000";
     }
 
-    final double targetAmount = double.tryParse(targetStr) ?? 0;
-    final double initialAmount = double.tryParse(_initialController.text) ?? 0;
-
-    final request = SavingGoalRequest(
-      goalName: name,
-      targetAmount: targetAmount,
-      initialAmount: initialAmount,
-      currencyCode: _currency,
-      endDate: _endDate!,
-      notified: _notify,
-      reportable: _reportable,
-      // Nếu user không đổi thì dùng icon mặc định ở trên
-      goalImageUrl: _selectedIconFileName ?? _selectedIconUrl,
-      amount: initialAmount,
-    );
-
-    final provider = Provider.of<SavingGoalProvider>(context, listen: false);
-    final success = await provider.createGoal(request);
-
-    if (success && mounted) {
-      _showSnackBar("Goal created successfully!", isError: false);
-      Navigator.of(context).pop(true);
-    } else if (mounted) {
-      _showSnackBar(provider.errorMessage ?? "API Connection Error");
+    final initialAmount = double.tryParse(initialStr) ?? 0;
+    if (initialAmount < 0) {
+      return "Initial amount cannot be negative";
     }
+    // Requirement: Initial cannot be greater than Target
+    if (initialAmount > targetAmount) {
+      return "Initial amount cannot exceed target amount";
+    }
+
+    if (_endDate == null) return "Please select a target date";
+
+    // Safety check for past dates
+    if (_endDate!.isBefore(DateTime.now().subtract(const Duration(days: 1)))) {
+      return "Target date cannot be in the past";
+    }
+
+    return null;
   }
 
   void _openIconPicker() async {
     final result = await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => IconPickerScreen(
-          currentIconFileName: _selectedIconFileName,
-        ),
+        builder: (_) => const IconPickerScreen(),
       ),
     );
 
     if (result != null && result is IconDto && mounted) {
       setState(() {
         _selectedIconUrl = result.url;
-        _selectedIconFileName = result.fileName;
       });
+    }
+  }
+
+  Future<void> _handleSave() async {
+    final error = _validateData();
+    if (error != null) {
+      _showSnackBar(error, isError: true);
+      return;
+    }
+
+    setState(() => _isSaving = true);
+
+    final double targetAmount = double.parse(_targetController.text.trim());
+    final double initialAmount = double.tryParse(_initialController.text.trim()) ?? 0;
+
+    final request = SavingGoalRequest(
+      goalName: _nameController.text.trim(),
+      targetAmount: targetAmount,
+      initialAmount: initialAmount,
+      currencyCode: _currency,
+      endDate: _endDate!,
+      notified: _notify,
+      reportable: _reportable,
+      goalImageUrl: _selectedIconUrl,
+      amount: initialAmount,
+    );
+
+    final provider = Provider.of<SavingGoalProvider>(context, listen: false);
+    final success = await provider.createGoal(request);
+
+    if (!mounted) return;
+    setState(() => _isSaving = false);
+
+    if (success) {
+      await provider.loadGoals();
+      _showSnackBar("Goal created successfully!", isError: false);
+      Navigator.of(context).pop(true);
+    } else {
+      _showSnackBar(provider.errorMessage ?? "Failed to save goal", isError: true);
     }
   }
 
@@ -98,6 +133,7 @@ class _AddSavingGoalScreenState extends State<AddSavingGoalScreen> {
         content: Text(message),
         backgroundColor: isError ? Colors.redAccent : Colors.green,
         behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
     );
@@ -105,8 +141,6 @@ class _AddSavingGoalScreenState extends State<AddSavingGoalScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isLoading = context.watch<SavingGoalProvider>().isLoading;
-
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
@@ -121,39 +155,54 @@ class _AddSavingGoalScreenState extends State<AddSavingGoalScreen> {
         ),
         actions: [
           TextButton(
-            onPressed: isLoading ? null : _handleSave,
-            child: isLoading
+            onPressed: _isSaving ? null : _handleSave,
+            child: _isSaving
                 ? const SizedBox(
               width: 20, height: 20,
-              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.green),
+              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.greenAccent),
             )
                 : const Text("SAVE",
-                style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 16)),
+                style: TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold, fontSize: 16)),
           ),
         ],
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          // ================= ICON + NAME =================
           _buildFieldWrapper(
             child: Row(
               children: [
+                // Thay thế đoạn code hiển thị Icon cũ bằng đoạn này:
                 GestureDetector(
                   onTap: _openIconPicker,
                   child: Stack(
                     alignment: Alignment.bottomRight,
                     children: [
-                      // Hiển thị icon đã có sẵn ngay từ đầu
-                      IconHelper.buildCircleAvatar(
-                        iconUrl: _selectedIconUrl,
-                        radius: 28,
-                        backgroundColor: Colors.orange.withOpacity(0.1),
+                      // Viền bao ngoài icon
+                      Container(
+                        padding: const EdgeInsets.all(3), // Độ dày của viền
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: Colors.greenAccent.withOpacity(0.5), // Màu sắc viền
+                            width: 2,
+                          ),
+                        ),
+                        child: IconHelper.buildCircleAvatar(
+                          iconUrl: _selectedIconUrl,
+                          radius: 30,
+                          backgroundColor: const Color(0xFF1C1C1E),
+                        ),
                       ),
+                      // Nút Edit (bút chì)
                       Container(
                         padding: const EdgeInsets.all(4),
-                        decoration: const BoxDecoration(color: Colors.blueAccent, shape: BoxShape.circle),
-                        child: const Icon(Icons.edit, size: 10, color: Colors.white),
+                        decoration: BoxDecoration(
+                          color: Colors.blueAccent,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.black, width: 2), // Viền để tách biệt nút edit
+                        ),
+                        child: const Icon(Icons.edit_rounded, size: 12, color: Colors.white),
                       )
                     ],
                   ),
@@ -165,6 +214,7 @@ class _AddSavingGoalScreenState extends State<AddSavingGoalScreen> {
                     autofocus: true,
                     style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w500),
                     decoration: const InputDecoration(
+                      labelText: "Goal Name",
                       hintText: "What are you saving for?",
                       border: InputBorder.none,
                       hintStyle: TextStyle(color: Color(0xFF48484A)),
@@ -182,19 +232,20 @@ class _AddSavingGoalScreenState extends State<AddSavingGoalScreen> {
               children: [
                 _buildTextField(
                   controller: _targetController,
-                  label: "Target Amount",
+                  label: "Target Amount > 1,000",
+                  hint: "e.g. 5000000",
                   icon: Icons.track_changes,
                   iconColor: Colors.greenAccent,
                 ),
                 const Divider(height: 1, color: Colors.white10, indent: 40),
                 _buildTextField(
                   controller: _initialController,
-                  label: "Initial Amount (Optional)",
+                  label: "Initial Amount cannot be negative",
+                  hint: "0",
                   icon: Icons.account_balance_wallet,
                   iconColor: Colors.blueAccent,
                 ),
                 const Divider(height: 1, color: Colors.white10, indent: 40),
-
                 ListTile(
                   contentPadding: EdgeInsets.zero,
                   leading: const Icon(Icons.currency_exchange, color: Colors.orangeAccent, size: 22),
@@ -272,6 +323,7 @@ class _AddSavingGoalScreenState extends State<AddSavingGoalScreen> {
   Widget _buildTextField({
     required TextEditingController controller,
     required String label,
+    String? hint,
     required IconData icon,
     Color iconColor = Colors.grey,
   }) {
@@ -282,6 +334,8 @@ class _AddSavingGoalScreenState extends State<AddSavingGoalScreen> {
       decoration: InputDecoration(
         icon: Icon(icon, color: iconColor, size: 22),
         labelText: label,
+        hintText: hint,
+        hintStyle: const TextStyle(color: Colors.white10, fontSize: 14),
         labelStyle: const TextStyle(color: Colors.grey, fontSize: 14),
         border: InputBorder.none,
       ),
@@ -289,10 +343,11 @@ class _AddSavingGoalScreenState extends State<AddSavingGoalScreen> {
   }
 
   void _pickDate() async {
+    final now = DateTime.now();
     final date = await showDatePicker(
       context: context,
-      initialDate: DateTime.now().add(const Duration(days: 30)),
-      firstDate: DateTime.now(),
+      initialDate: _endDate ?? now.add(const Duration(days: 30)),
+      firstDate: now, // User cannot pick past dates
       lastDate: DateTime(2100),
       builder: (context, child) {
         return Theme(
