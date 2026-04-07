@@ -24,7 +24,7 @@ public class WalletServiceImpl implements WalletService {
 
     private final WalletRepository walletRepository;
     private final AccountRepository accountRepository;
-    private final Repository currencyRepository;
+    private final CurrencyRepository currencyRepository;
     private final TransactionRepository transactionRepository;
     private final CategoryRepository categoryRepository;
     private final SavingGoalRepository savingGoalRepository;
@@ -207,16 +207,27 @@ public class WalletServiceImpl implements WalletService {
                 wallet.setBalance(newBalance);
 
                 // ===== 🔥 LOW BALANCE ALERT =====
+                // [B] Thông báo USER — related_id = wallet.getId() để Flutter navigate đến ví
+                // Dùng WALLETS (type=6) vì liên quan ví + số dư
                 if (wallet.getNotified()
                         && newBalance.compareTo(LOW_BALANCE_THRESHOLD) < 0) {
 
+                    // [NOTE] Build notification message using NotificationMessages.walletLowBalance()
+                    // Parameters:
+                    //   - wallet.getWalletName()        : Name of wallet (e.g., "Ví tiền mặt")
+                    //   - newBalance                    : Current balance that's below threshold (e.g., 300,000đ)
+                    //   - LOW_BALANCE_THRESHOLD         : Threshold constant (500,000đ)
+                    NotificationContent msg = NotificationMessages
+                            .walletLowBalance(wallet.getWalletName(), newBalance, LOW_BALANCE_THRESHOLD);
+
+                    // Send notification using template values from NotificationMessages
                     notificationService.createNotification(
-                            wallet.getAccount().getId(),
-                            NotificationType.WARNING,
-                            NotificationContent.builder()
-                                    .title(NotificationMessages.LOW_BALANCE_TITLE)
-                                    .message(NotificationMessages.lowBalance(wallet.getWalletName(), newBalance))
-                                    .build());
+                            wallet.getAccount(),
+                            msg.title(),
+                            msg.content(),
+                            NotificationType.WALLETS,
+                            wallet.getId().longValue(),
+                            null);
                 }
             }
         }
