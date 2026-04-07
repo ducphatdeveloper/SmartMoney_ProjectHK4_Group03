@@ -6,10 +6,12 @@ import 'package:smart_money/core/helpers/icon_helper.dart';
 import '../providers/saving_goal_provider.dart';
 import '../models/saving_goal_request.dart';
 import '../models/saving_goal_response.dart';
+import '../../category/models/icon_dto.dart';
 import 'package:smart_money/modules/category/screens/icon_picker_screen.dart';
 
 class EditSavingGoalScreen extends StatefulWidget {
   final SavingGoalResponse goal;
+
   const EditSavingGoalScreen({super.key, required this.goal});
 
   @override
@@ -22,26 +24,62 @@ class _EditSavingGoalScreenState extends State<EditSavingGoalScreen> {
   late TextEditingController _currentController;
 
   DateTime? _endDate;
-  bool _notified = true;
+  late String _currency;
+  bool _notify = true;
   bool _reportable = true;
   bool _isSaving = false;
   String? _selectedIconUrl;
-  late String _currencyCode;
 
   @override
   void initState() {
     super.initState();
-    _nameController = TextEditingController(text: widget.goal.goalName);
-    _targetController = TextEditingController(
-        text: widget.goal.targetAmount.toInt().toString());
-    _currentController = TextEditingController(
-        text: widget.goal.currentAmount.toInt().toString());
 
-    _currencyCode = widget.goal.currencyCode ?? 'VND';
+    // Khởi tạo và loại bỏ .0 bằng cách toInt()
+    _nameController = TextEditingController(text: widget.goal.goalName);
+    _targetController = TextEditingController(text: widget.goal.targetAmount.toInt().toString());
+    _currentController = TextEditingController(text: widget.goal.currentAmount.toInt().toString());
+
+    _currency = widget.goal.currencyCode ?? "VND";
     _endDate = widget.goal.endDate;
-    _notified = widget.goal.notified ?? true;
+    _notify = widget.goal.notified ?? true;
     _reportable = widget.goal.reportable ?? true;
     _selectedIconUrl = widget.goal.imageUrl;
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    _targetController.dispose();
+    _currentController.dispose();
+    super.dispose();
+  }
+
+  String? _validateData() {
+    final name = _nameController.text.trim();
+    final targetStr = _targetController.text.trim();
+
+    if (name.isEmpty) return "Please enter a goal name";
+    if (targetStr.isEmpty) return "Please enter your target amount";
+
+    final targetAmount = double.tryParse(targetStr);
+    if (targetAmount == null || targetAmount <= 1000) {
+      return "Target amount must be a number greater than 1,000";
+    }
+
+    // Do Current Balance không cho sửa nên lấy trực tiếp từ data cũ để so sánh
+    if (widget.goal.currentAmount > targetAmount) {
+      return "Target amount cannot be less than current balance";
+    }
+
+    if (_endDate == null) return "Please select a target date";
+
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    if (_endDate!.isBefore(today)) {
+      return "Target date cannot be in the past";
+    }
+
+    return null;
   }
 
   void _openIconPicker() async {
@@ -49,46 +87,61 @@ class _EditSavingGoalScreenState extends State<EditSavingGoalScreen> {
       context,
       MaterialPageRoute(builder: (_) => const IconPickerScreen()),
     );
-    if (result != null && mounted) {
-      setState(() => _selectedIconUrl = result.url);
+
+    if (result != null && result is IconDto && mounted) {
+      setState(() {
+        _selectedIconUrl = result.url;
+      });
     }
   }
 
   Future<void> _handleSave() async {
-    final name = _nameController.text.trim();
-    final target = double.tryParse(_targetController.text) ?? 0;
-    final current = double.tryParse(_currentController.text) ?? 0;
-
-    if (name.isEmpty || target <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please enter a valid name and target")),
-      );
+    final error = _validateData();
+    if (error != null) {
+      _showSnackBar(error, isError: true);
       return;
     }
 
     setState(() => _isSaving = true);
 
+    final double targetAmount = double.tryParse(_targetController.text.trim()) ?? 0;
+
     final request = SavingGoalRequest(
-      goalName: name,
-      targetAmount: target,
-      initialAmount: current,
-      currencyCode: _currencyCode,
+      goalName: _nameController.text.trim(),
+      targetAmount: targetAmount,
+      initialAmount: widget.goal.currentAmount, // Giữ nguyên số dư cũ
+      currencyCode: _currency,
       endDate: _endDate!,
-      notified: _notified,
+      notified: _notify,
       reportable: _reportable,
       goalImageUrl: _selectedIconUrl,
+      amount: widget.goal.currentAmount,
     );
 
-    final provider = context.read<SavingGoalProvider>();
+    final provider = Provider.of<SavingGoalProvider>(context, listen: false);
     final success = await provider.updateGoal(widget.goal.id, request);
 
     if (!mounted) return;
     setState(() => _isSaving = false);
 
     if (success) {
-      provider.loadGoals();
-      Navigator.pop(context, true);
+      await provider.loadGoals();
+      _showSnackBar("Goal updated successfully!", isError: false);
+      Navigator.of(context).pop(true);
+    } else {
+      _showSnackBar(provider.errorMessage ?? "Failed to save goal", isError: true);
     }
+  }
+
+  void _showSnackBar(String message, {bool isError = true}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError ? Colors.redAccent : Colors.green,
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
+      ),
+    );
   }
 
   @override
@@ -97,174 +150,141 @@ class _EditSavingGoalScreenState extends State<EditSavingGoalScreen> {
       backgroundColor: Colors.black,
       appBar: AppBar(
         backgroundColor: Colors.black,
+        elevation: 0,
         centerTitle: true,
-        title: const Text("Edit Goal", style: TextStyle(color: Colors.white)),
-        leadingWidth: 80,
+        title: const Text("Edit Saving Goal",
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 20),
+          icon: const Icon(Icons.close, color: Colors.white),
           onPressed: () => Navigator.pop(context),
         ),
         actions: [
           TextButton(
             onPressed: _isSaving ? null : _handleSave,
             child: _isSaving
-                ? const SizedBox(
-              width: 20,
-              height: 20,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: Colors.green,
-              ),
-            )
-                : const Text(
-              "SAVE",
-              style: TextStyle(
-                  color: Colors.green, fontWeight: FontWeight.bold),
-            ),
+                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.greenAccent))
+                : const Text("SAVE", style: TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold, fontSize: 16)),
           ),
         ],
       ),
-      body: SingleChildScrollView(
+      body: ListView(
         padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            /// --- SECTION 1: CƠ BẢN (NAME & ICON) ---
-            _buildCard([
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: Row(
-                  children: [
-                    GestureDetector(
-                      onTap: _openIconPicker,
-                      child: IconHelper.buildCircleAvatar(
-                        iconUrl: _selectedIconUrl,
-                        radius: 24,
-                        backgroundColor: Colors.grey.shade800,
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: TextField(
-                        controller: _nameController,
-                        style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold),
-                        decoration: const InputDecoration(
-                          labelText: "Goal Name",
-                          labelStyle: TextStyle(color: Colors.grey),
-                          border: InputBorder.none,
+        children: [
+          // UI ICON + NAME
+          _buildFieldWrapper(
+            child: Row(
+              children: [
+                GestureDetector(
+                  onTap: _openIconPicker,
+                  child: Stack(
+                    alignment: Alignment.bottomRight,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(3),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.greenAccent.withOpacity(0.5), width: 2),
+                        ),
+                        child: IconHelper.buildCircleAvatar(
+                          iconUrl: _selectedIconUrl,
+                          radius: 30,
+                          backgroundColor: const Color(0xFF1C1C1E),
                         ),
                       ),
-                    ),
-                  ],
+                      Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: Colors.blueAccent,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.black, width: 2),
+                        ),
+                        child: const Icon(Icons.edit_rounded, size: 12, color: Colors.white),
+                      )
+                    ],
+                  ),
                 ),
-              ),
-            ]),
+                const SizedBox(width: 15),
+                Expanded(
+                  child: TextField(
+                    controller: _nameController,
+                    style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w500),
+                    decoration: const InputDecoration(
+                      labelText: "Goal Name",
+                      labelStyle: TextStyle(color: Colors.grey, fontSize: 14),
+                      border: InputBorder.none,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
 
-            const SizedBox(height: 16),
+          const SizedBox(height: 24),
+          _sectionLabel("FINANCIAL DETAILS"),
+          _buildFieldWrapper(
+            child: Column(
+              children: [
+                _buildTextField(
+                  controller: _targetController,
+                  label: "Target Amount",
+                  icon: Icons.track_changes,
+                  iconColor: Colors.greenAccent,
+                ),
+                const Divider(height: 1, color: Colors.white10, indent: 40),
+                // LOCK CURRENT BALANCE
+                _buildTextField(
+                  controller: _currentController,
+                  label: "Current Balance",
+                  icon: Icons.account_balance_wallet,
+                  iconColor: Colors.blueAccent,
+                  enabled: false, // Khóa ô nhập liệu
+                ),
+                const Divider(height: 1, color: Colors.white10, indent: 40),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.currency_exchange, color: Colors.orangeAccent, size: 22),
+                  title: const Text("Currency", style: TextStyle(color: Colors.grey, fontSize: 14)),
+                  trailing: Text(_currency, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                ),
+              ],
+            ),
+          ),
 
-            /// --- SECTION 2: TÀI CHÍNH & THỜI GIAN ---
-            _buildCard([
-              _buildRow(Icons.track_changes, "Target Amount", _targetController,
-                  isNumber: true, iconColor: Colors.greenAccent),
-              _buildDivider(),
-              _buildRow(Icons.account_balance_wallet, "Current Balance",
-                  _currentController,
-                  isNumber: true, iconColor: Colors.blueAccent),
-              _buildDivider(),
-
-              /// 🔥 HIỂN THỊ CURRENCY (READ-ONLY)
-              _buildReadOnlyRow(Icons.currency_exchange, "Currency", "VIET NAM DONG",
-                  iconColor: Colors.orangeAccent),
-
-              _buildDivider(),
-              ListTile(
-                leading: const Icon(Icons.calendar_today,
-                    color: Colors.redAccent, size: 22),
-                title: const Text("End Date",
-                    style: TextStyle(color: Colors.grey, fontSize: 14)),
-                subtitle: Text(DateFormat('MMMM dd, yyyy').format(_endDate!),
-                    style: const TextStyle(color: Colors.white, fontSize: 16)),
-                trailing: const Icon(Icons.chevron_right, color: Colors.grey),
-                onTap: () async {
-                  final p = await showDatePicker(
-                    context: context,
-                    initialDate: _endDate!,
-                    firstDate: DateTime(2000),
-                    lastDate: DateTime(2100),
-                  );
-                  if (p != null) setState(() => _endDate = p);
-                },
-              ),
-            ]),
-
-            const SizedBox(height: 16),
-
-            /// --- SECTION 3: CÀI ĐẶT THÊM ---
-            _buildCard([
-              SwitchListTile(
-                secondary: const Icon(Icons.notifications_active_outlined,
-                    color: Colors.purpleAccent),
-                title: const Text("Smart Notification",
-                    style: TextStyle(color: Colors.white)),
-                subtitle: const Text("Remind me to save regularly",
-                    style: TextStyle(color: Colors.grey, fontSize: 12)),
-                value: _notified,
-                activeColor: Colors.purpleAccent,
-                onChanged: (val) => setState(() => _notified = val),
-              ),
-              _buildDivider(),
-              SwitchListTile(
-                secondary: const Icon(Icons.insights_rounded,
-                    color: Colors.tealAccent),
-                title: const Text("Show in Reports",
-                    style: TextStyle(color: Colors.white)),
-                subtitle: const Text("Include this goal in analytics",
-                    style: TextStyle(color: Colors.grey, fontSize: 12)),
-                value: _reportable,
-                activeColor: Colors.greenAccent,
-                onChanged: (val) => setState(() => _reportable = val),
-              ),
-            ]),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCard(List<Widget> children) {
-    return Container(
-      decoration: BoxDecoration(
-          color: const Color(0xFF1C1C1E),
-          borderRadius: BorderRadius.circular(20)),
-      child: Column(children: children),
-    );
-  }
-
-  Widget _buildDivider() =>
-      const Divider(height: 1, indent: 55, color: Color(0xFF2C2C2E));
-
-  Widget _buildRow(
-      IconData icon, String label, TextEditingController controller,
-      {bool isNumber = false, Color iconColor = Colors.grey}) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      child: Row(
-        children: [
-          Icon(icon, color: iconColor, size: 22),
-          const SizedBox(width: 16),
-          Expanded(
-            child: TextField(
-              controller: controller,
-              keyboardType:
-              isNumber ? TextInputType.number : TextInputType.text,
-              style: const TextStyle(color: Colors.white, fontSize: 16),
-              decoration: InputDecoration(
-                labelText: label,
-                labelStyle: const TextStyle(color: Colors.grey),
-                border: InputBorder.none,
-              ),
+          const SizedBox(height: 24),
+          _sectionLabel("SCHEDULE & SETTINGS"),
+          _buildFieldWrapper(
+            child: Column(
+              children: [
+                ListTile(
+                  onTap: _pickDate,
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.calendar_month, color: Colors.redAccent, size: 22),
+                  title: const Text("Target Date", style: TextStyle(color: Colors.grey, fontSize: 14)),
+                  subtitle: Text(
+                    DateFormat('MMMM dd, yyyy').format(_endDate!),
+                    style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w500),
+                  ),
+                  trailing: const Icon(Icons.chevron_right, color: Colors.grey),
+                ),
+                const Divider(height: 1, color: Colors.white10, indent: 40),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  secondary: const Icon(Icons.notifications_active_outlined, color: Colors.purpleAccent, size: 22),
+                  title: const Text("Smart Notification", style: TextStyle(color: Colors.white, fontSize: 15)),
+                  value: _notify,
+                  activeColor: Colors.purpleAccent,
+                  onChanged: (val) => setState(() => _notify = val),
+                ),
+                const Divider(height: 1, color: Colors.white10, indent: 40),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  secondary: const Icon(Icons.insights_rounded, color: Colors.tealAccent, size: 22),
+                  title: const Text("Show in Reports", style: TextStyle(color: Colors.white, fontSize: 15)),
+                  value: _reportable,
+                  activeColor: Colors.greenAccent,
+                  onChanged: (val) => setState(() => _reportable = val),
+                ),
+              ],
             ),
           ),
         ],
@@ -272,29 +292,61 @@ class _EditSavingGoalScreenState extends State<EditSavingGoalScreen> {
     );
   }
 
-  Widget _buildReadOnlyRow(IconData icon, String label, String value,
-      {Color iconColor = Colors.grey}) {
+  // --- UI Helpers ---
+  Widget _sectionLabel(String text) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: Row(
-        children: [
-          Icon(icon, color: iconColor, size: 22),
-          const SizedBox(width: 16),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(label,
-                  style: const TextStyle(color: Colors.grey, fontSize: 12)),
-              const SizedBox(height: 4),
-              Text(value,
-                  style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500)),
-            ],
-          ),
-        ],
+      padding: const EdgeInsets.only(left: 8, bottom: 8),
+      child: Text(text, style: const TextStyle(color: Color(0xFF8E8E93), fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
+    );
+  }
+
+  Widget _buildFieldWrapper({required Widget child}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1C1C1E),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withOpacity(0.05)),
+      ),
+      child: child,
+    );
+  }
+
+  Widget _buildTextField({
+    required TextEditingController controller,
+    required String label,
+    required IconData icon,
+    Color iconColor = Colors.grey,
+    bool enabled = true,
+  }) {
+    return TextField(
+      controller: controller,
+      enabled: enabled,
+      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      style: TextStyle(color: enabled ? Colors.white : Colors.grey),
+      decoration: InputDecoration(
+        icon: Icon(icon, color: iconColor, size: 22),
+        labelText: label,
+        labelStyle: const TextStyle(color: Colors.grey, fontSize: 14),
+        border: InputBorder.none,
       ),
     );
+  }
+
+  void _pickDate() async {
+    final now = DateTime.now();
+    final date = await showDatePicker(
+      context: context,
+      initialDate: _endDate ?? now.add(const Duration(days: 30)),
+      firstDate: now,
+      lastDate: DateTime(2100),
+      builder: (context, child) => Theme(
+        data: ThemeData.dark().copyWith(
+          colorScheme: const ColorScheme.dark(primary: Colors.greenAccent, onPrimary: Colors.black, surface: Color(0xFF1C1C1E)),
+        ),
+        child: child!,
+      ),
+    );
+    if (date != null) setState(() => _endDate = date);
   }
 }
