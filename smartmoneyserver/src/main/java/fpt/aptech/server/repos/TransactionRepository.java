@@ -335,11 +335,51 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
             "LEFT JOIN c.parent p " +
             "LEFT JOIN Transaction t ON t.category = c " +
             "AND t.transDate BETWEEN :startDate AND :endDate " +
+            "AND t.deleted = false " +
             "GROUP BY c.id, c.ctgName, c.ctgType, c.ctgIconUrl, p.ctgName")
     List<Object[]> getGlobalCategoryStats(@Param("startDate") LocalDateTime startDate,
                                           @Param("endDate") LocalDateTime endDate);
+
+    @Query("SELECT COALESCE(SUM(t.amount), 0) FROM Transaction t " +
+            "WHERE t.transDate BETWEEN :startDate AND :endDate AND t.deleted = false")
+    BigDecimal getTotalVolumeRange(@Param("startDate") LocalDateTime startDate,
+                                   @Param("endDate") LocalDateTime endDate);
+
+    @Query("SELECT g.goalName, SUM(t.amount), g.id " +
+            "FROM Transaction t " +
+            "JOIN t.savingGoal g " +
+            "WHERE t.transDate BETWEEN :startDate AND :endDate " +
+            "  AND t.deleted = false " +
+            "GROUP BY g.id, g.goalName")
+    List<Object[]> getGlobalGoalStats(@Param("startDate") LocalDateTime startDate,
+                                      @Param("endDate") LocalDateTime endDate);
+
     // Tìm các giao dịch có số tiền lớn hơn ngưỡng và phát sinh sau thời điểm xác định
     List<Transaction> findAllByAmountGreaterThanAndTransDateAfter(BigDecimal amount, LocalDateTime since);
+
+
+    // Phân trang cho Admin quản lý giao dịch người dùng
+    @Query("SELECT t FROM Transaction t WHERE t.account.id = :userId " +
+            "AND ((:onlyDeleted = true AND t.deleted = true) OR " +
+            "(:onlyDeleted = false AND (:includeDeleted = true OR t.deleted = false))) " +
+            "AND (:isIncome IS NULL OR t.category.ctgType = :isIncome)")
+    Page<Transaction> findAllUserTransactionsWithFilter(
+            @Param("userId") Integer userId,
+            @Param("includeDeleted") boolean includeDeleted,
+            @Param("onlyDeleted") boolean onlyDeleted,
+            @Param("isIncome") Boolean isIncome,
+            Pageable pageable);
+
+    // Lấy danh sách đầy đủ (để export/report)
+    @Query("SELECT t FROM Transaction t WHERE t.account.id = :userId " +
+            "AND ((:onlyDeleted = true AND t.deleted = true) OR " +
+            "(:onlyDeleted = false AND (:includeDeleted = true OR t.deleted = false))) " +
+            "AND (:isIncome IS NULL OR t.category.ctgType = :isIncome)")
+    List<Transaction> findAllUserTransactionsWithFilter(
+            @Param("userId") Integer userId,
+            @Param("includeDeleted") boolean includeDeleted,
+            @Param("onlyDeleted") boolean onlyDeleted,
+            @Param("isIncome") Boolean isIncome);
 
     // =================================================================================
     // 10. CÁC HÀM CHO PLANNED TRANSACTION (Giao dịch định kỳ / Hóa đơn)

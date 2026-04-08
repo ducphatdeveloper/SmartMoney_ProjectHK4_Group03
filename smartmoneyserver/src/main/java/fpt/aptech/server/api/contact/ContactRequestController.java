@@ -31,7 +31,7 @@ public class ContactRequestController {
     // POST /api/contact-requests
     // =================================================================================
     @PostMapping
-    @PreAuthorize("hasAuthority('USER_STANDARD_MANAGE') or hasAuthority('ADMIN_SYSTEM_ALL')")
+    //    @PreAuthorize("hasAuthority('USER_STANDARD_MANAGE') or hasAuthority('ADMIN_SYSTEM_ALL')")
     public ResponseEntity<ApiResponse<ContactRequestResponse>> createRequest(
             @Valid @RequestBody ContactRequestCreateRequest request,
             @AuthenticationPrincipal Account currentUser) {
@@ -59,16 +59,17 @@ public class ContactRequestController {
     }
 
     // =================================================================================
-    // [3] ADMIN — Xem tất cả yêu cầu (filter ?status=PENDING&type=ACCOUNT_LOCK)
+    // [3] ADMIN — Xem tất cả yêu cầu (filter ?status=PENDING&type=ACCOUNT_LOCK&priority=HIGH)
     // GET /api/contact-requests
     // =================================================================================
     @GetMapping
     @PreAuthorize("hasAuthority('ADMIN_SYSTEM_ALL')")
     public ResponseEntity<ApiResponse<List<ContactRequestResponse>>> getAllRequests(
             @RequestParam(required = false) String status,
-            @RequestParam(required = false) String type) {
+            @RequestParam(required = false) String type,
+            @RequestParam(required = false) String priority) {
 
-        List<ContactRequestResponse> responses = contactRequestService.getAllRequests(status, type);
+        List<ContactRequestResponse> responses = contactRequestService.getAllRequests(status, type, priority);
 
         return ResponseEntity.ok(ApiResponse.success(responses));
     }

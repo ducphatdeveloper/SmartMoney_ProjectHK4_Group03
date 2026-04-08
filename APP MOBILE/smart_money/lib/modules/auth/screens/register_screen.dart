@@ -19,6 +19,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool isHidePassword = true;
   bool isHideConfirmPassword = true;
 
+  String? _emailError;
+  String? _phoneError;
+  String? _passwordError;
+  String? _confirmPasswordError;
+
   // Hàm tiện ích để hiển thị thông báo nhanh
   void _showSnackBar(String message, {bool isError = true}) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -109,6 +114,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           decoration: InputDecoration(
                             labelText: "Email (optional if phone provided)",
                             hintText: "Enter your email",
+                            errorText: _emailError,
 
                             prefixIcon: const Icon(
                               Icons.email,
@@ -159,6 +165,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           decoration: InputDecoration(
                             labelText: "Phone (optional if email provided)",
                             hintText: "Enter your phone number",
+                            errorText: _phoneError,
 
                             prefixIcon: const Icon(
                               Icons.phone,
@@ -210,6 +217,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           decoration: InputDecoration(
                             labelText: "Password",
                             hintText: "Enter your password",
+                            errorText: _passwordError,
 
                             prefixIcon: const Icon(
                               Icons.lock,
@@ -275,6 +283,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           decoration: InputDecoration(
                             labelText: "Confirm Password",
                             hintText: "Confirm your password",
+                            errorText: _confirmPasswordError,
 
                             prefixIcon: const Icon(
                               Icons.lock_outline,
@@ -345,48 +354,52 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             onPressed: authProvider.isLoading
                                 ? null
                                 : () async {
+                              
+                              setState(() {
+                                _emailError = null;
+                                _phoneError = null;
+                                _passwordError = null;
+                                _confirmPasswordError = null;
+                              });
+
                               final email = emailController.text.trim();
                               final phone = phoneController.text.trim();
                               final password = passwordController.text;
                               final confirmPassword = confirmPasswordController.text;
 
-                              // 1. Kiểm tra để trống cả Email và Số điện thoại
-                              if (email.isEmpty && phone.isEmpty) {
-                                _showSnackBar("Vui lòng nhập ít nhất Email hoặc Số điện thoại");
-                                return;
-                              }
-
-                              // 2. Kiểm tra mật khẩu trống hoặc quá ngắn
-                              if (password.isEmpty) {
-                                _showSnackBar("Vui lòng nhập mật khẩu");
-                                return;
-                              }
-                              if (password.length < 6) {
-                                _showSnackBar("Mật khẩu phải có ít nhất 6 ký tự");
-                                return;
-                              }
-
-                              // 3. Kiểm tra mật khẩu xác nhận
-                              if (password != confirmPassword) {
-                                _showSnackBar("Mật khẩu xác nhận không khớp");
-                                return;
-                              }
-
                               // Gọi Provider để xử lý đăng ký
-                              bool success = await authProvider.register(
+                              final errors = await authProvider.register(
                                 email.isEmpty ? null : email,
                                 phone.isEmpty ? null : phone,
                                 password,
                                 confirmPassword,
                               );
 
-                              if (success) {
+                              if (errors == null) {
                                 if (!mounted) return;
                                 _showSnackBar("Đăng ký thành công! Vui lòng đăng nhập.", isError: false);
                                 context.go("/login");
                               } else {
                                 if (!mounted) return;
-                                _showSnackBar("Đăng ký thất bại. Email hoặc Số điện thoại có thể đã tồn tại.");
+                                setState(() {
+                                  _emailError = errors['accEmail'];
+                                  _phoneError = errors['accPhone'];
+                                  _passwordError = errors['password'];
+                                  _confirmPasswordError = errors['confirmPassword'];
+                                  
+                                  // Xử lý các lỗi custom từ @AssertTrue
+                                  if (errors.containsKey('validIdentity')) {
+                                    _emailError = errors['validIdentity'];
+                                    _phoneError = errors['validIdentity'];
+                                  }
+                                  if (errors.containsKey('passwordMatching')) {
+                                    _confirmPasswordError = errors['passwordMatching'];
+                                  }
+                                });
+
+                                if (errors.containsKey('general')) {
+                                   _showSnackBar(errors['general']!);
+                                }
                               }
                             },
 

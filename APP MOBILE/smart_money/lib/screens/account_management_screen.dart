@@ -4,61 +4,87 @@ import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
 import '../modules/auth/providers/auth_provider.dart';
 
-class AccountManagementScreen extends StatelessWidget {
+class AccountManagementScreen extends StatefulWidget {
   const AccountManagementScreen({super.key});
 
   @override
+  State<AccountManagementScreen> createState() => _AccountManagementScreenState();
+}
+
+class _AccountManagementScreenState extends State<AccountManagementScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // Automatically update data from database when entering the screen
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<AuthProvider>().getProfile();
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
-    // Lấy instance của AuthProvider
+    // Get instance of AuthProvider
     final authProvider = context.watch<AuthProvider>();
     final user = authProvider.currentUser;
 
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
-        title: const Text("Quản Lý Tài Khoản"),
+        title: const Text("Account Management"),
         backgroundColor: Colors.black,
         centerTitle: true,
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
+      body: RefreshIndicator(
+        onRefresh: () async {
+          // Call API to get latest information from database
+          await authProvider.getProfile();
+        },
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(16),
+          children: [
+            // Show small loading bar at the top if loading data
+            if (authProvider.isLoading)
+              const Padding(
+                padding: EdgeInsets.only(bottom: 16),
+                child: LinearProgressIndicator(backgroundColor: Colors.black, color: Colors.purple),
+              ),
+              
+            // ===== PROFILE CARD =====
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1C1C1E),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Column(
+                children: [
 
-          // ===== PROFILE CARD =====
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: const Color(0xFF1C1C1E),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Column(
-              children: [
-
-                // Avatar với chức năng cập nhật
-                GestureDetector(
-                  onTap: () => _pickAndUploadImage(context, authProvider),
-                  child: Stack(
-                    children: [
-                      CircleAvatar(
-                        radius: 35,
-                        backgroundColor: Colors.purple,
-                        backgroundImage: user?.avatarUrl != null ? NetworkImage(user!.avatarUrl!) : null,
-                        child: user?.avatarUrl == null
-                            ? Text(
-                                (user?.fullname != null && user!.fullname!.isNotEmpty)
-                                    ? user.fullname![0].toUpperCase()
-                                    : "U", 
-                                style: const TextStyle(fontSize: 28, color: Colors.white))
-                            : null,
-                      ),
-                      Positioned(
-                        right: 0,
-                        bottom: 0,
-                        child: CircleAvatar(radius: 10, backgroundColor: Colors.green, child: Icon(Icons.camera_alt, size: 12, color: Colors.white)),
-                      )
-                    ],
+                  // Avatar with update function
+                  GestureDetector(
+                    onTap: () => _pickAndUploadImage(context, authProvider),
+                    child: Stack(
+                      children: [
+                        CircleAvatar(
+                          radius: 35,
+                          backgroundColor: Colors.purple,
+                          backgroundImage: user?.avatarUrl != null ? NetworkImage(user!.avatarUrl!) : null,
+                          child: user?.avatarUrl == null
+                              ? Text(
+                                  (user?.fullname != null && user!.fullname!.isNotEmpty)
+                                      ? user.fullname![0].toUpperCase()
+                                      : "U", 
+                                  style: const TextStyle(fontSize: 28, color: Colors.white))
+                              : null,
+                        ),
+                        const Positioned(
+                          right: 0,
+                          bottom: 0,
+                          child: CircleAvatar(radius: 10, backgroundColor: Colors.green, child: Icon(Icons.camera_alt, size: 12, color: Colors.white)),
+                        )
+                      ],
+                    ),
                   ),
-                ),
 
                 const SizedBox(height: 12),
 
@@ -71,7 +97,7 @@ class AccountManagementScreen extends StatelessWidget {
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: const Text(
-                    "TÀI KHOẢN MIỄN PHÍ",
+                    "FREE ACCOUNT",
                     style: TextStyle(fontSize: 12, color: Colors.white),
                   ),
                 ),
@@ -79,7 +105,7 @@ class AccountManagementScreen extends StatelessWidget {
                 const SizedBox(height: 12),
 
                 Text(
-                  user?.fullname ?? "Chưa đặt tên",
+                  user?.fullname ?? "No name set",
                   style: const TextStyle(fontSize: 18, color: Colors.white),
                 ),
 
@@ -97,7 +123,7 @@ class AccountManagementScreen extends StatelessWidget {
 
           // ===== EDIT PROFILE =====
           _button(
-            title: "Chỉnh sửa hồ sơ",
+            title: "Edit Profile",
             color: Colors.blueAccent,
             onTap: () => context.push('/edit-profile'),
           ),
@@ -106,7 +132,7 @@ class AccountManagementScreen extends StatelessWidget {
 
           // ===== CHANGE PASSWORD =====
           _button(
-            title: "Thay đổi mật khẩu",
+            title: "Change Password",
             color: Colors.green,
             onTap: () async {
               final email = user?.accEmail;
@@ -119,25 +145,15 @@ class AccountManagementScreen extends StatelessWidget {
 
           // ===== LOGOUT =====
           _button(
-            title: "Đăng xuất",
+            title: "Logout",
             color: Colors.red,
             onTap: () {
               _confirmLogout(context, authProvider);
             },
           ),
-
-          const SizedBox(height: 12),
-
-          // ===== DELETE ACCOUNT =====
-          _button(
-            title: "Xóa tài khoản",
-            color: Colors.red,
-            onTap: () {
-              _confirmDelete(context);
-            },
-          ),
         ],
       ),
+    )
     );
   }
 
@@ -173,48 +189,26 @@ class AccountManagementScreen extends StatelessWidget {
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text("Đăng xuất"),
-        content: const Text("Bạn có chắc muốn đăng xuất không?"),
+        title: const Text("Logout"),
+        content: const Text("Are you sure you want to logout?"),
         actions: [
           TextButton(
-            child: const Text("Hủy"),
+            child: const Text("Cancel"),
             onPressed: () => Navigator.pop(context),
           ),
           TextButton(
-            child: const Text("Đăng xuất", style: TextStyle(color: Colors.red)),
+            child: const Text("Logout", style: TextStyle(color: Colors.red)),
             onPressed: () async {
-              // Đóng dialog xác nhận
+              // Close confirmation dialog
               Navigator.pop(context);
               
-              // Gọi hàm logout trong AuthProvider
+              // Call logout function in AuthProvider
               await authProvider.logout();
               
-              // Điều hướng về trang login
+              // Navigate back to login page
               if (context.mounted) {
                 context.go("/login");
               }
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _confirmDelete(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text("Xóa tài khoản"),
-        content: const Text("Hành động này không thể hoàn tác!"),
-        actions: [
-          TextButton(
-            child: const Text("Hủy"),
-            onPressed: () => Navigator.pop(context),
-          ),
-          TextButton(
-            child: const Text("Xóa", style: TextStyle(color: Colors.red)),
-            onPressed: () {
-              Navigator.pop(context);
             },
           ),
         ],
@@ -234,7 +228,7 @@ class AccountManagementScreen extends StatelessWidget {
             children: <Widget>[
               ListTile(
                 leading: const Icon(Icons.photo_library, color: Colors.white),
-                title: const Text('Thư viện ảnh', style: TextStyle(color: Colors.white)),
+                title: const Text('Photo Library', style: TextStyle(color: Colors.white)),
                 onTap: () async {
                   final XFile? file = await picker.pickImage(source: ImageSource.gallery, imageQuality: 70);
                   if (context.mounted) Navigator.pop(context, file);
@@ -242,7 +236,7 @@ class AccountManagementScreen extends StatelessWidget {
               ),
               ListTile(
                 leading: const Icon(Icons.camera_alt, color: Colors.white),
-                title: const Text('Chụp ảnh mới', style: TextStyle(color: Colors.white)),
+                title: const Text('Take New Photo', style: TextStyle(color: Colors.white)),
                 onTap: () async {
                   final XFile? file = await picker.pickImage(source: ImageSource.camera, imageQuality: 70);
                   if (context.mounted) Navigator.pop(context, file);
@@ -258,7 +252,7 @@ class AccountManagementScreen extends StatelessWidget {
       final String? newUrl = await auth.updateAvatar(image.path);
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(newUrl != null ? "Cập nhật ảnh đại diện thành công!" : "Cập nhật thất bại.")),
+          SnackBar(content: Text(newUrl != null ? "Profile picture updated successfully!" : "Update failed.")),
         );
       }
     }

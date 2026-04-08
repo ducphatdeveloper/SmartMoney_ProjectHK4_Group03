@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
+import '../../contact/screens/contact_support_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -15,6 +16,9 @@ class _LoginScreenState extends State<LoginScreen> {
   final usernameController = TextEditingController(text: "minh.pham@gmail.com"); // Đặt giá trị mặc định hoặc sđt 0923456789
   final passwordController = TextEditingController(text: "Test@123"); // Đặt giá trị mặc định
   bool isHidePassword = true;
+
+  String? _usernameError;
+  String? _passwordError;
 
   @override
   Widget build(BuildContext context) {
@@ -96,6 +100,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           decoration: InputDecoration(
                             labelText: "Username",
                             hintText: "Enter your username",
+                            errorText: _usernameError,
 
                             prefixIcon: const Icon(
                               Icons.person,
@@ -148,6 +153,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           decoration: InputDecoration(
                             labelText: "Password",
                             hintText: "Enter your password",
+                            errorText: _passwordError,
 
                             prefixIcon: const Icon(
                               Icons.lock,
@@ -206,55 +212,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           alignment: Alignment.centerRight,
                           child: TextButton(
                             onPressed: () {
-
-                              final emailController = TextEditingController();
-
-                              showDialog(
-                                context: context,
-                                builder: (context) {
-                                  return AlertDialog(
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(15),
-                                    ),
-                                    title: const Text("Reset Password"),
-
-                                    content: TextField(
-                                      controller: emailController,
-                                      decoration: const InputDecoration(
-                                        labelText: "Enter your email",
-                                        prefixIcon: Icon(Icons.email),
-                                      ),
-                                    ),
-
-                                    actions: [
-
-                                      TextButton(
-                                        onPressed: () {
-                                          Navigator.pop(context);
-                                        },
-                                        child: const Text("Cancel"),
-                                      ),
-
-                                      ElevatedButton(
-                                        onPressed: () {
-
-                                          /// TODO: API reset password
-                                          ScaffoldMessenger.of(context).showSnackBar(
-                                            const SnackBar(
-                                              content: Text("Reset link sent to your email"),
-                                            ),
-                                          );
-
-                                          Navigator.pop(context);
-                                        },
-                                        child: const Text("Send"),
-                                      ),
-
-                                    ],
-                                  );
-                                },
-                              );
-
+                              context.push("/forgot-password");
                             },
                             child: const Text(
                               "Forgot password?",
@@ -285,26 +243,36 @@ class _LoginScreenState extends State<LoginScreen> {
                             onPressed: authProvider.isLoading
                                 ? null
                                 : () async {
-                              bool success =
-                              await authProvider.login(
+                              
+                              setState(() {
+                                _usernameError = null;
+                                _passwordError = null;
+                              });
+
+                              final errors = await authProvider.login(
                                   usernameController.text,
                                   passwordController.text);
 
-                              if (success) {
-
+                              if (errors == null) {
                                 if (!mounted) return;
-
                                 context.go("/main");
-
                               } else {
+                                if (!mounted) return;
+                                setState(() {
+                                  _usernameError = errors['username'];
+                                  _passwordError = errors['password'];
+                                });
 
-                                ScaffoldMessenger.of(context)
-                                    .showSnackBar(
-                                  const SnackBar(
-                                    content: Text("Login failed"),
-                                  ),
-                                );
-
+                                if (errors.containsKey('general')) {
+                                   ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(content: Text(errors['general']!)),
+                                  );
+                                } else if (_usernameError == null && _passwordError == null) {
+                                  // Trường hợp lỗi chung từ backend (VD: 401 Bad Credentials)
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(content: Text("Invalid username or password")),
+                                  );
+                                }
                               }
 
                             },
@@ -335,6 +303,24 @@ class _LoginScreenState extends State<LoginScreen> {
                               fontWeight: FontWeight.w500,
                             ),
                           ),
+                        ),
+
+                        const SizedBox(height: 10),
+
+                        /// SUPPORT ICON
+                        IconButton(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (_) => const ContactSupportScreen()),
+                            );
+                          },
+                          icon: const Icon(
+                            Icons.support_agent,
+                            color: Colors.orange,
+                            size: 32,
+                          ),
+                          tooltip: "Customer Support",
                         ),
 
                       ]

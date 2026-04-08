@@ -4,6 +4,7 @@ import '../../modules/category/services/category_service.dart';
 import '../../modules/transaction/services/transaction_service.dart';
 import '../../modules/transaction/services/util_service.dart';
 import '../../modules/planned/services/planned_service.dart';
+import '../../modules/contact/services/contact_service.dart';
 
 import '../../modules/budget/services/budget_service.dart';
 import '../../modules/wallet/services/wallet_service.dart';
@@ -33,6 +34,9 @@ void setupDependencies() {
 
   // Budget
   getIt.registerLazySingleton<BudgetService>(() => BudgetService());
+
+  // Contact Service
+  getIt.registerLazySingleton<ContactService>(() => ContactService());
 
   // Saving Goal
   // getIt.registerLazySingleton<SavingGoalService>(() => SavingGoalService());

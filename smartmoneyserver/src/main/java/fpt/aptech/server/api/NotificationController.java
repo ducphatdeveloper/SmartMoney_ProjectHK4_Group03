@@ -27,7 +27,7 @@ public class NotificationController {
     // GET /api/notifications
     // =================================================================================
     @GetMapping
-    @PreAuthorize("hasAuthority('USER_STANDARD_MANAGE') or hasAuthority('ADMIN_SYSTEM_ALL')")
+    @PreAuthorize("hasRole('ROLE_ADMIN') or hasAuthority('USER_STANDARD_MANAGE') or hasAuthority('ADMIN_SYSTEM_ALL')")
     public ResponseEntity<ApiResponse<List<NotificationResponse>>> getMyNotifications(
             @AuthenticationPrincipal Account currentUser) {
 
@@ -42,7 +42,7 @@ public class NotificationController {
     // PUT /api/notifications/{id}/read
     // =================================================================================
     @PutMapping("/{id}/read")
-    @PreAuthorize("hasAuthority('USER_STANDARD_MANAGE') or hasAuthority('ADMIN_SYSTEM_ALL')")
+    @PreAuthorize("hasRole('ROLE_ADMIN') or hasAuthority('USER_STANDARD_MANAGE') or hasAuthority('ADMIN_SYSTEM_ALL')")
     public ResponseEntity<ApiResponse<Void>> markAsRead(
             @PathVariable Integer id,
             @AuthenticationPrincipal Account currentUser) {
@@ -57,7 +57,7 @@ public class NotificationController {
     // PUT /api/notifications/read-all
     // =================================================================================
     @PutMapping("/read-all")
-    @PreAuthorize("hasAuthority('USER_STANDARD_MANAGE') or hasAuthority('ADMIN_SYSTEM_ALL')")
+    @PreAuthorize("hasRole('ROLE_ADMIN') or hasAuthority('USER_STANDARD_MANAGE') or hasAuthority('ADMIN_SYSTEM_ALL')")
     public ResponseEntity<ApiResponse<Void>> markAllAsRead(
             @AuthenticationPrincipal Account currentUser) {
 
@@ -68,12 +68,11 @@ public class NotificationController {
 
     // =================================================================================
     // [4] ADMIN — Lấy thông báo SYSTEM (notify_type=4) của Admin đang login
-    // GET /api/notifications/admin/system
     // Admin web React gọi API này để đổ lên chuông thông báo (bell icon)
     // Bao gồm: cảnh báo giao dịch bất thường, yêu cầu hỗ trợ mới, thông báo hệ thống...
     // =================================================================================
     @GetMapping("/admin/system")
-    @PreAuthorize("hasAuthority('ADMIN_SYSTEM_ALL')")
+    @PreAuthorize("hasRole('ROLE_ADMIN') or hasAuthority('ADMIN_SYSTEM_ALL')")
     public ResponseEntity<ApiResponse<List<NotificationResponse>>> getAdminSystemNotifications(
             @AuthenticationPrincipal Account currentUser) {
 
@@ -83,5 +82,30 @@ public class NotificationController {
         List<NotificationResponse> result = notificationMapper.toResponseList(notifications);
 
         return ResponseEntity.ok(ApiResponse.success(result));
+    }
+
+    // =================================================================================
+    // [5] USER/ADMIN — Xóa một thông báo
+    // DELETE /api/notifications/{id}
+    // =================================================================================
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ROLE_ADMIN') or hasAuthority('USER_STANDARD_MANAGE') or hasAuthority('ADMIN_SYSTEM_ALL')")
+    public ResponseEntity<ApiResponse<Void>> deleteNotification(
+            @PathVariable Integer id,
+            @AuthenticationPrincipal Account currentUser) {
+
+        notificationService.deleteNotification(id, currentUser.getId());
+
+        return ResponseEntity.ok(ApiResponse.success("Đã xóa thông báo thành công."));
+    }
+    // =================================================================================
+    // [6] MOBILE — Gọi khi điện thoại nhận được thông báo từ FCM (Background/Foreground)
+    // PATCH /api/notifications/{id}/delivered
+    // =================================================================================
+    @PatchMapping("/{id}/delivered")
+    @PreAuthorize("hasAuthority('USER_STANDARD_MANAGE')")
+    public ResponseEntity<ApiResponse<Void>> markAsDelivered(@PathVariable Integer id) {
+        notificationService.markAsDelivered(id);
+        return ResponseEntity.ok(ApiResponse.success("Đã xác nhận nhận thông báo."));
     }
 }

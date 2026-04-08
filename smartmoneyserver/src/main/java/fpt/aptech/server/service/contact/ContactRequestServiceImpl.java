@@ -31,218 +31,141 @@ public class ContactRequestServiceImpl implements ContactRequestService {
     private final NotificationService       notificationService;
     private final AdminService              adminService;
 
-    // =================================================================================
-    // 1. USER — Gửi yêu cầu mới
-    // =================================================================================
-
     @Override
     @Transactional
     public ContactRequestResponse createRequest(int accId, ContactRequestCreateRequest request) {
-
-        // [1] Lấy thông tin User
         Account currentUser = accountRepository.findById(accId)
                 .orElseThrow(() -> new IllegalArgumentException("Tài khoản không tồn tại."));
 
-        // [2] Validate: phải có ít nhất phone HOẶC email liên hệ
         boolean hasPhone = request.contactPhone() != null && !request.contactPhone().isBlank();
         boolean hasEmail = request.contactEmail() != null && !request.contactEmail().isBlank();
         if (!hasPhone && !hasEmail) {
-            throw new IllegalArgumentException(
-                    "Vui lòng cung cấp ít nhất một số điện thoại hoặc địa chỉ email để liên hệ.");
+            throw new IllegalArgumentException("Cung cấp ít nhất SĐT hoặc Email.");
         }
 
-        // [3] Map DTO → Entity
         ContactRequest entity = contactRequestMapper.toEntity(request);
         entity.setAccount(currentUser);
         entity.setRequestStatus(ContactRequestStatus.PENDING);
 
-        // [4] Set fullname: ưu tiên user tự nhập, fallback về account.fullname
         if (request.fullname() != null && !request.fullname().isBlank()) {
             entity.setFullname(request.fullname());
-        } else if (currentUser.getFullname() != null && !currentUser.getFullname().isBlank()) {
-            entity.setFullname(currentUser.getFullname());
         } else {
-            entity.setFullname(currentUser.getAccEmail()); // fallback tối thiểu
+            entity.setFullname(currentUser.getFullname() != null ? currentUser.getFullname() : currentUser.getAccEmail());
         }
 
-        // [5] Set priority theo rule database:
-        //     URGENT : SUSPICIOUS_TX, EMERGENCY
-        //     HIGH   : ACCOUNT_LOCK, ACCOUNT_UNLOCK, DATA_LOSS
-        //     NORMAL : BUG_REPORT, DATA_RECOVERY, GENERAL, FORGOT_PASSWORD
         ContactRequestType rType = request.requestType();
         if (rType == ContactRequestType.SUSPICIOUS_TX || rType == ContactRequestType.EMERGENCY) {
             entity.setRequestPriority(ContactRequestPriority.URGENT);
-        } else if (rType == ContactRequestType.ACCOUNT_LOCK
-                || rType == ContactRequestType.ACCOUNT_UNLOCK
-                || rType == ContactRequestType.DATA_LOSS) {
+        } else if (rType == ContactRequestType.ACCOUNT_LOCK || rType == ContactRequestType.ACCOUNT_UNLOCK || rType == ContactRequestType.DATA_LOSS) {
             entity.setRequestPriority(ContactRequestPriority.HIGH);
         } else {
             entity.setRequestPriority(ContactRequestPriority.NORMAL);
         }
 
-        // [6] Lưu vào DB
         ContactRequest saved = contactRequestRepository.save(entity);
 
-        // [7] Gửi thông báo cho tất cả Admin: "Có yêu cầu mới cần xử lý"
+        // Thông báo cho tất cả Admin về yêu cầu mới (PHẦN 1.1 + 1.2 trong txt)
         List<Account> admins = accountRepository.findByRole_RoleCode("ROLE_ADMIN");
+        String priorityPrefix = saved.getRequestPriority() == ContactRequestPriority.URGENT ? "🚨 [URGENT] " : "📋 ";
         for (Account admin : admins) {
             notificationService.createNotification(
-                    admin,
-                    "Yêu cầu hỗ trợ mới",
-                    "Có yêu cầu [" + request.requestType() + "] từ "
-                            + entity.getFullname() + " cần xử lý.",
-                    NotificationType.SYSTEM,
-                    saved.getId().longValue(),
-                    null
+                admin, 
+                priorityPrefix + "Yêu cầu hỗ trợ mới", 
+                "Loại: " + rType + " từ " + entity.getFullname() + ". Ticket #" + saved.getId(), 
+                NotificationType.SYSTEM, 
+                saved.getId().longValue(), 
+                LocalDateTime.now()
             );
         }
 
         return contactRequestMapper.toResponse(saved);
     }
-
-    // =================================================================================
-    // 2. USER — Xem lịch sử yêu cầu
-    // =================================================================================
 
     @Override
     @Transactional(readOnly = true)
     public List<ContactRequestResponse> getMyRequests(int accId) {
-        List<ContactRequest> requests = contactRequestRepository.findAllByAccountId(accId);
-        return contactRequestMapper.toResponseList(requests);
+        return contactRequestMapper.toResponseList(contactRequestRepository.findAllByAccountId(accId));
     }
-
-    // =================================================================================
-    // 3. ADMIN — Xem tất cả yêu cầu (filter)
-    // =================================================================================
 
     @Override
     @Transactional(readOnly = true)
-    public List<ContactRequestResponse> getAllRequests(String status, String type) {
-        // Parse enum từ String, null nếu không truyền
-        ContactRequestStatus statusEnum = null;
-        ContactRequestType typeEnum = null;
+    public List<ContactRequestResponse> getAllRequests(String status, String type, String priority) {
+        ContactRequestStatus statusEnum = (status != null && !status.isBlank()) ? ContactRequestStatus.valueOf(status.toUpperCase()) : null;
+        ContactRequestType typeEnum = (type != null && !type.isBlank()) ? ContactRequestType.valueOf(type.toUpperCase()) : null;
+        ContactRequestPriority priorityEnum = (priority != null && !priority.isBlank()) ? ContactRequestPriority.valueOf(priority.toUpperCase()) : null;
 
-        if (status != null && !status.isBlank()) {
-            statusEnum = ContactRequestStatus.valueOf(status.toUpperCase());
-        }
-        if (type != null && !type.isBlank()) {
-            typeEnum = ContactRequestType.valueOf(type.toUpperCase());
-        }
-
-        List<ContactRequest> requests = contactRequestRepository.findAllByFilters(statusEnum, typeEnum);
-        return contactRequestMapper.toResponseList(requests);
+        return contactRequestMapper.toResponseList(contactRequestRepository.findAllByFilters(statusEnum, typeEnum, priorityEnum));
     }
-
-    // =================================================================================
-    // 4. ADMIN — Duyệt / Từ chối yêu cầu
-    // =================================================================================
 
     @Override
     @Transactional
-    public ContactRequestResponse resolveRequest(int adminId, int requestId,
-                                                 ContactRequestResolveRequest request) {
-
-        // [1] Validate status chỉ chấp nhận PROCESSING | APPROVED | REJECTED
+    public ContactRequestResponse resolveRequest(int adminId, int requestId, ContactRequestResolveRequest request) {
         ContactRequestStatus newStatus = request.requestStatus();
-        if (newStatus == ContactRequestStatus.PENDING) {
-            throw new IllegalArgumentException(
-                    "Không thể đặt trạng thái về PENDING. Chỉ chấp nhận: PROCESSING, APPROVED, REJECTED.");
-        }
+        if (newStatus == ContactRequestStatus.PENDING) throw new IllegalArgumentException("Không thể về PENDING.");
 
-        // [2] Tìm yêu cầu
-        ContactRequest entity = contactRequestRepository.findById(requestId)
-                .orElseThrow(() -> new IllegalArgumentException(
-                        "Không tìm thấy yêu cầu hỗ trợ với ID: " + requestId));
+        ContactRequest entity = contactRequestRepository.findById(requestId).orElseThrow(() -> new IllegalArgumentException("Không thấy ticket."));
+        Account admin = accountRepository.findById(adminId).orElseThrow(() -> new IllegalArgumentException("Admin không tồn tại."));
 
-        // [3] Lấy thông tin Admin
-        Account admin = accountRepository.findById(adminId)
-                .orElseThrow(() -> new IllegalArgumentException("Tài khoản Admin không tồn tại."));
-
-        // [4] Cập nhật trạng thái
         entity.setRequestStatus(newStatus);
-        if (request.adminNote() != null) {
-            entity.setAdminNote(request.adminNote());
-        }
+        if (request.adminNote() != null) entity.setAdminNote(request.adminNote());
 
-        // [5] Nếu chuyển sang PROCESSING → set processedAt
         if (newStatus == ContactRequestStatus.PROCESSING && entity.getProcessedAt() == null) {
             entity.setProcessedAt(LocalDateTime.now());
         }
 
-        // [6] Nếu chuyển sang APPROVED hoặc REJECTED → set resolvedBy + resolvedAt
         if (newStatus == ContactRequestStatus.APPROVED || newStatus == ContactRequestStatus.REJECTED) {
             entity.setResolvedBy(admin);
             entity.setResolvedAt(LocalDateTime.now());
-            // Nếu chưa ai nhận xử lý → Admin vừa nhận vừa duyệt luôn
-            if (entity.getProcessedAt() == null) {
-                entity.setProcessedAt(LocalDateTime.now());
-            }
+            if (entity.getProcessedAt() == null) entity.setProcessedAt(LocalDateTime.now());
         }
 
-        // [7] Xử lý nghiệp vụ đặc biệt khi APPROVED
+        // Tự động Khóa/Mở khóa tài khoản khi Admin APPROVED (PHẦN 2 trong txt)
         if (newStatus == ContactRequestStatus.APPROVED && entity.getAccount() != null) {
-            if (entity.getRequestType() == ContactRequestType.ACCOUNT_LOCK) {
-                adminService.lockAccount(entity.getAccount().getId());
-            }
-            if (entity.getRequestType() == ContactRequestType.ACCOUNT_UNLOCK) {
-                adminService.unlockAccount(entity.getAccount().getId());
-            }
+            if (entity.getRequestType() == ContactRequestType.ACCOUNT_LOCK) adminService.lockAccount(entity.getAccount().getId());
+            if (entity.getRequestType() == ContactRequestType.ACCOUNT_UNLOCK) adminService.unlockAccount(entity.getAccount().getId());
         }
 
-        // [8] Lưu vào DB
         ContactRequest saved = contactRequestRepository.save(entity);
 
-        // [9] Gửi thông báo cho User (nếu có account — guest không nhận được)
+        // Thông báo cập nhật cho User (PHẦN 3 & 5 trong txt)
         if (entity.getAccount() != null) {
-            String statusLabel = switch (newStatus) {
-                case PROCESSING -> "đang được xử lý";
-                case APPROVED   -> "đã được chấp nhận";
-                case REJECTED   -> "đã bị từ chối";
-                default         -> "đã được cập nhật";
-            };
+            String statusLabel = (newStatus == ContactRequestStatus.APPROVED) ? "đã được CHẤP NHẬN" : 
+                                (newStatus == ContactRequestStatus.REJECTED) ? "đã bị TỪ CHỐI" : "đang được XỬ LÝ";
             notificationService.createNotification(
-                    entity.getAccount(),
-                    "Cập nhật yêu cầu hỗ trợ",
-                    "Yêu cầu \"" + entity.getTitle() + "\" " + statusLabel + ".",
-                    NotificationType.SYSTEM,
-                    saved.getId().longValue(),
-                    null
+                entity.getAccount(), 
+                "Cập nhật yêu cầu hỗ trợ", 
+                "Yêu cầu '" + entity.getTitle() + "' của bạn " + statusLabel + ". Ghi chú admin: " + (entity.getAdminNote() != null ? entity.getAdminNote() : "Không có."), 
+                NotificationType.SYSTEM, 
+                saved.getId().longValue(), 
+                LocalDateTime.now()
             );
         }
 
         return contactRequestMapper.toResponse(saved);
     }
 
-    // =================================================================================
-    // 5. INTERNAL — Tạo ticket giao dịch bất thường (gọi từ TransactionService)
-    // =================================================================================
+    @Override
+    @Transactional(readOnly = true)
+    public ContactRequestResponse getRequestById(int requestId, int adminId) {
+        ContactRequest entity = contactRequestRepository.findById(requestId).orElseThrow(() -> new IllegalArgumentException("Không thấy ticket."));
+        return contactRequestMapper.toResponse(entity);
+    }
 
     @Override
     @Transactional
     public ContactRequest createSuspiciousRequest(int accId, String description) {
-
-        Account user = accountRepository.findById(accId)
-                .orElseThrow(() -> new IllegalArgumentException("Tài khoản không tồn tại."));
-
-        // fullname: ưu tiên fullname của account, fallback về email
-        String displayName = (user.getFullname() != null && !user.getFullname().isBlank())
-                ? user.getFullname() : user.getAccEmail();
-
+        Account user = accountRepository.findById(accId).orElseThrow(() -> new IllegalArgumentException("User không tồn tại."));
         ContactRequest entity = ContactRequest.builder()
                 .account(user)
                 .requestType(ContactRequestType.SUSPICIOUS_TX)
                 .requestPriority(ContactRequestPriority.URGENT)
-                .title("Hệ thống phát hiện giao dịch bất thường")
+                .title("Giao dịch bất thường")
                 .requestDescription(description)
-                .fullname(displayName)
+                .fullname(user.getFullname() != null ? user.getFullname() : user.getAccEmail())
                 .contactPhone(user.getAccPhone())
                 .contactEmail(user.getAccEmail())
                 .requestStatus(ContactRequestStatus.PENDING)
                 .build();
-
-        // Trả về entity đã lưu để TransactionService lấy ID làm related_id cho notification Admin
-        // KHÔNG gửi notification ở đây — TransactionService tự gửi cho User VÀ tất cả Admin.
         return contactRequestRepository.save(entity);
     }
 }
-

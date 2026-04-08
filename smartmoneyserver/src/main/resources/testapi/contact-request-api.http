@@ -134,7 +134,7 @@ Authorization: Bearer {{admin_token}}
 ### ══════════════════════════════════════════════════════════════════
 
 ### [12] ADMIN — Tiếp nhận xử lý (PENDING → PROCESSING)
-PATCH http://localhost:9999/api/contact-requests/1/resolve
+PATCH http://localhost:9999/api/contact-requests/18/resolve
 Authorization: Bearer {{admin_token}}
 Content-Type: application/json
 
@@ -156,7 +156,7 @@ Content-Type: application/json
 }
 
 ### [14] ADMIN — Từ chối (→ REJECTED)
-PATCH http://localhost:9999/api/contact-requests/2/resolve
+PATCH http://localhost:9999/api/contact-requests/18/resolve
 Authorization: Bearer {{admin_token}}
 Content-Type: application/json
 

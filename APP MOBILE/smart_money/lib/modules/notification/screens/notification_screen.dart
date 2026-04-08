@@ -150,7 +150,10 @@ class _NotificationScreenState extends State<NotificationScreen> {
       background: Container(
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.symmetric(horizontal: 20),
-        color: Colors.redAccent, // Màu nền khi vuốt
+        decoration: BoxDecoration(
+          color: Colors.redAccent,
+          borderRadius: BorderRadius.circular(12),
+        ),
         child: const Icon(Icons.delete_forever, color: Colors.white),
       ),
       confirmDismiss: (direction) async {
@@ -167,8 +170,15 @@ class _NotificationScreenState extends State<NotificationScreen> {
                   child: const Text("Hủy"),
                 ),
                 TextButton(
-                  onPressed: () {
-                    provider.deleteNotification(item.id); // Gọi phương thức xóa
+                  onPressed: () async {
+                    // Thực hiện xóa
+                    await provider.deleteNotification(item.id);
+                    
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text("Đã xóa thông báo"), duration: Duration(seconds: 1)),
+                      );
+                    }
                     Navigator.of(dialogContext).pop(true);
                   },
                   child: const Text("Xóa"),

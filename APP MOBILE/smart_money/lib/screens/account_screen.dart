@@ -1,45 +1,76 @@
 import 'package:flutter/material.dart';
-import 'package:smart_money/modules/category/screens/category_list_screen.dart';
-import 'package:smart_money/modules/planned/screens/recurring_screen.dart';
-import 'package:smart_money/modules/planned/screens/bill_screen.dart';
-import 'package:smart_money/modules/event/screens/event_screen.dart';
-import 'package:smart_money/modules/saving_goal/screens/saving_goal_list_screen.dart';
+import 'package:provider/provider.dart';
+import '../../modules/category/screens/category_list_screen.dart';
+import '../../modules/planned/screens/recurring_screen.dart';
+import '../../modules/planned/screens/bill_screen.dart';
+import '../../modules/event/screens/event_screen.dart';
+import '../../modules/saving_goal/screens/saving_goal_list_screen.dart';
 import 'package:smart_money/modules/saving_goal/screens/saving_goal_list_view.dart';
-import 'package:smart_money/modules/wallet/screens/wallet_screen.dart';
-import 'package:smart_money/modules/debt/screens/debt_list_screen.dart';
+import '../../modules/wallet/screens/wallet_screen.dart';
+import '../../modules/debt/screens/debt_list_screen.dart';
+import '../modules/contact/screens/contact_support_screen.dart';
 import 'account_management_screen.dart';
+import '../../modules/auth/providers/auth_provider.dart';
 
-class AccountScreen extends StatelessWidget {
+class AccountScreen extends StatefulWidget {
   const AccountScreen({super.key});
 
   @override
+  State<AccountScreen> createState() => _AccountScreenState();
+}
+
+class _AccountScreenState extends State<AccountScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // Update profile data when entering screen
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<AuthProvider>().getProfile();
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final authProvider = context.watch<AuthProvider>();
+    final user = authProvider.currentUser;
+
+    // Display fullname if available, otherwise email or "User"
+    final String displayName = (user?.fullname != null && user!.fullname!.trim().isNotEmpty)
+        ? user.fullname!
+        : (user?.accEmail ?? "User");
+
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Colors.black,
         centerTitle: true,
-        title: const Text("Tài khoản"),
+        title: const Text("Account"),
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          _profileCard(),
-          const SizedBox(height: 24),
+      body: RefreshIndicator(
+        onRefresh: () async {
+          // Allow user to pull down to refresh profile data
+          await authProvider.getProfile();
+        },
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(16),
+          children: [
+            _profileCard(displayName, user?.accEmail ?? ""),
+            const SizedBox(height: 24),
 
-          _item(
-            Icons.manage_accounts,
-            "Quản lý tài khoản",
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const AccountManagementScreen()),
-              );
-            },
-          ),
+            _item(
+              Icons.manage_accounts,
+              "Account Management",
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const AccountManagementScreen()),
+                );
+              },
+            ),
 
           _item(
             Icons.account_balance_wallet,
-            "Ví của tôi",
+            "My Wallets",
             onTap: () {
               Navigator.push(
                 context,
@@ -50,7 +81,7 @@ class AccountScreen extends StatelessWidget {
 
           _item(
             Icons.account_balance_wallet,
-            "Ví tiết kiệm của tôi",
+            "My Savings",
             onTap: () {
               Navigator.push(
                 context,
@@ -58,70 +89,81 @@ class AccountScreen extends StatelessWidget {
               );
             },
           ),
-          
-          _item(Icons.group, "Nhóm" ,
+
+          _item(Icons.group, "Categories" ,
               onTap: () {
                 Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => const CategoryListScreen()),
                 );
-              }
-          ),
+              },
+            ),
 
-          _item(
-            Icons.event,
-            "Sự kiện",
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const EventScreen()),
-              );
-            },
-          ),
-          _item(
-            Icons.autorenew,
-            "Giao dịch định kỳ",
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const RecurringScreen()),
-              );
-            },
-          ),
-          _item(
-            Icons.receipt_long,
-            "Hóa đơn",
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const BillScreen()),
-              );
-            },
-          ),
-          _item(
-            Icons.request_page,
-            "Sổ nợ",
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const DebtListScreen()),
-              );
-            },
-          ),
+            _item(
+              Icons.event,
+              "Events",
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const EventScreen()),
+                );
+              },
+            ),
+            _item(
+              Icons.autorenew,
+              "Recurring Transactions",
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const RecurringScreen()),
+                );
+              },
+            ),
+            _item(
+              Icons.receipt_long,
+              "Bills",
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const BillScreen()),
+                );
+              },
+            ),
+            _item(
+              Icons.request_page,
+              "Debts",
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const DebtListScreen()),
+                );
+              },
+            ),
 
-          const SizedBox(height: 16),
-          _section("Khác"),
-          _item(Icons.build, "Công cụ"),
-          _item(Icons.upload_file, "Xuất dữ liệu tới Google Trang tính"),
-          _item(Icons.settings, "Cài đặt"),
-        ],
+            const SizedBox(height: 16),
+            _section("Other"),
+            _item(
+              Icons.support_agent,
+              "Customer Support",
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const ContactSupportScreen()),
+                );
+              },
+            ),
+            _item(Icons.build, "Tools"),
+            _item(Icons.upload_file, "Export to Google Sheets"),
+            _item(Icons.settings, "Settings"),
+          ],
+        ),
       ),
     );
   }
 
   // ===== Widgets =====
 
-  Widget _profileCard() {
+  Widget _profileCard(String name, String email) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -129,22 +171,22 @@ class AccountScreen extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
       ),
       child: Row(
-        children: const [
-          CircleAvatar(
+        children: [
+          const CircleAvatar(
             radius: 30,
             backgroundColor: Colors.green,
             child: Icon(Icons.person, size: 32, color: Colors.white),
           ),
-          SizedBox(width: 16),
+          const SizedBox(width: 16),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                "Minh Nhất",
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                name,
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
-              SizedBox(height: 4),
-              Text("Free account", style: TextStyle(color: Colors.grey)),
+              const SizedBox(height: 4),
+              Text(email.isNotEmpty ? email : "Free account", style: const TextStyle(color: Colors.grey)),
             ],
           ),
         ],
