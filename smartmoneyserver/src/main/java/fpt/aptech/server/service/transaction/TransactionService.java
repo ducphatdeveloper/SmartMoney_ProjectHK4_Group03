@@ -1,5 +1,6 @@
 package fpt.aptech.server.service.transaction;
 
+import fpt.aptech.server.dto.transaction.merge.TransactionListResponse;
 import fpt.aptech.server.dto.transaction.report.CategoryReportDTO;
 import fpt.aptech.server.dto.transaction.report.DailyTrendDTO;
 import fpt.aptech.server.dto.transaction.report.FinancialReportResponse;
@@ -40,6 +41,23 @@ public interface TransactionService {
 
     // ================= 3. TÌM KIẾM & BÁO CÁO (SEARCH & REPORT) =================
     List<TransactionResponse> searchTransactions(Integer accountId, TransactionSearchRequest request);
+
+    /**
+     * [3.X] Lấy danh sách giao dịch dùng chung với filter động.
+     * Hỗ trợ: eventId, debtId, plannedId (Bill only), categoryIds (support multiple).
+     * Trả về TransactionListResponse (tổng thu/chi + gom nhóm theo ngày).
+     */
+    TransactionListResponse getTransactionList(
+            Integer accountId,
+            LocalDateTime startDate,
+            LocalDateTime endDate,
+            Integer walletId,
+            Integer savingGoalId,
+            Integer eventId,
+            Integer debtId,
+            Integer plannedId,
+            List<Integer> categoryIds
+    );
 
     TransactionReportResponse getTransactionReport(Integer accountId, LocalDateTime startDate, LocalDateTime endDate, Integer walletId, Integer savingGoalId);
 

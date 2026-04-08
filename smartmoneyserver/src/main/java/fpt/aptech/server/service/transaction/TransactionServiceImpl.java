@@ -1,5 +1,6 @@
 package fpt.aptech.server.service.transaction;
 
+import fpt.aptech.server.dto.transaction.merge.TransactionListResponse;
 import fpt.aptech.server.dto.transaction.report.CategoryReportDTO;
 import fpt.aptech.server.dto.transaction.report.DailyTrendDTO;
 import fpt.aptech.server.dto.transaction.report.FinancialReportResponse;
@@ -50,6 +51,7 @@ public class TransactionServiceImpl implements TransactionService {
     private final DebtRepository               debtRepository;
     private final SavingGoalRepository         savingGoalRepository;
     private final AIConversationRepository     aiConversationRepository;
+    private final PlannedTransactionRepository plannedTransactionRepository;
     private final DebtCalculationService       debtCalculationService;
     private final NotificationService          notificationService;
     private final TransactionMapper            transactionMapper;
@@ -366,6 +368,12 @@ public class TransactionServiceImpl implements TransactionService {
 
     /**
      * [3.2] Lấy báo cáo tài chính tổng quan (Số dư đầu/cuối kỳ, Tổng thu/chi).
+     *
+     * FIX ISSUE (2026-04-08):
+     * - closingBalance bị tính sai khi có giao dịch nạp mới vào ví/goal vừa tạo.
+     * - Root cause: openingBalance được tính từ lịch sử giao dịch (0 khi wallet vừa tạo).
+     * - Solution: closingBalance = số dư THỰC TẾ hiện tại (từ wallet.balance hoặc goal.currentAmount)
+     *             chứ không phải openingBalance + netIncome.
      */
     @Override
     @Transactional(readOnly = true)
@@ -383,30 +391,25 @@ public class TransactionServiceImpl implements TransactionService {
                 accountId, startDate, endDate, walletId, savingGoalId);
 
         // Bước 3: Tính các chỉ số
-        BigDecimal totalIncome  = BigDecimal.ZERO;
-        BigDecimal totalExpense = BigDecimal.ZERO;
-        int debtCount = 0;
-        int loanCount = 0;
-
-        List<Integer> debtCategoryIds = List.of(
-                SystemCategory.DEBT_BORROWING.getId(),
-                SystemCategory.DEBT_REPAYMENT.getId()
-        );
-        List<Integer> loanCategoryIds = List.of(
-                SystemCategory.DEBT_LENDING.getId(),
-                SystemCategory.DEBT_COLLECTION.getId()
-        );
+        BigDecimal totalIncome       = BigDecimal.ZERO;
+        BigDecimal totalExpense      = BigDecimal.ZERO;
+        BigDecimal debtAmount        = BigDecimal.ZERO; // Đi vay  (DEBT_BORROWING  = 20)
+        BigDecimal loanAmount        = BigDecimal.ZERO; // Cho vay (DEBT_LENDING    = 19)
+        BigDecimal collectionAmount  = BigDecimal.ZERO; // Thu nợ  (DEBT_COLLECTION = 21)
+        BigDecimal repaymentAmount   = BigDecimal.ZERO; // Trả nợ  (DEBT_REPAYMENT  = 22)
 
         for (Transaction t : transactions) {
             Integer ctgId = t.getCategory().getId();
 
-            // Đếm giao dịch liên quan nợ/vay
-            if (debtCategoryIds.contains(ctgId)
-                    || (t.getDebt() != null && !t.getDebt().getDebtType())) {
-                debtCount++;
-            } else if (loanCategoryIds.contains(ctgId)
-                    || (t.getDebt() != null && t.getDebt().getDebtType())) {
-                loanCount++;
+            // Tính tổng tiền theo từng nhóm nợ/vay
+            if (ctgId.equals(SystemCategory.DEBT_BORROWING.getId())) {
+                debtAmount = debtAmount.add(t.getAmount());
+            } else if (ctgId.equals(SystemCategory.DEBT_LENDING.getId())) {
+                loanAmount = loanAmount.add(t.getAmount());
+            } else if (ctgId.equals(SystemCategory.DEBT_COLLECTION.getId())) {
+                collectionAmount = collectionAmount.add(t.getAmount());
+            } else if (ctgId.equals(SystemCategory.DEBT_REPAYMENT.getId())) {
+                repaymentAmount = repaymentAmount.add(t.getAmount());
             }
 
             // Chỉ tính thu/chi cho giao dịch reportable=true
@@ -418,9 +421,30 @@ public class TransactionServiceImpl implements TransactionService {
             }
         }
 
+        // otherAmount = Thu nợ (DEBT_COLLECTION) - Trả nợ (DEBT_REPAYMENT)
+        BigDecimal otherAmount = collectionAmount.subtract(repaymentAmount);
+
         // Bước 4: Tính số dư cuối kỳ
+        // FIX: Lấy số dư thực tế từ wallet/goal thay vì tính openingBalance + netIncome
+        //      (vì số dư hiện tại chính xác hơn, bao gồm cả giao dịch không reportable)
         BigDecimal netIncome      = totalIncome.subtract(totalExpense);
-        BigDecimal closingBalance = openingBalance.add(netIncome);
+        BigDecimal closingBalance;
+
+        if (walletId != null) {
+            // Filter theo wallet → lấy số dư từ wallet
+            Wallet wallet = walletRepository.findById(walletId)
+                    .orElseThrow(() -> new IllegalArgumentException("Ví không tồn tại."));
+            closingBalance = wallet.getBalance();
+        } else if (savingGoalId != null) {
+            // Filter theo goal → lấy số dư từ goal
+            SavingGoal goal = savingGoalRepository.findById(savingGoalId)
+                    .orElseThrow(() -> new IllegalArgumentException("Mục tiêu tiết kiệm không tồn tại."));
+            closingBalance = goal.getCurrentAmount();
+        } else {
+            // Không filter → tính tổng số dư toàn bộ ví của user
+            BigDecimal totalBalance = walletRepository.sumBalanceByAccountIdAndReportableTrue(accountId);
+            closingBalance = totalBalance != null ? totalBalance : BigDecimal.ZERO;
+        }
 
         return TransactionReportResponse.builder()
                 .openingBalance(openingBalance)
@@ -428,8 +452,9 @@ public class TransactionServiceImpl implements TransactionService {
                 .totalIncome(totalIncome)
                 .totalExpense(totalExpense)
                 .netIncome(netIncome)
-                .debtTransactionCount(debtCount)
-                .loanTransactionCount(loanCount)
+                .debtAmount(debtAmount)
+                .loanAmount(loanAmount)
+                .otherAmount(otherAmount)
                 .build();
     }
 
@@ -489,15 +514,11 @@ public class TransactionServiceImpl implements TransactionService {
                                                       LocalDateTime startDate, LocalDateTime endDate,
                                                       Integer walletId, Integer savingGoalId) {
 
-        // Bước 1: Tổng quan (Summary)
-        TransactionReportResponse summary = this.getTransactionReport(
-                accountId, startDate, endDate, walletId, savingGoalId);
-
-        // Bước 2: Tổng tài sản hiện tại
+        // Bước 1: Tổng tài sản hiện tại
         BigDecimal totalBalance = walletRepository.sumBalanceByAccountIdAndReportableTrue(accountId);
         if (totalBalance == null) totalBalance = BigDecimal.ZERO;
 
-        // Bước 3: Báo cáo theo danh mục + phân loại Thu/Chi
+        // Bước 2: Báo cáo theo danh mục + phân loại Thu/Chi
         List<CategoryReportDTO> allCategories = this.getCategoryReport(
                 accountId, startDate, endDate, walletId, savingGoalId);
 
@@ -509,7 +530,6 @@ public class TransactionServiceImpl implements TransactionService {
                 .collect(Collectors.toList());
 
         return FinancialReportResponse.builder()
-                .summary(summary)
                 .totalCurrentBalance(totalBalance)
                 .expenseCategories(expenseCategories)
                 .incomeCategories(incomeCategories)
@@ -526,6 +546,168 @@ public class TransactionServiceImpl implements TransactionService {
                                              Integer walletId, Integer savingGoalId, Integer categoryId) {
         return transactionRepository.getDailyTrend(
                 accountId, startDate, endDate, walletId, savingGoalId, categoryId);
+    }
+
+    /**
+     * [3.6] Lấy danh sách giao dịch dùng chung với bộ filter động (event / debt / planned / category).
+     * <p>
+     * Điều kiện nghiệp vụ:
+     * <ul>
+     *   <li><b>eventId</b>    — toàn bộ giao dịch thuộc sự kiện.</li>
+     *   <li><b>debtId</b>     — chỉ giao dịch nằm trong đúng sổ nợ này.</li>
+     *   <li><b>categoryIds</b> — tất cả giao dịch thuộc danh mục (hỗ trợ multiple: [21, 22]).</li>
+     *   <li><b>plannedId</b>  — chỉ list khi PlannedTransaction là Bill (plan_type=1);
+     *                           bỏ qua (trả rỗng) nếu là Recurring (plan_type=2).</li>
+     * </ul>
+     * Trả về {@link TransactionListResponse} gồm tổng thu/chi, số ròng, số lượng và
+     * danh sách gom nhóm theo ngày {@link DailyTransactionGroup}.
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public TransactionListResponse getTransactionList(Integer accountId,
+                                                      LocalDateTime startDate,
+                                                      LocalDateTime endDate,
+                                                      Integer walletId,
+                                                      Integer savingGoalId,
+                                                      Integer eventId,
+                                                      Integer debtId,
+                                                      Integer plannedId,
+                                                      List<Integer> categoryIds) {
+
+         // [PLANNED] Guard: nếu là Recurring → không list, trả rỗng
+         if (plannedId != null) {
+             PlannedTransaction planned = plannedTransactionRepository
+                     .findByIdAndAccount_Id(plannedId, accountId)
+                     .orElseThrow(() -> new IllegalArgumentException(
+                             "Không tìm thấy kế hoạch định kỳ với ID: " + plannedId));
+             if (Integer.valueOf(2).equals(planned.getPlanType())) {
+                 // Recurring — không hỗ trợ list giao dịch theo plannedId
+                 return TransactionListResponse.builder().build();
+             }
+         }
+
+         // Build Specification động
+         Specification<Transaction> spec = buildTransactionListSpec(
+                 accountId, startDate, endDate, walletId, savingGoalId,
+                 eventId, debtId, plannedId, categoryIds);
+
+         List<Transaction> transactions = transactionRepository.findAll(spec);
+
+        // Tính tổng thu/chi
+        BigDecimal totalIncome  = BigDecimal.ZERO;
+        BigDecimal totalExpense = BigDecimal.ZERO;
+        for (Transaction t : transactions) {
+            if (Boolean.TRUE.equals(t.getCategory().getCtgType())) {
+                totalIncome = totalIncome.add(t.getAmount());
+            } else {
+                totalExpense = totalExpense.add(t.getAmount());
+            }
+        }
+
+        BigDecimal netAmount = totalIncome.subtract(totalExpense);
+
+        // Gom nhóm theo ngày — tái sử dụng logic của getJournalTransactions
+        Map<LocalDate, List<Transaction>> groupedByDate = transactions.stream()
+                .collect(Collectors.groupingBy(t -> t.getTransDate().toLocalDate()));
+
+        List<DailyTransactionGroup> dailyGroups = groupedByDate.entrySet().stream()
+                .map(entry -> {
+                    LocalDate date = entry.getKey();
+                    List<Transaction> transInDay = entry.getValue();
+
+                    BigDecimal dayNet = transInDay.stream()
+                            .map(t -> Boolean.TRUE.equals(t.getCategory().getCtgType())
+                                    ? t.getAmount()
+                                    : t.getAmount().negate())
+                            .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+                    return DailyTransactionGroup.builder()
+                            .date(date)
+                            .displayDateLabel(DateUtils.formatDisplayDate(date))
+                            .netAmount(dayNet)
+                            .transactions(transactionMapper.toDtoList(transInDay))
+                            .build();
+                })
+                .sorted(Comparator.comparing(DailyTransactionGroup::date).reversed())
+                .collect(Collectors.toList());
+
+        return TransactionListResponse.builder()
+                .totalIncome(totalIncome)
+                .totalExpense(totalExpense)
+                .netAmount(netAmount)
+                .transactionCount(transactions.size())
+                .dailyGroups(dailyGroups)
+                .build();
+    }
+
+    /**
+     * Specification động cho getTransactionList.
+     * Mỗi param độc lập — null thì bỏ qua, không null thì AND vào query.
+     * 
+     * Hỗ trợ categoryIds dạng list (ví dụ: [21, 22]) để có thể lọc nhiều danh mục cùng lúc.
+     */
+    private Specification<Transaction> buildTransactionListSpec(Integer accountId,
+                                                                LocalDateTime startDate,
+                                                                LocalDateTime endDate,
+                                                                Integer walletId,
+                                                                Integer savingGoalId,
+                                                                Integer eventId,
+                                                                Integer debtId,
+                                                                Integer plannedId,
+                                                                List<Integer> categoryIds) {
+        return (root, query, cb) -> {
+            List<Predicate> predicates = new ArrayList<>();
+
+            // Bắt buộc: đúng tài khoản + chưa bị xóa mềm
+            predicates.add(cb.equal(root.get("account").get("id"), accountId));
+            predicates.add(cb.equal(root.get("deleted"), false));
+
+            // Filter: Khoảng thời gian (tùy chọn)
+            if (startDate != null) {
+                predicates.add(cb.greaterThanOrEqualTo(root.get("transDate"), startDate));
+            }
+            if (endDate != null) {
+                predicates.add(cb.lessThanOrEqualTo(root.get("transDate"), endDate));
+            }
+
+            // Filter: Ví (tùy chọn)
+            if (walletId != null) {
+                predicates.add(cb.equal(root.get("wallet").get("id"), walletId));
+            }
+
+            // Filter: Mục tiêu tiết kiệm (tùy chọn)
+            if (savingGoalId != null) {
+                predicates.add(cb.equal(root.get("savingGoal").get("id"), savingGoalId));
+            }
+
+            // Filter: Sự kiện
+            if (eventId != null) {
+                predicates.add(cb.equal(root.get("event").get("id"), eventId));
+            }
+
+            // Filter: Sổ nợ (chỉ giao dịch trong đúng debt này)
+            if (debtId != null) {
+                predicates.add(cb.equal(root.get("debt").get("id"), debtId));
+            }
+
+            // Filter: Kế hoạch (Bill only — Recurring đã bị chặn trước ở guard)
+            if (plannedId != null) {
+                predicates.add(cb.equal(root.get("plannedTransaction").get("id"), plannedId));
+            }
+
+            // Filter: Danh mục (hỗ trợ multiple categoryIds)
+            // Ví dụ: categoryIds = [21, 22] → where category.id IN (21, 22)
+            if (categoryIds != null && !categoryIds.isEmpty()) {
+                predicates.add(root.get("category").get("id").in(categoryIds));
+            }
+
+            // Sắp xếp theo ngày giao dịch giảm dần
+            if (query != null) {
+                query.orderBy(cb.desc(root.get("transDate")));
+            }
+
+            return cb.and(predicates.toArray(new Predicate[0]));
+        };
     }
 
     // =================================================================================

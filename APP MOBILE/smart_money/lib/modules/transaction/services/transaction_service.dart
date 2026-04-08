@@ -23,12 +23,15 @@
 import 'package:smart_money/core/helpers/api_handler.dart';
 import 'package:smart_money/core/models/api_response.dart';
 import 'package:smart_money/core/constants/app_constants.dart';
+import 'package:smart_money/modules/transaction/models/merge/transaction_list_response.dart';
 import 'package:smart_money/modules/transaction/models/view/daily_transaction_group.dart';
 import 'package:smart_money/modules/transaction/models/view/category_transaction_group.dart';
 import 'package:smart_money/modules/transaction/models/view/transaction_response.dart';
 import 'package:smart_money/modules/transaction/models/request/transaction_request.dart';
 import 'package:smart_money/modules/transaction/models/request/transaction_search_request.dart';
 import 'package:smart_money/modules/transaction/models/report/transaction_report_response.dart';
+import 'package:smart_money/modules/transaction/models/report/category_report_dto.dart';
+import 'package:smart_money/modules/transaction/models/report/daily_trend_dto.dart';
 
 class TransactionService {
   // URL gốc lấy từ AppConstants — KHÔNG hardcode
@@ -83,7 +86,7 @@ class TransactionService {
   }
 
   // -----------------------------------------------------------
-  // [1.3] REPORT — Lấy báo cáo tóm tắt thu/chi
+  // [1.3] REPORT SUMMARY — Lấy báo cáo tóm tắt thu/chi
   // -----------------------------------------------------------
   // Gọi khi: User bấm "Xem báo cáo cho giai đoạn này"
   // API: GET /api/transactions/report/summary
@@ -100,6 +103,62 @@ class TransactionService {
     return ApiHandler.get<TransactionReportResponse>(
       url,
       fromJson: (json) => TransactionReportResponse.fromJson(json as Map<String, dynamic>),
+    );
+  }
+
+  // -----------------------------------------------------------
+  // [1.3b] REPORT CATEGORY — Lấy báo cáo chi tiết theo danh mục (biểu đồ tròn)
+  // -----------------------------------------------------------
+  // Gọi khi: Mở TransactionReportScreen
+  // API: GET /api/transactions/report/category
+  // Trả về: List<CategoryReportDTO> (tên, tổng, %, trung bình ngày, icon)
+  static Future<ApiResponse<List<CategoryReportDTO>>> getCategoryReport({
+    required DateTime startDate,
+    required DateTime endDate,
+    int? walletId,
+    int? savingGoalId,
+  }) async {
+    final params = _buildDateParams(startDate, endDate, walletId, savingGoalId);
+    final url = '$_base/report/category?$params';
+
+    return ApiHandler.get<List<CategoryReportDTO>>(
+      url,
+      fromJson: (json) {
+        if (json is List) {
+          return json
+              .map((e) => CategoryReportDTO.fromJson(e as Map<String, dynamic>))
+              .toList();
+        }
+        return [];
+      },
+    );
+  }
+
+  // -----------------------------------------------------------
+  // [1.3c] REPORT TREND — Lấy xu hướng thu/chi theo ngày (biểu đồ cột)
+  // -----------------------------------------------------------
+  // Gọi khi: Mở TransactionReportScreen
+  // API: GET /api/transactions/report/trend
+  // Trả về: List<DailyTrendDTO> (date, totalIncome, totalExpense)
+  static Future<ApiResponse<List<DailyTrendDTO>>> getDailyTrend({
+    required DateTime startDate,
+    required DateTime endDate,
+    int? walletId,
+    int? savingGoalId,
+  }) async {
+    final params = _buildDateParams(startDate, endDate, walletId, savingGoalId);
+    final url = '$_base/report/trend?$params';
+
+    return ApiHandler.get<List<DailyTrendDTO>>(
+      url,
+      fromJson: (json) {
+        if (json is List) {
+          return json
+              .map((e) => DailyTrendDTO.fromJson(e as Map<String, dynamic>))
+              .toList();
+        }
+        return [];
+      },
     );
   }
 
@@ -178,6 +237,32 @@ class TransactionService {
       '$_base/search',
       body: request.toJson(),
       fromJson: (json) => _parseTransactionList(json),
+    );
+  }
+
+  // -----------------------------------------------------------
+  // [1.8b] LIST — Danh sách giao dịch dùng chung với filter động
+  // -----------------------------------------------------------
+  // API: GET /api/transactions/list?categoryIds=21,22&eventId=7&debtId=9&plannedId=39...
+  // Dùng cho: Event, Debt, Planned Bill, Category — tất cả module dùng chung
+  // Trả về: TransactionListResponse (totalIncome, totalExpense, netAmount, transactionCount, dailyGroups)
+  static Future<ApiResponse<TransactionListResponse>> getTransactionList({
+    Map<String, dynamic> filters = const {},
+  }) async {
+    final params = <String>[];
+
+    filters.forEach((key, value) {
+      if (value != null) {
+        params.add('$key=${Uri.encodeComponent(value.toString())}');
+      }
+    });
+
+    final queryString = params.isNotEmpty ? '?${params.join('&')}' : '';
+    final url = '$_base/list$queryString';
+
+    return ApiHandler.get<TransactionListResponse>(
+      url,
+      fromJson: (json) => TransactionListResponse.fromJson(json as Map<String, dynamic>),
     );
   }
 

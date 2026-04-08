@@ -110,44 +110,25 @@ class DebtProvider extends ChangeNotifier {
   }
 
   // =============================================
-  // [2.3] LOAD DETAIL — Tải chi tiết 1 khoản nợ + lịch sử giao dịch
+  // [2.3] LOAD DETAIL — Tải chi tiết 1 khoản nợ
   // =============================================
-  // Gọi khi: User click vào 1 khoản nợ trong list → DebtDetailScreen
-  // Gọi song song 2 API để tối ưu thời gian tải
+  // [UPDATED] Chỉ load debt detail — transaction list do screen tự load
+  // qua TransactionService.getTransactionList({'debtId': id})
   Future<void> loadDetail(int debtId) async {
-    // Bước 1: Bật loading — giữ nguyên _currentDebt để tránh flash error state
-    // [FIX] Không set _currentDebt = null ngay — chỉ clear khi API thất bại
     _isLoadingDetail = true;
     _debtTransactions = [];
     _errorMessage = null;
     notifyListeners();
 
-    // Bước 2: Gọi song song chi tiết + giao dịch (Future.wait tối ưu)
-    final results = await Future.wait([
-      DebtService.getDebt(debtId),
-      DebtService.getDebtTransactions(debtId),
-    ]);
+    final response = await DebtService.getDebt(debtId);
 
-    // Bước 3: Parse kết quả chi tiết
-    final debtResp = results[0] as dynamic;
-    if (debtResp.success && debtResp.data != null) {
-      // Thành công → gán vào state
-      _currentDebt = debtResp.data as DebtResponse;
+    if (response.success && response.data != null) {
+      _currentDebt = response.data;
     } else {
-      // Thất bại → xóa currentDebt + lưu lỗi
       _currentDebt = null;
-      _errorMessage = debtResp.message as String?;
+      _errorMessage = response.message;
     }
 
-    // Bước 4: Parse kết quả giao dịch
-    final txResp = results[1] as dynamic;
-    if (txResp.success && txResp.data != null) {
-      // Thành công → gán list giao dịch
-      _debtTransactions = txResp.data as List<TransactionResponse>;
-    }
-    // [NOTE] Lỗi giao dịch không block màn hình — chỉ hiện list trống
-
-    // Bước 5: Tắt loading
     _isLoadingDetail = false;
     notifyListeners();
   }

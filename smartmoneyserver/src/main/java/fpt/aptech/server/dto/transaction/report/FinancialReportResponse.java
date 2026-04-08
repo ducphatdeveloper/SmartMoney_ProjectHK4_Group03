@@ -11,9 +11,6 @@ import java.util.List;
  */
 @Builder
 public record FinancialReportResponse(
-    // 1. Tổng quan tài chính trong kỳ (Thu, Chi, Ròng, Đầu/Cuối kỳ, Nợ/Vay)
-    TransactionReportResponse summary,
-
     // 2. Tổng tài sản hiện tại của người dùng (Tất cả các ví)
     BigDecimal totalCurrentBalance,
 

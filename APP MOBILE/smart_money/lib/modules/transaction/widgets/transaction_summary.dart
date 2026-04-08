@@ -77,9 +77,12 @@ class TransactionSummary extends StatelessWidget {
   }
 }
 
-/// Widget nút báo cáo
+/// Widget nút báo cáo — gọi [onTap] khi user bấm để toggle chế độ báo cáo inline
 class TransactionReportButton extends StatelessWidget {
-  const TransactionReportButton({super.key});
+  /// Callback khi bấm nút — thường là `() => setState(() => _isReportMode = true)`
+  final VoidCallback? onTap;
+
+  const TransactionReportButton({super.key, this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -87,13 +90,17 @@ class TransactionReportButton extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: SizedBox(
         width: double.infinity,
-        child: TextButton(
-          onPressed: () {
-            // TODO: Navigate to report screen
-          },
-          child: const Text(
+        child: OutlinedButton.icon(
+          onPressed: onTap,
+          style: OutlinedButton.styleFrom(
+            side: const BorderSide(color: Colors.green),
+            padding: const EdgeInsets.symmetric(vertical: 12),
+          ),
+          icon: const Icon(Icons.bar_chart, color: Colors.green, size: 18),
+          label: const Text(
             'Xem báo cáo cho giai đoạn này',
-            style: TextStyle(color: Colors.green, fontWeight: FontWeight.w600),
+            style: TextStyle(
+                color: Colors.green, fontWeight: FontWeight.w600),
           ),
         ),
       ),
