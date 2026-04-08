@@ -42,5 +42,30 @@ class NotificationResponse {
           : null,
     );
   }
-}
 
+  /// Tạo một bản sao của đối tượng hiện tại với các giá trị được cập nhật.
+  /// Giải quyết lỗi 'notifyRead' can't be used as a setter.
+  NotificationResponse copyWith({
+    int? id,
+    int? notifyType,
+    int? relatedId,
+    String? title,
+    String? content,
+    DateTime? scheduledTime,
+    bool? notifySent,
+    bool? notifyRead,
+    DateTime? createdAt,
+  }) {
+    return NotificationResponse(
+      id: id ?? this.id,
+      notifyType: notifyType ?? this.notifyType,
+      relatedId: relatedId ?? this.relatedId,
+      title: title ?? this.title,
+      content: content ?? this.content,
+      scheduledTime: scheduledTime ?? this.scheduledTime,
+      notifySent: notifySent ?? this.notifySent,
+      notifyRead: notifyRead ?? this.notifyRead,
+      createdAt: createdAt ?? this.createdAt,
+    );
+  }
+}

@@ -125,6 +125,15 @@ class AppConstants {
   // --- Notification ---
   static String get notificationsBase        => "$baseUrl/notifications";
   static String get notificationsUnreadCount => "$baseUrl/notifications/unread-count";
-  static String markNotificationRead(int id) => "$baseUrl/notifications/$id/read";
+  static String markNotificationRead(int id)  => "$baseUrl/notifications/$id/read";
   static String get markAllNotificationsRead => "$baseUrl/notifications/read-all";
+  
+  // Mới: Đồng bộ với backend Spring Boot vừa update
+  static String get adminSystemNotifications  => "$baseUrl/notifications/admin/system";
+  static String markNotificationDelivered(int id) => "$baseUrl/notifications/$id/delivered";
+  static String notificationById(int id)      => "$baseUrl/notifications/$id";
+
+  // --- Contact Request ---
+  static String get contactRequestsBase => "$baseUrl/contact-requests";
+  static String get myContactRequests   => "$baseUrl/contact-requests/my";
 }

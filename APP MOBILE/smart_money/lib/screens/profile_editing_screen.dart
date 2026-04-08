@@ -21,12 +21,12 @@ class _ProfileEditingScreenState extends State<ProfileEditingScreen> {
   
   String? _selectedGender;
   DateTime? _selectedDate;
-  final List<String> _genders = ["Nam", "Nữ", "Khác"];
+  final List<String> _genders = ["Male", "Female", "Other"];
 
   @override
   void initState() {
     super.initState();
-    // Gọi API lấy dữ liệu mới nhất từ DB khi mở trang
+    // Call API to get latest data from DB when opening page
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await context.read<AuthProvider>().getProfile();
       _fillData();
@@ -42,8 +42,14 @@ class _ProfileEditingScreenState extends State<ProfileEditingScreen> {
         _idCardController.text = user.identityCard ?? "";
         _addressController.text = user.address ?? "";
         
-        // Kiểm tra gender hợp lệ trong danh sách
-        _selectedGender = _genders.contains(user.gender) ? user.gender : null;
+        // Map Vietnamese genders from DB to English for the UI list if needed,
+        // but assuming the app should use one language consistently.
+        // If DB stores "Nam", map it to "Male".
+        String? genderFromDb = user.gender;
+        if (genderFromDb == "Nam") _selectedGender = "Male";
+        else if (genderFromDb == "Nữ") _selectedGender = "Female";
+        else if (genderFromDb == "Khác") _selectedGender = "Other";
+        else _selectedGender = _genders.contains(genderFromDb) ? genderFromDb : null;
         
         if (user.dateofbirth != null) {
           _selectedDate = DateTime.tryParse(user.dateofbirth!);
@@ -77,11 +83,17 @@ class _ProfileEditingScreenState extends State<ProfileEditingScreen> {
 
   void _saveProfile() async {
     if (_formKey.currentState!.validate()) {
+      // Map back to DB values if necessary, or just use the English ones if backend supports it.
+      String? genderToSave = _selectedGender;
+      if (_selectedGender == "Male") genderToSave = "Nam";
+      else if (_selectedGender == "Female") genderToSave = "Nữ";
+      else if (_selectedGender == "Other") genderToSave = "Khác";
+
       final request = UpdateProfileRequest(
         fullname: _fullnameController.text,
         identityCard: _idCardController.text,
         address: _addressController.text,
-        gender: _selectedGender,
+        gender: genderToSave,
         dateofbirth: _selectedDate != null 
             ? DateFormat('yyyy-MM-dd').format(_selectedDate!) 
             : null,
@@ -90,7 +102,7 @@ class _ProfileEditingScreenState extends State<ProfileEditingScreen> {
       final success = await context.read<AuthProvider>().updateProfile(request);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(success ? "Cập nhật thành công!" : "Cập nhật thất bại")),
+          SnackBar(content: Text(success ? "Update successful!" : "Update failed")),
         );
         if (success) Navigator.pop(context);
       }
@@ -104,7 +116,7 @@ class _ProfileEditingScreenState extends State<ProfileEditingScreen> {
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
-        title: const Text("Chỉnh Sửa Hồ Sơ"),
+        title: const Text("Edit Profile"),
         backgroundColor: Colors.black,
       ),
       body: SingleChildScrollView(
@@ -113,10 +125,25 @@ class _ProfileEditingScreenState extends State<ProfileEditingScreen> {
           key: _formKey,
           child: Column(
             children: [
-              _buildTextField(_fullnameController, "Họ và tên", Icons.person),
-              _buildTextField(_phoneController, "Số điện thoại", Icons.phone, enabled: false), // Thường không cho sửa phone ở đây
-              _buildTextField(_idCardController, "Số CCCD", Icons.badge),
-              _buildTextField(_addressController, "Địa chỉ", Icons.location_on),
+              _buildTextField(
+                _fullnameController, 
+                "Full Name", 
+                Icons.person,
+                validator: (value) {
+                  if (value == null || value.isEmpty) return "Please enter full name";
+                  if (value.trim().length < 2) return "Name must be at least 2 characters";
+                  if (RegExp(r'[0-9]').hasMatch(value)) return "Name cannot contain numbers";
+                  return null;
+                },
+              ),
+              _buildTextField(_phoneController, "Phone Number", Icons.phone, enabled: false), 
+              _buildTextField(
+                _idCardController, 
+                "Identity Card / SSN", 
+                Icons.badge,
+                validator: (value) => (value == null || value.isEmpty) ? "Please enter ID number" : null,
+              ),
+              _buildTextField(_addressController, "Address", Icons.location_on, validator: null),
               
               const SizedBox(height: 16),
               
@@ -125,7 +152,7 @@ class _ProfileEditingScreenState extends State<ProfileEditingScreen> {
                 value: _selectedGender,
                 dropdownColor: const Color(0xFF1C1C1E),
                 style: const TextStyle(color: Colors.white),
-                decoration: _inputDecoration("Giới tính", Icons.wc),
+                decoration: _inputDecoration("Gender", Icons.wc),
                 items: _genders.map((g) => DropdownMenuItem(value: g, child: Text(g))).toList(),
                 onChanged: (val) => setState(() => _selectedGender = val),
               ),
@@ -136,11 +163,11 @@ class _ProfileEditingScreenState extends State<ProfileEditingScreen> {
               InkWell(
                 onTap: () => _selectDate(context),
                 child: InputDecorator(
-                  decoration: _inputDecoration("Ngày sinh", Icons.cake),
+                  decoration: _inputDecoration("Date of Birth", Icons.cake),
                   child: Text(
                     _selectedDate == null 
-                        ? "Chọn ngày sinh" 
-                        : DateFormat('dd/MM/yyyy').format(_selectedDate!),
+                        ? "Select birth date" 
+                        : DateFormat('MM/dd/yyyy').format(_selectedDate!),
                     style: const TextStyle(color: Colors.white),
                   ),
                 ),
@@ -155,12 +182,11 @@ class _ProfileEditingScreenState extends State<ProfileEditingScreen> {
                   onPressed: isLoading ? null : _saveProfile,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.green,
-                    // Sử dụng defaultTargetPlatform để an toàn trên Web
                     shape: defaultTargetPlatform == TargetPlatform.android ? const StadiumBorder() : null,
                   ),
                   child: isLoading 
                       ? const CircularProgressIndicator(color: Colors.white) 
-                      : const Text("LƯU THAY ĐỔI", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                      : const Text("SAVE CHANGES", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                 ),
               ),
             ],
@@ -170,7 +196,7 @@ class _ProfileEditingScreenState extends State<ProfileEditingScreen> {
     );
   }
 
-  Widget _buildTextField(TextEditingController controller, String label, IconData icon, {bool enabled = true}) {
+  Widget _buildTextField(TextEditingController controller, String label, IconData icon, {bool enabled = true, String? Function(String?)? validator}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: TextFormField(
@@ -178,7 +204,7 @@ class _ProfileEditingScreenState extends State<ProfileEditingScreen> {
         enabled: enabled,
         style: const TextStyle(color: Colors.white),
         decoration: _inputDecoration(label, icon),
-        validator: (value) => value!.isEmpty ? "Vui lòng nhập $label" : null,
+        validator: validator,
       ),
     );
   }

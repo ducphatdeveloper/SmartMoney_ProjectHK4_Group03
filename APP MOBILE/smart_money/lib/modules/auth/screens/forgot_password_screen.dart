@@ -7,16 +7,14 @@ import '../../../core/services/auth_service.dart';
 import '../providers/auth_provider.dart';
 import '../models/reset_password_request.dart';
 
-class ResetPasswordScreen extends StatefulWidget {
-  final String? email;
-
-  const ResetPasswordScreen({super.key, this.email});
+class ForgotPasswordScreen extends StatefulWidget {
+  const ForgotPasswordScreen({super.key});
 
   @override
-  State<ResetPasswordScreen> createState() => _ResetPasswordScreenState();
+  State<ForgotPasswordScreen> createState() => _ForgotPasswordScreenState();
 }
 
-class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
+class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _otpController = TextEditingController();
@@ -28,24 +26,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
   Timer? _timer;
   int _start = 60;
   bool _canResend = true;
-  bool _isResending = false; 
-
-  @override
-  void initState() {
-    super.initState();
-    
-    final authEmail = context.read<AuthProvider>().currentUser?.accEmail;
-    final initialEmail = widget.email ?? authEmail;
-
-    if (initialEmail != null && initialEmail.isNotEmpty) {
-      _emailController.text = initialEmail;
-      
-      // Auto-send OTP email when the screen is initialized with an email
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _handleResendOtp(isAutoSend: true);
-      });
-    }
-  }
+  bool _isResending = false;
 
   @override
   void dispose() {
@@ -58,7 +39,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
   }
 
   void startTimer() {
-    _timer?.cancel(); 
+    _timer?.cancel();
     setState(() {
       _canResend = false;
       _start = 60;
@@ -77,13 +58,11 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
     });
   }
 
-  Future<void> _handleResendOtp({bool isAutoSend = false}) async {
+  Future<void> _handleSendOtp() async {
     if (_emailController.text.isEmpty) {
-      if (!isAutoSend) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Please enter an Email.")),
-        );
-      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Please enter your Email to receive the OTP code.")),
+      );
       return;
     }
 
@@ -98,13 +77,11 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
         if (response.success) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(isAutoSend 
-                  ? "An OTP has been sent to your email." 
-                  : "A new OTP code has been sent successfully!"),
+              content: const Text("OTP code has been sent successfully!"),
               backgroundColor: Colors.green.shade700,
             ),
           );
-          startTimer(); 
+          startTimer();
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text(response.message), backgroundColor: Colors.red),
@@ -130,20 +107,14 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
     if (_formKey.currentState!.validate()) {
       final authProvider = context.read<AuthProvider>();
       
-      final request = ResetPasswordRequest(
+      final success = await authProvider.confirmResetPassword(
         email: _emailController.text.trim(),
         otp: _otpController.text.trim(),
         newPassword: _newPasswordController.text.trim(),
       );
 
-      final result = await authProvider.confirmResetPassword(
-        email: request.email, 
-        otp: request.otp, 
-        newPassword: request.newPassword
-      );
-
       if (context.mounted) {
-        if (result == true) {
+        if (success) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text("Password reset successful!"), backgroundColor: Colors.green),
           );
@@ -162,7 +133,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
-        title: const Text("Reset Password"),
+        title: const Text("Forgot Password"),
         backgroundColor: Colors.black,
         elevation: 0,
       ),
@@ -174,28 +145,28 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const Text(
-                "Reset Password?",
+                "Forgot Password?",
                 style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
               const Text(
-                "Enter the OTP code sent to your email to continue.",
+                "Enter your email to receive the OTP verification code.",
                 style: TextStyle(color: Colors.grey, fontSize: 14),
               ),
               const SizedBox(height: 32),
 
+              // Email field
               _buildFieldLabel("Registered Email"),
               TextFormField(
                 controller: _emailController,
-                readOnly: true,
-                style: const TextStyle(color: Colors.grey),
+                style: const TextStyle(color: Colors.white),
                 decoration: _inputDecoration(Icons.email_outlined),
                 keyboardType: TextInputType.emailAddress,
                 validator: (v) => v == null || v.isEmpty ? "Email is required" : null,
-                
               ),
               const SizedBox(height: 20),
 
+              // OTP Field with Send Button
               _buildFieldLabel("OTP Verification Code"),
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -213,9 +184,9 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                   ),
                   const SizedBox(width: 12),
                   SizedBox(
-                    height: 56, 
+                    height: 56,
                     child: TextButton(
-                      onPressed: (_canResend && !_isResending) ? () => _handleResendOtp() : null,
+                      onPressed: (_canResend && !_isResending) ? _handleSendOtp : null,
                       style: TextButton.styleFrom(
                         backgroundColor: _canResend ? Colors.green.withOpacity(0.1) : Colors.transparent,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -223,7 +194,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                       child: _isResending
                           ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.green))
                           : Text(
-                        _canResend ? "RESEND" : "${_start}s",
+                        _canResend ? "SEND OTP" : "${_start}s",
                         style: TextStyle(
                           color: _canResend ? Colors.green : Colors.grey,
                           fontWeight: FontWeight.bold,
@@ -264,7 +235,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
-                child: const Text("CONFIRM CHANGES", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                child: const Text("CONFIRM RESET", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
               ),
             ],
           ),

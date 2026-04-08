@@ -19,11 +19,12 @@ public class NotificationServiceImp implements NotificationService {
     private final IPushNotificationService pushNotificationService; // Inject service gửi push
 
     /**
-     * Lấy danh sách tất cả thông báo của một người dùng, sắp xếp theo thời gian mới nhất.
+     * Lấy danh sách thông báo của một người dùng mà scheduledTime <= hiện tại.
+     * Ẩn các thông báo ở tương lai cho đến khi đến hạn.
      */
     @Override
     public List<Notification> getMyNotifications(Integer accId) {
-        return notificationRepository.findAllByAccount_IdOrderByScheduledTimeDesc(accId);
+        return notificationRepository.findAllVisibleNotificationsByAccount_IdOrderByScheduledTimeDesc(accId, LocalDateTime.now());
     }
 
     /**
@@ -31,6 +32,7 @@ public class NotificationServiceImp implements NotificationService {
      * Thường được gọi bởi một worker hoặc scheduler sau khi gửi push thành công.
      */
     @Override
+    @Transactional
     public void markAsSent(Integer notificationId) {
         notificationRepository.findById(notificationId).ifPresent(n -> {
             n.setNotifySent(true);
@@ -42,6 +44,7 @@ public class NotificationServiceImp implements NotificationService {
      * Đánh dấu một thông báo là "đã đọc" bởi người dùng.
      */
     @Override
+    @Transactional
     public void markAsRead(Integer notificationId, Integer accId) {
         // Tìm thông báo theo ID
         Notification notification = notificationRepository.findById(notificationId)
@@ -71,11 +74,16 @@ public class NotificationServiceImp implements NotificationService {
     }
 
     /**
-     * Tạo một thông báo mới trong hệ thống và kích hoạt gửi push notification.
+     * Tạo một thông báo mới trong hệ thống.
+     * Nếu scheduledTime <= hiện tại hoặc null, gửi push ngay lập tức.
+     * Ngược lại, chỉ lưu vào DB để Scheduler quét gửi sau.
      */
     @Override
     @Transactional
     public void createNotification(Account account, String title, String content, NotificationType type, Long relatedId, LocalDateTime scheduledTime) {
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime effectiveScheduledTime = (scheduledTime != null) ? scheduledTime : now;
+
         // Bước 1: Tạo và lưu thông báo vào database
         Notification notification = Notification.builder()
                 .account(account)
@@ -83,35 +91,65 @@ public class NotificationServiceImp implements NotificationService {
                 .content(content)
                 .notifyType(type.getValue())
                 .relatedId(relatedId)
-                .scheduledTime(scheduledTime != null ? scheduledTime : LocalDateTime.now())
+                .scheduledTime(effectiveScheduledTime)
                 .notifySent(false) // Mặc định là chưa gửi
                 .notifyRead(false) // Mặc định là chưa đọc
-                .createdAt(LocalDateTime.now())
+                .createdAt(now)
                 .build();
         notificationRepository.save(notification);
 
-        // Bước 2: Nếu là thông báo gửi ngay (không hẹn lịch), kích hoạt gửi push
-        if (scheduledTime == null) {
-            pushNotificationService.sendToUser(account.getId(), title, content);
-            // Bước 3: Cập nhật trạng thái đã gửi.
-            // Cập nhật notify_sent = true sau khi Firebase đã nhận yêu cầu gửi thành công.
-            notification.setNotifySent(true);
-            notificationRepository.save(notification);
+        // Bước 2: Nếu scheduledTime đến hạn ngay bây giờ, kích hoạt gửi push ngay
+        if (!effectiveScheduledTime.isAfter(now)) {
+            try {
+                pushNotificationService.sendToUser(account.getId(), title, content);
+                // Cập nhật notify_sent = true sau khi Firebase đã nhận yêu cầu gửi thành công.
+                notification.setNotifySent(true);
+                notificationRepository.save(notification);
+            } catch (Exception e) {
+                // Log lỗi nhưng không rollback vì thông báo đã được lưu trong DB để Scheduler thử lại sau
+            }
         }
     }
 
     @Override
     public List<Notification> getNotificationsByType(Integer notifyType) {
         // Gọi repository để lấy thông báo theo notifyType (Integer) và sắp xếp mới nhất lên đầu
-        return notificationRepository.findAllByNotifyTypeOrderByScheduledTimeDesc(notifyType);
+        // Chỉ lấy các thông báo đã đến hạn scheduledTime
+        return notificationRepository.findAllVisibleNotificationsByNotifyTypeOrderByScheduledTimeDesc(notifyType, LocalDateTime.now());
     }
 
     /**
      * Lấy thông báo của 1 user theo notifyType.
      * Admin dùng để đọc thông báo SYSTEM (type=4) của chính mình.
+     * Ẩn các thông báo ở tương lai cho đến khi đến hạn.
      */
     @Override
     public List<Notification> getMyNotificationsByType(Integer accId, Integer notifyType) {
-        return notificationRepository.findAllByAccount_IdAndNotifyTypeOrderByScheduledTimeDesc(accId, notifyType);
+        return notificationRepository.findAllVisibleNotificationsByAccount_IdAndNotifyTypeOrderByScheduledTimeDesc(accId, notifyType, LocalDateTime.now());
+    }
+
+    /**
+     * Xóa thông báo khỏi database.
+     * Đảm bảo bản ghi được gỡ bỏ hoàn toàn khỏi DB.
+     */
+    @Override
+    @Transactional
+    public void deleteNotification(Integer id, Integer accountId) {
+        // Kiểm tra tồn tại và quyền sở hữu trước khi xóa
+        Notification notification = notificationRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy thông báo"));
+
+        if (!notification.getAccount().getId().equals(accountId)) {
+            throw new RuntimeException("Bạn không có quyền xóa thông báo này");
+        }
+
+        notificationRepository.delete(notification);
+        // Force flush để đảm bảo xóa khỏi DB ngay lập tức
+        notificationRepository.flush();
+    }
+    @Override
+    @Transactional
+    public void markAsDelivered(Integer id) {
+        notificationRepository.updateNotifyStatus(id, true, true); // sent=true, read=true
     }
 }

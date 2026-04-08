@@ -136,12 +136,12 @@ public class UserServiceImp implements UserService {
     @Override
     public void sendEmergencyLockOTP(Integer accId, String identityCard) {
         Account account = accountRepository.findById(accId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
 
         // Xác minh CCCD
         if (account.getIdentityCard() == null || !account.getIdentityCard().equals(identityCard)) {
             log.warn("Yêu cầu OTP khóa khẩn cấp thất bại cho User {}: CCCD không khớp.", accId);
-            throw new RuntimeException("Số CCCD xác minh không chính xác.");
+            throw new IllegalArgumentException("Số CCCD xác minh không chính xác.");
         }
 
         // Tạo mã OTP 6 số
@@ -160,20 +160,20 @@ public class UserServiceImp implements UserService {
     @Transactional
     public void verifyAndLockAccount(Integer accId, String otpCode) {
         Account account = accountRepository.findById(accId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new IllegalArgumentException("User not found"));
 
         // 1. Kiểm tra session trong cache
         OtpSession session = otpCache.get(accId);
         if (session == null) {
             log.warn("Xác thực thất bại: Không tìm thấy session OTP cho User ID {}", accId);
-            throw new RuntimeException("Không tìm thấy yêu cầu xác thực hoặc mã đã bị hủy.");
+            throw new IllegalArgumentException("Không tìm thấy yêu cầu xác thực hoặc mã đã bị hủy.");
         }
         
         // 2. Kiểm tra hết hạn TRƯỚC
         if (session.isExpired()) {
             otpCache.remove(accId);
             log.warn("Xác thực thất bại: OTP đã hết hạn cho User ID {}", accId);
-            throw new RuntimeException("Mã OTP đã hết hạn (5 phút). Vui lòng yêu cầu mã mới.");
+            throw new IllegalArgumentException("Mã OTP đã hết hạn (5 phút). Vui lòng yêu cầu mã mới.");
         }
 
         // 3. Chuẩn hóa mã nhận được từ Client (Mobile)
@@ -183,7 +183,7 @@ public class UserServiceImp implements UserService {
         if (!session.code.equals(sanitizedCode)) {
             log.warn("Xác thực thất bại: Mã không khớp cho User ID {}. Nhận: [{}], Kỳ vọng: [{}]", 
                     accId, sanitizedCode, session.code);
-            throw new RuntimeException("Mã OTP không chính xác.");
+            throw new IllegalArgumentException("Mã OTP không chính xác.");
         }
 
         // 5. Thực hiện khóa tài khoản

@@ -31,7 +31,6 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.LocalTime;
 import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -52,7 +51,6 @@ public class AdminServiceImp implements AdminService {
 
     @Override
     public PageResponse<AccountDto> getUsers(String search, Boolean locked, String onlineStatus, Pageable pageable) {
-        // Xác định mốc thời gian thực để coi là Online (ví dụ: 5 phút gần nhất)
         LocalDateTime activeThreshold = LocalDateTime.now().minusMinutes(5);
 
         Specification<Account> spec = (root, query, criteriaBuilder) -> {
@@ -68,14 +66,12 @@ public class AdminServiceImp implements AdminService {
             }
             if (locked != null) predicates.add(criteriaBuilder.equal(root.get("locked"), locked));
 
-            // Lọc Online/Offline trực tiếp trong Database trước khi phân trang
             if (onlineStatus != null && !onlineStatus.isEmpty()) {
                 boolean filterOnline = "online".equalsIgnoreCase(onlineStatus);
                 Subquery<Integer> onlineSubquery = query.subquery(Integer.class);
                 Root<UserDevice> deviceRoot = onlineSubquery.from(UserDevice.class);
                 onlineSubquery.select(deviceRoot.get("account").get("id"));
                 
-                // THỜI GIAN THỰC: Phải thỏa mãn cả 2: Đang loggedIn và mới hoạt động gần đây
                 onlineSubquery.where(
                         criteriaBuilder.isTrue(deviceRoot.get("loggedIn")),
                         criteriaBuilder.greaterThan(deviceRoot.get("lastActive"), activeThreshold)
@@ -95,7 +91,6 @@ public class AdminServiceImp implements AdminService {
         List<Account> accounts = accountPage.getContent();
         List<Integer> accountIds = accounts.stream().map(Account::getId).collect(Collectors.toList());
 
-        // Chỉ lấy các thiết bị thỏa mãn điều kiện thời gian thực để map lên giao diện
         Map<Integer, List<UserDevice>> activeDeviceMap = userDeviceRepository
                 .findActiveDevicesByAccountIds(accountIds, activeThreshold).stream()
                 .collect(Collectors.groupingBy(d -> d.getAccount().getId()));
@@ -103,22 +98,16 @@ public class AdminServiceImp implements AdminService {
         List<AccountDto> dtoList = accounts.stream().map(account -> {
             AccountDto dto = new AccountDto(account);
             List<UserDevice> activeSessions = activeDeviceMap.getOrDefault(account.getId(), new ArrayList<>());
-            
             dto.setOnline(!activeSessions.isEmpty());
             dto.setOnlineDevicesCount(activeSessions.size());
-            
-            // TỐI ƯU: Nếu đang online, lấy thời gian từ session active, nếu không thì dùng field có sẵn
             dto.setLastActive(activeSessions.stream()
                     .map(UserDevice::getLastActive)
                     .filter(Objects::nonNull)
                     .max(LocalDateTime::compareTo)
                     .orElse(null));
-
-            // TỐI ƯU: Lấy danh sách Platform thực tế từ các session đang online
             dto.setOnlinePlatforms(activeSessions.stream()
                     .map(d -> d.getDeviceName() != null ? d.getDeviceName() : "Unknown")
                     .distinct().collect(Collectors.toList()));
-            
             return dto;
         }).collect(Collectors.toList());
 
@@ -130,30 +119,20 @@ public class AdminServiceImp implements AdminService {
     public void lockAccount(Integer id) {
         Account account = accountRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy tài khoản ID: " + id));
-        
         account.setLocked(true);
-        // Đây là một dạng khóa mềm/vô hiệu hóa tài khoản. Dữ liệu không bị xóa vật lý.
         accountRepository.saveAndFlush(account);
-
         try {
-            // Thu hồi toàn bộ Refresh Token để buộc đăng xuất ngay lập tức
             List<UserDevice> devices = userDeviceRepository.findAllByAccount_Id(id);
             if (devices != null && !devices.isEmpty()) {
                 devices.forEach(device -> device.setRefreshToken(null));
                 userDeviceRepository.saveAll(devices);
                 userDeviceRepository.flush();
             }
-        } catch (Exception e) {
-            log.warn("Cảnh báo: Không thể thu hồi token của user {}: {}", id, e.getMessage());
-        }
-
+        } catch (Exception e) { log.warn("Không thể thu hồi token: {}", e.getMessage()); }
         try {
             NotificationContent msg = NotificationMessages.accountLocked();
-            notificationService.createNotification(account, msg.title(), msg.content(), 
-                    NotificationType.SYSTEM, null, LocalDateTime.now());
-        } catch (Exception e) {
-            log.warn("Cảnh báo: Không thể gửi thông báo khóa cho user {}: {}", id, e.getMessage());
-        }
+            notificationService.createNotification(account, msg.title(), msg.content(), NotificationType.SYSTEM, null, LocalDateTime.now());
+        } catch (Exception e) { log.warn("Không thể gửi thông báo khóa: {}", e.getMessage()); }
     }
 
     @Override
@@ -161,18 +140,13 @@ public class AdminServiceImp implements AdminService {
     public void unlockAccount(Integer id) {
         Account account = accountRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy tài khoản ID: " + id));
-        
         account.setLocked(false);
         accountRepository.save(account);
         accountRepository.flush();
-
         try {
             NotificationContent msg = NotificationMessages.accountUnlocked();
-            notificationService.createNotification(account, msg.title(), msg.content(), 
-                    NotificationType.SYSTEM, null, LocalDateTime.now());
-        } catch (Exception e) {
-            log.warn("Cảnh báo: Không thể gửi thông báo mở khóa cho user {}: {}", id, e.getMessage());
-        }
+            notificationService.createNotification(account, msg.title(), msg.content(), NotificationType.SYSTEM, null, LocalDateTime.now());
+        } catch (Exception e) { log.warn("Không thể gửi thông báo mở khóa: {}", e.getMessage()); }
     }
 
     @Override
@@ -181,72 +155,62 @@ public class AdminServiceImp implements AdminService {
         Map<String, Object> stats = new HashMap<>();
         stats.put("totalUsers", accountRepository.count());
         stats.put("totalTransactions", transactionRepository.count());
-        stats.put("onlineUsers", userDeviceRepository.countActiveUsers(activeThreshold)); // Người dùng online thực tế
-        stats.put("activeDevices", userDeviceRepository.countByLoggedInTrue()); // Tổng phiên đang logged_in
-        stats.put("newUsersGrowth", accountRepository.countNewUsersByMonth()); // Thống kê biểu đồ line
+        stats.put("onlineUsers", userDeviceRepository.countActiveUsers(activeThreshold));
+        stats.put("activeDevices", userDeviceRepository.countByLoggedInTrue());
+        stats.put("newUsersGrowth", accountRepository.countNewUsersByMonth());
         return stats;
     }
 
     @Override
     public List<Notification> getAdminNotifications(Integer adminId) {
-        // Lấy tất cả thông báo loại SYSTEM (Hành động quản trị, Cảnh báo bảo mật)
-        // Đây là luồng thông báo tập trung để Admin theo dõi biến động hệ thống.
         return notificationService.getNotificationsByType(NotificationType.SYSTEM.getValue());
     }
 
-    /**
-     * [1.4] Xem lịch sử giao dịch của một người dùng cụ thể (Có phân trang).
-     */
     @Override
     @Transactional(readOnly = true)
-    public PageResponse<TransactionDto> getUserTransactions(Integer userId, Pageable pageable) {
-        // Sử dụng phương thức findAllByAccount_IdOrderByTransDateDesc từ Repository
-        Page<Transaction> transactions = transactionRepository.findAllByAccount_IdOrderByTransDateDesc(userId, pageable);
+    public PageResponse<TransactionDto> getUserTransactions(Integer userId, Pageable pageable, String deletedStatus, String type) {
+        boolean includeDeleted = "ALL".equalsIgnoreCase(deletedStatus) || "DELETED".equalsIgnoreCase(deletedStatus);
+        boolean onlyDeleted = "DELETED".equalsIgnoreCase(deletedStatus);
+        Boolean isIncome = parseType(type);
+        Page<Transaction> transactions = transactionRepository.findAllUserTransactionsWithFilter(userId, includeDeleted, onlyDeleted, isIncome, pageable);
         List<TransactionDto> dtoList = transactions.getContent().stream().map(TransactionDto::new).collect(Collectors.toList());
         return new PageResponse<>(new PageImpl<>(dtoList, pageable, transactions.getTotalElements()));
     }
 
-    /**
-     * [1.5] Lấy toàn bộ lịch sử giao dịch của một người dùng cụ thể (Không phân trang - Dùng cho xuất báo cáo).
-     */
     @Override
     @Transactional(readOnly = true)
-    public List<TransactionDto> getAllUserTransactions(Integer userId) {
-        // Sử dụng phương thức List từ Repository
-        return transactionRepository.findAllByAccount_IdOrderByTransDateDesc(userId)
-                .stream()
-                .map(TransactionDto::new)
-                .collect(Collectors.toList());
+    public List<TransactionDto> getAllUserTransactions(Integer userId, String deletedStatus, String type) {
+        boolean includeDeleted = "ALL".equalsIgnoreCase(deletedStatus) || "DELETED".equalsIgnoreCase(deletedStatus);
+        boolean onlyDeleted = "DELETED".equalsIgnoreCase(deletedStatus);
+        Boolean isIncome = parseType(type);
+        return transactionRepository.findAllUserTransactionsWithFilter(userId, includeDeleted, onlyDeleted, isIncome).stream().map(TransactionDto::new).collect(Collectors.toList());
+    }
+
+    private Boolean parseType(String type) {
+        if ("INCOME".equalsIgnoreCase(type)) return true;
+        if ("EXPENSE".equalsIgnoreCase(type)) return false;
+        return null;
     }
 
     /**
-     * [1.1] Thống kê tỷ trọng giao dịch:
-     * Tính % dựa trên tổng khối lượng giao dịch (Thu + Chi = 100%)
-     * Hiển thị rõ danh mục Cha và Con.
+     * [CẬP NHẬT] Thống kê hệ thống dựa trên startDate và endDate thực tế từ Client.
+     * Tính tổng của bảng Transaction (toàn bộ User) theo startDate và endDate là 100%.
+     * Các hạng mục Category và Saving Goal là % dựa theo tổng giao dịch toàn hệ thống.
      */
     @Override
-    public Map<String, Object> getSystemTransactionStats(String rangeMode) {
-        LocalDateTime startDate, endDate;
-        LocalDate today = LocalDate.now();
+    public Map<String, Object> getSystemTransactionStats(LocalDateTime startDate, LocalDateTime endDate) {
+        // Dự phòng nếu Client không gửi ngày (mặc định lấy tháng hiện tại)
+        if (startDate == null) startDate = LocalDate.now().with(TemporalAdjusters.firstDayOfMonth()).atStartOfDay();
+        if (endDate == null) endDate = LocalDateTime.now();
 
-        if ("DAILY".equalsIgnoreCase(rangeMode)) {
-            startDate = today.atStartOfDay(); endDate = today.atTime(LocalTime.MAX);
-        } else {
-            startDate = today.with(TemporalAdjusters.firstDayOfMonth()).atStartOfDay();
-            endDate = today.with(TemporalAdjusters.lastDayOfMonth()).atTime(LocalTime.MAX);
-        }
+        // 1. Tổng volume thực tế TOÀN HỆ THỐNG = 100%
+        BigDecimal totalVolume = transactionRepository.getTotalVolumeRange(startDate, endDate);
+        if (totalVolume == null) totalVolume = BigDecimal.ZERO;
 
+        // 2. Thống kê theo danh mục (Category) của TOÀN HỆ THỐNG
         List<Object[]> rawStats = transactionRepository.getGlobalCategoryStats(startDate, endDate);
-        BigDecimal totalVolume = BigDecimal.ZERO;
-        BigDecimal income = BigDecimal.ZERO; BigDecimal expense = BigDecimal.ZERO;
-
-        for (Object[] row : rawStats) {
-            BigDecimal amount = row[1] != null ? (BigDecimal) row[1] : BigDecimal.ZERO;
-
-            totalVolume = totalVolume.add(amount);
-            if (Boolean.TRUE.equals(row[2])) income = income.add(amount);
-            else expense = expense.add(amount);
-        }
+        BigDecimal income = BigDecimal.ZERO; 
+        BigDecimal expense = BigDecimal.ZERO;
 
         List<Map<String, Object>> breakdown = new ArrayList<>();
         for (Object[] row : rawStats) {
@@ -256,15 +220,17 @@ public class AdminServiceImp implements AdminService {
             String ctgIconUrl = (String) row[3];
             String parentName = (String) row[4];
 
+            if (Boolean.TRUE.equals(ctgType)) income = income.add(amount);
+            else expense = expense.add(amount);
+
+            // Tính % dựa trên tổng volume của toàn hệ thống (không phải của 1 user)
             BigDecimal pct = (totalVolume.compareTo(BigDecimal.ZERO) > 0)
-                    ? amount.multiply(new BigDecimal("100")).divide(totalVolume, 2, RoundingMode.HALF_UP)
+                    ? amount.multiply(new BigDecimal("100")).divide(totalVolume, 4, RoundingMode.HALF_UP)
                     : BigDecimal.ZERO;
 
             Map<String, Object> item = new HashMap<>();
             item.put("categoryName", ctgName);
             item.put("parentName", parentName != null ? parentName : "");
-            item.put("isChild", parentName != null);
-            item.put("displayName", parentName != null ? parentName + " > " + ctgName : ctgName);
             item.put("amount", amount);
             item.put("percentage", pct);
             item.put("type", Boolean.TRUE.equals(ctgType) ? "INCOME" : "EXPENSE");
@@ -272,220 +238,126 @@ public class AdminServiceImp implements AdminService {
             breakdown.add(item);
         }
 
+        // 3. Thống kê theo mục tiêu tiết kiệm (Saving Goals) của TOÀN HỆ THỐNG
+        List<Object[]> goalStats = transactionRepository.getGlobalGoalStats(startDate, endDate);
+        List<Map<String, Object>> goalBreakdown = new ArrayList<>();
+        for (Object[] row : goalStats) {
+            String goalName = (String) row[0];
+            BigDecimal amount = row[1] != null ? (BigDecimal) row[1] : BigDecimal.ZERO;
+            
+            // Tính % dựa trên tổng volume của toàn hệ thống
+            BigDecimal pct = (totalVolume.compareTo(BigDecimal.ZERO) > 0)
+                    ? amount.multiply(new BigDecimal("100")).divide(totalVolume, 4, RoundingMode.HALF_UP)
+                    : BigDecimal.ZERO;
+
+            Map<String, Object> item = new HashMap<>();
+            item.put("goalName", goalName);
+            item.put("amount", amount);
+            item.put("percentage", pct);
+            goalBreakdown.add(item);
+        }
+
         Map<String, Object> result = new HashMap<>();
-        result.put("totalSystemVolume", totalVolume); // Mốc 100%
+        result.put("totalSystemVolume", totalVolume);
         result.put("summary", Map.of(
                 "incomeTotal", income,
                 "expenseTotal", expense,
-                "incomePercentage", totalVolume.compareTo(BigDecimal.ZERO) > 0
-                        ? income.multiply(new BigDecimal("100")).divide(totalVolume, 2, RoundingMode.HALF_UP) : BigDecimal.ZERO,
-                "expensePercentage", totalVolume.compareTo(BigDecimal.ZERO) > 0
-                        ? expense.multiply(new BigDecimal("100")).divide(totalVolume, 2, RoundingMode.HALF_UP) : BigDecimal.ZERO
+                "incomePercentage", totalVolume.compareTo(BigDecimal.ZERO) > 0 ? income.multiply(new BigDecimal("100")).divide(totalVolume, 2, RoundingMode.HALF_UP) : 0,
+                "expensePercentage", totalVolume.compareTo(BigDecimal.ZERO) > 0 ? expense.multiply(new BigDecimal("100")).divide(totalVolume, 2, RoundingMode.HALF_UP) : 0
         ));
         result.put("breakdown", breakdown);
-        result.put("range", rangeMode);
+        result.put("goalBreakdown", goalBreakdown);
         result.put("generatedAt", LocalDateTime.now());
+        result.put("startDate", startDate);
+        result.put("endDate", endDate);
+
         return result;
     }
 
-    /**
-     * [1.2] Thông báo giao dịch bất thường:
-     * Phân tích hành vi: Phát hiện tần suất giao dịch cao và tổng khối lượng chi tiêu lớn trên từng ví.
-     */
     @Override
-    @Transactional
     public void notifyAbnormalTransactions(BigDecimal threshold) {
-        // Ngưỡng tần suất: ví dụ hơn 10 giao dịch chi tiêu/ngày là bất thường
         int frequencyThreshold = 10; 
         LocalDateTime since = LocalDateTime.now().minusDays(1);
-
-        // 1. Lấy tất cả giao dịch trong 24h qua (Khớp với phương thức Repository mới)
         List<Transaction> recentTransactions = transactionRepository.findAllByTransDateAfter(since);
-
-        // 2. Gom nhóm theo Ví và lọc các giao dịch CHI TIÊU (Expense)
         Map<Wallet, List<Transaction>> walletActivity = recentTransactions.stream()
                 .filter(t -> t.getCategory() != null && Boolean.FALSE.equals(t.getCategory().getCtgType()))
                 .filter(t -> t.getWallet() != null)
                 .collect(Collectors.groupingBy(Transaction::getWallet));
 
         walletActivity.forEach((wallet, transList) -> {
-            BigDecimal walletTotalExpense = transList.stream()
-                    .map(Transaction::getAmount)
-                    .reduce(BigDecimal.ZERO, BigDecimal::add);
-            int activityCount = transList.size();
-
-            // 3. Kiểm tra điều kiện: (Tổng tiền chi > ngưỡng) HOẶC (Số lượng giao dịch > ngưỡng tần suất)
-            if (walletTotalExpense.compareTo(threshold) > 0 || activityCount >= frequencyThreshold) {
+            BigDecimal walletTotalExpense = transList.stream().map(Transaction::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
+            if (walletTotalExpense.compareTo(threshold) > 0 || transList.size() >= frequencyThreshold) {
                 Account userAccount = transList.get(0).getAccount();
-                // Lấy tên thật của Ví từ thực thể
-                String walletName = (wallet.getWalletName() != null && !wallet.getWalletName().isEmpty()) 
-                        ? wallet.getWalletName() : "Ví người dùng";
+                String walletName = wallet.getWalletName() != null ? wallet.getWalletName() : "Ví người dùng";
+                NotificationContent userMsg = NotificationMessages.abnormalWalletActivity(walletName, transList.size(), walletTotalExpense);
+                notificationService.createNotification(userAccount, userMsg.title(), userMsg.content(), NotificationType.TRANSACTION, null, LocalDateTime.now());
                 
-                // Gửi thông báo cho User về chiếc ví cụ thể đang có vấn đề
-                NotificationContent userMsg = NotificationMessages.abnormalWalletActivity(
-                        walletName, activityCount, walletTotalExpense);
-                notificationService.createNotification(userAccount, userMsg.title(), userMsg.content(),
-                        NotificationType.TRANSACTION, null, LocalDateTime.now());
-
-                // Gửi thông báo cho Admin để theo dõi rủi ro hệ thống
-                NotificationContent adminMsg = NotificationMessages.adminWalletRiskAlert(
-                        userAccount.getAccEmail(), walletName, activityCount, walletTotalExpense);
-                notificationService.createNotification(null, adminMsg.title(), adminMsg.content(), 
-                        NotificationType.SYSTEM, null, LocalDateTime.now());
+                NotificationContent adminMsg = NotificationMessages.adminWalletRiskAlert(userAccount.getAccEmail(), walletName, transList.size(), walletTotalExpense);
+                List<Account> admins = accountRepository.findByRole_RoleCode("ROLE_ADMIN");
+                for (Account admin : admins) {
+                    notificationService.createNotification(admin, adminMsg.title(), adminMsg.content(), NotificationType.SYSTEM, null, LocalDateTime.now());
+                }
             }
         });
     }
 
-    /**
-     * [1.3] Danh sách người dùng giao dịch bất thường để Admin đối soát trên Dashboard.
-     */
     @Override
-    @Transactional(readOnly = true)
     public List<Map<String, Object>> getAbnormalTransactionUsers(BigDecimal threshold) {
         int frequencyThreshold = 10;
         LocalDateTime since = LocalDateTime.now().minusDays(1);
         List<Transaction> recentTransactions = transactionRepository.findAllByTransDateAfter(since);
-
-        // Nhóm theo Account trước
         Map<Account, List<Transaction>> groupedByAccount = recentTransactions.stream()
                 .filter(t -> t.getCategory() != null && Boolean.FALSE.equals(t.getCategory().getCtgType()))
                 .collect(Collectors.groupingBy(Transaction::getAccount));
 
         return groupedByAccount.entrySet().stream().map(entry -> {
             Account acc = entry.getKey();
-            List<Transaction> userTrans = entry.getValue();
-            
-            // Nhóm giao dịch của user này theo từng Ví
-            Map<Wallet, List<Transaction>> byWallet = userTrans.stream()
-                    .filter(t -> t.getWallet() != null)
-                    .collect(Collectors.groupingBy(t -> t.getWallet()));
-
+            Map<Wallet, List<Transaction>> byWallet = entry.getValue().stream().filter(t -> t.getWallet() != null).collect(Collectors.groupingBy(Transaction::getWallet));
             List<Map<String, Object>> abnormalWallets = new ArrayList<>();
-            BigDecimal userTotalAbnormalAmount = BigDecimal.ZERO;
-
-            for (Map.Entry<Wallet, List<Transaction>> walletEntry : byWallet.entrySet()) {
-                List<Transaction> transList = walletEntry.getValue();
-                BigDecimal walletTotal = transList.stream().map(Transaction::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
-                
-                if (walletTotal.compareTo(threshold) > 0 || transList.size() >= frequencyThreshold) {
-                    Map<String, Object> wMap = new HashMap<>();
-                    wMap.put("walletName", walletEntry.getKey().getWalletName() != null 
-                            ? walletEntry.getKey().getWalletName() : "Ví người dùng");
-                    wMap.put("transactionCount", transList.size());
-                    wMap.put("totalSpent", walletTotal);
-                    // Bổ sung chi tiết các giao dịch để Admin đối soát
-                    wMap.put("details", transList.stream()
-                            .map(TransactionDto::new)
-                            .collect(Collectors.toList()));
-
-                    abnormalWallets.add(wMap);
-                    userTotalAbnormalAmount = userTotalAbnormalAmount.add(walletTotal);
+            BigDecimal userTotal = BigDecimal.ZERO;
+            for (Map.Entry<Wallet, List<Transaction>> wEntry : byWallet.entrySet()) {
+                BigDecimal wTotal = wEntry.getValue().stream().map(Transaction::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
+                if (wTotal.compareTo(threshold) > 0 || wEntry.getValue().size() >= frequencyThreshold) {
+                    abnormalWallets.add(Map.of("walletName", wEntry.getKey().getWalletName(), "transactionCount", wEntry.getValue().size(), "totalSpent", wTotal));
+                    userTotal = userTotal.add(wTotal);
                 }
             }
-
             if (abnormalWallets.isEmpty()) return null;
-
-            Map<String, Object> userMap = new HashMap<>();
-            userMap.put("userId", acc.getId());
-            userMap.put("email", acc.getAccEmail());
-
-            userMap.put("abnormalWallets", abnormalWallets);
-            userMap.put("totalAbnormalAmount", userTotalAbnormalAmount);
-            return userMap;
+            return Map.of("userId", acc.getId(), "username", acc.getFullname() != null ? acc.getFullname() : acc.getAccEmail(), "abnormalWallets", abnormalWallets, "totalAmount", userTotal, "transactionCount", entry.getValue().size());
         }).filter(Objects::nonNull).collect(Collectors.toList());
     }
 
     @Override
-    public long countOnlineUsers() {
-        // Đếm tổng số người dùng hoạt động thời gian thực (5 phút gần nhất)
-        LocalDateTime activeThreshold = LocalDateTime.now().minusMinutes(5);
-        return userDeviceRepository.countActiveUsers(activeThreshold);
-    }
+    public long countOnlineUsers() { return userDeviceRepository.countActiveUsers(LocalDateTime.now().minusMinutes(5)); }
 
-    /**
-     * Tối ưu hóa lấy danh sách tất cả người dùng trực tuyến thời gian thực.
-     */
     @Override
     public List<AccountDto> getAllLiveOnlineUsers() {
-        // Mốc thời gian thực
-        LocalDateTime activeThreshold = LocalDateTime.now().minusMinutes(5);
-
-        // Bước 1: Lấy tất cả thiết bị Online thời gian thực (Eager fetch Account)
-        List<UserDevice> activeDevices = userDeviceRepository.findActiveDevicesBySince(activeThreshold);
-
-        // Bước 2: Gom nhóm theo Account để tạo danh sách User Online
-        Map<Account, List<UserDevice>> grouped = activeDevices.stream()
-                .collect(Collectors.groupingBy(UserDevice::getAccount));
-
-        return mapToOnlineAccountDtos(grouped);
+        LocalDateTime threshold = LocalDateTime.now().minusMinutes(5);
+        return userDeviceRepository.findActiveDevicesBySince(threshold).stream()
+                .collect(Collectors.groupingBy(UserDevice::getAccount))
+                .entrySet().stream().map(e -> {
+                    AccountDto d = new AccountDto(e.getKey());
+                    d.setOnline(true); d.setOnlineDevicesCount(e.getValue().size());
+                    d.setLastActive(e.getValue().stream().map(UserDevice::getLastActive).filter(Objects::nonNull).max(LocalDateTime::compareTo).orElse(null));
+                    return d;
+                }).collect(Collectors.toList());
     }
 
-    /**
-     * Tự động đăng xuất (thu hồi RefreshToken) cho các phiên bản đã ngoại tuyến.
-     * Ngoại tuyến được định nghĩa là không có hoạt động trong 30 phút qua.
-     */
     @Override
     @Transactional
     public void handleAutoLogout() {
-        // Người dùng được coi là "ngoại tuyến" nếu không có hoạt động trong 30 phút qua
         LocalDateTime timeout = LocalDateTime.now().minusMinutes(30);
-        
-        // Lấy danh sách thiết bị đang có logged_in = 1, sau đó lọc các phiên "treo" (stale)
-        List<UserDevice> staleDevices = userDeviceRepository.findAllLoggedInDevicesWithAccount()
-                .stream()
-                // Lọc những thiết bị có lần cuối hoạt động đã quá thời gian timeout
-                .filter(d -> d.getLastActive() != null && d.getLastActive().isBefore(timeout))
-                .collect(Collectors.toList());
-
-        if (!staleDevices.isEmpty()) {
-            staleDevices.forEach(device -> {
-                device.setRefreshToken(null); // Thu hồi Refresh Token để chặn quyền truy cập cũ
-                device.setLoggedIn(false);    // Chuyển trạng thái sang Ngoại tuyến (logger_in = 0)
-            });
-            userDeviceRepository.saveAll(staleDevices);
-            userDeviceRepository.flush();
+        List<UserDevice> stale = userDeviceRepository.findAllLoggedInDevicesWithAccount().stream().filter(d -> d.getLastActive() != null && d.getLastActive().isBefore(timeout)).collect(Collectors.toList());
+        if (!stale.isEmpty()) {
+            stale.forEach(d -> { d.setRefreshToken(null); d.setLoggedIn(false); });
+            userDeviceRepository.saveAll(stale);
         }
     }
 
-    private List<AccountDto> mapToOnlineAccountDtos(Map<Account, List<UserDevice>> grouped) {
-        return grouped.entrySet().stream().map(entry -> {
-            Account account = entry.getKey();
-            List<UserDevice> devices = entry.getValue();
-
-            AccountDto dto = new AccountDto(account);
-            dto.setOnline(true);
-            dto.setOnlineDevicesCount(devices.size());
-            dto.setOnlinePlatforms(devices.stream()
-                    .map(d -> d.getDeviceName() != null ? d.getDeviceName() : "Unknown")
-                    .distinct().collect(Collectors.toList()));
-            
-            dto.setLastActive(devices.stream()
-                    .map(UserDevice::getLastActive)
-                    .filter(Objects::nonNull)
-                    .max(LocalDateTime::compareTo)
-                    .orElse(null));
-            return dto;
-        }).collect(Collectors.toList());
-    }
-
-    /**
-     * Xem chi tiết các chỉ số tài chính của một User cụ thể (Read-only)
-     */
     @Override
     @Transactional(readOnly = true)
     public Map<String, Object> getUserFinancialInsights(Integer userId) {
-        Account account = accountRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
-
-        Map<String, Object> insights = new HashMap<>();
-        insights.put("userInfo", new AccountDto(account));
-        
-        // Sử dụng phương thức sumAmountByAccountAndType mới thêm vào Repository
-        BigDecimal totalIncome = transactionRepository.sumAmountByAccountAndType(userId, true);
-        BigDecimal totalExpense = transactionRepository.sumAmountByAccountAndType(userId, false);
-        
-        insights.put("totalIncome", totalIncome != null ? totalIncome : BigDecimal.ZERO);
-        insights.put("totalExpense", totalExpense != null ? totalExpense : BigDecimal.ZERO);
-        return insights;
+        Account acc = accountRepository.findById(userId).orElseThrow(() -> new RuntimeException("User not found"));
+        return Map.of("userInfo", new AccountDto(acc), "totalIncome", transactionRepository.sumAmountByAccountAndType(userId, true), "totalExpense", transactionRepository.sumAmountByAccountAndType(userId, false));
     }
 }

@@ -6,6 +6,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'core/routing/app_router.dart';
 import 'modules/auth/providers/auth_provider.dart';
 import 'modules/budget/providers/budget_provider.dart';
+import 'firebase_options.dart'; // Import file cấu hình Firebase
 import 'modules/wallet/providers/wallet_provider.dart';
 import 'modules/transaction/providers/transaction_provider.dart';
 import 'modules/category/providers/category_provider.dart';
@@ -16,6 +17,9 @@ import 'package:smart_money/modules/event/providers/event_provider.dart';
 import 'package:smart_money/modules/saving_goal/providers/saving_goal_provider.dart';
 import 'modules/debt/providers/debt_provider.dart';
 import 'package:smart_money/modules/notification/providers/notification_provider.dart';
+import 'package:smart_money/modules/contact/providers/contact_provider.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -24,8 +28,10 @@ void main() async {
   await initializeDateFormatting('vi_VN', null);
 
   // Khởi tạo Firebase — bắt buộc trước khi dùng FCM
-  // Nếu chưa có google-services.json thì comment dòng này lại tạm thời
-  // await Firebase.initializeApp();
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+
 
   // Đăng ký tất cả Service vào getIt
   setupDependencies();
@@ -53,6 +59,7 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => SavingGoalProvider()),
         ChangeNotifierProvider(create: (_) => DebtProvider()),
         ChangeNotifierProvider(create: (_) => NotificationProvider()),
+        ChangeNotifierProvider(create: (_) => ContactProvider()),
       ],
       child: const SmartMoneyApp(),
     );
@@ -65,8 +72,42 @@ class MyApp extends StatelessWidget {
 
 
 
-class SmartMoneyApp extends StatelessWidget {
+class SmartMoneyApp extends StatefulWidget {
   const SmartMoneyApp({super.key});
+
+  @override
+  State<SmartMoneyApp> createState() => _SmartMoneyAppState();
+}
+
+class _SmartMoneyAppState extends State<SmartMoneyApp> {
+  @override
+  void initState() {
+    super.initState();
+    _setupFCM();
+  }
+
+  void _setupFCM() {
+    // Xử lý khi nhận thông báo ở Foreground (App đang mở)
+    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+      debugPrint("Nhận thông báo mới: ${message.notification?.title}");
+
+      // 1. Lấy ID thông báo từ data payload của Firebase
+      final notifyIdStr = message.data['id'];
+      if (notifyIdStr != null) {
+        try {
+          int notifyId = int.parse(notifyIdStr);
+
+          // 2. Gọi API báo đã nhận (để backend set read = 1 và sent = 1)
+          // Sử dụng context của State để truy cập Provider
+          if (mounted) {
+            context.read<NotificationProvider>().markAsDelivered(notifyId);
+          }
+        } catch (e) {
+          debugPrint("Lỗi parse notifyId: $e");
+        }
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {

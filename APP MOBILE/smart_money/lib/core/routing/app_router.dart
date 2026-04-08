@@ -7,6 +7,7 @@ import '../helpers/token_helper.dart';
 import '../../modules/notification/screens/notification_screen.dart';
 import '../../screens/profile_editing_screen.dart';
 import '../../modules/auth/screens/reset_password_screen.dart';
+import '../../modules/auth/screens/forgot_password_screen.dart';
 
 class AppRouter {
 
@@ -22,13 +23,14 @@ class AppRouter {
       final accessToken = await TokenHelper.getAccessToken();
       final isLoggedIn = accessToken != null && accessToken.isNotEmpty;
       final isGoingToReset = state.matchedLocation == "/reset-password";
+      final isGoingToForgot = state.matchedLocation == "/forgot-password";
 
 
       final isGoingToLogin = state.matchedLocation == "/login";
       final isGoingToRegister = state.matchedLocation == "/register";
 
       // Đang chưa login mà đòi vào trang khác -> Bắt về login
-      if (!isLoggedIn && !isGoingToLogin && !isGoingToRegister && !isGoingToReset) {
+      if (!isLoggedIn && !isGoingToLogin && !isGoingToRegister && !isGoingToReset && !isGoingToForgot) {
         return "/login";
       }
 
@@ -61,6 +63,10 @@ class AppRouter {
       GoRoute(
         path: "/reset-password",
         builder: (context, state) => const ResetPasswordScreen(),
+      ),
+      GoRoute(
+        path: "/forgot-password",
+        builder: (context, state) => const ForgotPasswordScreen(),
       ),
 
       GoRoute(

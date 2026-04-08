@@ -49,4 +49,23 @@ class NotificationService {
     );
     return response.statusCode == 200;
   }
+
+  /// [NEW] Gọi API PATCH /api/notifications/{id}/delivered
+  /// Xác nhận thiết bị đã nhận được thông báo từ Firebase
+  Future<bool> markAsDelivered(int id) async {
+    final response = await http.patch(
+      Uri.parse(AppConstants.markNotificationDelivered(id)),
+      headers: await _getHeaders(),
+    );
+    return response.statusCode == 200;
+  }
+
+  /// [NEW] Gọi API DELETE /api/notifications/{id}
+  Future<bool> deleteNotification(int id) async {
+    final response = await http.delete(
+      Uri.parse(AppConstants.notificationById(id)),
+      headers: await _getHeaders(),
+    );
+    return response.statusCode == 200;
+  }
 }

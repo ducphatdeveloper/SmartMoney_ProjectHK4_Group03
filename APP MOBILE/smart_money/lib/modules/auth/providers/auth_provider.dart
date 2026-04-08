@@ -14,9 +14,15 @@ import '../models/register_request.dart';
 import '../models/update_profile_request.dart';
 import '../models/reset_password_request.dart';
 
+
 class AuthProvider extends ChangeNotifier {
   final AuthService _authService = getIt<AuthService>();
   UserModel? _currentUser;
+  UserModel? _user;
+
+  // Thêm getter này để fix lỗi "The getter 'user' isn't defined"
+  UserModel? get user => _user;
+
   bool _isLoading = false;
 
   UserModel? get currentUser => _currentUser;
@@ -72,8 +78,9 @@ class AuthProvider extends ChangeNotifier {
     _setLoading(false);
   }
 
-  Future<bool> login(String username, String password) async {
+  Future<Map<String, String>?> login(String username, String password) async {
     _setLoading(true);
+    Map<String, String>? errors;
 
     try {
       final deviceInfo = DeviceInfoPlugin();
@@ -111,22 +118,28 @@ class AuthProvider extends ChangeNotifier {
 
       if (response.success == true && response.data != null) {
         _currentUser = UserModel.fromAuthResponse(response.data!);
-        return true;
+        errors = null; // Login successful, no errors
       } else {
         _currentUser = null;
-        return false;
+        if (response.data is Map<String, dynamic>) {
+          errors = Map<String, String>.from(response.data as Map);
+        } else {
+          errors = {"general": response.message};
+        }
       }
     } catch (e) {
       debugPrint("Login Error: $e");
       _currentUser = null;
-      return false;
+      errors = {"general": "An unexpected error occurred. Please try again."};
     } finally {
       _setLoading(false);
     }
+    return errors;
   }
 
-  Future<bool> register(String? email, String? phone, String password, String confirmPassword) async {
+  Future<Map<String, String>?> register(String? email, String? phone, String password, String confirmPassword) async {
     _setLoading(true);
+    Map<String, String>? errors;
 
     try {
       final request = RegisterRequest(
@@ -137,13 +150,22 @@ class AuthProvider extends ChangeNotifier {
       );
 
       final response = await _authService.register(request);
-      return response.success == true;
+      if (response.success == true) {
+        errors = null; // Registration successful
+      } else {
+        if (response.data is Map<String, dynamic>) {
+          errors = Map<String, String>.from(response.data as Map);
+        } else {
+          errors = {"general": response.message};
+        }
+      }
     } catch (e) {
       debugPrint("Register Error: $e");
-      return false;
+      errors = {"general": "An unexpected error occurred. Please try again."};
     } finally {
       _setLoading(false);
     }
+    return errors;
   }
 
   Future<void> logout() async {
