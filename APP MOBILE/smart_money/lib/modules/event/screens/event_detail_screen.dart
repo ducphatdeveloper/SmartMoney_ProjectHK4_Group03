@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../../core/constants/app_constants.dart';
+import '../../../modules/transaction/screens/common_transaction_list_screen.dart';
 import '../models/event_response.dart';
 import '../providers/event_provider.dart';
 import 'edit_event_screen.dart';
@@ -210,7 +211,17 @@ class EventDetailScreen extends StatelessWidget {
                   "Transaction History",
                   Icons.receipt_long_rounded,
                   Colors.white,
-                      () { /* Navigate to book */ }),
+                      () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => CommonTransactionListScreen(
+                          title: event.eventName,
+                          filters: {'eventId': event.id.toString()},
+                        ),
+                      ),
+                    );
+                  }),
             ]),
 
             const SizedBox(height: 20),

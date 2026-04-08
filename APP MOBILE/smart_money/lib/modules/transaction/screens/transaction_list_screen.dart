@@ -11,6 +11,7 @@ import 'package:smart_money/modules/transaction/widgets/transaction_date_slider.
 import 'package:smart_money/modules/transaction/widgets/transaction_summary.dart';
 import 'package:smart_money/modules/transaction/widgets/transaction_list.dart';
 import 'package:smart_money/modules/transaction/screens/transaction_search_screen.dart';
+import 'package:smart_money/modules/transaction/screens/transaction_report_screen.dart';
 
 class TransactionListScreen extends StatefulWidget {
   const TransactionListScreen({super.key});
@@ -21,6 +22,9 @@ class TransactionListScreen extends StatefulWidget {
 
 class _TransactionListScreenState extends State<TransactionListScreen> {
   final ScrollController _dateScrollController = ScrollController();
+
+  /// true → hiện báo cáo tóm tắt | false → hiện danh sách giao dịch
+  bool _isReportMode = false;
 
   @override
   void initState() {
@@ -79,50 +83,56 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
 
           return Column(
             children: [
-              // Hiển thị số dư ví
+              // ── ALWAYS: Số dư ví ────────────────────────────────
               const TransactionBalanceDisplay(),
 
-              // Thanh trượt ngày (ẩn nếu "Tất cả" hoặc "Tùy chỉnh")
+              // ── ALWAYS: Thanh trượt ngày ─────────────────────────
               if (!provider.isAllMode && !provider.isCustomMode)
                 TransactionDateSlider(scrollController: _dateScrollController),
 
-              // Label cho mode đặc biệt
               if (provider.isAllMode)
                 const TransactionSpecialModeLabel(label: 'Tất cả thời gian'),
               if (provider.isCustomMode && provider.selectedDateRange != null)
-                TransactionSpecialModeLabel(label: provider.selectedDateRange!.label),
+                TransactionSpecialModeLabel(
+                    label: provider.selectedDateRange!.label),
 
-              // Nội dung chính (scroll dọc)
+              // ── BODY: Chuyển đổi List ↔ Report ──────────────────
               Expanded(
-                child: RefreshIndicator(
-                  onRefresh: () => provider.refresh(),
-                  child: SingleChildScrollView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    child: Column(
-                      children: [
-                        // Tóm tắt thu chi
-                        const TransactionSummary(),
+                child: _isReportMode
+                    ? TransactionReportPanel(
+                        onClose: () => setState(() => _isReportMode = false),
+                      )
+                    : RefreshIndicator(
+                        onRefresh: () => provider.refresh(),
+                        child: SingleChildScrollView(
+                          physics: const AlwaysScrollableScrollPhysics(),
+                          child: Column(
+                            children: [
+                              // Tóm tắt thu chi
+                              const TransactionSummary(),
 
-                        // Nút báo cáo
-                        const TransactionReportButton(),
+                              // Nút xem báo cáo
+                              TransactionReportButton(
+                                onTap: () => setState(() => _isReportMode = true),
+                              ),
 
-                        // Loading indicator
-                        if (provider.isLoading)
-                          const Padding(
-                            padding: EdgeInsets.all(8),
-                            child: SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            ),
+                              // Loading indicator
+                              if (provider.isLoading)
+                                const Padding(
+                                  padding: EdgeInsets.all(8),
+                                  child: SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(strokeWidth: 2),
+                                  ),
+                                ),
+
+                              // Danh sách giao dịch
+                              const TransactionListView(),
+                            ],
                           ),
-
-                        // Danh sách giao dịch
-                        const TransactionListView(),
-                      ],
-                    ),
-                  ),
-                ),
+                        ),
+                      ),
               ),
             ],
           );
@@ -131,5 +141,3 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
     );
   }
 }
-
-

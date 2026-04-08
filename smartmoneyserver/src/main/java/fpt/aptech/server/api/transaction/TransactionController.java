@@ -1,6 +1,7 @@
 package fpt.aptech.server.api.transaction;
 
 import fpt.aptech.server.dto.response.ApiResponse;
+import fpt.aptech.server.dto.transaction.merge.TransactionListResponse;
 import fpt.aptech.server.dto.transaction.report.CategoryReportDTO;
 import fpt.aptech.server.dto.transaction.report.DailyTrendDTO;
 import fpt.aptech.server.dto.transaction.report.FinancialReportResponse;
@@ -160,6 +161,58 @@ public class TransactionController {
 
         List<DailyTrendDTO> trend = transactionService.getDailyTrend(userId, dates[0], dates[1], walletId, savingGoalId, categoryId);
         return ResponseEntity.ok(ApiResponse.success(trend));
+    }
+
+    /**
+     * Lấy danh sách giao dịch dùng chung với bộ filter động.
+     * <p>
+     * <b>Khoảng thời gian (tùy chọn):</b><br>
+     * - Dùng {@code ?range=THIS_MONTH} hoặc {@code ?range=CUSTOM&startDate=...&endDate=...}<br>
+     * - Không truyền range/date → lấy toàn bộ (không giới hạn thời gian).<br>
+     * <p>
+     * <b>Các param filter động (độc lập, có thể kết hợp):</b><br>
+     * - {@code walletId}    — Giao dịch thuộc ví.<br>
+     * - {@code savingGoalId}— Giao dịch thuộc mục tiêu tiết kiệm.<br>
+     * - {@code eventId}     — Tất cả giao dịch thuộc sự kiện.<br>
+     * - {@code debtId}      — Chỉ giao dịch nằm trong sổ nợ này.<br>
+     * - {@code plannedId}   — Giao dịch thuộc hóa đơn (Bill). Trả rỗng nếu là Recurring.<br>
+     * - {@code categoryIds} — Giao dịch thuộc danh mục (có thể truyền multiple: {@code ?categoryIds=21,22}).<br>
+     * <p>
+     * <b>Hỗ trợ multiple categoryIds:</b><br>
+     * Cách 1: {@code ?categoryIds=21,22} (comma-separated)<br>
+     * Cách 2: {@code ?categoryIds=21&categoryIds=22} (repeat param)<br>
+     * <p>
+     * Trả về: tổng thu, tổng chi, số ròng, số lượng và danh sách gom nhóm theo ngày.
+     */
+    @GetMapping("/list")
+    @PreAuthorize("hasAuthority('USER_STANDARD_MANAGE')")
+    public ResponseEntity<ApiResponse<TransactionListResponse>> getTransactionList(
+            @RequestParam(value = "startDate",    required = false) LocalDateTime startDate,
+            @RequestParam(value = "endDate",      required = false) LocalDateTime endDate,
+            @RequestParam(value = "range",        required = false) DateRange range,
+            @RequestParam(value = "walletId",     required = false) Integer walletId,
+            @RequestParam(value = "savingGoalId", required = false) Integer savingGoalId,
+            @RequestParam(value = "eventId",      required = false) Integer eventId,
+            @RequestParam(value = "debtId",       required = false) Integer debtId,
+            @RequestParam(value = "plannedId",    required = false) Integer plannedId,
+            @RequestParam(value = "categoryIds",  required = false) List<Integer> categoryIds,
+            @AuthenticationPrincipal Account currentUser) {
+
+        // Nếu có range hoặc date → resolve; không có → null (không lọc theo thời gian)
+        LocalDateTime resolvedStart = null;
+        LocalDateTime resolvedEnd   = null;
+        if (range != null || startDate != null || endDate != null) {
+            LocalDateTime[] dates = DateUtils.resolveDateRange(startDate, endDate, range);
+            resolvedStart = dates[0];
+            resolvedEnd   = dates[1];
+        }
+
+        Integer userId = currentUser.getId();
+        TransactionListResponse result = transactionService.getTransactionList(
+                userId, resolvedStart, resolvedEnd,
+                walletId, savingGoalId,
+                eventId, debtId, plannedId, categoryIds);
+        return ResponseEntity.ok(ApiResponse.success(result));
     }
 
     // =========================================================================

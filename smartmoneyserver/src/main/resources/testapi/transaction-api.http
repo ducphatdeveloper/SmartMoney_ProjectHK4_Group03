@@ -4,6 +4,10 @@
 ### Wallet:     MB Bank (wallet_id=10), VNPay (wallet_id=11)
 ### SavingGoal: Quỹ ChatGPT Plus (goal_id=31)
 ### Category:   Ăn uống (ctg_id=1), Mua sắm (ctg_id=10), Giáo dục (ctg_id=8)
+### Event:      Chuyến đi Vũng Tàu (event_id=7)
+### Debt:       Nợ chị gái (debt_id=9)
+### Planned:    Hóa đơn điện (planned_id=39 - Bill)
+###             Lương tháng (planned_id=43), Cà phê sáng (planned_id=44), Thu nợ (planned_id=45 - Recurring)
 ### =================================================================
 
 ### [0] AUTH - Đăng nhập lấy Token
@@ -298,6 +302,14 @@ Authorization: Bearer {{auth_token}}
 # -----------------------------------------------------------------
 # [4.1] Summary - Tổng quan (Tiền vào / Tiền ra / Chênh lệch)
 # Mini form trên màn hình nhật ký dùng API này
+# Response cập nhật (2026):
+# {
+#   openingBalance, closingBalance,
+#   totalIncome, totalExpense, netIncome,
+#   debtAmount,   // Tổng 'Đi vay' (DEBT_BORROWING = 20)
+#   loanAmount,   // Tổng 'Cho vay' (DEBT_LENDING  = 19)
+#   otherAmount   // Thu nợ - Trả nợ (có thể âm)
+# }
 # -----------------------------------------------------------------
 
 ### [4.1.1] Tháng này
@@ -475,3 +487,202 @@ Authorization: Bearer {{auth_token}}
 # Kỳ vọng: ["2016", "2017" ... "2024", "Năm trước", "Năm nay", "Tương lai"]
 GET http://localhost:9999/api/utils/date-ranges?mode=YEARLY&past=10
 Authorization: Bearer {{auth_token}}
+
+### =================================================================
+### [7] LIST - DANH SÁCH GIAO DỊCH DÙNG CHUNG (filter động)
+### GET /api/transactions/list
+### Trả về: totalIncome, totalExpense, netAmount, transactionCount, dailyGroups[]
+###
+### Bộ filter (tất cả tùy chọn, độc lập):
+###   range / startDate / endDate  — Khoảng thời gian (null = không giới hạn)
+###   walletId                     — Lọc theo Ví
+###   savingGoalId                 — Lọc theo Mục tiêu tiết kiệm
+###   eventId                      — Lọc theo Sự kiện
+###   debtId                       — Lọc theo Sổ nợ
+###   plannedId                    — Lọc theo Kế hoạch (Bill only; Recurring → trả rỗng)
+###   categoryId                   — Lọc theo Danh mục (kể cả 4 category nợ)
+### =================================================================
+
+# -----------------------------------------------------------------
+# [7.1] Không filter — lấy toàn bộ giao dịch của user
+# -----------------------------------------------------------------
+
+### [7.1.1] Toàn bộ — không giới hạn thời gian, không filter gì
+# Kỳ vọng: tất cả giao dịch của acc_id=6, gom nhóm theo ngày
+GET http://localhost:9999/api/transactions/list
+Authorization: Bearer {{auth_token}}
+
+### [7.1.2] Lọc theo range tháng này
+# Kỳ vọng: chỉ giao dịch trong tháng 4/2026
+GET http://localhost:9999/api/transactions/list?range=THIS_MONTH
+Authorization: Bearer {{auth_token}}
+
+### [7.1.3] Lọc theo range năm nay
+GET http://localhost:9999/api/transactions/list?range=THIS_YEAR
+Authorization: Bearer {{auth_token}}
+
+### [7.1.4] Lọc theo khoảng CUSTOM (Quý 1/2026)
+GET http://localhost:9999/api/transactions/list?range=CUSTOM&startDate=2026-01-01T00:00:00&endDate=2026-03-31T23:59:59
+Authorization: Bearer {{auth_token}}
+
+# -----------------------------------------------------------------
+# [7.2] Filter theo Ví / Mục tiêu
+# -----------------------------------------------------------------
+
+### [7.2.1] Ví MB Bank (wallet_id=10) — tháng này
+# Kỳ vọng: chỉ giao dịch của ví MB Bank trong tháng 4/2026
+GET http://localhost:9999/api/transactions/list?range=THIS_MONTH&walletId=10
+Authorization: Bearer {{auth_token}}
+
+### [7.2.2] Ví MB Bank — toàn bộ thời gian
+GET http://localhost:9999/api/transactions/list?walletId=10
+Authorization: Bearer {{auth_token}}
+
+### [7.2.3] Ví VNPay (wallet_id=11) — năm nay
+GET http://localhost:9999/api/transactions/list?range=THIS_YEAR&walletId=11
+Authorization: Bearer {{auth_token}}
+
+### [7.2.4] Mục tiêu ChatGPT Plus (goal_id=31) — toàn bộ thời gian
+# Kỳ vọng: tất cả giao dịch nạp/rút của mục tiêu goal_id=31
+GET http://localhost:9999/api/transactions/list?savingGoalId=31
+Authorization: Bearer {{auth_token}}
+
+### [7.2.5] Mục tiêu ChatGPT Plus — năm nay
+GET http://localhost:9999/api/transactions/list?range=THIS_YEAR&savingGoalId=31
+Authorization: Bearer {{auth_token}}
+
+# -----------------------------------------------------------------
+# [7.3] Filter theo Danh mục (categoryIds - hỗ trợ multiple)
+# -----------------------------------------------------------------
+# Note: Dùng categoryIds (không phải categoryId) để hỗ trợ multiple danh mục
+#       Ví dụ: ?categoryIds=21,22 hoặc ?categoryIds=21&categoryIds=22
+
+### [7.3.1] Danh mục Ăn uống (ctg_id=1) — tháng này
+# Kỳ vọng: chỉ giao dịch có category = Ăn uống
+GET http://localhost:9999/api/transactions/list?range=THIS_MONTH&categoryId=1
+Authorization: Bearer {{auth_token}}
+
+### [7.3.2] Danh mục Mua sắm (ctg_id=10) — quý này
+GET http://localhost:9999/api/transactions/list?range=THIS_QUARTER&categoryId=10
+Authorization: Bearer {{auth_token}}
+
+### [7.3.3] Danh mục Giáo dục (ctg_id=8) — toàn bộ thời gian
+GET http://localhost:9999/api/transactions/list?categoryId=8
+Authorization: Bearer {{auth_token}}
+
+### [7.3.4] Danh mục Đi vay (ctg_id=20) — toàn bộ thời gian (debt category)
+# Kỳ vọng: chỉ các giao dịch "Đi vay", totalExpense = tổng số tiền đã vay
+GET http://localhost:9999/api/transactions/list?categoryId=20
+Authorization: Bearer {{auth_token}}
+
+### [7.3.5] Danh mục Cho vay (ctg_id=19) — toàn bộ thời gian
+GET http://localhost:9999/api/transactions/list?categoryId=19
+Authorization: Bearer {{auth_token}}
+
+### [7.3.6] Danh mục Trả nợ (ctg_id=22) — năm nay
+GET http://localhost:9999/api/transactions/list?range=THIS_YEAR&categoryIds=22
+Authorization: Bearer {{auth_token}}
+
+### [7.3.7] Danh mục Thu nợ (ctg_id=21) — năm nay
+GET http://localhost:9999/api/transactions/list?range=THIS_YEAR&categoryIds=21
+Authorization: Bearer {{auth_token}}
+
+### [7.3.8] Danh mục Thu nợ + Trả nợ (ctg_id=21,22) — OtherAmount dùng chung
+# Kỳ vọng: giao dịch cả Thu nợ (21) và Trả nợ (22), otherAmount = Thu(21) - Trả(22)
+GET http://localhost:9999/api/transactions/list?range=THIS_YEAR&categoryIds=21,22
+Authorization: Bearer {{auth_token}}
+
+# -----------------------------------------------------------------
+# [7.4] Filter theo Sự kiện (eventId)
+# -----------------------------------------------------------------
+
+### [7.4.1] Sự kiện id=7 — toàn bộ thời gian (không giới hạn ngày)
+# Kỳ vọng: tất cả giao dịch thuộc event_id=7 của acc_id=6
+GET http://localhost:9999/api/transactions/list?eventId=7
+Authorization: Bearer {{auth_token}}
+
+### [7.4.2] Sự kiện id=7 — lọc thêm tháng này
+# Kỳ vọng: giao dịch của event_id=7 trong tháng 4/2026
+GET http://localhost:9999/api/transactions/list?range=THIS_MONTH&eventId=7
+Authorization: Bearer {{auth_token}}
+
+### [7.4.3] Sự kiện id=7 — lọc thêm theo ví MB Bank
+# Kỳ vọng: giao dịch của event_id=7 thuộc wallet_id=10
+GET http://localhost:9999/api/transactions/list?eventId=7&walletId=10
+Authorization: Bearer {{auth_token}}
+
+# -----------------------------------------------------------------
+# [7.5] Filter theo Sổ nợ (debtId)
+# -----------------------------------------------------------------
+
+### [7.5.1] Sổ nợ id=9 — toàn bộ thời gian
+# Kỳ vọng: tất cả giao dịch gắn với debt_id=9 (Cho vay/Đi vay + Thu nợ/Trả nợ)
+GET http://localhost:9999/api/transactions/list?debtId=9
+Authorization: Bearer {{auth_token}}
+
+### [7.5.2] Sổ nợ id=9 — lọc thêm theo range năm nay
+GET http://localhost:9999/api/transactions/list?range=THIS_YEAR&debtId=9
+Authorization: Bearer {{auth_token}}
+
+### [7.5.3] Sổ nợ id=9 — lọc thêm theo ví MB Bank
+# Kỳ vọng: giao dịch nợ của ví MB Bank
+GET http://localhost:9999/api/transactions/list?debtId=9&walletId=10
+Authorization: Bearer {{auth_token}}
+
+# -----------------------------------------------------------------
+# [7.6] Filter theo Kế hoạch (plannedId)
+# -----------------------------------------------------------------
+
+### [7.6.1] Kế hoạch Bill (plan_type=1) — plannedId=39
+# Kỳ vọng: trả về danh sách giao dịch đã thực hiện từ bill "Hóa đơn điện"
+GET http://localhost:9999/api/transactions/list?plannedId=39
+Authorization: Bearer {{auth_token}}
+
+### [7.6.2] Kế hoạch Bill (Hóa đơn điện) — lọc thêm tháng này
+# Kỳ vọng: giao dịch của planned_id=39 trong tháng 4/2026
+GET http://localhost:9999/api/transactions/list?range=THIS_MONTH&plannedId=39
+Authorization: Bearer {{auth_token}}
+
+### [7.6.3] Kế hoạch Recurring (plan_type=2) — plannedId=43
+# Kỳ vọng: trả về danh sách giao dịch từ "Lương tháng"
+GET http://localhost:9999/api/transactions/list?plannedId=43
+Authorization: Bearer {{auth_token}}
+
+### [7.6.4] Kế hoạch Recurring (Cà phê sáng) — plannedId=44
+# Kỳ vọng: giao dịch cà phê định kỳ
+GET http://localhost:9999/api/transactions/list?plannedId=44
+Authorization: Bearer {{auth_token}}
+
+### [7.6.5] Kế hoạch Recurring (Thu nợ) — plannedId=45
+# Kỳ vọng: giao dịch "Thu nợ Chị gái" định kỳ + debt_id=9
+GET http://localhost:9999/api/transactions/list?plannedId=45
+Authorization: Bearer {{auth_token}}
+
+# -----------------------------------------------------------------
+# [7.7] Kết hợp nhiều filter cùng lúc
+# -----------------------------------------------------------------
+
+### [7.7.1] Ví MB Bank + Danh mục Ăn uống — tháng này
+# Kỳ vọng: giao dịch Ăn uống từ ví MB Bank trong tháng 4/2026
+GET http://localhost:9999/api/transactions/list?range=THIS_MONTH&walletId=10&categoryId=1
+Authorization: Bearer {{auth_token}}
+
+### [7.7.2] Ví MB Bank + Danh mục Ăn uống — quý này
+GET http://localhost:9999/api/transactions/list?range=THIS_QUARTER&walletId=10&categoryId=1
+Authorization: Bearer {{auth_token}}
+
+### [7.7.3] Ví MB Bank + Danh mục Mua sắm — năm nay
+GET http://localhost:9999/api/transactions/list?range=THIS_YEAR&walletId=10&categoryId=10
+Authorization: Bearer {{auth_token}}
+
+### [7.7.4] Sự kiện id=7 + Danh mục Ăn uống — toàn bộ
+# Kỳ vọng: giao dịch Ăn uống từ sự kiện Chuyến đi Vũng Tàu
+GET http://localhost:9999/api/transactions/list?eventId=7&categoryId=1
+Authorization: Bearer {{auth_token}}
+
+### [7.7.5] Sổ nợ id=9 + range Quý 1/2026
+# Kỳ vọng: giao dịch nợ của sổ nợ "Nợ chị gái" trong quý 1/2026
+GET http://localhost:9999/api/transactions/list?range=CUSTOM&startDate=2026-01-01T00:00:00&endDate=2026-03-31T23:59:59&debtId=9
+Authorization: Bearer {{auth_token}}
+
+
