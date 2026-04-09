@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../models/contact_request_models.dart';
 import '../providers/contact_provider.dart';
@@ -181,7 +182,38 @@ class _ContactSupportScreenState extends State<ContactSupportScreen> {
                 ],
               ),
             ),
-            
+
+            const SizedBox(height: 16),
+            const Divider(),
+            const SizedBox(height: 16),
+            const Text(
+              "Need Immediate Help?",
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: ElevatedButton.icon(
+                onPressed: () async {
+                  final Uri url = Uri(scheme: 'tel', path: '0373553880');
+                  if (await canLaunchUrl(url)) {
+                    await launchUrl(url);
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text("Unable to make a call")),
+                    );
+                  }
+                },
+                icon: const Icon(Icons.phone),
+                label: const Text("Call us on our hotline."),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                  foregroundColor: Colors.white,
+                ),
+              ),
+            ),
+
             if (authProvider.isLoggedIn) ...[
               const SizedBox(height: 32),
               const Divider(),
@@ -195,34 +227,42 @@ class _ContactSupportScreenState extends State<ContactSupportScreen> {
                   ? const Center(child: CircularProgressIndicator())
                   : contactProvider.myRequests.isEmpty
                       ? const Center(child: Text("No history data available."))
-                      : ListView.separated(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          itemCount: contactProvider.myRequests.length,
-                          separatorBuilder: (_, __) => const Divider(),
-                          itemBuilder: (context, index) {
-                            final req = contactProvider.myRequests[index];
-                            final typeLabel = _getRequestTypeLabel(
-                                ContactRequestType.values.firstWhere((e) => e.name == req.requestType, orElse: () => ContactRequestType.GENERAL)
-                            );
-                            
-                            return ListTile(
-                              title: Text(req.title),
-                              subtitle: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text("Type: $typeLabel"),
-                                  Text(req.requestDescription),
-                                  if (req.adminNote != null) 
-                                    Text("Admin Note: ${req.adminNote}", style: const TextStyle(fontStyle: FontStyle.italic, color: Colors.blueGrey)),
-                                  const SizedBox(height: 4),
-                                  Text("Status: ${req.requestStatus}", style: TextStyle(
-                                    color: _getStatusColor(req.requestStatus),
-                                    fontWeight: FontWeight.bold
-                                  )),
-                                ],
-                              ),
-                              trailing: Text(req.createdAt.split('T')[0]),
+                      : Builder(
+                          builder: (context) {
+                            // Sắp xếp yêu cầu theo ngày tạo mới nhất lên đầu
+                            final sortedRequests = List.from(contactProvider.myRequests)
+                              ..sort((a, b) => DateTime.parse(b.createdAt).compareTo(DateTime.parse(a.createdAt)));
+
+                            return ListView.separated(
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              itemCount: sortedRequests.length,
+                              separatorBuilder: (_, __) => const Divider(),
+                              itemBuilder: (context, index) {
+                                final req = sortedRequests[index];
+                                final typeLabel = _getRequestTypeLabel(
+                                    ContactRequestType.values.firstWhere((e) => e.name == req.requestType, orElse: () => ContactRequestType.GENERAL)
+                                );
+
+                                return ListTile(
+                                  title: Text(req.title),
+                                  subtitle: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text("Type: $typeLabel"),
+                                      Text(req.requestDescription),
+                                      if (req.adminNote != null)
+                                        Text("Admin Note: ${req.adminNote}", style: const TextStyle(fontStyle: FontStyle.italic, color: Colors.blueGrey)),
+                                      const SizedBox(height: 4),
+                                      Text("Status: ${req.requestStatus}", style: TextStyle(
+                                        color: _getStatusColor(req.requestStatus),
+                                        fontWeight: FontWeight.bold
+                                      )),
+                                    ],
+                                  ),
+                                  trailing: Text(req.createdAt.split('T')[0]),
+                                );
+                              },
                             );
                           },
                         ),

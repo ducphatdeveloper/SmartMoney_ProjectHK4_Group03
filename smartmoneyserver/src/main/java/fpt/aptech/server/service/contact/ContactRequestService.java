@@ -17,4 +17,7 @@ public interface ContactRequestService {
     ContactRequestResponse resolveRequest(int adminId, int requestId, ContactRequestResolveRequest request);
     ContactRequestResponse getRequestById(int requestId, int adminId);
     ContactRequest createSuspiciousRequest(int accId, String description);
+
+    // [CẬP NHẬT] Xử lý tự động các yêu cầu hỗ trợ bảo mật khi Admin thực hiện khóa/mở khóa tài khoản
+    void handleSecurityAction(Integer accountId, String action, String note);
 }

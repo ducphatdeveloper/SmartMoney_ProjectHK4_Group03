@@ -381,6 +381,20 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
             @Param("onlyDeleted") boolean onlyDeleted,
             @Param("isIncome") Boolean isIncome);
 
+    /**
+     * [ADMIN] Khôi phục giao dịch đã xóa mềm.
+     */
+    @Modifying
+    @Query("UPDATE Transaction t SET t.deleted = false, t.deletedAt = null WHERE t.id = :id")
+    void restoreTransaction(@Param("id") Long id);
+
+    /**
+     * [ADMIN] Khôi phục hàng loạt giao dịch đã xóa mềm của một user.
+     */
+    @Modifying
+    @Query("UPDATE Transaction t SET t.deleted = false, t.deletedAt = null WHERE t.account.id = :userId AND t.deleted = true")
+    void restoreAllUserTransactions(@Param("userId") Integer userId);
+
     // =================================================================================
     // 10. CÁC HÀM CHO PLANNED TRANSACTION (Giao dịch định kỳ / Hóa đơn)
     // =================================================================================

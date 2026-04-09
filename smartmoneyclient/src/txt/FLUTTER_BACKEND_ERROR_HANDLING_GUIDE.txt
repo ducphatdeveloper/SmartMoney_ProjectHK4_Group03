@@ -1,0 +1,333 @@
+# 🔥 HƯỚNG DẪN BẮT LỖI BACKEND → HIỆN CHO USER
+> Đọc 5 phút · Làm đúng ngay · Không cần hỏi lại
+
+🗂️ FILE NÀO ĐỤNG — FILE NÀO KHÔNG ĐỤNG
+1. File Việc của bạn🚫 KHÔNG đụnglib/core/helpers/api_handler.dartFramework tự xử lý — chỉ đọc, không sửa✅
+2. Sửa lib/modules/<tên>/services/<tên>_service.dartHàm create/update/delete phải return thẳng ApiResponse, không throw✅
+3. Sửa lib/modules/<tên>/providers/<tên>_provider.dartThêm 3 biến state + hàm _extractErrorMessage() + xử lý response.success✅
+4. Sửa lib/modules/<tên>/screens/<tên>_create_screen.dartĐọc provider.errorMessage / provider.successMessage → hiện SnackBar
+
+Quy trình 1 câu:
+
+Backend trả JSON → api_handler.dart parse tự động → Service trả ApiResponse → Provider đọc .success / .message / .data → Screen hiện SnackBar.
+
+Thay <tên> là tên module của bạn, ví dụ: wallet, budget, transaction, category...
+
+---
+
+## ❓ Backend trả về cái gì khi lỗi?
+
+Backend luôn trả về JSON dạng này, dù thành công hay lỗi:
+
+```json
+// Lỗi nghiệp vụ thông thường (ví sai, số tiền âm, tên đã tồn tại...)
+{ "success": false, "message": "Số tiền phải lớn hơn 0", "data": null }
+```
+
+```json
+// Lỗi ô nhập trống / sai format (@Valid) — data có thêm từng ô bị sai
+{
+  "success": false,
+  "message": "Dữ liệu không hợp lệ",
+  "data": {
+    "amount":   "Số tiền không được để trống",
+    "walletId": "Vui lòng chọn ví"
+  }
+}
+```
+
+**→ Bạn chỉ cần đọc `response.message` hoặc `response.data` rồi hiện SnackBar.**
+
+---
+
+## ✅ SỬA 3 CHỖ — THEO THỨ TỰ
+
+---
+
+### CHỖ 1 — FILE SERVICE
+📁 `lib/modules/{tên_module}/services/{tên_module}_service.dart`
+
+**Hàm create/update/delete phải trả về `ApiResponse` thẳng, KHÔNG throw:**
+
+```dart
+// ✅ ĐÚNG — trả thẳng ApiResponse về cho Provider
+// Ví dụ: lib/modules/wallet/services/wallet_service.dart
+static Future<ApiResponse<WalletResponse>> create(WalletRequest request) async {
+  return ApiHandler.post<WalletResponse>(     // ← return thẳng, không throw
+    AppConstants.walletsBase,
+    body: request.toJson(),
+    fromJson: (json) => WalletResponse.fromJson(json),
+  );
+}
+```
+
+```dart
+// ❌ SAI — đang có ở WalletService + BudgetService — PHẢI SỬA LẠI
+// lib/modules/wallet/services/wallet_service.dart
+Future<WalletResponse> createWallet(WalletRequest request) async {
+  final response = await ApiHandler.post<WalletResponse>(...);
+  if (!response.success) throw Exception(response.message); // ❌ xóa dòng này
+  return response.data!;
+}
+```
+
+> ⚠️ **Tại sao SAI?** `throw Exception` làm mất `response.data` (Map lỗi từng ô).
+> Provider chỉ nhận được "Exception: Dữ liệu không hợp lệ" — không biết ô nào sai.
+
+---
+
+### CHỖ 2 — FILE PROVIDER
+📁 `lib/modules/{tên_module}/providers/{tên_module}_provider.dart`
+
+**Bước 2a — Thêm 3 biến state này (nếu chưa có):**
+
+```dart
+// lib/modules/wallet/providers/wallet_provider.dart  ← thêm vào đầu class
+String? _errorMessage;    // lỗi từ backend — Screen đọc để hiện SnackBar đỏ
+String? get errorMessage => _errorMessage;
+
+String? _successMessage;  // thành công — Screen đọc để hiện SnackBar xanh
+String? get successMessage => _successMessage;
+
+bool _isLoading = false;  // đang gọi API — dùng để disable nút Lưu
+bool get isLoading => _isLoading;
+```
+
+**Bước 2b — Thêm hàm helper này vào cuối mỗi Provider (copy nguyên):**
+
+```dart
+// lib/modules/wallet/providers/wallet_provider.dart  ← thêm vào cuối class
+
+// =============================================
+// [2.N] HELPER — Đọc lỗi từ response backend
+// =============================================
+// Xử lý 2 dạng lỗi:
+//   • data là Map  → lỗi từng ô (@Valid) → gom thành 1 chuỗi
+//   • data là null → lấy message trực tiếp (IllegalArgumentException...)
+String _extractErrorMessage(dynamic response) {
+  try {
+    final raw = response.data;
+    if (raw is Map && raw.isNotEmpty) {
+      return raw.values.join('\n'); // "Số tiền trống\nChưa chọn ví"
+    }
+  } catch (_) {}
+  return response.message?.toString().isNotEmpty == true
+      ? response.message.toString()
+      : 'Có lỗi xảy ra. Vui lòng thử lại.';
+}
+```
+
+**Bước 2c — Viết hàm create/update/delete theo mẫu này:**
+
+```dart
+// lib/modules/wallet/providers/wallet_provider.dart
+
+// =============================================
+// [2.5] CREATE — Tạo ví mới
+// =============================================
+// Gọi khi: User bấm Lưu ở WalletCreateScreen
+// API: POST /api/user/wallets
+Future<bool> create(WalletRequest request) async {
+  // Bước 1: Bật loading, xóa thông báo cũ
+  _isLoading = true;
+  _errorMessage = null;
+  _successMessage = null;
+  notifyListeners();
+
+  // Bước 2: Gọi Service (Service trả ApiResponse, không throw)
+  final response = await WalletService.create(request);
+
+  // Bước 3: Xử lý kết quả
+  if (response.success) {
+    _successMessage = response.message;  // "Tạo ví thành công"
+    await loadAll();                      // tải lại danh sách
+    _isLoading = false;
+    notifyListeners();
+    return true;
+  } else {
+    _errorMessage = _extractErrorMessage(response); // đọc lỗi đúng cách
+    _isLoading = false;
+    notifyListeners();
+    return false;
+  }
+}
+```
+
+---
+
+### CHỖ 3 — FILE SCREEN
+📁 `lib/modules/{tên_module}/screens/{tên_module}_create_screen.dart`
+
+**Hàm _save() viết như này:**
+
+```dart
+// lib/modules/wallet/screens/wallet_create_screen.dart
+
+// =============================================
+// [5.3] _save — Xử lý khi user bấm Lưu
+// =============================================
+Future<void> _save() async {
+  // Bước 1: Validate client-side nhanh (tránh gọi API thừa)
+  if (_nameController.text.trim().isEmpty) {
+    _showSnackBar('Vui lòng nhập tên ví');
+    return;
+  }
+
+  // Bước 2: Gọi Provider
+  setState(() => _isSaving = true);
+  final provider = Provider.of<WalletProvider>(context, listen: false);
+  final success = await provider.create(
+    WalletRequest(walletName: _nameController.text.trim()),
+  );
+  setState(() => _isSaving = false);
+
+  // Bước 3: LUÔN check mounted sau await (bắt buộc, không bỏ)
+  if (!mounted) return;
+
+  // Bước 4: Hiện kết quả cho user
+  if (success) {
+    _showSnackBar(provider.successMessage ?? 'Tạo thành công!', isError: false);
+    Navigator.pop(context, true); // true → màn cha biết cần reload danh sách
+  } else {
+    _showSnackBar(provider.errorMessage ?? 'Có lỗi xảy ra'); // lỗi thật từ server
+  }
+}
+
+// =============================================
+// [5.N] _showSnackBar — Hiện thông báo (copy vào mọi Screen)
+// =============================================
+void _showSnackBar(String message, {bool isError = true}) {
+  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+    content: Text(message),
+    backgroundColor: isError ? Colors.redAccent : Colors.green,
+    duration: const Duration(seconds: 3),
+  ));
+}
+```
+
+---
+
+## 🗺️ TÓM TẮT LUỒNG DỮ LIỆU
+
+```
+[BACKEND - Spring Boot]
+  throw IllegalArgumentException("Lỗi...")  →  { success:false, message:"Lỗi...", data:null }
+  @Valid fail                               →  { success:false, message:"Dữ liệu không hợp lệ",
+                                                 data:{"amount":"Trống","walletId":"Chưa chọn"} }
+        ↓
+[lib/core/helpers/api_handler.dart]   ← KHÔNG SỬA FILE NÀY
+  Tự đọc json['message'] và json['data'] → trả về ApiResponse
+        ↓
+[lib/modules/.../services/..._service.dart]
+  ✅ return ApiHandler.post<T>(...)   ← trả thẳng, KHÔNG throw
+        ↓
+[lib/modules/.../providers/..._provider.dart]
+  final response = await XxxService.create(request)
+  if (!response.success) _errorMessage = _extractErrorMessage(response)
+  notifyListeners()
+        ↓
+[lib/modules/.../screens/..._create_screen.dart]
+  final success = await provider.create(request)
+  if (!mounted) return
+  if (!success) _showSnackBar(provider.errorMessage ?? 'Có lỗi')
+```
+
+---
+
+## 📋 BẢNG LỖI BACKEND THƯỜNG GẶP
+
+| HTTP | Khi nào | Flutter nhận `response.message` |
+|---|---|---|
+| 400 | Ô nhập sai (`@Valid`) | `"Dữ liệu không hợp lệ"` + `data` có Map |
+| 400 | Logic sai | `"Số tiền phải lớn hơn 0"` |
+| 401 | Token hết hạn | `"Phiên đăng nhập hết hạn..."` |
+| 403 | Không có quyền | `"Bạn không có quyền..."` |
+| 409 | Trùng dữ liệu | `"Dữ liệu này đã tồn tại."` |
+| 500 | Lỗi server | `"Đã xảy ra lỗi hệ thống..."` |
+| Mạng | Mất kết nối | `"Không thể kết nối đến server..."` |
+
+---
+
+## ⭐ NÂNG CAO — Hiện lỗi ngay dưới từng ô (field-level)
+
+> Dùng khi muốn lỗi hiện đỏ ngay dưới ô nhập, thay vì SnackBar chung chung.
+
+**Thêm vào Provider** (`lib/modules/.../providers/..._provider.dart`):
+
+```dart
+// Thêm biến state mới
+Map<String, String> _fieldErrors = {};
+Map<String, String> get fieldErrors => _fieldErrors;
+
+// Trong hàm create/update — phần else — thay bằng:
+} else {
+  try {
+    final raw = response.data;
+    if (raw is Map && raw.isNotEmpty) {
+      _fieldErrors = Map<String, String>.from(raw); // {"amount": "Trống", ...}
+      _errorMessage = 'Vui lòng kiểm tra lại thông tin';
+    } else {
+      _errorMessage = response.message ?? 'Có lỗi xảy ra';
+    }
+  } catch (_) {
+    _errorMessage = response.message ?? 'Có lỗi xảy ra';
+  }
+  _isLoading = false;
+  notifyListeners();
+  return false;
+}
+```
+
+**Dùng trong Screen** (`lib/modules/.../screens/..._create_screen.dart`):
+
+```dart
+// [5.1] STATE — thêm biến lỗi từng ô
+String? _nameError;     // lỗi cho ô tên
+String? _amountError;   // lỗi cho ô số tiền
+
+// Trong _save() — sau khi gọi provider.create():
+if (!success) {
+  setState(() {
+    // Key phải khớp tên field trong DTO Java
+    // Java: @NotBlank String walletName  →  Flutter: fieldErrors['walletName']
+    _nameError   = provider.fieldErrors['walletName'];
+    _amountError = provider.fieldErrors['amount'];
+  });
+}
+
+// Trong build() — gán errorText cho TextFormField:
+TextFormField(
+  controller: _nameController,
+  decoration: InputDecoration(
+    labelText: 'Tên ví',
+    errorText: _nameError,   // ← tự hiện đỏ dưới ô nếu có lỗi
+  ),
+  onChanged: (_) => setState(() => _nameError = null), // xóa lỗi khi gõ lại
+),
+```
+
+---
+
+## ☑️ CHECKLIST TRƯỚC KHI COMMIT
+
+```
+Service  (lib/modules/.../services/..._service.dart)
+  □ Hàm trả ApiResponse<T> trực tiếp — KHÔNG throw Exception
+
+Provider (lib/modules/.../providers/..._provider.dart)
+  □ Có _errorMessage + _successMessage + _isLoading với getter
+  □ Có hàm _extractErrorMessage() — copy từ Bước 2b
+  □ Khi fail: gán _errorMessage = _extractErrorMessage(response)
+  □ Luôn notifyListeners() sau khi đổi state
+
+Screen   (lib/modules/.../screens/..._create_screen.dart)
+  □ Luôn if (!mounted) return; sau await
+  □ Đọc provider.errorMessage — KHÔNG hardcode message
+  □ Đọc provider.successMessage — KHÔNG hardcode message
+  □ Navigator.pop(context, true) khi thành công
+  □ dispose() giải phóng TextEditingController, TabController, Timer
+```
+
+---
+
+*SmartMoney Flutter — Cập nhật 06/04/2026*

@@ -24,9 +24,20 @@ public interface AdminService {
 
     long countOnlineUsers();
     List<AccountDto> getAllLiveOnlineUsers();
-    void notifyAbnormalTransactions(BigDecimal threshold);
-    List<Map<String, Object>> getAbnormalTransactionUsers(BigDecimal threshold);
+//    void notifyAbnormalTransactions(BigDecimal threshold);
+//    List<Map<String, Object>> getAbnormalTransactionUsers(BigDecimal threshold);
+//
     void handleAutoLogout();
     PageResponse<TransactionDto> getUserTransactions(Integer userId, Pageable pageable, String deletedStatus, String type);
     List<TransactionDto> getAllUserTransactions(Integer userId, String deletedStatus, String type);
+
+    /**
+     * Khôi phục một giao dịch đã xóa mềm.
+     */
+    void restoreTransaction(Long transactionId);
+
+    /**
+     * Khôi phục tất cả giao dịch đã xóa mềm của một người dùng.
+     */
+    void restoreAllUserTransactions(Integer userId);
 }
