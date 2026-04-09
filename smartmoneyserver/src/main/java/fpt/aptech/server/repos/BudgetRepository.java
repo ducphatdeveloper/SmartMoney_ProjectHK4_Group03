@@ -91,4 +91,10 @@ AND b.endDate >= :beginDate
     @Modifying
     @Query("UPDATE Budget b SET b.deleted = true, b.deletedAt = CURRENT_TIMESTAMP WHERE b.wallet.id = :walletId")
     void softDeleteAllByWalletId(@Param("walletId") Integer walletId);
+
+
+    // Lấy danh sách ngân sách hết hạn, fetch wallet luôn để tránh LazyInitializationException
+    @Query("SELECT b FROM Budget b LEFT JOIN FETCH b.wallet w LEFT JOIN FETCH b.categories WHERE b.endDate < CURRENT_DATE AND b.deleted = false")
+    List<Budget> findExpiredBudgets();
+
 }
