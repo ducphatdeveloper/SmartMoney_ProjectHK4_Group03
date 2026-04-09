@@ -84,10 +84,6 @@ class _SelectWalletScreenState extends State<SelectWalletScreen> {
 
           if (nonReportable.isNotEmpty)
             _group("KHÔNG TÍNH VÀO TỔNG", nonReportable),
-
-          if (savingWallets.isNotEmpty)
-            _group("VÍ TIẾT KIỆM", savingWallets),
-
           const SizedBox(height: 20),
 
           _actionSection(context, wallets),

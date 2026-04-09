@@ -105,8 +105,6 @@ class _WalletListViewState extends State<WalletListView> {
                 if (nonReportableWallets.isNotEmpty)
                   _walletGroup(
                       "Ví không tính tổng", nonReportableWallets, context),
-                if (savingWallets.isNotEmpty)
-                  _walletGroup("Ví tiết kiệm", savingWallets, context),
               ],
             ),
           ),

@@ -14,21 +14,19 @@ class AddBasicWalletScreen extends StatefulWidget {
 }
 
 class CurrencyInputFormatter extends TextInputFormatter {
+  final int maxValue = 500000000;
+
   @override
   TextEditingValue formatEditUpdate(
-      TextEditingValue oldValue,
-      TextEditingValue newValue,
-      ) {
+      TextEditingValue oldValue, TextEditingValue newValue) {
     String newText = newValue.text.replaceAll(',', '');
-
-    if (newText.isEmpty) {
-      return newValue.copyWith(text: '');
-    }
+    if (newText.isEmpty) return newValue;
 
     final number = int.tryParse(newText);
     if (number == null) return oldValue;
 
-    final formatted = _formatNumber(number);
+    final cappedNumber = number > maxValue ? maxValue : number;
+    final formatted = _formatNumber(cappedNumber);
 
     return TextEditingValue(
       text: formatted,
@@ -39,17 +37,11 @@ class CurrencyInputFormatter extends TextInputFormatter {
   String _formatNumber(int number) {
     final str = number.toString();
     final buffer = StringBuffer();
-
     for (int i = 0; i < str.length; i++) {
       int position = str.length - i;
-
       buffer.write(str[i]);
-
-      if (position > 1 && position % 3 == 1) {
-        buffer.write(',');
-      }
+      if (position > 1 && position % 3 == 1) buffer.write(',');
     }
-
     return buffer.toString();
   }
 }
@@ -63,11 +55,11 @@ class _AddBasicWalletScreenState extends State<AddBasicWalletScreen> {
   bool isSaving = false;
 
   String? _selectedIconUrl;
+  String? nameError;
+  String? balanceError;
 
   @override
   Widget build(BuildContext context) {
-    final canSave = nameController.text.trim().isNotEmpty;
-
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
@@ -81,19 +73,16 @@ class _AddBasicWalletScreenState extends State<AddBasicWalletScreen> {
         title: const Text("Thêm Ví"),
         actions: [
           TextButton(
-            onPressed: (!canSave || isSaving) ? null : _saveWallet,
+            onPressed: _saveWallet, // nút luôn luôn hiển thị
             child: isSaving
                 ? const SizedBox(
               width: 18,
               height: 18,
               child: CircularProgressIndicator(strokeWidth: 2),
             )
-                : Text(
+                : const Text(
               "Lưu",
-              style: TextStyle(
-                color: canSave ? Colors.white : Colors.grey,
-                fontWeight: FontWeight.bold,
-              ),
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
             ),
           )
         ],
@@ -109,14 +98,11 @@ class _AddBasicWalletScreenState extends State<AddBasicWalletScreen> {
     );
   }
 
-  // ================= UI =================
-
   Widget _buildMainCard() {
     return Container(
       decoration: _card(),
       child: Column(
         children: [
-          // ===== NAME + ICON =====
           ListTile(
             leading: GestureDetector(
               onTap: _openIconPicker,
@@ -129,18 +115,20 @@ class _AddBasicWalletScreenState extends State<AddBasicWalletScreen> {
             title: TextField(
               controller: nameController,
               style: const TextStyle(color: Colors.white),
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 hintText: "Tên ví",
-                hintStyle: TextStyle(color: Colors.grey),
+                hintStyle: const TextStyle(color: Colors.grey),
                 border: InputBorder.none,
+                errorText: nameError,
               ),
-              onChanged: (_) => setState(() {}),
+              onChanged: (_) {
+                setState(() {
+                  nameError = null; // reset lỗi khi user nhập
+                });
+              },
             ),
           ),
-
           const Divider(color: Colors.grey, height: 1),
-
-          // ===== CURRENCY =====
           ListTile(
             leading: ClipRRect(
               borderRadius: BorderRadius.circular(6),
@@ -165,10 +153,7 @@ class _AddBasicWalletScreenState extends State<AddBasicWalletScreen> {
             ),
             onTap: null,
           ),
-
           const Divider(color: Colors.grey, height: 1),
-
-          // ===== BALANCE =====
           Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
@@ -179,24 +164,29 @@ class _AddBasicWalletScreenState extends State<AddBasicWalletScreen> {
                   style: TextStyle(color: Colors.grey),
                 ),
                 const SizedBox(height: 8),
-
                 TextField(
                   controller: balanceController,
                   keyboardType: TextInputType.number,
                   inputFormatters: [
                     FilteringTextInputFormatter.digitsOnly,
-                    CurrencyInputFormatter(), // 🔥 format tiền
+                    CurrencyInputFormatter(),
                   ],
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 28,
                     fontWeight: FontWeight.bold,
                   ),
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     hintText: "0",
-                    hintStyle: TextStyle(color: Colors.grey),
+                    hintStyle: const TextStyle(color: Colors.grey),
                     border: InputBorder.none,
+                    errorText: balanceError,
                   ),
+                  onChanged: (_) {
+                    setState(() {
+                      balanceError = null; // reset lỗi khi user nhập
+                    });
+                  },
                 ),
               ],
             ),
@@ -205,7 +195,6 @@ class _AddBasicWalletScreenState extends State<AddBasicWalletScreen> {
       ),
     );
   }
-
 
   Widget _buildSwitchCard() {
     return Container(
@@ -229,19 +218,29 @@ class _AddBasicWalletScreenState extends State<AddBasicWalletScreen> {
     );
   }
 
-  // ================= ACTION =================
+  String? _validateBalance(String text) {
+    if (text.isEmpty) return "Số tiền không được để trống";
+    final raw = text.replaceAll(',', '');
+    final value = double.tryParse(raw);
+    if (value == null) return "Số tiền không hợp lệ";
+    if (value < 0) return "Số tiền không được âm";
+    if (value > 500000000) return "Số tiền tối đa là 500,000,000 VND";
+    return null;
+  }
 
   Future<void> _saveWallet() async {
     final name = nameController.text.trim();
+    final balanceText = balanceController.text;
 
-    // 🔥 FIX FORMAT TIỀN
-    final rawText = balanceController.text.replaceAll(',', '');
+    setState(() {
+      nameError = name.isEmpty ? "Tên ví không được để trống" : null;
+      balanceError = _validateBalance(balanceText);
+    });
+
+    if (nameError != null || balanceError != null) return;
+
+    final rawText = balanceText.replaceAll(',', '');
     final balance = double.tryParse(rawText) ?? 0;
-
-    if (name.isEmpty) {
-      _showError("Tên ví không được để trống");
-      return;
-    }
 
     setState(() => isSaving = true);
 
@@ -261,7 +260,6 @@ class _AddBasicWalletScreenState extends State<AddBasicWalletScreen> {
 
     if (success) {
       Navigator.pop(context, true);
-      print("ICON SEND: $_selectedIconUrl");
     } else {
       _showError(provider.error ?? "Tạo ví thất bại");
     }
