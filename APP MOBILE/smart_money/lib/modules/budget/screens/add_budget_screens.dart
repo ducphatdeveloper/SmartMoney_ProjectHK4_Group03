@@ -7,8 +7,9 @@ import '../../category/screens/category_list_screen.dart';
 import '../../category/models/category_response.dart';
 import '../../wallet/screens/SelectWalletScreen.dart';
 import '../../wallet/models/wallet_response.dart';
-import '../models/budget_request.dart';
-import '../services/budget_service.dart';
+import 'package:smart_money/modules/budget/enums/budget_type.dart';
+import 'package:smart_money/modules/budget/models/budget_request.dart';
+import 'package:smart_money/modules/budget/services/budget_service.dart';
 
 class AddBudgetScreen extends StatefulWidget {
   final WalletResponse? wallet;
@@ -21,14 +22,18 @@ class AddBudgetScreen extends StatefulWidget {
 
 class _AddBudgetScreenState extends State<AddBudgetScreen> {
   final TextEditingController _amountCtrl = TextEditingController();
-
+  bool _hasShownLimitWarning = false;
+  int get amountValue {
+    // Bỏ dấu . và , trước khi chuyển sang int
+    return int.tryParse(_amountCtrl.text.replaceAll(RegExp(r'[.,]'), '')) ?? 0;
+  }
   CategoryResponse? category;
   WalletResponse? wallet;
 
   bool repeat = false;
   DateTimeRange? range;
 
-  String periodType = "CUSTOM"; // 🔥 thêm
+  BudgetType periodType = BudgetType.custom; // ✅ dùng enum
 
   @override
   void initState() {
@@ -41,7 +46,29 @@ class _AddBudgetScreenState extends State<AddBudgetScreen> {
   // =========================
   void _onAmountChanged(String value) {
     final raw = value.replaceAll('.', '').replaceAll(',', '');
-    final number = int.tryParse(raw) ?? 0;
+    int number = int.tryParse(raw) ?? 0;
+
+    // Giới hạn 500 triệu
+    if (number > 500000000) {
+      number = 500000000;
+
+      // Hiển thị cảnh báo nhẹ, chỉ show 1 lần khi value vượt
+      if (!_hasShownLimitWarning) {
+        _hasShownLimitWarning = true; // đánh dấu đã show
+        // clear SnackBar cũ trước khi show
+        ScaffoldMessenger.of(context)
+          ..removeCurrentSnackBar()
+          ..showSnackBar(
+            const SnackBar(
+              content: Text("Số tiền không được vượt quá 500 triệu"),
+              duration: Duration(seconds: 2),
+            ),
+          );
+      }
+    } else {
+      // reset cờ khi số tiền <= 500 triệu
+      _hasShownLimitWarning = false;
+    }
 
     final formatted = NumberFormat('#,###', 'vi_VN').format(number);
 
@@ -49,13 +76,6 @@ class _AddBudgetScreenState extends State<AddBudgetScreen> {
       text: formatted,
       selection: TextSelection.collapsed(offset: formatted.length),
     );
-  }
-
-  int get amountValue {
-    return int.tryParse(
-      _amountCtrl.text.replaceAll('.', '').replaceAll(',', ''),
-    ) ??
-        0;
   }
 
   // =========================
@@ -80,15 +100,13 @@ class _AddBudgetScreenState extends State<AddBudgetScreen> {
   // =========================
   // WALLET
   // =========================
-  Future pickWallet() async {
+  Future<void> pickWallet() async {
     final result = await Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (_) => const SelectWalletScreen(),
-      ),
+      MaterialPageRoute(builder: (_) => const SelectWalletScreen()),
     );
 
-    if (result != null) {
+    if (result != null && result is WalletResponse) {
       setState(() => wallet = result);
     }
   }
@@ -96,7 +114,7 @@ class _AddBudgetScreenState extends State<AddBudgetScreen> {
   // =========================
   // DATE RANGE
   // =========================
-  void setRange(DateTime start, DateTime end, String type) {
+  void setRange(DateTime start, DateTime end, BudgetType type) {
     setState(() {
       range = DateTimeRange(start: start, end: end);
       periodType = type;
@@ -122,7 +140,7 @@ class _AddBudgetScreenState extends State<AddBudgetScreen> {
 
     showModalBottomSheet(
       context: context,
-      isScrollControlled: true, // 🔥 QUAN TRỌNG
+      isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) {
         return Container(
@@ -134,12 +152,10 @@ class _AddBudgetScreenState extends State<AddBudgetScreen> {
             color: const Color(0xFF1C1C1E),
             borderRadius: BorderRadius.circular(24),
           ),
-          clipBehavior: Clip.hardEdge, // 🔥 tránh tràn góc
           child: ListView(
             shrinkWrap: true,
             children: [
               const SizedBox(height: 12),
-
               const Center(
                 child: Text(
                   "Khoảng thời gian",
@@ -150,13 +166,12 @@ class _AddBudgetScreenState extends State<AddBudgetScreen> {
                   ),
                 ),
               ),
-
               const SizedBox(height: 12),
 
               _sheetBtn(
                 "Tuần này (${_f(startOfWeek)} - ${_f(endOfWeek)})",
                     () {
-                  setRange(startOfWeek, endOfWeek, "WEEKLY");
+                  setRange(startOfWeek, endOfWeek, BudgetType.weekly);
                   Navigator.pop(context);
                 },
               ),
@@ -164,7 +179,7 @@ class _AddBudgetScreenState extends State<AddBudgetScreen> {
               _sheetBtn(
                 "Tháng này (${_f(startOfMonth)} - ${_f(endOfMonth)})",
                     () {
-                  setRange(startOfMonth, endOfMonth, "MONTHLY");
+                  setRange(startOfMonth, endOfMonth, BudgetType.monthly);
                   Navigator.pop(context);
                 },
               ),
@@ -172,7 +187,7 @@ class _AddBudgetScreenState extends State<AddBudgetScreen> {
               _sheetBtn(
                 "Năm nay (${_f(startOfYear)} - ${_f(endOfYear)})",
                     () {
-                  setRange(startOfYear, endOfYear, "YEARLY");
+                  setRange(startOfYear, endOfYear, BudgetType.yearly);
                   Navigator.pop(context);
                 },
               ),
@@ -191,7 +206,7 @@ class _AddBudgetScreenState extends State<AddBudgetScreen> {
                   if (result != null) {
                     setState(() {
                       range = result;
-                      periodType = "CUSTOM";
+                      periodType = BudgetType.custom;
                     });
                   }
                 },
@@ -223,9 +238,7 @@ class _AddBudgetScreenState extends State<AddBudgetScreen> {
           width: double.infinity,
           padding: const EdgeInsets.symmetric(vertical: 14),
           decoration: BoxDecoration(
-            color: isCancel
-                ? Colors.black45
-                : Colors.grey.shade800,
+            color: isCancel ? Colors.black45 : Colors.grey.shade800,
             borderRadius: BorderRadius.circular(16),
           ),
           alignment: Alignment.center,
@@ -246,12 +259,38 @@ class _AddBudgetScreenState extends State<AddBudgetScreen> {
   // SAVE
   // =========================
   Future<void> save() async {
-    if (amountValue <= 0 ||
-        range == null ||
-        wallet == null ||
-        category == null) {
+    // validate các trường
+    if (amountValue <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Vui lòng nhập đầy đủ thông tin")),
+        const SnackBar(content: Text("Vui lòng nhập số tiền hợp lệ")),
+      );
+      return;
+    }
+
+    if (amountValue > 500000000) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Số tiền không được vượt quá 500 triệu")),
+      );
+      return;
+    }
+
+    if (range == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Vui lòng chọn khoảng thời gian")),
+      );
+      return;
+    }
+
+    if (wallet == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Vui lòng chọn ví")),
+      );
+      return;
+    }
+
+    if (category == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Vui lòng chọn nhóm chi tiêu")),
       );
       return;
     }
@@ -264,7 +303,7 @@ class _AddBudgetScreenState extends State<AddBudgetScreen> {
       repeating: repeat,
       allCategories: false,
       categoryId: category!.id,
-      budgetType: periodType, // 🔥 chuẩn enum backend
+      budgetType: periodType.apiValue,
     );
 
     final res = await BudgetService().create(request);
@@ -272,7 +311,7 @@ class _AddBudgetScreenState extends State<AddBudgetScreen> {
     if (!mounted) return;
 
     if (res.success) {
-      Navigator.pop(context, true);
+      Navigator.pop(context, res.data);
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(res.message ?? "Tạo thất bại")),
@@ -313,64 +352,65 @@ class _AddBudgetScreenState extends State<AddBudgetScreen> {
         padding: const EdgeInsets.all(16),
         children: [
           _card(
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  ListTile(
-                    leading: IconHelper.buildCircleAvatar(
-                      iconUrl: category?.ctgIconUrl,
-                      radius: 20,
-                    ),
-                    title: Text(
-                      category?.ctgName ?? "Chọn nhóm",
-                      style: const TextStyle(color: Colors.white),
-                    ),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: pickCategory,
+            child: Column(
+              children: [
+                ListTile(
+                  leading: IconHelper.buildCircleAvatar(
+                    iconUrl: category?.ctgIconUrl,
+                    radius: 20,
                   ),
-                  const Divider(),
+                  title: Text(
+                    category?.ctgName ?? "Chọn nhóm",
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: pickCategory,
+                ),
+                const Divider(),
 
-                  TextField(
-                    controller: _amountCtrl,
-                    keyboardType: TextInputType.number,
-                    style: const TextStyle(
-                        fontSize: 22, color: Colors.white),
-                    decoration: const InputDecoration(
-                      prefixText: "VND ",
-                      border: InputBorder.none,
-                    ),
-                    onChanged: _onAmountChanged,
+                TextField(
+                  controller: _amountCtrl,
+                  keyboardType: TextInputType.number,
+                  style: const TextStyle(fontSize: 22, color: Colors.white),
+                  decoration: const InputDecoration(
+                    prefixText: "VND ",
+                    border: InputBorder.none,
                   ),
-                  const Divider(),
+                  onChanged: _onAmountChanged,
+                ),
+                const Divider(),
 
-                  ListTile(
-                    leading: const Icon(Icons.calendar_today),
-                    title: Text(
-                      range == null
-                          ? "Chọn thời gian"
-                          : "${FormatHelper.formatDate(range!.start)} - ${FormatHelper.formatDate(range!.end)}",
-                      style: const TextStyle(color: Colors.white),
-                    ),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: pickQuickRange,
+                ListTile(
+                  leading: const Icon(Icons.calendar_today),
+                  title: Text(
+                    range == null
+                        ? "Chọn thời gian"
+                        : "${FormatHelper.formatDate(range!.start)} - ${FormatHelper.formatDate(range!.end)}",
+                    style: const TextStyle(color: Colors.white),
                   ),
-                  const Divider(),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: pickQuickRange,
+                ),
+                const Divider(),
 
-                  ListTile(
-                    leading: const Icon(Icons.account_balance_wallet),
-                    title: Text(
-                      wallet?.walletName ?? "Chọn ví",
-                      style: const TextStyle(color: Colors.white),
-                    ),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: pickWallet,
+                ListTile(
+                  leading: IconHelper.buildCircleAvatar(
+                    iconUrl: wallet?.goalImageUrl,
+                    radius: 20,
                   ),
-                ],
-              ),
+                  title: Text(
+                    wallet?.walletName ?? "Chọn ví",
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: widget.wallet != null ? null : pickWallet,
+                ),
+              ],
             ),
           ),
+
           const SizedBox(height: 16),
+
           _card(
             child: SwitchListTile(
               value: repeat,

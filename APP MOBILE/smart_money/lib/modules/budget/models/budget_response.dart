@@ -1,8 +1,8 @@
+import 'package:smart_money/modules/transaction/models/view/transaction_response.dart';
+
 import '../../category/models/category_response.dart';
 import '../enums/budget_type.dart';
 
-/// Response hiển thị thông tin ngân sách.
-/// Tương ứng: BudgetResponse.java (server)
 class BudgetResponse {
   final int id;
   final double amount;
@@ -10,13 +10,12 @@ class BudgetResponse {
   final DateTime endDate;
   final int? walletId;
   final String? walletName;
-  final bool? allCategories;
-  final bool? repeating;
+  final bool allCategories;
+  final bool repeating;
   final List<CategoryResponse> categories;
-  final bool isOther; //nhận biết ngân sách khác
+  final bool isOther;
   final BudgetType budgetType;
 
-  // 👇 THÊM 2 FIELD NÀY: Lấy từ category chính để hiển thị icon
   final int? primaryCategoryId;
   final String? primaryCategoryIconUrl;
 
@@ -28,12 +27,12 @@ class BudgetResponse {
   final double dailyShouldSpend;
   final double dailyActualSpend;
   final double projectedSpend;
-  //new
+
   final bool exceeded;
   final bool warning;
   final double progress;
 
-
+  final String? walletImageUrl;
 
   const BudgetResponse({
     required this.id,
@@ -42,8 +41,8 @@ class BudgetResponse {
     required this.endDate,
     this.walletId,
     this.walletName,
-    this.allCategories,
-    this.repeating,
+    this.allCategories = false,
+    this.repeating = false,
     this.categories = const [],
     this.primaryCategoryId,
     this.primaryCategoryIconUrl,
@@ -54,47 +53,110 @@ class BudgetResponse {
     this.dailyActualSpend = 0,
     this.projectedSpend = 0,
     this.isOther = false,
-    //new
     this.exceeded = false,
     this.warning = false,
     this.progress = 0,
-    required this.budgetType
+    this.walletImageUrl,
+    required this.budgetType,
   });
 
+  /// Factory parse từ JSON
   factory BudgetResponse.fromJson(Map<String, dynamic> json) {
+    final rawCategories = json['categories'];
+    final List<CategoryResponse> safeCategories = (rawCategories is List)
+        ? rawCategories
+        .where((e) => e != null)
+        .map((e) => CategoryResponse.fromJson(e as Map<String, dynamic>))
+        .toList()
+        : [];
+
+    DateTime safeParseDate(String? value) {
+      if (value == null || value.isEmpty) return DateTime.now();
+      return DateTime.tryParse(value) ?? DateTime.now();
+    }
+
+    bool safeBool(dynamic v) => v == true;
+
+    double safeDouble(dynamic v) {
+      if (v == null) return 0;
+      if (v is num) return v.toDouble();
+      return double.tryParse(v.toString()) ?? 0;
+    }
+
     return BudgetResponse(
-        id: json['id'] as int,
-        amount: (json['amount'] as num).toDouble(),
-        beginDate: DateTime.parse(json['beginDate'] as String),
-        endDate: DateTime.parse(json['endDate'] as String),
-        walletId: json['walletId'] as int?,
-        walletName: json['walletName'] as String?,
-        allCategories: json['allCategories'] as bool?,
-        repeating: json['repeating'] as bool?,
-        categories: json['categories'] != null
-            ? (json['categories'] as List<dynamic>)
-            .map((e) => CategoryResponse.fromJson(e as Map<String, dynamic>))
-            .toList()
-            : [],
-        primaryCategoryId: json['primaryCategoryId'] as int?,
-        primaryCategoryIconUrl: json['primaryCategoryIconUrl'] as String?,
-        expired: json['expired'] as bool? ?? false,
-        spentAmount: (json['spentAmount'] as num?)?.toDouble() ?? 0,
-        remainingAmount: (json['remainingAmount'] as num?)?.toDouble() ?? 0,
-        dailyShouldSpend: (json['dailyShouldSpend'] as num?)?.toDouble() ?? 0,
-        dailyActualSpend: (json['dailyActualSpend'] as num?)?.toDouble() ?? 0,
-        projectedSpend: (json['projectedSpend'] as num?)?.toDouble() ?? 0,
+      id: json['id'] ?? 0,
+      amount: safeDouble(json['amount']),
+      beginDate: safeParseDate(json['beginDate']),
+      endDate: safeParseDate(json['endDate']),
+      walletId: json['walletId'],
+      walletName: json['walletName'],
+      allCategories: safeBool(json['allCategories']),
+      repeating: safeBool(json['repeating']),
+      categories: safeCategories,
+      primaryCategoryId: json['primaryCategoryId'],
+      primaryCategoryIconUrl: json['primaryCategoryIconUrl'],
+      expired: safeBool(json['expired']),
+      spentAmount: safeDouble(json['spentAmount']),
+      remainingAmount: safeDouble(json['remainingAmount']),
+      dailyShouldSpend: safeDouble(json['dailyShouldSpend']),
+      dailyActualSpend: safeDouble(json['dailyActualSpend']),
+      projectedSpend: safeDouble(json['projectedSpend']),
+      exceeded: safeBool(json['exceeded']),
+      warning: safeBool(json['warning']),
+      progress: safeDouble(json['progress']),
+      walletImageUrl: json['walletImageUrl'] as String?,
+      budgetType: BudgetTypeExtension.fromString(json['budgetType']),
+      isOther: false,
+    );
+  }
 
-        // 🔥 NEW
-        exceeded: json['exceeded'] ?? false,
-        warning: json['warning'] ?? false,
-        progress: (json['progress'] ?? 0).toDouble(),
-
-        budgetType: BudgetType.values.firstWhere(
-              (e) => e.name == json['budgetType'],
-          orElse: () => BudgetType.custom,
-        )
+  /// CopyWith duy nhất, đầy đủ tất cả trường
+  BudgetResponse copyWith({
+    double? amount,
+    DateTime? beginDate,
+    DateTime? endDate,
+    List<CategoryResponse>? categories,
+    bool? repeating,
+    int? walletId,
+    String? walletName,
+    String? primaryCategoryIconUrl,
+    bool? allCategories,
+    bool? expired,
+    double? spentAmount,
+    double? remainingAmount,
+    double? dailyShouldSpend,
+    double? dailyActualSpend,
+    double? projectedSpend,
+    bool? exceeded,
+    bool? warning,
+    double? progress,
+    String? walletImageUrl,
+    BudgetType? budgetType, required List<TransactionResponse> transactions,
+  }) {
+    return BudgetResponse(
+      id: id,
+      amount: amount ?? this.amount,
+      beginDate: beginDate ?? this.beginDate,
+      endDate: endDate ?? this.endDate,
+      walletId: walletId ?? this.walletId,
+      walletName: walletName ?? this.walletName,
+      allCategories: allCategories ?? this.allCategories,
+      repeating: repeating ?? this.repeating,
+      categories: categories ?? this.categories,
+      primaryCategoryId: primaryCategoryId,
+      primaryCategoryIconUrl: primaryCategoryIconUrl ?? this.primaryCategoryIconUrl,
+      expired: expired ?? this.expired,
+      spentAmount: spentAmount ?? this.spentAmount,
+      remainingAmount: remainingAmount ?? this.remainingAmount,
+      dailyShouldSpend: dailyShouldSpend ?? this.dailyShouldSpend,
+      dailyActualSpend: dailyActualSpend ?? this.dailyActualSpend,
+      projectedSpend: projectedSpend ?? this.projectedSpend,
+      exceeded: exceeded ?? this.exceeded,
+      warning: warning ?? this.warning,
+      progress: progress ?? this.progress,
+      walletImageUrl: walletImageUrl ?? this.walletImageUrl,
+      budgetType: budgetType ?? this.budgetType,
+      isOther: isOther,
     );
   }
 }
-

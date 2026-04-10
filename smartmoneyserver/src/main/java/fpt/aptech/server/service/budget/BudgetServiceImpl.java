@@ -70,10 +70,20 @@ public class BudgetServiceImpl implements BudgetService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<BudgetResponse> getExpiredBudgets(Integer userId) {
-        List<Budget> budgets = budgetRepository.findExpiredBudgetsByAccountId(userId, LocalDate.now());
-        return budgets.stream().map(this::toBudgetResponse).collect(Collectors.toList());
+    public List<BudgetResponse> getExpiredBudgets(Integer userId, Integer walletId) {
+        LocalDate today = LocalDate.now();
+        List<Budget> budgets = budgetRepository.findExpiredBudgetsByAccountId(userId, today)
+                .stream()
+                .filter(b -> walletId == null || (b.getWallet() != null && b.getWallet().getId().equals(walletId)))
+                .collect(Collectors.toList());
+
+        return budgets.stream()
+                .map(this::toBudgetResponse)
+                .collect(Collectors.toList());
     }
+
+
+
 
     @Override
     @Transactional(readOnly = true)
@@ -465,10 +475,14 @@ public class BudgetServiceImpl implements BudgetService {
         // 2. QUERY PARAM
         // =========================
 
-        // ⚠️ Safe tránh NPE nếu sau này cho phép null wallet
-        Integer walletId = budget.getWallet() != null
-                ? budget.getWallet().getId()
-                : null;
+
+        Integer walletId = budget.getWallet() != null ? budget.getWallet().getId() : null;
+
+
+//        // ⚠️ Safe tránh NPE nếu sau này cho phép null wallet
+//        Integer walletId = budget.getWallet() != null
+//                ? budget.getWallet().getId()
+//                : null;
 
         // Convert LocalDate -> LocalDateTime
         LocalDateTime startDt = start.atStartOfDay();
@@ -496,8 +510,13 @@ public class BudgetServiceImpl implements BudgetService {
             spent = BigDecimal.ZERO;
         }
 
+
         // Số tiền còn lại
-        BigDecimal remaining = budget.getAmount().subtract(spent);
+//        BigDecimal remaining = budget.getAmount().subtract(spent);
+
+        BigDecimal remaining = budget.getAmount().subtract(spent).max(BigDecimal.ZERO);
+
+
 
         // =========================
         // 4. DAYS CALCULATION
@@ -597,10 +616,13 @@ public class BudgetServiceImpl implements BudgetService {
         // 9. WALLET INFO
         // =========================
 
-        String walletName = budget.getWallet() != null
-                ? budget.getWallet().getWalletName()
-                : null;
 
+//        String walletName = budget.getWallet() != null
+//                ? budget.getWallet().getWalletName()
+//                : null;
+
+
+        String walletName = budget.getWallet() != null ? budget.getWallet().getWalletName() : "Tổng cộng";
         // =========================
         // 10. BUILD RESPONSE
         // =========================

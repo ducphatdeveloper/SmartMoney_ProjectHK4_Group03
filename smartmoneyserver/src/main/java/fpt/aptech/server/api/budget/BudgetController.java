@@ -41,10 +41,12 @@ public class BudgetController {
     @GetMapping("/expired")
     @PreAuthorize("hasAuthority('USER_STANDARD_MANAGE')")
     public ResponseEntity<ApiResponse<List<BudgetResponse>>> getExpiredBudgets(
+            @RequestParam(required = false) Integer walletId,
             @AuthenticationPrincipal Account currentUser) {
         return ResponseEntity.ok(ApiResponse.success(
-                budgetService.getExpiredBudgets(currentUser.getId())));
+                budgetService.getExpiredBudgets(currentUser.getId(), walletId)));
     }
+
 
     /// Chi tiết ngân sách
     @GetMapping("/{id}")

@@ -10,7 +10,7 @@ public interface BudgetService {
 
     // ── Danh sách ─────────────────────────────────────────────────────────────
     List<BudgetResponse> getBudgets(Integer userId , Integer walletId);           // active budgets
-    List<BudgetResponse> getExpiredBudgets(Integer userId);   // expired budgets
+    List<BudgetResponse> getExpiredBudgets(Integer userId , Integer walletId);   // expired budgets
 
     // ── Chi tiết ──────────────────────────────────────────────────────────────
     BudgetResponse getBudgetById(Integer budgetId, Integer userId);
@@ -22,4 +22,6 @@ public interface BudgetService {
     BudgetResponse createBudget(BudgetRequest request, Integer userId);
     BudgetResponse updateBudget(Integer budgetId, BudgetRequest request, Integer userId);
     void deleteBudget(Integer budgetId, Integer userId);
+
+
 }
