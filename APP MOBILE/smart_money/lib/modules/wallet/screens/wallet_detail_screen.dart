@@ -63,19 +63,19 @@ class _WalletDetailScreenState extends State<WalletDetailScreen> {
         children: [
           _mainCard(wallet),
           const SizedBox(height: 20),
-          _switchTile(
-            title: "Bật thông báo",
-            subtitle: "Nhận thông báo khi ví có giao dịch mới.",
-            value: notification,
-            onChanged: (v) => setState(() => notification = v),
-          ),
-          const SizedBox(height: 10),
-          _switchTile(
-            title: "Không tính vào tổng",
-            subtitle: 'Bỏ qua ví này khỏi "Tổng".',
-            value: excludeFromTotal,
-            onChanged: (v) => setState(() => excludeFromTotal = v),
-          ),
+          // _switchTile(
+          //   title: "Bật thông báo",
+          //   subtitle: "Nhận thông báo khi ví có giao dịch mới.",
+          //   value: notification,
+          //   onChanged: (v) => setState(() => notification = v),
+          // ),
+          // const SizedBox(height: 10),
+          // _switchTile(
+          //   title: "Không tính vào tổng",
+          //   subtitle: 'Bỏ qua ví này khỏi "Tổng".',
+          //   value: excludeFromTotal,
+          //   onChanged: (v) => setState(() => excludeFromTotal = v),
+          // ),
           const SizedBox(height: 30),
           _deleteButton(context),
         ],
