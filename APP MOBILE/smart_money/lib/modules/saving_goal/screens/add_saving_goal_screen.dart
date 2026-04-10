@@ -45,29 +45,38 @@ class _AddSavingGoalScreenState extends State<AddSavingGoalScreen> {
     final targetStr = _targetController.text.trim();
     final initialStr = _initialController.text.trim();
 
-    if (name.isEmpty) return "Please enter a goal name";
-    if (targetStr.isEmpty) return "Please enter your target amount";
+    if (name.isEmpty) return "Tên mục tiêu không được để trống";
+    if (targetStr.isEmpty) return "Số tiền mục tiêu không được để trống";
 
     final targetAmount = double.tryParse(targetStr);
-    // Requirement: Must be > 1000
-    if (targetAmount == null || targetAmount < 1000) {
-      return "Target amount must be greater than 1,000";
+    // Requirement: Must be > 0
+    if (targetAmount == null) {
+      return "Số tiền tiết kiệm không hợp lệ";
+    }
+    if (targetAmount < 0) {
+      return "Số tiền tiết kiệm phải lớn hơn 0";
+    }
+    if (targetAmount > 10000000000) {
+      return "Số tiền tiết kiệm không được lớn hơn 10 tỷ";
     }
 
     final initialAmount = double.tryParse(initialStr) ?? 0;
     if (initialAmount < 0) {
-      return "Initial amount cannot be negative";
+      return "Số tiền ban đầu không thể là số âm";
+    }
+    if (initialAmount > 10000000000) {
+      return "Số tiền ban đầu phải nhỏ hơn 10 tỷ";
     }
     // Requirement: Initial cannot be greater than Target
     if (initialAmount > targetAmount) {
-      return "Initial amount cannot exceed target amount";
+      return "Số tiền ban đầu không được lớn hơn số tiền mục tiêu";
     }
 
     if (_endDate == null) return "Please select a target date";
 
     // Safety check for past dates
     if (_endDate!.isBefore(DateTime.now().subtract(const Duration(days: 1)))) {
-      return "Target date cannot be in the past";
+      return "Ngày kết thúc không thể chọn ngày quá khứ";
     }
 
     return null;
@@ -119,11 +128,11 @@ class _AddSavingGoalScreenState extends State<AddSavingGoalScreen> {
     setState(() => _isSaving = false);
 
     if (success) {
-      await provider.loadGoals();
-      _showSnackBar("Goal created successfully!", isError: false);
+      await provider.loadGoals(false, forceRefresh: true);
+      _showSnackBar("Tạo mục tiêu thành công!", isError: false);
       Navigator.of(context).pop(true);
     } else {
-      _showSnackBar(provider.errorMessage ?? "Failed to save goal", isError: true);
+      _showSnackBar(provider.errorMessage ?? "Không thể lưu mục tiêu", isError: true);
     }
   }
 
@@ -232,8 +241,8 @@ class _AddSavingGoalScreenState extends State<AddSavingGoalScreen> {
               children: [
                 _buildTextField(
                   controller: _targetController,
-                  label: "Target Amount > 1,000",
-                  hint: "e.g. 5000000",
+                  label: "Target Amount > 0",
+                  //hint: "e.g. 5000000",
                   icon: Icons.track_changes,
                   iconColor: Colors.greenAccent,
                 ),

@@ -1179,7 +1179,8 @@ public class TransactionServiceImpl implements TransactionService {
         if (reason == null) return;
 
         // [A] Tạo 1 ticket duy nhất (SUSPICIOUS_TX | URGENT | PENDING)
-        ContactRequest ticket = contactRequestService.createSuspiciousRequest(accountId, reason);
+        // Admin vẫn có thể thấy ticket này trong trang quản lý yêu cầu hỗ trợ.
+        ContactRequest contactRequest = contactRequestService.createSuspiciousRequest(accountId, reason);
 
         // [B] Thông báo USER — related_id = id giao dịch để Flutter navigate đến chi tiết
         // Dùng TRANSACTION (type=1) vì related_id = tTransactions.id → Flutter mở chi tiết giao dịch đó
@@ -1199,7 +1200,7 @@ public class TransactionServiceImpl implements TransactionService {
                 ? currentUser.getAccPhone() : "N/A";
         String adminContent = String.format(
                 "%s (%s): %s Ticket #%d.",
-                displayName, displayPhone, reason, ticket.getId());
+                displayName, displayPhone, reason, contactRequest.getId());
 
         List<Account> admins = accountRepository.findByRole_RoleCode("ROLE_ADMIN");
         for (Account admin : admins) {
@@ -1208,7 +1209,7 @@ public class TransactionServiceImpl implements TransactionService {
                     "🚨 [URGENT] Giao dịch bất thường cần xử lý",
                     adminContent,
                     NotificationType.SYSTEM,
-                    ticket.getId().longValue(),
+                    contactRequest.getId().longValue(),
                     null
             );
         }

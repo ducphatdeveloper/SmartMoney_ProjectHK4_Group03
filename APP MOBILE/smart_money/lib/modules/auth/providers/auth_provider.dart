@@ -9,10 +9,8 @@ import '../../../core/models/user_model.dart';
 import '../../../core/services/auth_service.dart';
 import '../../../core/helpers/token_helper.dart';
 import '../models/login_request.dart';
-import '../models/auth_response.dart';
 import '../models/register_request.dart';
 import '../models/update_profile_request.dart';
-import '../models/reset_password_request.dart';
 
 
 class AuthProvider extends ChangeNotifier {
@@ -28,6 +26,17 @@ class AuthProvider extends ChangeNotifier {
   UserModel? get currentUser => _currentUser;
   bool get isLoading => _isLoading;
   bool get isLoggedIn => _currentUser != null;
+
+  // Thêm 3 biến state mới
+  String? _errorMessage;    // lỗi từ backend — Screen đọc để hiện SnackBar đỏ
+  String? get errorMessage => _errorMessage;
+
+  String? _successMessage;  // thành công — Screen đọc để hiện SnackBar xanh
+  String? get successMessage => _successMessage;
+
+  // Thêm fieldErrors cho lỗi từng ô
+  Map<String, String> _fieldErrors = {};
+  Map<String, String> get fieldErrors => _fieldErrors;
 
   // Constructor: Tải thông tin user nếu đã đăng nhập trước đó
   AuthProvider() {
@@ -78,9 +87,13 @@ class AuthProvider extends ChangeNotifier {
     _setLoading(false);
   }
 
-  Future<Map<String, String>?> login(String username, String password) async {
-    _setLoading(true);
-    Map<String, String>? errors;
+  Future<bool> login(String username, String password) async {
+    // Bước 1: Bật loading, xóa thông báo cũ
+    _isLoading = true;
+    _errorMessage = null;
+    _successMessage = null;
+    _fieldErrors = {};
+    notifyListeners();
 
     try {
       final deviceInfo = DeviceInfoPlugin();
@@ -114,32 +127,46 @@ class AuthProvider extends ChangeNotifier {
         deviceName: deviceName,
       );
 
+      // Bước 2: Gọi Service (Service trả ApiResponse, không throw)
       final response = await _authService.login(request);
 
-      if (response.success == true && response.data != null) {
+      // Bước 3: Xử lý kết quả
+      if (response.success && response.data != null) {
         _currentUser = UserModel.fromAuthResponse(response.data!);
-        errors = null; // Login successful, no errors
+        _successMessage = response.message ?? 'Đăng nhập thành công';
+        _isLoading = false;
+        notifyListeners();
+        return true;
       } else {
         _currentUser = null;
-        if (response.data is Map<String, dynamic>) {
-          errors = Map<String, String>.from(response.data as Map);
-        } else {
-          errors = {"general": response.message};
-        }
+        _errorMessage = _extractErrorMessage(response);
+        try {
+          final raw = response.data as dynamic;
+          if (raw is Map<String, dynamic> && raw != null && raw.isNotEmpty) {
+            _fieldErrors = Map<String, String>.from(raw as Map<String, dynamic>); // {"username": "Sai", ...}
+          }
+        } catch (_) {}
+        _isLoading = false;
+        notifyListeners();
+        return false;
       }
     } catch (e) {
       debugPrint("Login Error: $e");
       _currentUser = null;
-      errors = {"general": "An unexpected error occurred. Please try again."};
-    } finally {
-      _setLoading(false);
+      _errorMessage = 'Không thể kết nối đến server. Kiểm tra lại mạng.';
+      _isLoading = false;
+      notifyListeners();
+      return false;
     }
-    return errors;
   }
 
-  Future<Map<String, String>?> register(String? email, String? phone, String password, String confirmPassword) async {
-    _setLoading(true);
-    Map<String, String>? errors;
+  Future<bool> register(String? email, String? phone, String password, String confirmPassword) async {
+    // Bước 1: Bật loading, xóa thông báo cũ
+    _isLoading = true;
+    _errorMessage = null;
+    _successMessage = null;
+    _fieldErrors = {};
+    notifyListeners();
 
     try {
       final request = RegisterRequest(
@@ -149,23 +176,34 @@ class AuthProvider extends ChangeNotifier {
         confirmPassword: confirmPassword,
       );
 
+      // Bước 2: Gọi Service (Service trả ApiResponse, không throw)
       final response = await _authService.register(request);
-      if (response.success == true) {
-        errors = null; // Registration successful
+
+      // Bước 3: Xử lý kết quả
+      if (response.success) {
+        _successMessage = response.message ?? 'Đăng ký thành công';
+        _isLoading = false;
+        notifyListeners();
+        return true;
       } else {
-        if (response.data is Map<String, dynamic>) {
-          errors = Map<String, String>.from(response.data as Map);
-        } else {
-          errors = {"general": response.message};
-        }
+        _errorMessage = _extractErrorMessage(response);
+        try {
+          final raw = response.data as dynamic;
+          if (raw is Map<String, dynamic> && raw != null && raw.isNotEmpty) {
+            _fieldErrors = Map<String, String>.from(raw as Map<String, dynamic>); // {"accEmail": "Sai", ...}
+          }
+        } catch (_) {}
+        _isLoading = false;
+        notifyListeners();
+        return false;
       }
     } catch (e) {
       debugPrint("Register Error: $e");
-      errors = {"general": "An unexpected error occurred. Please try again."};
-    } finally {
-      _setLoading(false);
+      _errorMessage = 'Không thể kết nối đến server. Kiểm tra lại mạng.';
+      _isLoading = false;
+      notifyListeners();
+      return false;
     }
-    return errors;
   }
 
   Future<void> logout() async {
@@ -301,5 +339,23 @@ class AuthProvider extends ChangeNotifier {
     } finally {
       _setLoading(false);
     }
+  }
+
+  // =============================================
+  // [N] HELPER — Đọc lỗi từ response backend
+  // =============================================
+  // Xử lý 2 dạng lỗi:
+  //   • data là Map  → lỗi từng ô (@Valid) → gom thành 1 chuỗi
+  //   • data là null → lấy message trực tiếp (IllegalArgumentException...)
+  String _extractErrorMessage(dynamic response) {
+    try {
+      final raw = response.data;
+      if (raw is Map && raw.isNotEmpty) {
+        return raw.values.join('\n'); // "Số tiền trống\nChưa chọn ví"
+      }
+    } catch (_) {}
+    return response.message?.toString().isNotEmpty == true
+        ? response.message.toString()
+        : 'Có lỗi xảy ra. Vui lòng thử lại.';
   }
 }

@@ -80,6 +80,10 @@ dependencies:
   # Điều hướng giữa các màn hình, khớp với core/routing/app_router.dart
   go_router: ^14.0.2
 
+  # --- URL LAUNCHER ---
+  # Mở URL, gọi điện, gửi email, SMS từ app
+  url_launcher: ^6.2.3
+
 # ==========================================
 # 3. DEV DEPENDENCIES
 # ==========================================

@@ -60,18 +60,20 @@ export const adminApi = {
     getAllUserTransactions: (id, params) => api.get(`/admin/users/${id}/transactions/all`, {
         params: cleanParams(params)
     }),
+    restoreTransaction: (id) => api.patch(`/admin/transactions/${id}/restore`),
+    restoreAllUserTransactions: (userId) => api.patch(`/admin/users/${userId}/transactions/restore-all`),
     getStats: () => api.get('/admin/stats'), 
     getOnlineUsers: () => api.get('/admin/analytics/online-users'),
     getAllLiveOnlineUsers: () => api.get('/admin/analytics/live-online-users'),
     getSystemTransactionStats: (params) => api.get('/admin/system/transaction-stats', {
         params: cleanParams(params)
     }),
-    notifyAbnormalTransactions: (threshold) => api.post('/admin/system/notify-abnormal', null, { 
-        params: { threshold: threshold?.toString() } 
-    }),
-    getAbnormalUsers: (threshold) => api.get('/admin/system/abnormal-users', { 
-        params: { threshold: threshold?.toString() }
-    }),
+    // notifyAbnormalTransactions: (threshold) => api.post('/admin/system/notify-abnormal', null, {
+    //     params: { threshold: threshold?.toString() }
+    // }),
+    // getAbnormalUsers: (threshold) => api.get('/admin/system/abnormal-users', {
+    //     params: { threshold: threshold?.toString() }
+    // }),
     handleAutoLogout: () => api.post('/admin/system/auto-logout'),
     getAdminNotifications: (adminId) => api.get(`/admin/notifications/${adminId}`),
     getAllContactRequests: (params) => api.get('/admin/contact-requests', { params: cleanParams(params) }),

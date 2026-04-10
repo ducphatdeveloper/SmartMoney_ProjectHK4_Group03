@@ -7,8 +7,48 @@ import '../providers/saving_goal_provider.dart';
 import 'detail_saving_goal_screen.dart';
 import '../../../core/constants/app_constants.dart';
 
-class SavingGoalListView extends StatelessWidget {
-  const SavingGoalListView({super.key});
+class SavingGoalListView extends StatefulWidget {
+  final String? accessToken;
+  final bool isFinished; // false: Active, true: Finished
+
+  const SavingGoalListView({
+    super.key,
+    this.accessToken,
+    required this.isFinished,
+  });
+
+  @override
+  State<SavingGoalListView> createState() => _SavingGoalListViewState();
+}
+
+class _SavingGoalListViewState extends State<SavingGoalListView> {
+  @override
+  void initState() {
+    super.initState();
+    // Khởi tạo dữ liệu đúng tab khi vào màn hình
+    _handleRefresh();
+  }
+
+  @override
+  void didUpdateWidget(covariant SavingGoalListView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Nếu tab thay đổi (vuốt qua lại), tự động load lại dữ liệu cho tab mới
+    if (oldWidget.isFinished != widget.isFinished) {
+      _handleRefresh();
+    }
+  }
+
+  /// Hàm xử lý tải/làm mới dữ liệu từ Server
+  Future<void> _handleRefresh() async {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        context.read<SavingGoalProvider>().loadGoals(
+            widget.isFinished,
+            forceRefresh: true
+        );
+      }
+    });
+  }
 
   String _fixUrl(String? url) {
     if (url == null || url.isEmpty) return "";
@@ -24,169 +64,197 @@ class SavingGoalListView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Format số phân tách hàng nghìn
     final currencyFormat = NumberFormat("#,###", "vi_VN");
     final dateFormat = DateFormat('dd/MM/yyyy');
 
     return Consumer<SavingGoalProvider>(
       builder: (context, provider, child) {
+        // Hiển thị loading khi list trống và đang tải
         if (provider.isLoading && provider.goals.isEmpty) {
           return const Center(child: CircularProgressIndicator(color: Colors.greenAccent));
         }
 
-        if (provider.goals.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
+        // Dữ liệu hiển thị (Đã được Provider filter sẵn từ API)
+        final displayList = provider.goals;
+
+        // Trường hợp danh sách trống
+        if (displayList.isEmpty) {
+          return RefreshIndicator(
+            onRefresh: _handleRefresh,
+            color: Colors.greenAccent,
+            child: ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
               children: [
-                Icon(Icons.auto_graph_rounded, color: Colors.grey.withOpacity(0.3), size: 80),
-                const SizedBox(height: 16),
-                const Text("No active goals", style: TextStyle(color: Colors.grey, fontSize: 16)),
+                SizedBox(height: MediaQuery.of(context).size.height * 0.2),
+                Center(
+                  child: Column(
+                    children: [
+                      Icon(
+                          widget.isFinished ? Icons.assignment_turned_in_rounded : Icons.auto_graph_rounded,
+                          color: Colors.grey.withOpacity(0.3),
+                          size: 80
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        widget.isFinished ? "No goals completed yet" : "No active goals found",
+                        style: const TextStyle(color: Colors.grey, fontSize: 16),
+                      ),
+                    ],
+                  ),
+                ),
               ],
             ),
           );
         }
 
-        return ListView.builder(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          itemCount: provider.goals.length,
-          itemBuilder: (context, index) {
-            final goal = provider.goals[index];
-            final progressValue = (goal.progressPercent ?? 0) / 100;
-            final iconUrl = _fixUrl(goal.imageUrl);
-            final bool isCompleted = goal.finished ?? (progressValue >= 1.0);
-            //debugPrint("🟢 SAVING GOAL LINK: $iconUrl");
+        return RefreshIndicator(
+          onRefresh: _handleRefresh,
+          color: Colors.greenAccent,
+          backgroundColor: const Color(0xFF1C1C1E),
+          child: ListView.builder(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            physics: const AlwaysScrollableScrollPhysics(),
+            itemCount: displayList.length,
+            itemBuilder: (context, index) {
+              final goal = displayList[index];
+              final progressValue = (goal.progressPercent ?? 0) / 100;
+              final iconUrl = _fixUrl(goal.imageUrl);
+              final bool isGoalFinished = goal.finished ?? false;
+              final String currencyStr = goal.currencyCode ?? "VND";
 
-            // Lấy currency từ goal hoặc mặc định là VND
-            final String currencyStr = goal.currencyCode ?? "VND";
-
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 20),
-              child: InkWell(
-                onTap: () async {
-                  final result = await Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => DetailSavingGoalScreen(goal: goal)),
-                  );
-                  if (result == true) provider.loadGoals();
-                },
-                borderRadius: BorderRadius.circular(24),
-                child: Container(
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: [
-                        const Color(0xFF2C2C2E),
-                        const Color(0xFF1C1C1E).withOpacity(0.8),
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 20),
+                child: InkWell(
+                  onTap: () async {
+                    final result = await Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => DetailSavingGoalScreen(goal: goal)),
+                    );
+                    // Nếu quay lại từ chi tiết và có thay đổi trạng thái/xóa
+                    if (result == true && mounted) {
+                      _handleRefresh();
+                    }
+                  },
+                  borderRadius: BorderRadius.circular(24),
+                  child: Container(
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: [
+                          const Color(0xFF2C2C2E),
+                          const Color(0xFF1C1C1E).withOpacity(0.8),
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(
+                          color: isGoalFinished
+                              ? Colors.greenAccent.withOpacity(0.2)
+                              : Colors.white.withOpacity(0.05),
+                          width: 1
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.3),
+                          blurRadius: 15,
+                          offset: const Offset(0, 8),
+                        )
                       ],
                     ),
-                    borderRadius: BorderRadius.circular(24),
-                    border: Border.all(
-                        color: isCompleted ? Colors.greenAccent.withOpacity(0.2) : Colors.white.withOpacity(0.05),
-                        width: 1
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.3),
-                        blurRadius: 15,
-                        offset: const Offset(0, 8),
-                      )
-                    ],
-                  ),
-                  child: Column(
-                    children: [
-                      // --- Phần Header ---
-                      Padding(
-                        padding: const EdgeInsets.all(20),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            _buildGoalIcon(iconUrl, isCompleted),
-                            const SizedBox(width: 16),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
+                    child: Column(
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.all(20),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _buildGoalIcon(iconUrl, isGoalFinished),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      goal.goalName,
+                                      style: const TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 18
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Row(
+                                      children: [
+                                        Icon(Icons.calendar_today, size: 12, color: Colors.grey.shade500),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          "End: ${dateFormat.format(goal.endDate)}",
+                                          style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              _buildStatusBadges(goal),
+                            ],
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 20),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              _buildAmountInfo("CURRENT", goal.currentAmount, currencyFormat, currencyStr, Colors.white),
+                              _buildAmountInfo("REMAINING", goal.remainingAmount, currencyFormat, currencyStr,
+                                  goal.remainingAmount <= 0 ? Colors.greenAccent : Colors.orangeAccent),
+                              _buildAmountInfo("TARGET", goal.targetAmount, currencyFormat, currencyStr, Colors.grey.shade400),
+                            ],
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+                          child: Column(
+                            children: [
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
                                   Text(
-                                    goal.goalName,
-                                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
+                                    isGoalFinished ? "Goal Completed 🎉" : "Progress",
+                                    style: TextStyle(
+                                        color: isGoalFinished ? Colors.greenAccent : Colors.grey,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold),
                                   ),
-                                  const SizedBox(height: 4),
-                                  Row(
-                                    children: [
-                                      Icon(Icons.calendar_today, size: 12, color: Colors.grey.shade500),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        "End: ${dateFormat.format(goal.endDate)}",
-                                        style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
-                                      ),
-                                    ],
+                                  Text(
+                                    "${(goal.progressPercent ?? 0).toStringAsFixed(1)}%",
+                                    style: TextStyle(
+                                      color: isGoalFinished ? Colors.greenAccent : Colors.white,
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 14,
+                                    ),
                                   ),
                                 ],
                               ),
-                            ),
-                            _buildStatusBadges(goal),
-                          ],
+                              const SizedBox(height: 8),
+                              _buildProgressBar(context, progressValue, isGoalFinished),
+                            ],
+                          ),
                         ),
-                      ),
-
-                      // --- Phần Thông tin chi tiết số dư (Đã thêm Currency) ---
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 20),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            _buildAmountInfo("CURRENT", goal.currentAmount, currencyFormat, currencyStr, Colors.white),
-                            _buildAmountInfo("REMAINING", goal.remainingAmount, currencyFormat, currencyStr,
-                                goal.remainingAmount <= 0 ? Colors.greenAccent : Colors.orangeAccent),
-                            _buildAmountInfo("TARGET", goal.targetAmount, currencyFormat, currencyStr, Colors.grey.shade400),
-                          ],
-                        ),
-                      ),
-
-                      // --- Phần Progress Bar ---
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
-                        child: Column(
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text(
-                                  isCompleted ? "Goal Completed 🎉" : "Progress",
-                                  style: TextStyle(
-                                      color: isCompleted ? Colors.greenAccent : Colors.grey,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.bold
-                                  ),
-                                ),
-                                Text(
-                                  "${(goal.progressPercent ?? 0).toStringAsFixed(1)}%",
-                                  style: TextStyle(
-                                    color: isCompleted ? Colors.greenAccent : Colors.white,
-                                    fontWeight: FontWeight.w800,
-                                    fontSize: 14,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-                            _buildProgressBar(context, progressValue, isCompleted),
-                          ],
-                        ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
-              ),
-            );
-          },
+              );
+            },
+          ),
         );
       },
     );
   }
+
+  // --- WIDGETS CON ---
 
   Widget _buildGoalIcon(String iconUrl, bool isCompleted) {
     return Container(
@@ -196,9 +264,7 @@ class SavingGoalListView extends StatelessWidget {
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         gradient: LinearGradient(
-          colors: isCompleted
-              ? [Colors.greenAccent, Colors.blueAccent]
-              : [Colors.orangeAccent, Colors.redAccent],
+          colors: isCompleted ? [Colors.greenAccent, Colors.blueAccent] : [Colors.orangeAccent, Colors.redAccent],
         ),
       ),
       child: Container(
@@ -207,6 +273,7 @@ class SavingGoalListView extends StatelessWidget {
           child: iconUrl.isNotEmpty
               ? CachedNetworkImage(
             imageUrl: iconUrl,
+            httpHeaders: widget.accessToken != null ? {"Authorization": "Bearer ${widget.accessToken}"} : null,
             fit: BoxFit.scaleDown,
             errorWidget: (_, __, ___) => const Icon(Icons.savings_rounded, color: Colors.orangeAccent),
           )
@@ -233,7 +300,6 @@ class SavingGoalListView extends StatelessWidget {
     );
   }
 
-  // Widget hiển thị thông tin số tiền - ĐÃ CẬP NHẬT THÊM THAM SỐ CURRENCY
   Widget _buildAmountInfo(String label, double amount, NumberFormat format, String currency, Color amountColor) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -276,9 +342,7 @@ class SavingGoalListView extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(20),
             gradient: LinearGradient(
-              colors: isCompleted
-                  ? [Colors.greenAccent, Colors.tealAccent]
-                  : [Colors.orangeAccent, Colors.deepOrange],
+              colors: isCompleted ? [Colors.greenAccent, Colors.tealAccent] : [Colors.orangeAccent, Colors.deepOrange],
             ),
             boxShadow: [
               BoxShadow(

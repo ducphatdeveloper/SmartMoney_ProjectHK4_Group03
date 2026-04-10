@@ -1,68 +1,128 @@
 import 'package:flutter/material.dart';
-import 'package:smart_money/modules/budget/models/budget_response.dart';
-
 import '../../../core/di/setup_dependencies.dart';
-import '../models/budget_request.dart';
-import '../services/budget_service.dart';
+import 'package:smart_money/modules/budget/models/budget_request.dart';
+import 'package:smart_money/modules/budget/models/budget_response.dart';
+import 'package:smart_money/modules/budget/services/budget_service.dart';
+import '../../transaction/models/view/transaction_response.dart';
+import '../../wallet/models/wallet_response.dart';
 
 class BudgetProvider extends ChangeNotifier {
   final BudgetService _service = getIt<BudgetService>();
 
-  List<BudgetResponse> budgets = [];
-  bool isLoading = false;
-  int? selectedWalletId;
+  List<BudgetResponse> _budgets = [];
+  bool _isLoading = false;
+  List<TransactionResponse> transactions = [];
+  int? _selectedWalletId;
+  WalletResponse? _selectedWallet;
+  String? errorMessage;
+  /// Danh sách ngân sách đã hết hạn
+  List<BudgetResponse> expiredBudgets = [];
+
+
+  // ================= GETTER =================
+  List<BudgetResponse> get budgets => _budgets;
+  bool get isLoading => _isLoading;
+  int? get selectedWalletId => _selectedWalletId;
+  WalletResponse? get selectedWallet => _selectedWallet;
+
+  // ================= WALLET =================
+  // Future<void> setWallet(WalletResponse wallet) async {
+  //   if (_selectedWalletId == wallet.id && _budgets.isNotEmpty) return;
+  //
+  //   _selectedWallet = wallet;
+  //   _selectedWalletId = wallet.id;
+  //
+  //   notifyListeners();
+  //
+  //   await loadBudgets(
+  //     walletId: wallet.id,
+  //     forceRefresh: true,
+  //   );
+  // }
+
+  Future<void> setWallet(WalletResponse wallet) async {
+    _selectedWallet = wallet;
+    _selectedWalletId = wallet.id;
+    await refreshAllData();
+  }
 
   // ================= LOAD =================
-  Future<void> loadBudgets({
-    int? walletId,
-    bool forceRefresh = false,
-  }) async {
-    // Nếu không force và wallet giống → không load lại
-    if (!forceRefresh && walletId == selectedWalletId && budgets.isNotEmpty) {
+  Future<void> loadBudgets({int? walletId, bool forceRefresh = false}) async {
+    if (walletId == null) {
+      _budgets = [];
+      notifyListeners();
       return;
     }
 
-    isLoading = true;
+    if (!forceRefresh &&
+        walletId == _selectedWalletId &&
+        _budgets.isNotEmpty) {
+      return;
+    }
+
+    _isLoading = true;
     notifyListeners();
 
-    selectedWalletId = walletId;
-
     try {
-      debugPrint("🚀 CALL API START");
-
-      final res = await _service.getBudgets(walletId);
-
-      debugPrint("✅ CALL API DONE");
-
+      final res = await _service.getBudgets(walletId: walletId);
       if (res.success && res.data != null) {
-        budgets = res.data!;
-        debugPrint("✅ PROVIDER LOAD: ${budgets.length}");
+        _budgets = res.data!.whereType<BudgetResponse>().toList();
+
+        // 🔹 Load transaction cho từng budget
+        for (var i = 0; i < _budgets.length; i++) {
+          final budget = _budgets[i];
+          final txRes = await _service.getBudgetTransactions(budget.id);
+          if (txRes?.success == true && txRes?.data != null) {
+            _budgets[i] = budget.copyWith(transactions: txRes!.data!);
+          }
+        }
       } else {
-        budgets = [];
+        _budgets = [];
       }
     } catch (e) {
       debugPrint("❌ LOAD ERROR: $e");
-      budgets = [];
+      _budgets = [];
     }
 
-    isLoading = false;
+    _isLoading = false;
     notifyListeners();
   }
+
 
   // ================= CREATE =================
   Future<bool> createBudget(BudgetRequest request) async {
     try {
-      final res = await _service.create(request);
+      final fixedRequest = request.copyWith(
+        walletId: _selectedWalletId,
+      );
 
-      if (res.success) {
-        await loadBudgets(
-          walletId: selectedWalletId,
-          forceRefresh: true,
-        );
+      final res = await _service.create(fixedRequest);
+
+      if (res.success && res.data != null) {
+        await refreshBudgets();
         return true;
       }
     } catch (e) {
       debugPrint("❌ CREATE ERROR: $e");
+    }
+    return false;
+  }
+
+  // ================= UPDATE =================
+  Future<bool> updateBudget(int id, BudgetRequest request) async {
+    try {
+      final fixedRequest = request.copyWith(
+        walletId: _selectedWalletId,
+      );
+
+      final res = await _service.update(id, fixedRequest);
+
+      if (res.success && res.data != null) {
+        await refreshBudgets();
+        return true;
+      }
+    } catch (e) {
+      debugPrint("❌ UPDATE ERROR: $e");
     }
     return false;
   }
@@ -73,7 +133,7 @@ class BudgetProvider extends ChangeNotifier {
       final res = await _service.delete(id);
 
       if (res.success) {
-        budgets.removeWhere((e) => e.id == id);
+        _budgets.removeWhere((b) => b.id == id);
         notifyListeners();
         return true;
       }
@@ -83,13 +143,93 @@ class BudgetProvider extends ChangeNotifier {
     return false;
   }
 
-  //
+  // ================= REFRESH =================
+  Future<void> refreshBudgets() async {
+    await loadBudgets(
+      walletId: _selectedWalletId,
+      forceRefresh: true,
+    );
+  }
+
+  // ================= DISPLAY =================
   List<BudgetResponse> get displayBudgets {
-    if (budgets.isEmpty) return [];
+    if (_budgets.isEmpty) return [];
 
-    // 1. Tách budget "Tất cả"
+    final now = DateTime.now();
+
+    final active = _budgets.where((b) {
+      try {
+        final begin = b.beginDate;
+        final end = b.endDate;
+
+        if (begin == null || end == null) return false;
+
+        return begin.isBefore(now) && end.isAfter(now);
+      } catch (e) {
+        debugPrint("❌ DATE ERROR: $e");
+        return false;
+      }
+    }).toList();
+
+    return _mergeOtherBudget(active);
+  }
+
+
+
+// ================= REFRESH TẬP TRUNG =================
+  Future<void> refreshAllData() async {
+    if (_selectedWalletId == null) return;
+
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      // 1. Tải danh sách ngân sách mới nhất
+      final res = await _service.getBudgets(walletId: _selectedWalletId!);
+      if (res.success && res.data != null) {
+        _budgets = res.data!.whereType<BudgetResponse>().toList();
+
+        // 2. Sau khi có budgets, nếu cần load thêm transaction chi tiết cho từng cái
+        // (Tùy thuộc logic backend của bạn, thường spentAmount đã có sẵn trong response)
+        // await loadAllBudgetTransactions(walletId: _selectedWalletId!);
+      }
+    } catch (e) {
+      debugPrint("❌ REFRESH ERROR: $e");
+    } finally {
+      _isLoading = false;
+      notifyListeners(); // Cập nhật lại UI cho toàn bộ App
+    }
+  }
+
+  /// Lấy danh sách ngân sách đã hết hạn, có thể filter theo walletId
+  Future<void> loadExpiredBudgets({int? walletId}) async {
+    try {
+      _isLoading = true;
+      errorMessage = null;
+      notifyListeners();
+
+      final response = await _service.getExpired(walletId: walletId);
+
+      if (response.success) {
+        expiredBudgets = response.data ?? [];
+      } else {
+        expiredBudgets = [];
+        errorMessage = response.message ?? "Có lỗi xảy ra khi tải dữ liệu";
+      }
+    } catch (e) {
+      expiredBudgets = [];
+      errorMessage = e.toString();
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+
+
+  // ================= MERGE OTHER =================
+  List<BudgetResponse> _mergeOtherBudget(List<BudgetResponse> budgets) {
     BudgetResponse? allBudget;
-
     final categoryBudgets = <BudgetResponse>[];
 
     for (final b in budgets) {
@@ -100,48 +240,19 @@ class BudgetProvider extends ChangeNotifier {
       }
     }
 
-    // 2. Nếu không có "Tất cả" → trả bình thường
-    if (allBudget == null) {
-      return categoryBudgets;
-    }
+    if (allBudget == null) return categoryBudgets;
 
-    // 3. Tổng category
-    final totalCategoryAmount = categoryBudgets.fold(
-      0.0,
-          (sum, b) => sum + b.amount,
-    );
+    final totalAmount = categoryBudgets.fold(0.0, (sum, b) => sum + b.amount);
+    final totalSpent = categoryBudgets.fold(0.0, (sum, b) => sum + b.spentAmount);
 
-    final totalCategorySpent = categoryBudgets.fold(
-      0.0,
-          (sum, b) => sum + b.spentAmount,
-    );
+    final remainingAmount = (allBudget.amount - totalAmount).clamp(0.0, double.infinity);
+    final remainingSpent = (allBudget.spentAmount - totalSpent).clamp(0.0, double.infinity);
 
-    // 4. Tính "Khác"
-    final remainingAmount = allBudget.amount - totalCategoryAmount;
-    final remainingSpent = allBudget.spentAmount - totalCategorySpent;
-
-    // ❗ CHẶN ÂM
-    if (remainingAmount < 0) {
-      debugPrint("❌ Category vượt quá tổng budget");
-    }
-
-    //new
-    final double spent = remainingSpent.toDouble();
-    final double amount = remainingAmount.toDouble();
-
-    final exceeded = spent > amount;
-
-    final warning = !exceeded &&
-        amount > 0 &&
-        (spent / amount) > 0.8;
-
-    final double progress = amount > 0
-        ? (spent / amount).clamp(0.0, 1.0)
-        : 0.0;
+    if (remainingAmount <= 0) return categoryBudgets;
 
     final other = BudgetResponse(
       id: -999,
-      amount: amount.clamp(0.0, double.infinity),
+      amount: remainingAmount,
       beginDate: allBudget.beginDate,
       endDate: allBudget.endDate,
       walletId: allBudget.walletId,
@@ -151,39 +262,15 @@ class BudgetProvider extends ChangeNotifier {
       categories: const [],
       primaryCategoryId: null,
       primaryCategoryIconUrl: null,
-      spentAmount: spent.clamp(0.0, double.infinity),
-
-      // 🔥 tránh âm
-      remainingAmount: (amount - spent).clamp(0.0, double.infinity),
+      spentAmount: remainingSpent,
+      remainingAmount: (remainingAmount - remainingSpent).clamp(0.0, double.infinity),
       budgetType: allBudget.budgetType,
-
       isOther: true,
-      exceeded: exceeded,
-      warning: warning,
-      progress: progress,
+      exceeded: remainingSpent > remainingAmount,
+      warning: remainingAmount > 0 && (remainingSpent / remainingAmount) > 0.8,
+      progress: remainingAmount > 0 ? (remainingSpent / remainingAmount).clamp(0.0, 1.0) : 0.0,
     );
 
-    return [
-      ...categoryBudgets,
-      if (remainingAmount > 0) other, // 👉 chỉ hiển thị nếu > 0
-    ];
+    return [...categoryBudgets, other];
   }
-
-  Future<bool> updateBudget(int id, BudgetRequest request) async {
-    try {
-      final res = await _service.update(id, request);
-
-      if (res.success) {
-        await loadBudgets(
-          walletId: selectedWalletId,
-          forceRefresh: true,
-        );
-        return true;
-      }
-    } catch (e) {
-      debugPrint("❌ UPDATE ERROR: $e");
-    }
-    return false;
-  }
-
 }

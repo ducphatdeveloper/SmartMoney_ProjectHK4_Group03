@@ -8,11 +8,35 @@ import '../providers/event_provider.dart';
 import '../models/event_response.dart';
 import 'event_detail_screen.dart';
 
-class EventListView extends StatelessWidget {
+class EventListView extends StatefulWidget {
   final String? accessToken;
   const EventListView({super.key, this.accessToken});
 
-  // LOGIC FIX URL: Đồng bộ hoàn toàn với SavingGoal để chạy được link Cloudinary
+  @override
+  State<EventListView> createState() => _EventListViewState();
+}
+
+class _EventListViewState extends State<EventListView> {
+
+  @override
+  void initState() {
+    super.initState();
+    // Tự động tải dữ liệu ngay khi vào trang
+    _handleRefresh();
+  }
+
+  /// Hàm xử lý lấy dữ liệu mới nhất
+  Future<void> _handleRefresh() async {
+    // Đảm bảo widget đã mount trước khi gọi Provider
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        // forceRefresh: true để server trả về dữ liệu mới nhất, không dùng cache
+        // false ở tham số đầu tiên thường là mặc định lấy "Active Events"
+        context.read<EventProvider>().loadEvents(false, forceRefresh: true);
+      }
+    });
+  }
+
   String _fixUrl(String? url) {
     if (url == null || url.isEmpty) return "";
     final base = AppConstants.baseUrl.replaceAll("/api", "");
@@ -29,27 +53,49 @@ class EventListView extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer<EventProvider>(
       builder: (context, provider, child) {
+        // Hiển thị loading khi đang tải và danh sách đang trống
         if (provider.isLoading && provider.events.isEmpty) {
           return const Center(child: CircularProgressIndicator(color: Colors.greenAccent));
         }
 
+        // Trường hợp không có dữ liệu
         if (provider.events.isEmpty) {
-          return const Center(
-            child: Text("No events found", style: TextStyle(color: Colors.white30)),
+          return RefreshIndicator(
+            onRefresh: _handleRefresh,
+            color: Colors.greenAccent,
+            child: ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              children: [
+                const SizedBox(height: 100),
+                Center(
+                  child: Column(
+                    children: [
+                      Icon(Icons.event_note_outlined, size: 64, color: Colors.white.withOpacity(0.1)),
+                      const SizedBox(height: 16),
+                      const Text("No events found", style: TextStyle(color: Colors.white30)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           );
         }
 
-        return ListView.builder(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          physics: const BouncingScrollPhysics(),
-          itemCount: provider.events.length,
-          itemBuilder: (context, index) {
-            final e = provider.events[index];
-            // Fix URL để lấy được từ Cloudinary
-            final iconUrl = _fixUrl(e.eventIconUrl);
-            //debugPrint("🟢 EVENT GOAL LINK: $iconUrl");
-            return _buildItem(context, e, iconUrl);
-          },
+        // Danh sách hiển thị
+        return RefreshIndicator(
+          onRefresh: _handleRefresh,
+          color: Colors.greenAccent,
+          backgroundColor: const Color(0xFF1C1C1E),
+          child: ListView.builder(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            physics: const AlwaysScrollableScrollPhysics(),
+            itemCount: provider.events.length,
+            itemBuilder: (context, index) {
+              final e = provider.events[index];
+              final iconUrl = _fixUrl(e.eventIconUrl);
+              return _buildItem(context, e, iconUrl);
+            },
+          ),
         );
       },
     );
@@ -82,10 +128,15 @@ class EventListView extends StatelessWidget {
       child: ClipRRect(
         borderRadius: BorderRadius.circular(28),
         child: InkWell(
-          onTap: () => Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => EventDetailScreen(event: e)),
-          ),
+          onTap: () async {
+            // Đợi khi quay lại từ màn hình chi tiết
+            await Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => EventDetailScreen(event: e)),
+            );
+            // Luôn làm mới dữ liệu khi quay lại để cập nhật số dư/trạng thái
+            _handleRefresh();
+          },
           child: Column(
             children: [
               Padding(
@@ -110,15 +161,11 @@ class EventListView extends StatelessWidget {
                           const SizedBox(height: 4),
                           Row(
                             children: [
-                              Icon(Icons.calendar_today_outlined,
-                                  size: 12, color: Colors.white.withOpacity(0.4)),
+                              Icon(Icons.calendar_today_outlined, size: 12, color: Colors.white.withOpacity(0.4)),
                               const SizedBox(width: 4),
                               Text(
                                 "${e.beginDate != null ? DateFormat('dd MMM').format(e.beginDate!) : '??'} - ${DateFormat('dd MMM yyyy').format(e.endDate)}",
-                                style: TextStyle(
-                                  color: Colors.white.withOpacity(0.4),
-                                  fontSize: 12,
-                                ),
+                                style: TextStyle(color: Colors.white.withOpacity(0.4), fontSize: 12),
                               ),
                             ],
                           ),
@@ -137,6 +184,9 @@ class EventListView extends StatelessWidget {
       ),
     );
   }
+
+  // ... Các hàm _buildEventIcon, _buildFinanceRow, _buildProgressBar giữ nguyên như cũ ...
+  // (Đảm bảo sử dụng widget.accessToken trong CachedNetworkImage)
 
   Widget _buildEventIcon(String url, bool isFinished) {
     return Container(
@@ -157,17 +207,10 @@ class EventListView extends StatelessWidget {
           child: url.isNotEmpty
               ? CachedNetworkImage(
             imageUrl: url,
-            // Khi dùng Cloudinary thường không cần Token, nhưng cứ giữ logic bảo mật nếu có
-            httpHeaders: accessToken != null ? {"Authorization": "Bearer $accessToken"} : null,
+            httpHeaders: widget.accessToken != null ? {"Authorization": "Bearer ${widget.accessToken}"} : null,
             fit: BoxFit.contain,
-            placeholder: (context, url) => const Center(
-                child: SizedBox(width: 15, height: 15, child: CircularProgressIndicator(strokeWidth: 1))
-            ),
-            errorWidget: (context, url, error) => const Icon(
-                Icons.auto_awesome,
-                color: Colors.greenAccent,
-                size: 26
-            ),
+            placeholder: (context, url) => const Center(child: SizedBox(width: 15, height: 15, child: CircularProgressIndicator(strokeWidth: 1))),
+            errorWidget: (context, url, error) => const Icon(Icons.auto_awesome, color: Colors.greenAccent, size: 26),
           )
               : const Icon(Icons.event_available, color: Colors.greenAccent, size: 26),
         ),
@@ -176,7 +219,6 @@ class EventListView extends StatelessWidget {
   }
 
   Widget _buildFinanceRow(EventResponse e) {
-    final fmt = NumberFormat.compact(locale: 'vi_VN');
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
       padding: const EdgeInsets.all(16),

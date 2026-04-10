@@ -9,9 +9,12 @@ import fpt.aptech.server.entity.Notification;
 import fpt.aptech.server.entity.UserDevice;
 import fpt.aptech.server.entity.Wallet;
 import fpt.aptech.server.enums.notification.NotificationType;
+import fpt.aptech.server.enums.contact.ContactRequestType;
+import fpt.aptech.server.enums.contact.ContactRequestStatus;
 import fpt.aptech.server.repos.AccountRepository;
 import fpt.aptech.server.repos.UserDeviceRepository;
 import fpt.aptech.server.repos.TransactionRepository;
+import fpt.aptech.server.repos.ContactRequestRepository; // Import ContactRequestRepository
 import fpt.aptech.server.service.notification.NotificationService;
 import fpt.aptech.server.service.notification.NotificationContent;
 import fpt.aptech.server.service.notification.NotificationMessages;
@@ -48,6 +51,7 @@ public class AdminServiceImp implements AdminService {
     private final UserDeviceRepository userDeviceRepository;
     private final NotificationService notificationService;
     private final TransactionRepository transactionRepository;
+    private final ContactRequestRepository contactRequestRepository; // Inject ContactRequestRepository
 
     @Override
     public PageResponse<AccountDto> getUsers(String search, Boolean locked, String onlineStatus, Pageable pageable) {
@@ -119,6 +123,12 @@ public class AdminServiceImp implements AdminService {
     public void lockAccount(Integer id) {
         Account account = accountRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy tài khoản ID: " + id));
+
+        // Check for an APPROVED ContactRequest of type ACCOUNT_LOCK
+        contactRequestRepository.findFirstByAccountIdAndRequestTypeAndRequestStatusOrderByCreatedAtDesc(
+                id, ContactRequestType.ACCOUNT_LOCK, ContactRequestStatus.APPROVED)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy yêu cầu khóa tài khoản đã được duyệt cho ID: " + id));
+
         account.setLocked(true);
         accountRepository.saveAndFlush(account);
         try {
@@ -140,6 +150,12 @@ public class AdminServiceImp implements AdminService {
     public void unlockAccount(Integer id) {
         Account account = accountRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy tài khoản ID: " + id));
+
+        // Check for an APPROVED ContactRequest of type ACCOUNT_UNLOCK
+        contactRequestRepository.findFirstByAccountIdAndRequestTypeAndRequestStatusOrderByCreatedAtDesc(
+                id, ContactRequestType.ACCOUNT_UNLOCK, ContactRequestStatus.APPROVED)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy yêu cầu mở khóa tài khoản đã được duyệt cho ID: " + id));
+
         account.setLocked(false);
         accountRepository.save(account);
         accountRepository.flush();
@@ -273,59 +289,59 @@ public class AdminServiceImp implements AdminService {
 
         return result;
     }
-
-    @Override
-    public void notifyAbnormalTransactions(BigDecimal threshold) {
-        int frequencyThreshold = 10; 
-        LocalDateTime since = LocalDateTime.now().minusDays(1);
-        List<Transaction> recentTransactions = transactionRepository.findAllByTransDateAfter(since);
-        Map<Wallet, List<Transaction>> walletActivity = recentTransactions.stream()
-                .filter(t -> t.getCategory() != null && Boolean.FALSE.equals(t.getCategory().getCtgType()))
-                .filter(t -> t.getWallet() != null)
-                .collect(Collectors.groupingBy(Transaction::getWallet));
-
-        walletActivity.forEach((wallet, transList) -> {
-            BigDecimal walletTotalExpense = transList.stream().map(Transaction::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
-            if (walletTotalExpense.compareTo(threshold) > 0 || transList.size() >= frequencyThreshold) {
-                Account userAccount = transList.get(0).getAccount();
-                String walletName = wallet.getWalletName() != null ? wallet.getWalletName() : "Ví người dùng";
-                NotificationContent userMsg = NotificationMessages.abnormalWalletActivity(walletName, transList.size(), walletTotalExpense);
-                notificationService.createNotification(userAccount, userMsg.title(), userMsg.content(), NotificationType.TRANSACTION, null, LocalDateTime.now());
-                
-                NotificationContent adminMsg = NotificationMessages.adminWalletRiskAlert(userAccount.getAccEmail(), walletName, transList.size(), walletTotalExpense);
-                List<Account> admins = accountRepository.findByRole_RoleCode("ROLE_ADMIN");
-                for (Account admin : admins) {
-                    notificationService.createNotification(admin, adminMsg.title(), adminMsg.content(), NotificationType.SYSTEM, null, LocalDateTime.now());
-                }
-            }
-        });
-    }
-
-    @Override
-    public List<Map<String, Object>> getAbnormalTransactionUsers(BigDecimal threshold) {
-        int frequencyThreshold = 10;
-        LocalDateTime since = LocalDateTime.now().minusDays(1);
-        List<Transaction> recentTransactions = transactionRepository.findAllByTransDateAfter(since);
-        Map<Account, List<Transaction>> groupedByAccount = recentTransactions.stream()
-                .filter(t -> t.getCategory() != null && Boolean.FALSE.equals(t.getCategory().getCtgType()))
-                .collect(Collectors.groupingBy(Transaction::getAccount));
-
-        return groupedByAccount.entrySet().stream().map(entry -> {
-            Account acc = entry.getKey();
-            Map<Wallet, List<Transaction>> byWallet = entry.getValue().stream().filter(t -> t.getWallet() != null).collect(Collectors.groupingBy(Transaction::getWallet));
-            List<Map<String, Object>> abnormalWallets = new ArrayList<>();
-            BigDecimal userTotal = BigDecimal.ZERO;
-            for (Map.Entry<Wallet, List<Transaction>> wEntry : byWallet.entrySet()) {
-                BigDecimal wTotal = wEntry.getValue().stream().map(Transaction::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
-                if (wTotal.compareTo(threshold) > 0 || wEntry.getValue().size() >= frequencyThreshold) {
-                    abnormalWallets.add(Map.of("walletName", wEntry.getKey().getWalletName(), "transactionCount", wEntry.getValue().size(), "totalSpent", wTotal));
-                    userTotal = userTotal.add(wTotal);
-                }
-            }
-            if (abnormalWallets.isEmpty()) return null;
-            return Map.of("userId", acc.getId(), "username", acc.getFullname() != null ? acc.getFullname() : acc.getAccEmail(), "abnormalWallets", abnormalWallets, "totalAmount", userTotal, "transactionCount", entry.getValue().size());
-        }).filter(Objects::nonNull).collect(Collectors.toList());
-    }
+//
+//    @Override
+//    public void notifyAbnormalTransactions(BigDecimal threshold) {
+//        int frequencyThreshold = 10;
+//        LocalDateTime since = LocalDateTime.now().minusDays(1);
+//        List<Transaction> recentTransactions = transactionRepository.findAllByTransDateAfter(since);
+//        Map<Wallet, List<Transaction>> walletActivity = recentTransactions.stream()
+//                .filter(t -> t.getCategory() != null && Boolean.FALSE.equals(t.getCategory().getCtgType()))
+//                .filter(t -> t.getWallet() != null)
+//                .collect(Collectors.groupingBy(Transaction::getWallet));
+//
+//        walletActivity.forEach((wallet, transList) -> {
+//            BigDecimal walletTotalExpense = transList.stream().map(Transaction::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
+//            if (walletTotalExpense.compareTo(threshold) > 0 || transList.size() >= frequencyThreshold) {
+//                Account userAccount = transList.get(0).getAccount();
+//                String walletName = wallet.getWalletName() != null ? wallet.getWalletName() : "Ví người dùng";
+//                NotificationContent userMsg = NotificationMessages.abnormalWalletActivity(walletName, transList.size(), walletTotalExpense);
+//                notificationService.createNotification(userAccount, userMsg.title(), userMsg.content(), NotificationType.TRANSACTION, null, LocalDateTime.now());
+//
+//                NotificationContent adminMsg = NotificationMessages.adminWalletRiskAlert(userAccount.getAccEmail(), walletName, transList.size(), walletTotalExpense);
+//                List<Account> admins = accountRepository.findByRole_RoleCode("ROLE_ADMIN");
+//                for (Account admin : admins) {
+//                    notificationService.createNotification(admin, adminMsg.title(), adminMsg.content(), NotificationType.SYSTEM, null, LocalDateTime.now());
+//                }
+//            }
+//        });
+//    }
+//
+//    @Override
+//    public List<Map<String, Object>> getAbnormalTransactionUsers(BigDecimal threshold) {
+//        int frequencyThreshold = 10;
+//        LocalDateTime since = LocalDateTime.now().minusDays(1);
+//        List<Transaction> recentTransactions = transactionRepository.findAllByTransDateAfter(since);
+//        Map<Account, List<Transaction>> groupedByAccount = recentTransactions.stream()
+//                .filter(t -> t.getCategory() != null && Boolean.FALSE.equals(t.getCategory().getCtgType()))
+//                .collect(Collectors.groupingBy(Transaction::getAccount));
+//
+//        return groupedByAccount.entrySet().stream().map(entry -> {
+//            Account acc = entry.getKey();
+//            Map<Wallet, List<Transaction>> byWallet = entry.getValue().stream().filter(t -> t.getWallet() != null).collect(Collectors.groupingBy(Transaction::getWallet));
+//            List<Map<String, Object>> abnormalWallets = new ArrayList<>();
+//            BigDecimal userTotal = BigDecimal.ZERO;
+//            for (Map.Entry<Wallet, List<Transaction>> wEntry : byWallet.entrySet()) {
+//                BigDecimal wTotal = wEntry.getValue().stream().map(Transaction::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
+//                if (wTotal.compareTo(threshold) > 0 || wEntry.getValue().size() >= frequencyThreshold) {
+//                    abnormalWallets.add(Map.of("walletName", wEntry.getKey().getWalletName(), "transactionCount", wEntry.getValue().size(), "totalSpent", wTotal));
+//                    userTotal = userTotal.add(wTotal);
+//                }
+//            }
+//            if (abnormalWallets.isEmpty()) return null;
+//            return Map.of("userId", acc.getId(), "username", acc.getFullname() != null ? acc.getFullname() : acc.getAccEmail(), "abnormalWallets", abnormalWallets, "totalAmount", userTotal, "transactionCount", entry.getValue().size());
+//        }).filter(Objects::nonNull).collect(Collectors.toList());
+//    }
 
     @Override
     public long countOnlineUsers() { return userDeviceRepository.countActiveUsers(LocalDateTime.now().minusMinutes(5)); }
@@ -359,5 +375,26 @@ public class AdminServiceImp implements AdminService {
     public Map<String, Object> getUserFinancialInsights(Integer userId) {
         Account acc = accountRepository.findById(userId).orElseThrow(() -> new RuntimeException("User not found"));
         return Map.of("userInfo", new AccountDto(acc), "totalIncome", transactionRepository.sumAmountByAccountAndType(userId, true), "totalExpense", transactionRepository.sumAmountByAccountAndType(userId, false));
+    }
+
+    @Override
+    @Transactional
+    public void restoreTransaction(Long transactionId) {
+        Transaction transaction = transactionRepository.findById(transactionId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy giao dịch ID: " + transactionId));
+        if (Boolean.FALSE.equals(transaction.getDeleted())) {
+            throw new RuntimeException("Giao dịch này hiện không bị xóa.");
+        }
+        transactionRepository.restoreTransaction(transactionId);
+        log.info("Admin đã khôi phục giao dịch ID: {}", transactionId);
+    }
+
+    @Override
+    @Transactional
+    public void restoreAllUserTransactions(Integer userId) {
+        accountRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy người dùng ID: " + userId));
+        transactionRepository.restoreAllUserTransactions(userId);
+        log.info("Admin đã khôi phục tất cả giao dịch cho người dùng ID: {}", userId);
     }
 }

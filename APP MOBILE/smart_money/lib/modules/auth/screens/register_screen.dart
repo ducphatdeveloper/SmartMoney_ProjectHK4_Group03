@@ -354,54 +354,54 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             onPressed: authProvider.isLoading
                                 ? null
                                 : () async {
-                              
-                              setState(() {
-                                _emailError = null;
-                                _phoneError = null;
-                                _passwordError = null;
-                                _confirmPasswordError = null;
-                              });
 
-                              final email = emailController.text.trim();
-                              final phone = phoneController.text.trim();
-                              final password = passwordController.text;
-                              final confirmPassword = confirmPasswordController.text;
+                               setState(() {
+                                 _emailError = null;
+                                 _phoneError = null;
+                                 _passwordError = null;
+                                 _confirmPasswordError = null;
+                               });
 
-                              // Gọi Provider để xử lý đăng ký
-                              final errors = await authProvider.register(
-                                email.isEmpty ? null : email,
-                                phone.isEmpty ? null : phone,
-                                password,
-                                confirmPassword,
-                              );
+                               final email = emailController.text.trim();
+                               final phone = phoneController.text.trim();
+                               final password = passwordController.text;
+                               final confirmPassword = confirmPasswordController.text;
 
-                              if (errors == null) {
-                                if (!mounted) return;
-                                _showSnackBar("Đăng ký thành công! Vui lòng đăng nhập.", isError: false);
-                                context.go("/login");
-                              } else {
-                                if (!mounted) return;
-                                setState(() {
-                                  _emailError = errors['accEmail'];
-                                  _phoneError = errors['accPhone'];
-                                  _passwordError = errors['password'];
-                                  _confirmPasswordError = errors['confirmPassword'];
-                                  
-                                  // Xử lý các lỗi custom từ @AssertTrue
-                                  if (errors.containsKey('validIdentity')) {
-                                    _emailError = errors['validIdentity'];
-                                    _phoneError = errors['validIdentity'];
-                                  }
-                                  if (errors.containsKey('passwordMatching')) {
-                                    _confirmPasswordError = errors['passwordMatching'];
-                                  }
-                                });
+                               // Bước 2: Gọi Provider
+                               final success = await authProvider.register(
+                                 email.isEmpty ? null : email,
+                                 phone.isEmpty ? null : phone,
+                                 password,
+                                 confirmPassword,
+                               );
 
-                                if (errors.containsKey('general')) {
-                                   _showSnackBar(errors['general']!);
-                                }
-                              }
-                            },
+                               // Bước 3: LUÔN check mounted sau await (bắt buộc, không bỏ)
+                               if (!mounted) return;
+
+                               // Bước 4: Hiện kết quả cho user
+                               if (success) {
+                                 _showSnackBar(authProvider.successMessage ?? 'Đăng ký thành công!', isError: false);
+                                 context.go("/login");
+                               } else {
+                                 setState(() {
+                                   // Key phải khớp tên field trong DTO Java
+                                   _emailError = authProvider.fieldErrors['accEmail'];
+                                   _phoneError = authProvider.fieldErrors['accPhone'];
+                                   _passwordError = authProvider.fieldErrors['password'];
+                                   _confirmPasswordError = authProvider.fieldErrors['confirmPassword'];
+
+                                   // Xử lý các lỗi custom từ @AssertTrue
+                                   if (authProvider.fieldErrors.containsKey('validIdentity')) {
+                                     _emailError = authProvider.fieldErrors['validIdentity'];
+                                     _phoneError = authProvider.fieldErrors['validIdentity'];
+                                   }
+                                   if (authProvider.fieldErrors.containsKey('passwordMatching')) {
+                                     _confirmPasswordError = authProvider.fieldErrors['passwordMatching'];
+                                   }
+                                 });
+                                 _showSnackBar(authProvider.errorMessage ?? 'Có lỗi xảy ra');
+                               }
+                             },
 
                             child: authProvider.isLoading
                                 ? const CircularProgressIndicator(
