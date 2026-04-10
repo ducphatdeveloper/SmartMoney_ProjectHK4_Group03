@@ -1,0 +1,52 @@
+Hướng dẫn khôi phục giao dịch đã xóa mềm cho Admin
+
+Để xem danh sách các giao dịch đã bị người dùng xóa mềm (soft-deleted) và khôi phục chúng, Admin có thể thực hiện các bước sau:
+
+**1. Xác định giao dịch đã xóa mềm:**
+
+Giao dịch được coi là "xóa mềm" khi cột `deleted` trong bảng `tTransactions` có giá trị là `1`.
+
+Để lấy danh sách các giao dịch này, Admin có thể sử dụng câu lệnh SQL sau (thông qua công cụ quản lý cơ sở dữ liệu như SQL Server Management Studio, DBeaver, DataGrip, v.v.):
+
+```sql
+SELECT *
+FROM tTransactions
+WHERE deleted = 1;
+```
+
+Kết quả của câu lệnh này sẽ hiển thị tất cả các giao dịch mà người dùng đã xóa nhưng vẫn còn trong hệ thống.
+
+**2. Khôi phục giao dịch:**
+
+Để khôi phục một hoặc nhiều giao dịch đã xóa mềm, Admin cần cập nhật giá trị của cột `deleted` từ `1` thành `0` cho các giao dịch đó.
+
+*   **Khôi phục một giao dịch cụ thể (ví dụ: giao dịch có ID là 123):**
+
+    ```sql
+    UPDATE tTransactions
+    SET deleted = 0
+    WHERE id = 123;
+    ```
+
+*   **Khôi phục nhiều giao dịch (ví dụ: các giao dịch có ID 123, 124, 125):**
+
+    ```sql
+    UPDATE tTransactions
+    SET deleted = 0
+    WHERE id IN (123, 124, 125);
+    ```
+
+*   **Khôi phục tất cả giao dịch đã xóa mềm của một người dùng cụ thể (ví dụ: người dùng có acc_id là 456):**
+
+    ```sql
+    UPDATE tTransactions
+    SET deleted = 0
+    WHERE acc_id = 456 AND deleted = 1;
+    ```
+
+**Lưu ý quan trọng:**
+
+*   Hãy đảm bảo rằng bạn đang thao tác trên cơ sở dữ liệu chính xác.
+*   Luôn sao lưu dữ liệu trước khi thực hiện các thay đổi lớn.
+*   Chỉ khôi phục các giao dịch khi có yêu cầu hợp lệ hoặc khi cần thiết cho mục đích quản lý.
+*   Sau khi khôi phục, giao dịch sẽ hiển thị lại cho người dùng và được tính vào các báo cáo.

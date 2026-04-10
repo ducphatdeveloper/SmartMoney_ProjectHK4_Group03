@@ -82,6 +82,20 @@ public class AdminController {
         return ResponseEntity.ok(ApiResponse.success(adminService.getAllUserTransactions(id, deletedStatus, type)));
     }
 
+    @PatchMapping("/transactions/{id}/restore")
+    @PreAuthorize("hasRole('ROLE_ADMIN') or hasAuthority('ADMIN_SYSTEM_ALL')")
+    public ResponseEntity<ApiResponse<String>> restoreTransaction(@PathVariable("id") Long id) {
+        adminService.restoreTransaction(id);
+        return ResponseEntity.ok(ApiResponse.success("Giao dịch đã được khôi phục thành công."));
+    }
+
+    @PatchMapping("/users/{userId}/transactions/restore-all")
+    @PreAuthorize("hasRole('ROLE_ADMIN') or hasAuthority('ADMIN_SYSTEM_ALL')")
+    public ResponseEntity<ApiResponse<String>> restoreAllUserTransactions(@PathVariable("userId") Integer userId) {
+        adminService.restoreAllUserTransactions(userId);
+        return ResponseEntity.ok(ApiResponse.success("Tất cả giao dịch của người dùng đã được khôi phục."));
+    }
+
     @GetMapping("/stats")
     @PreAuthorize("hasRole('ROLE_ADMIN') or hasAuthority('ADMIN_SYSTEM_ALL')")
     public ResponseEntity<ApiResponse<Map<String, Object>>> getStats() {
@@ -106,20 +120,20 @@ public class AdminController {
         return ResponseEntity.ok(ApiResponse.success(adminService.countOnlineUsers()));
     }
 
-    @PostMapping("/system/notify-abnormal")
-    @PreAuthorize("hasRole('ROLE_ADMIN') or hasAuthority('ADMIN_SYSTEM_ALL')")
-    public ResponseEntity<ApiResponse<String>> notifyAbnormalTransactions(
-            @RequestParam(value = "threshold", defaultValue = "5000000") BigDecimal threshold) {
-        adminService.notifyAbnormalTransactions(threshold);
-        return ResponseEntity.ok(ApiResponse.success("Đã gửi thông báo."));
-    }
+//    @PostMapping("/system/notify-abnormal")
+//    @PreAuthorize("hasRole('ROLE_ADMIN') or hasAuthority('ADMIN_SYSTEM_ALL')")
+//    public ResponseEntity<ApiResponse<String>> notifyAbnormalTransactions(
+//            @RequestParam(value = "threshold", defaultValue = "5000000") BigDecimal threshold) {
+//        adminService.notifyAbnormalTransactions(threshold);
+//        return ResponseEntity.ok(ApiResponse.success("Đã gửi thông báo."));
+//    }
 
-    @GetMapping("/system/abnormal-users")
-    @PreAuthorize("hasRole('ROLE_ADMIN') or hasAuthority('ADMIN_SYSTEM_ALL')")
-    public ResponseEntity<ApiResponse<List<Map<String, Object>>>> getAbnormalUsers(
-            @RequestParam(value = "threshold", defaultValue = "5000000") BigDecimal threshold) {
-        return ResponseEntity.ok(ApiResponse.success(adminService.getAbnormalTransactionUsers(threshold)));
-    }
+//    @GetMapping("/system/abnormal-users")
+//    @PreAuthorize("hasRole('ROLE_ADMIN') or hasAuthority('ADMIN_SYSTEM_ALL')")
+//    public ResponseEntity<ApiResponse<List<Map<String, Object>>>> getAbnormalUsers(
+//            @RequestParam(value = "threshold", defaultValue = "5000000") BigDecimal threshold) {
+//        return ResponseEntity.ok(ApiResponse.success(adminService.getAbnormalTransactionUsers(threshold)));
+//    }
 
     @PostMapping("/system/auto-logout")
     @PreAuthorize("hasRole('ROLE_ADMIN') or hasAuthority('ADMIN_SYSTEM_ALL')")

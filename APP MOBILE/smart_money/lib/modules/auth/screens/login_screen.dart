@@ -20,6 +20,17 @@ class _LoginScreenState extends State<LoginScreen> {
   String? _usernameError;
   String? _passwordError;
 
+  // =============================================
+  // [N] _showSnackBar — Hiện thông báo (copy vào mọi Screen)
+  // =============================================
+  void _showSnackBar(String message, {bool isError = true}) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(message),
+      backgroundColor: isError ? Colors.redAccent : Colors.green,
+      duration: const Duration(seconds: 3),
+    ));
+  }
+
   @override
   Widget build(BuildContext context) {
 
@@ -249,30 +260,36 @@ class _LoginScreenState extends State<LoginScreen> {
                                 _passwordError = null;
                               });
 
-                              final errors = await authProvider.login(
-                                  usernameController.text,
-                                  passwordController.text);
+                              // Validate client-side nhanh (tránh gọi API thừa)
+                              if (usernameController.text.trim().isEmpty) {
+                                _showSnackBar('Tên đăng nhập không được để trống');
+                                return;
+                              }
+                              if (passwordController.text.trim().isEmpty) {
+                                _showSnackBar('Mật khẩu không được để trống');
+                                return;
+                              }
 
-                              if (errors == null) {
-                                if (!mounted) return;
+                              // Bước 2: Gọi Provider
+                              final success = await authProvider.login(
+                                usernameController.text,
+                                passwordController.text,
+                              );
+
+                              // Bước 3: LUÔN check mounted sau await (bắt buộc, không bỏ)
+                              if (!mounted) return;
+
+                              // Bước 4: Hiện kết quả cho user
+                              if (success) {
+                                _showSnackBar(authProvider.successMessage ?? 'Đăng nhập thành công!', isError: false);
                                 context.go("/main");
                               } else {
-                                if (!mounted) return;
                                 setState(() {
-                                  _usernameError = errors['username'];
-                                  _passwordError = errors['password'];
+                                  // Key phải khớp tên field trong DTO Java
+                                  _usernameError = authProvider.fieldErrors['username'];
+                                  _passwordError = authProvider.fieldErrors['password'];
                                 });
-
-                                if (errors.containsKey('general')) {
-                                   ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(content: Text(errors['general']!)),
-                                  );
-                                } else if (_usernameError == null && _passwordError == null) {
-                                  // Trường hợp lỗi chung từ backend (VD: 401 Bad Credentials)
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(content: Text("Invalid username or password")),
-                                  );
-                                }
+                                _showSnackBar(authProvider.errorMessage ?? 'Có lỗi xảy ra');
                               }
 
                             },

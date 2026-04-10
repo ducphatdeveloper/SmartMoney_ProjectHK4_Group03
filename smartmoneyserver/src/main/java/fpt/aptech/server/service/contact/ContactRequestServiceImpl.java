@@ -29,7 +29,14 @@ public class ContactRequestServiceImpl implements ContactRequestService {
     private final ContactRequestMapper      contactRequestMapper;
     private final AccountRepository         accountRepository;
     private final NotificationService       notificationService;
-    private final AdminService              adminService;
+
+    // [FIX] Sử dụng Lazy Setter Injection để tránh Circular Dependency với AdminService
+    private AdminService adminService;
+    @org.springframework.context.annotation.Lazy
+    @org.springframework.beans.factory.annotation.Autowired
+    public void setAdminService(AdminService adminService) {
+        this.adminService = adminService;
+    }
 
     @Override
     @Transactional
@@ -167,5 +174,32 @@ public class ContactRequestServiceImpl implements ContactRequestService {
                 .requestStatus(ContactRequestStatus.PENDING)
                 .build();
         return contactRequestRepository.save(entity);
+    }
+
+    /**
+     * [TRIỂN KHAI] Tự động xử lý các ticket nghi vấn khi Admin thực hiện Lock/Unlock tài khoản.
+     */
+    @Override
+    @Transactional
+    public void handleSecurityAction(Integer accountId, String action, String note) {
+        // 1. Tìm các ticket "Giao dịch bất thường" đang ở trạng thái PENDING
+        List<ContactRequest> pendingRequests = contactRequestRepository.findAllByFilters(
+                ContactRequestStatus.PENDING, 
+                ContactRequestType.SUSPICIOUS_TX, 
+                null
+        ).stream()
+        .filter(r -> r.getAccount() != null && r.getAccount().getId().equals(accountId))
+        .toList();
+
+        if (pendingRequests.isEmpty()) return;
+
+        // 2. Cập nhật trạng thái và ghi chú tự động cho các ticket này
+        for (ContactRequest ticket : pendingRequests) {
+            ticket.setRequestStatus(ContactRequestStatus.APPROVED);
+            ticket.setAdminNote("[Hệ thống tự động] " + note);
+            ticket.setResolvedAt(LocalDateTime.now());
+        }
+        
+        contactRequestRepository.saveAll(pendingRequests);
     }
 }
