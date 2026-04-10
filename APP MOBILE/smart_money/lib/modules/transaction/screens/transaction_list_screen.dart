@@ -74,7 +74,7 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
                   const SizedBox(height: 16),
                   ElevatedButton(
                     onPressed: () => provider.refresh(),
-                    child: const Text('Thử lại'),
+                    child: const Text('Retry'),
                   ),
                 ],
               ),
@@ -91,7 +91,7 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
                 TransactionDateSlider(scrollController: _dateScrollController),
 
               if (provider.isAllMode)
-                const TransactionSpecialModeLabel(label: 'Tất cả thời gian'),
+                const TransactionSpecialModeLabel(label: 'All the time'),
               if (provider.isCustomMode && provider.selectedDateRange != null)
                 TransactionSpecialModeLabel(
                     label: provider.selectedDateRange!.label),

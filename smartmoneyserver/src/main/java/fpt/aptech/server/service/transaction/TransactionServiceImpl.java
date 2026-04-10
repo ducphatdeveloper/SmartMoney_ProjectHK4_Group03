@@ -1115,13 +1115,18 @@ public class TransactionServiceImpl implements TransactionService {
     }
 
     /**
-     * [5.6] Phát hiện giao dịch bất thường và tạo cảnh báo cho User.
-     * Logic thông báo Admin đã được gỡ bỏ theo yêu cầu: Ticket (ContactRequest) vẫn được tạo 
-     * để Admin xử lý trong trang quản lý, nhưng không bắn thông báo (push notification) cho Admin.
+     * [5.6] Phát hiện giao dịch bất thường và tạo cảnh báo cho User + tất cả Admin.
      *
      * Kịch bản 1 — Vượt ngưỡng: khoản CHI > 50.000.000đ.
      * Kịch bản 2 — Spam       : cùng số tiền xuất hiện ≥ 3 lần trong 10 phút (theo created_at).
      * Kịch bản 3 — Lặp ngày   : cùng số tiền, cùng khung giờ ±30 phút, trong 3 ngày liên tiếp.
+     *
+     * Luồng khi phát hiện:
+     *   A. Tạo ticket tContactRequests (SUSPICIOUS_TX | URGENT | PENDING) → lấy ticket.id
+     *   B. Notify User   — related_id = giao dịch bất thường (để Flutter navigate đến chi tiết giao dịch)
+     *   C. Notify N Admin — related_id = ticket.id (để Admin navigate đến ticket cần xử lý)
+     *
+     * CHÚ Ý: Chỉ kiểm tra kịch bản đầu tiên phát hiện được → 1 ticket / 1 giao dịch.
      */
     private void checkSuspiciousTransaction(Transaction tx, Account currentUser, Integer accountId) {
         String reason = null;

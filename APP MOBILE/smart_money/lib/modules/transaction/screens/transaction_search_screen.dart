@@ -690,7 +690,7 @@ class _TransactionSearchScreenState extends State<TransactionSearchScreen> {
                   // --- Tất cả các ví ---
                   ListTile(
                     leading: _buildWalletFallbackIcon('all', 40),
-                    title: const Text('Tất cả các ví', style: TextStyle(color: Colors.white)),
+                    title: const Text('All wallets', style: TextStyle(color: Colors.white)),
                     trailing: (_selectedWallet == null && _selectedGoal == null)
                         ? const Icon(Icons.check_circle, color: Colors.green)
                         : null,
@@ -706,7 +706,7 @@ class _TransactionSearchScreenState extends State<TransactionSearchScreen> {
                   if (_wallets.isNotEmpty) ...[
                     const Padding(
                       padding: EdgeInsets.fromLTRB(16, 8, 16, 4),
-                      child: Text('VÍ CÁ NHÂN', style: TextStyle(color: Colors.grey, fontSize: 11)),
+                      child: Text('PERSONAL WALLET', style: TextStyle(color: Colors.grey, fontSize: 11)),
                     ),
                     ..._wallets.map((w) {
                       final isSelected = _selectedWallet?.id == w.id;
@@ -740,7 +740,7 @@ class _TransactionSearchScreenState extends State<TransactionSearchScreen> {
                   if (_goals.isNotEmpty) ...[
                     const Padding(
                       padding: EdgeInsets.fromLTRB(16, 8, 16, 4),
-                      child: Text('MỤC TIÊU TIẾT KIỆM', style: TextStyle(color: Colors.grey, fontSize: 11)),
+                      child: Text('SAVINGS GOALS', style: TextStyle(color: Colors.grey, fontSize: 11)),
                     ),
                     ..._goals.map((g) {
                       final isSelected = _selectedGoal?.id == g.id;
@@ -787,16 +787,16 @@ class _TransactionSearchScreenState extends State<TransactionSearchScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildFilterLabel("THỜI GIAN"),
+        _buildFilterLabel("TIME"),
         const SizedBox(height: 8),
         // 4 chip chọn khoảng thời gian
         Wrap(
           spacing: 8,
           runSpacing: 4,
           children: [
-            _buildChip(label: "Tất cả",      value: "all",        timeChip: true),
-            _buildChip(label: "Tháng này",   value: "this_month", timeChip: true),
-            _buildChip(label: "Tháng trước", value: "last_month", timeChip: true),
+            _buildChip(label: "All",      value: "all",        timeChip: true),
+            _buildChip(label: "Last month",   value: "this_month", timeChip: true),
+            _buildChip(label: "This month", value: "last_month", timeChip: true),
             // Chip tùy chọn — bấm vào mở DateRangePicker
             GestureDetector(
               onTap: _openDateRangePicker,
@@ -804,7 +804,7 @@ class _TransactionSearchScreenState extends State<TransactionSearchScreen> {
                 label: Text(
                   (_timeFilter == 'custom' && _customStartDate != null)
                       ? '${FormatHelper.formatDate(_customStartDate!)} → ${FormatHelper.formatDate(_customEndDate!)}'
-                      : "Tùy chọn",
+                      : "Options",
                   style: TextStyle(
                     color: _timeFilter == 'custom' ? Colors.black : Colors.white,
                     fontSize: 12,
@@ -824,7 +824,7 @@ class _TransactionSearchScreenState extends State<TransactionSearchScreen> {
   // =============================================
   Widget _buildCategoryFilter() {
     return _buildFilterRow(
-      label: "NHÓM",
+      label: "CATEGORY",
       // Hiện tên nhóm đã chọn hoặc "Tất cả các nhóm"
       child: GestureDetector(
         onTap: _openCategoryPicker, // mở CategoryListScreen ở chế độ chọn
@@ -853,7 +853,7 @@ class _TransactionSearchScreenState extends State<TransactionSearchScreen> {
             // Tên category
             Expanded(
               child: Text(
-                _selectedCategory?.ctgName ?? "Tất cả các nhóm",
+                _selectedCategory?.ctgName ?? "All categorys",
                 style: TextStyle(
                   color: _selectedCategory != null ? Colors.white : Colors.grey,
                 ),
@@ -887,7 +887,7 @@ class _TransactionSearchScreenState extends State<TransactionSearchScreen> {
               Icon(Icons.search, color: Colors.grey, size: 48),
               SizedBox(height: 12),
               Text(
-                "Đặt bộ lọc và bấm TÌM KIẾM",
+                "Set the filters and click SEARCH.",
                 style: TextStyle(color: Colors.grey, fontSize: 14),
               ),
             ],
@@ -923,7 +923,7 @@ class _TransactionSearchScreenState extends State<TransactionSearchScreen> {
             children: [
               Icon(Icons.search_off, color: Colors.grey, size: 48),
               SizedBox(height: 12),
-              Text("Không tìm thấy kết quả", style: TextStyle(color: Colors.grey)),
+              Text("No results found", style: TextStyle(color: Colors.grey)),
             ],
           ),
         ),
@@ -938,7 +938,7 @@ class _TransactionSearchScreenState extends State<TransactionSearchScreen> {
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           child: Text(
-            "${_results.length} kết quả",
+            "${_results.length} result",
             style: const TextStyle(color: Colors.grey, fontSize: 13),
           ),
         ),
@@ -980,7 +980,7 @@ class _TransactionSearchScreenState extends State<TransactionSearchScreen> {
         ),
       ),
       title: Text(
-        tx.categoryName ?? "Không có nhóm",
+        tx.categoryName ?? "No category",
         style: const TextStyle(color: Colors.white, fontSize: 14),
       ),
       subtitle: Column(
@@ -1057,15 +1057,15 @@ class _TransactionSearchScreenState extends State<TransactionSearchScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: Colors.grey[900],
-        title: const Text('Xóa giao dịch', style: TextStyle(color: Colors.white)),
+        title: const Text('Delete transaction', style: TextStyle(color: Colors.white)),
         content: const Text(
-          'Bạn có chắc muốn xóa giao dịch này?',
+          'Are you sure you want to delete this transaction?',
           style: TextStyle(color: Colors.grey),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Hủy', style: TextStyle(color: Colors.grey)),
+            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
           ),
           TextButton(
             onPressed: () async {

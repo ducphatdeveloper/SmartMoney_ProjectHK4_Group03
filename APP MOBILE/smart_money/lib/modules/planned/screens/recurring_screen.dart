@@ -84,7 +84,7 @@ class _RecurringScreenState extends State<RecurringScreen> with SingleTickerProv
         _wallets = response.data!;
       }
     } catch (e) {
-      debugPrint('❌ [RecurringScreen] Lỗi tải ví: $e');
+      debugPrint('❌ [RecurringScreen] Wallet loading error: $e');
     }
 
     _isLoadingWallets = false;
@@ -126,7 +126,7 @@ class _RecurringScreenState extends State<RecurringScreen> with SingleTickerProv
       // [TODO i18n] Hard-coded title string — migrate to AppLocalizations
       // [0b] Giảm fontSize xuống 15 để không bị tràn khi hiển thị cùng wallet dropdown
       title: const Text(
-        'Giao dịch định kỳ',
+        'Recurring transactions',
         style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w600),
         overflow: TextOverflow.ellipsis,
       ),
@@ -140,8 +140,8 @@ class _RecurringScreenState extends State<RecurringScreen> with SingleTickerProv
         labelColor: const Color(0xFF4CAF50),
         unselectedLabelColor: const Color(0xFF8E8E93),
         tabs: const [
-          Tab(text: 'ĐANG DIỄN RA'),
-          Tab(text: 'ĐÃ KẾT THÚC'),
+          Tab(text: 'ONGOING'),
+          Tab(text: 'ITS OVER'),
         ],
       ),
     );
@@ -159,7 +159,7 @@ class _RecurringScreenState extends State<RecurringScreen> with SingleTickerProv
         final selected = recurringProv.selectedWalletId;
 
         // Tìm tên ví đang chọn để hiển thị trên AppBar
-        String displayName = 'Tất cả ví';
+        String displayName = 'All wallets';
         if (selected != null) {
           final found = wallets.where((w) => w.id == selected);
           if (found.isNotEmpty) displayName = found.first.walletName;
@@ -228,7 +228,7 @@ class _RecurringScreenState extends State<RecurringScreen> with SingleTickerProv
             // [TODO i18n] Hard-coded BottomSheet header
             const Padding(
               padding: EdgeInsets.all(16),
-              child: Text('Chọn ví', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
+              child: Text('Choose a wallet', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
             ),
             const Divider(height: 1, color: Color(0xFF3A3A3C)),
 
@@ -245,7 +245,7 @@ class _RecurringScreenState extends State<RecurringScreen> with SingleTickerProv
               ),
               // [TODO i18n] Hard-coded list tile label
               title: Text(
-                'Tất cả ví',
+                'All wallets',
                 style: TextStyle(
                   color: recurringProv.selectedWalletId == null ? const Color(0xFF4CAF50) : Colors.white,
                   fontWeight: recurringProv.selectedWalletId == null ? FontWeight.bold : FontWeight.normal,
@@ -377,7 +377,7 @@ class _RecurringScreenState extends State<RecurringScreen> with SingleTickerProv
                     ),
                     const SizedBox(width: 12),
                     const Text(
-                      'Thêm giao dịch định kỳ',
+                      'Add recurring transactions',
                       style: TextStyle(
                         color: Color(0xFF4CAF50),
                         fontSize: 15,
@@ -417,7 +417,7 @@ class _RecurringScreenState extends State<RecurringScreen> with SingleTickerProv
     }
 
     if (items.isEmpty) {
-      return _buildEmptyState('Chưa có giao dịch định kỳ đang diễn ra.\nNhấn + để thêm mới.');
+      return _buildEmptyState('No recurring transactions are currently taking place.\nPress + to add new.');
     }
 
     // [0a] Dùng ListView thay vì ListView.builder để thêm header label "Các giao dịch cố định"
@@ -428,7 +428,7 @@ class _RecurringScreenState extends State<RecurringScreen> with SingleTickerProv
         const Padding(
           padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           child: Text(
-            'Các giao dịch cố định',
+            'Fixed transactions',
             style: TextStyle(
               color: Color(0xFF8E8E93),
               fontSize: 13,
@@ -456,7 +456,7 @@ class _RecurringScreenState extends State<RecurringScreen> with SingleTickerProv
     }
 
     if (items.isEmpty) {
-      return _buildEmptyState('Không có giao dịch định kỳ đã kết thúc.');
+      return _buildEmptyState('No recurring transactions have been completed.');
     }
 
     return ListView.builder(
@@ -510,7 +510,7 @@ class _RecurringScreenState extends State<RecurringScreen> with SingleTickerProv
           const SizedBox(height: 16),
           TextButton(
             onPressed: onRetry,
-            child: const Text('Thử lại', style: TextStyle(color: Color(0xFF4CAF50))),
+            child: const Text('Retry', style: TextStyle(color: Color(0xFF4CAF50))),
           ),
         ],
       ),
@@ -551,7 +551,7 @@ class _RecurringScreenState extends State<RecurringScreen> with SingleTickerProv
               IconHelper.buildCircleAvatar(iconUrl: item.categoryIcon, radius: 28),
               const SizedBox(height: 8),
               Text(
-                item.categoryName ?? 'Giao dịch định kỳ',
+                item.categoryName ?? 'Recurring transactions',
                 style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: 4),
@@ -588,7 +588,7 @@ class _RecurringScreenState extends State<RecurringScreen> with SingleTickerProv
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        'Lần tới: ${item.nextDueDateLabel}',
+                        'Next time: ${item.nextDueDateLabel}',
                         style: const TextStyle(color: Color(0xFF8E8E93), fontSize: 13),
                       ),
                     ),
@@ -602,7 +602,7 @@ class _RecurringScreenState extends State<RecurringScreen> with SingleTickerProv
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        'Lần tới: ${FormatHelper.formatDisplayDate(item.nextDueDate!)}',
+                        'Next time: ${FormatHelper.formatDisplayDate(item.nextDueDate!)}',
                         style: const TextStyle(color: Color(0xFF8E8E93), fontSize: 13),
                       ),
                     ),
@@ -633,7 +633,7 @@ class _RecurringScreenState extends State<RecurringScreen> with SingleTickerProv
               // Nếu debt đã finished → hiện lỗi, không cho toggle
               SwitchListTile(
                 title: const Text(
-                  'Đang diễn ra', // [TODO i18n]
+                  'In progress', // [TODO i18n]
                   style: TextStyle(color: Colors.white, fontSize: 15),
                 ),
                 value: item.active ?? false,
@@ -651,7 +651,7 @@ class _RecurringScreenState extends State<RecurringScreen> with SingleTickerProv
                           children: [
                             CircularProgressIndicator(color: Color(0xFF4CAF50)),
                             SizedBox(width: 16),
-                            Text('Đang kiểm tra...', style: TextStyle(color: Colors.white)),
+                            Text('Checking...', style: TextStyle(color: Colors.white)),
                           ],
                         ),
                       ),
@@ -684,7 +684,7 @@ class _RecurringScreenState extends State<RecurringScreen> with SingleTickerProv
                       if (!mounted) return;
                       Navigator.pop(ctx); // Đóng bottom sheet
                       _showSnackBar(
-                        'Khoản nợ đã thanh toán xong, không thể kích hoạt lại',
+                        'The debt has been paid off and cannot be reactivated.',
                         isError: true,
                       );
                       return;
@@ -701,9 +701,9 @@ class _RecurringScreenState extends State<RecurringScreen> with SingleTickerProv
                   if (success) {
                     // Reload lists so UI updates immediately
                     provider.loadAll();
-                    _showSnackBar(provider.successMessage ?? 'Cập nhật trạng thái thành công');
+                    _showSnackBar(provider.successMessage ?? 'Status update successful');
                   } else {
-                    _showSnackBar(provider.errorMessage ?? 'Có lỗi xảy ra khi cập nhật trạng thái', isError: true);
+                    _showSnackBar(provider.errorMessage ?? 'An error occurred while updating the status.', isError: true);
                   }
                 },
                 // `activeColor` deprecated — use `activeThumbColor` (thumb color when active)
@@ -721,7 +721,7 @@ class _RecurringScreenState extends State<RecurringScreen> with SingleTickerProv
                   Expanded(
                     child: OutlinedButton.icon(
                       icon: const Icon(Icons.edit_outlined, color: Color(0xFF4CAF50), size: 18),
-                      label: const Text('Sửa', style: TextStyle(color: Color(0xFF4CAF50), fontSize: 13)),
+                      label: const Text('Edit', style: TextStyle(color: Color(0xFF4CAF50), fontSize: 13)),
                       style: OutlinedButton.styleFrom(
                         side: const BorderSide(color: Color(0xFF4CAF50)),
                         padding: const EdgeInsets.symmetric(vertical: 10),
@@ -738,7 +738,7 @@ class _RecurringScreenState extends State<RecurringScreen> with SingleTickerProv
                   Expanded(
                     child: OutlinedButton.icon(
                       icon: const Icon(Icons.delete_outline, color: Color(0xFFFF3B30), size: 18),
-                      label: const Text('Xóa', style: TextStyle(color: Color(0xFFFF3B30), fontSize: 13)),
+                      label: const Text('Delete', style: TextStyle(color: Color(0xFFFF3B30), fontSize: 13)),
                       style: OutlinedButton.styleFrom(
                         side: const BorderSide(color: Color(0xFFFF3B30)),
                         padding: const EdgeInsets.symmetric(vertical: 10),
@@ -771,7 +771,7 @@ class _RecurringScreenState extends State<RecurringScreen> with SingleTickerProv
 
     // Nếu tạo thành công → provider đã tự reload
     if (result == true && mounted) {
-      _showSnackBar('Đã tạo giao dịch định kỳ');
+      _showSnackBar('Recurring transactions have been created.');
       // Sau khi tạo thành công, reload lại cả hai tab
       Provider.of<RecurringProvider>(context, listen: false).loadAll();
     }
@@ -792,7 +792,7 @@ class _RecurringScreenState extends State<RecurringScreen> with SingleTickerProv
     );
 
     if (result == true && mounted) {
-      _showSnackBar('Đã cập nhật giao dịch định kỳ');
+      _showSnackBar('Regular transaction updates have been made.');
       // Sau khi cập nhật thành công, reload lại cả hai tab
       Provider.of<RecurringProvider>(context, listen: false).loadAll();
     }
@@ -807,17 +807,17 @@ class _RecurringScreenState extends State<RecurringScreen> with SingleTickerProv
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF2C2C2E),
         title: const Text(
-          'Xóa giao dịch định kỳ?',
+          'Delete recurring transactions?',
           style: TextStyle(color: Colors.white, fontSize: 16),
         ),
         content: Text(
-          'Bạn có chắc muốn xóa "${item.categoryName ?? ''}"?',
+          'Are you sure you want to delete it? "${item.categoryName ?? ''}"?',
           style: const TextStyle(color: Color(0xFF8E8E93), fontSize: 14),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Không', style: TextStyle(color: Color(0xFF8E8E93))),
+            child: const Text('Are not', style: TextStyle(color: Color(0xFF8E8E93))),
           ),
           TextButton(
             onPressed: () async {
@@ -829,14 +829,14 @@ class _RecurringScreenState extends State<RecurringScreen> with SingleTickerProv
               if (!mounted) return;
 
               if (success) {
-                _showSnackBar('Đã xóa giao dịch định kỳ');
+                _showSnackBar('Recurring transaction deleted');
                 // Sau khi xóa thành công, reload lại cả hai tab
                 provider.loadAll();
               } else {
-                _showSnackBar(provider.errorMessage ?? 'Có lỗi xảy ra', isError: true);
+                _showSnackBar(provider.errorMessage ?? 'An error occurred.', isError: true);
               }
             },
-            child: const Text('Xóa', style: TextStyle(color: Color(0xFFFF3B30))),
+            child: const Text('Erase', style: TextStyle(color: Color(0xFFFF3B30))),
           ),
         ],
       ),

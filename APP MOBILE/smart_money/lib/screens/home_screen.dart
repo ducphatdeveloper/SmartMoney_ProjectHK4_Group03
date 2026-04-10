@@ -205,7 +205,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
               /// RECENT TRANSACTIONS
               const Text(
-                "Giao dịch gần đây",
+                "Recent transactions",
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
@@ -225,7 +225,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       child: Icon(Icons.fastfood, color: Colors.white),
                     ),
                     title: Text("Ăn uống"),
-                    subtitle: Text("Hôm nay"),
+                    subtitle: Text("Today"),
                     trailing: Text(
                       "-50,000 đ",
                       style: TextStyle(
@@ -241,7 +241,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       child: Icon(Icons.directions_car, color: Colors.white),
                     ),
                     title: Text("Xăng xe"),
-                    subtitle: Text("Hôm qua"),
+                    subtitle: Text("Yesterday"),
                     trailing: Text(
                       "-40,000 đ",
                       style: TextStyle(

@@ -100,9 +100,9 @@ class _DebtEditScreenState extends State<DebtEditScreen> {
       // Hạn trả phải là tương lai — không chọn quá khứ
       firstDate: DateTime.now(),
       lastDate: DateTime(2030, 12, 31),
-      helpText: 'Chọn ngày hẹn trả',
-      confirmText: 'Xác nhận',
-      cancelText: 'Hủy',
+      helpText: 'Choose a return date',
+      confirmText: 'Confirm',
+      cancelText: 'Cancel',
     );
 
     if (picked != null) {
@@ -146,7 +146,7 @@ class _DebtEditScreenState extends State<DebtEditScreen> {
       Navigator.pop(context, true);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Cập nhật khoản nợ thành công'),
+          content: Text('Debt update successful'),
           backgroundColor: Colors.green,
         ),
       );
@@ -155,7 +155,7 @@ class _DebtEditScreenState extends State<DebtEditScreen> {
       final error = context.read<DebtProvider>().errorMessage;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(error ?? 'Cập nhật thất bại'),
+          content: Text(error ?? 'Update failed'),
           backgroundColor: Colors.red,
         ),
       );
@@ -173,7 +173,7 @@ class _DebtEditScreenState extends State<DebtEditScreen> {
         return Scaffold(
           appBar: AppBar(
             title: Text(
-              widget.debtType ? 'Sửa khoản cho vay' : 'Sửa khoản đi vay',
+              widget.debtType ? 'Modify the loan' : 'Modify the debt',
             ),
             actions: [
               // Nút Lưu trên AppBar — disable khi đang gửi
@@ -214,8 +214,8 @@ class _DebtEditScreenState extends State<DebtEditScreen> {
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          'Chỉ có thể sửa tên người, ngày hẹn và ghi chú.\n'
-                          'Số tiền thay đổi thông qua giao dịch.',
+                          'Only names, appointment dates, and notes can be edited.\n'
+                          'The amount changes throughout the transaction.',
                           style: TextStyle(
                               fontSize: 12, color: Colors.blue[700]),
                         ),
@@ -226,7 +226,7 @@ class _DebtEditScreenState extends State<DebtEditScreen> {
 
                 // ----- [Field 1] Tên người vay/cho vay -----
                 const Text(
-                  'Tên người liên quan *',
+                  'Name of person involved *',
                   style: TextStyle(
                       fontWeight: FontWeight.w600, fontSize: 13),
                 ),
@@ -236,8 +236,8 @@ class _DebtEditScreenState extends State<DebtEditScreen> {
                   textInputAction: TextInputAction.next,
                   decoration: InputDecoration(
                     hintText: widget.debtType
-                        ? 'VD: Bạn A, Em Khoa...'
-                        : 'VD: Ngân hàng VPBank, Bạn Hùng...',
+                        ? 'Example: Friend A, Khoa...'
+                        : 'For example: VPBank, Mr. Hung...',
                     prefixIcon:
                         const Icon(Icons.person_outline, size: 20),
                     border: OutlineInputBorder(
@@ -246,11 +246,11 @@ class _DebtEditScreenState extends State<DebtEditScreen> {
                   validator: (value) {
                     if (value == null || value.trim().isEmpty) {
                       // Khớp với validate backend: @NotBlank
-                      return 'Tên người liên quan không được để trống.';
+                      return 'The name of the person involved cannot be left blank.';
                     }
                     if (value.trim().length > 200) {
                       // Khớp với validate backend: @Size(max=200)
-                      return 'Tên người liên quan không được quá 200 ký tự.';
+                      return 'The name of the person involved must not exceed 200 characters.';
                     }
                     return null;
                   },
@@ -259,7 +259,7 @@ class _DebtEditScreenState extends State<DebtEditScreen> {
 
                 // ----- [Field 2] Ngày hẹn trả -----
                 const Text(
-                  'Ngày hẹn trả',
+                  'Delivery date',
                   style: TextStyle(
                       fontWeight: FontWeight.w600, fontSize: 13),
                 ),
@@ -287,7 +287,7 @@ class _DebtEditScreenState extends State<DebtEditScreen> {
                                     '${_selectedDueDate!.month.toString().padLeft(2, '0')}/'
                                     '${_selectedDueDate!.year}'
                                 // Chưa chọn → placeholder
-                                : 'Không đặt hạn trả',
+                                : 'No payment deadline.',
                             style: TextStyle(
                               color: _selectedDueDate != null
                                   ? null
@@ -321,7 +321,7 @@ class _DebtEditScreenState extends State<DebtEditScreen> {
                   maxLines: 3,
                   maxLength: 500, // Khớp backend @Size(max=500)
                   decoration: InputDecoration(
-                    hintText: 'VD: Vay mua xe, Học phí...',
+                    hintText: 'Examples: Car loan, tuition fees...',
                     prefixIcon: const Padding(
                       padding: EdgeInsets.only(bottom: 40),
                       child: Icon(Icons.notes, size: 20),
@@ -346,7 +346,7 @@ class _DebtEditScreenState extends State<DebtEditScreen> {
                     child: provider.isSaving
                         ? const CircularProgressIndicator(
                             strokeWidth: 2, color: Colors.white)
-                        : const Text('Lưu',
+                        : const Text('Save',
                             style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.bold)),

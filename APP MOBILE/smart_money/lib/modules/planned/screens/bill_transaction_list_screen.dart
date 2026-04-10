@@ -27,7 +27,7 @@ class BillTransactionListScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return CommonTransactionListScreen(
-      title: 'Giao dịch của: $billName',
+      title: 'Transactions of: $billName',
       filters: {'plannedId': billId.toString()},
     );
   }

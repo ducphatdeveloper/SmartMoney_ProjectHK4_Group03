@@ -40,7 +40,7 @@ class TransactionReportPanel extends StatelessWidget {
         if (provider.isAllMode) {
           startDate = DateTime(2000, 1, 1);
           endDate = DateTime(2099, 12, 31, 23, 59, 59);
-          periodLabel = 'Tất cả thời gian';
+          periodLabel = 'All the time';
         } else if (provider.selectedDateRange != null) {
           startDate = provider.selectedDateRange!.startDate;
           endDate = provider.selectedDateRange!.endDate;
@@ -51,13 +51,13 @@ class TransactionReportPanel extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Text('Chưa chọn khoảng thời gian',
+                const Text('Time period not selected',
                     style: TextStyle(color: Colors.grey)),
                 const SizedBox(height: 12),
                 TextButton.icon(
                   onPressed: onClose,
                   icon: const Icon(Icons.arrow_back, color: Colors.green),
-                  label: const Text('Quay lại',
+                  label: const Text('Go back',
                       style: TextStyle(color: Colors.green)),
                 ),
               ],
@@ -153,7 +153,7 @@ class _ReportLoaderState extends State<_ReportLoader> {
       if (!mounted) return;
       setState(() {
         _isLoading = false;
-        _errorMessage = 'Lỗi: ${e.toString()}';
+        _errorMessage = 'Error: ${e.toString()}';
       });
     }
   }
@@ -206,7 +206,7 @@ class _ReportLoaderState extends State<_ReportLoader> {
         IconButton(
           icon: const Icon(Icons.arrow_back_ios, color: Colors.white, size: 18),
           onPressed: widget.onClose,
-          tooltip: 'Quay lại danh sách',
+          tooltip: 'Return to list',
           padding: EdgeInsets.zero,
           constraints: const BoxConstraints(),
         ),
@@ -215,7 +215,7 @@ class _ReportLoaderState extends State<_ReportLoader> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Báo cáo tài chính',
+              const Text('Financial report',
                   style: TextStyle(
                       color: Colors.white,
                       fontSize: 15,
@@ -228,7 +228,7 @@ class _ReportLoaderState extends State<_ReportLoader> {
         IconButton(
           icon: const Icon(Icons.refresh, color: Colors.grey, size: 18),
           onPressed: _loadReport,
-          tooltip: 'Tải lại',
+          tooltip: 'Reload',
         ),
       ],
     );
@@ -251,7 +251,7 @@ class _ReportLoaderState extends State<_ReportLoader> {
             ElevatedButton(
               onPressed: _loadReport,
               style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-              child: const Text('Thử lại'),
+              child: const Text('Retry'),
             ),
           ],
         ),
@@ -265,16 +265,16 @@ class _ReportLoaderState extends State<_ReportLoader> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _sectionTitle(Icons.account_balance_wallet_outlined, 'Số dư'),
+          _sectionTitle(Icons.account_balance_wallet_outlined, 'Balance'),
           const SizedBox(height: 14),
           Row(
             children: [
               Expanded(
-                child: _balanceCol('Đầu kỳ', _report!.openingBalance, Colors.grey),
+                child: _balanceCol('Opening Balance', _report!.openingBalance, Colors.grey),
               ),
               Container(width: 1, height: 36, color: Colors.grey[800]),
               Expanded(
-                child: _balanceCol('Cuối kỳ', _report!.closingBalance, Colors.white, end: true),
+                child: _balanceCol('Closing Balance', _report!.closingBalance, Colors.white, end: true),
               ),
             ],
           ),
@@ -316,18 +316,18 @@ class _ReportLoaderState extends State<_ReportLoader> {
                 ),
               ),
               const SizedBox(width: 8),
-              const Text('Thu nhập ròng',
+              const Text('Net income',
                   style: TextStyle(
                       color: Colors.white,
                       fontSize: 15,
                       fontWeight: FontWeight.bold)),
               const Spacer(),
               GestureDetector(
-                onTap: () => _navigateToTransactionList('Tất cả giao dịch', {}),
+                onTap: () => _navigateToTransactionList('All transactions', {}),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text('Xem chi tiết',
+                    Text('See details',
                         style: TextStyle(color: Colors.green[400], fontSize: 12)),
                     Icon(Icons.chevron_right, color: Colors.green[400], size: 16),
                   ],
@@ -378,11 +378,11 @@ class _ReportLoaderState extends State<_ReportLoader> {
           Row(
             children: [
               Expanded(
-                child: _balanceCol('Tiền vào', _report!.totalIncome, Colors.blue),
+                child: _balanceCol('Total Income', _report!.totalIncome, Colors.blue),
               ),
               Container(width: 1, height: 36, color: Colors.grey[800]),
               Expanded(
-                child: _balanceCol('Tiền ra', _report!.totalExpense, Colors.red, end: true),
+                child: _balanceCol('Total Expense', _report!.totalExpense, Colors.red, end: true),
               ),
             ],
           ),
@@ -418,7 +418,7 @@ class _ReportLoaderState extends State<_ReportLoader> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _sectionTitle(Icons.pie_chart_outline_rounded, 'Báo cáo theo nhóm'),
+          _sectionTitle(Icons.pie_chart_outline_rounded, 'Category report'),
           const SizedBox(height: 14),
           Center(
             child: Padding(
@@ -449,22 +449,22 @@ class _ReportLoaderState extends State<_ReportLoader> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _sectionTitle(Icons.handshake_outlined, 'Nợ & Vay'),
+          _sectionTitle(Icons.handshake_outlined, 'Debt and Loans'),
           const SizedBox(height: 14),
           // Dòng 1 — Nợ (Đi vay) → categoryIds=20
           _debtRow(
-            Icons.arrow_circle_down_rounded, 'Khoản Nợ', debtAmount, Colors.orange,
-            onTap: () => _navigateToTransactionList('Đi vay', {'categoryIds': '20'}),
+            Icons.arrow_circle_down_rounded, 'Amount of Debt', debtAmount, Colors.orange,
+            onTap: () => _navigateToTransactionList('Borrow money', {'categoryIds': '20'}),
           ),
           // Dòng 2 — Cho vay → categoryIds=19
           _debtRow(
-            Icons.arrow_circle_up_rounded, 'Khoản cho vay', loanAmount, Colors.amber,
-            onTap: () => _navigateToTransactionList('Cho vay', {'categoryIds': '19'}),
+            Icons.arrow_circle_up_rounded, 'Loan amount', loanAmount, Colors.amber,
+            onTap: () => _navigateToTransactionList('Loan', {'categoryIds': '19'}),
           ),
           // Dòng 3 — Khác (Thu nợ − Trả nợ) → categoryIds=21,22
           _debtRow(
-            otherIcon, 'Đã trả / Đã thu', otherAmount, otherColor,
-            onTap: () => _navigateToTransactionList('Thu/Trả nợ', {'categoryIds': '21,22'}),
+            otherIcon, 'Paid / Received', otherAmount, otherColor,
+            onTap: () => _navigateToTransactionList('Debt Collection/Repayment', {'categoryIds': '21,22'}),
           ),
         ],
       ),

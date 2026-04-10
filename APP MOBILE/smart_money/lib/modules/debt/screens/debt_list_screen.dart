@@ -139,7 +139,7 @@ class _DebtListScreenState extends State<DebtListScreen>
         },
         backgroundColor: const Color(0xFF4CAF50),
         foregroundColor: Colors.white,
-        tooltip: 'Tạo giao dịch nợ mới',
+        tooltip: 'Create a new debt transaction.',
         child: const Icon(Icons.add),
       ),
       body: Column(
@@ -164,7 +164,7 @@ class _DebtListScreenState extends State<DebtListScreen>
 
   AppBar _buildAppBar() {
     return AppBar(
-      title: const Text('Sổ nợ'),
+      title: const Text('Debt book'),
       centerTitle: false,
       // [TODO] Thêm wallet picker icon khi có thời gian
       // actions: [IconButton(icon: ..., onPressed: ...)],
@@ -190,8 +190,8 @@ class _DebtListScreenState extends State<DebtListScreen>
         unselectedLabelColor: Colors.grey[500],
         labelStyle: const TextStyle(fontWeight: FontWeight.bold),
         tabs: const [
-          Tab(text: 'CẦN TRẢ'),
-          Tab(text: 'CẦN THU'),
+          Tab(text: 'DEBTS TO BE PAID'),
+          Tab(text: 'DEBTS TO BE COLLECTED'),
         ],
       ),
     );
@@ -227,7 +227,7 @@ class _DebtListScreenState extends State<DebtListScreen>
               // ----- Section 1: CHƯA TRẢ / CHƯA THU -----
               if (activeList.isNotEmpty) ...[
                 DebtSectionHeaderWidget(
-                  label: isPayable ? 'CHƯA TRẢ' : 'CHƯA THU',
+                  label: isPayable ? 'UNPAID DEBTS' : 'UNCOLLECTED DEBTS',
                   // Tổng số tiền còn phải trả/thu
                   totalAmount: activeList.fold(0, (sum, d) => sum + d.remainAmount),
                   color: isPayable ? Colors.red[600]! : Colors.blue[600]!,
@@ -241,7 +241,7 @@ class _DebtListScreenState extends State<DebtListScreen>
               // ----- Section 2: ĐÃ TRẢ HẾT / ĐÃ NHẬN HẾT -----
               if (doneList.isNotEmpty) ...[
                 DebtSectionHeaderWidget(
-                  label: isPayable ? 'ĐÃ TRẢ HẾT' : 'ĐÃ NHẬN HẾT',
+                  label: isPayable ? 'ALL DEBTS HAVE BEEN PAID.' : 'ALL DEBT HAVE BEEN COLLECTED.',
                   totalAmount: doneList.fold(0, (sum, d) => sum + d.totalAmount),
                   color: Colors.grey[500]!,
                 ),
@@ -275,7 +275,7 @@ class _DebtListScreenState extends State<DebtListScreen>
           ),
           const SizedBox(height: 8),
           Text(
-            'Tạo giao dịch "${isPayable ? 'Đi vay' : 'Cho vay'}" để bắt đầu',
+            'Create a transaction "${isPayable ? 'Đi vay' : 'Cho vay'}" to begin',
             style: TextStyle(color: Colors.grey[400], fontSize: 13),
           ),
         ],
