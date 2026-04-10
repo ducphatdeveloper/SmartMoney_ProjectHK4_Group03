@@ -19,7 +19,6 @@ class _DetailSavingGoalScreenState extends State<DetailSavingGoalScreen> {
   final fmt = NumberFormat("#,###", "vi_VN");
   final dateFmt = DateFormat('MMMM dd, yyyy');
 
-  // Logic xác định trạng thái Goal đồng bộ với hệ thống
   Map<String, dynamic> _getGoalStatusInfo(SavingGoalResponse goal) {
     final now = DateTime.now();
     final isFinished = goal.finished ?? false;
@@ -44,6 +43,7 @@ class _DetailSavingGoalScreenState extends State<DetailSavingGoalScreen> {
     final statusInfo = _getGoalStatusInfo(goal);
     final String currencyStr = goal.currencyCode ?? "VND";
     final bool isCompleted = (goal.progressPercent ?? 0) >= 100;
+    final bool isFinished = goal.finished ?? false;
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -77,7 +77,7 @@ class _DetailSavingGoalScreenState extends State<DetailSavingGoalScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         child: Column(
           children: [
-            /// 🏆 HEADER CARD - Đồng bộ Gradient & Border với ListView
+            /// 🏆 HEADER CARD
             Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 20),
@@ -122,7 +122,7 @@ class _DetailSavingGoalScreenState extends State<DetailSavingGoalScreen> {
 
             const SizedBox(height: 24),
 
-            /// 📊 FINANCIAL DETAILS - Thêm Currency làm 1 field riêng
+            /// 📊 FINANCIAL DETAILS
             _buildSectionTitle("Financial Overview"),
             _buildCard([
               _buildTile(Icons.track_changes, "Target Amount", "${fmt.format(goal.targetAmount)} $currencyStr", Colors.greenAccent),
@@ -131,7 +131,6 @@ class _DetailSavingGoalScreenState extends State<DetailSavingGoalScreen> {
               _buildDivider(),
               _buildTile(Icons.money_off_rounded, "Remaining to Save", "${fmt.format(goal.remainingAmount)} $currencyStr", Colors.redAccent),
               _buildDivider(),
-              // FIELD CURRENCY RIÊNG BIỆT
               _buildTile(Icons.currency_exchange, "Currency Unit", "VIET NAM DONG", Colors.amberAccent),
             ]),
 
@@ -151,8 +150,65 @@ class _DetailSavingGoalScreenState extends State<DetailSavingGoalScreen> {
               _buildReadOnlySwitch(Icons.insights_rounded, "Show in Reports", "Include in analytics", goal.reportable ?? false, Colors.tealAccent),
             ]),
 
-            const SizedBox(height: 32),
-            _actionButton("Delete Goal", Colors.redAccent, _confirmDelete),
+            const SizedBox(height: 30),
+
+            /// 🔥 NEW: ACTION GROUP (Giống bên Event)
+            _buildActionGroup([
+              _buildActionItem(
+                // Hiển thị text động dựa trên trạng thái hiện tại
+                isFinished ? "Re-open Goal" : "Mark as Finished",
+                isFinished ? Icons.history : Icons.check_circle_outline,
+                isFinished ? Colors.blueAccent : Colors.greenAccent,
+                    () async {
+                  // 1. Hiển thị loading nhẹ (tùy chọn) hoặc gọi trực tiếp provider
+                  final success = await context.read<SavingGoalProvider>().toggleStatus(goal.id);
+
+                  if (success && mounted) {
+                    // 2. Thông báo cho người dùng (tùy chọn)
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(isFinished ? "Goal re-opened!" : "Goal marked as finished!"),
+                        backgroundColor: Colors.green,
+                        duration: const Duration(seconds: 1),
+                      ),
+                    );
+
+                    // 3. QUAN TRỌNG: Navigator.pop(context, true)
+                    // Trả về 'true' để màn hình danh sách (ListScreen) biết và gọi loadGoals() cập nhật lại các tab
+                    Navigator.pop(context, true);
+                  } else if (mounted) {
+                    // Xử lý khi lỗi
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(context.read<SavingGoalProvider>().errorMessage ?? "Action failed"),
+                        backgroundColor: Colors.redAccent,
+                      ),
+                    );
+                  }
+                },
+              ),
+              _buildDivider(indent: 56),
+              _buildActionItem(
+                "Transaction History",
+                Icons.receipt_long_rounded,
+                Colors.white,
+                    () {
+                  // Điều hướng đến danh sách giao dịch của goal này
+                },
+              ),
+            ]),
+
+            const SizedBox(height: 20),
+
+            /// 🗑 DELETE BUTTON
+            _buildActionItem(
+                "Delete Goal",
+                Icons.delete_outline_rounded,
+                Colors.redAccent,
+                _confirmDelete,
+                isSingle: true
+            ),
+
             const SizedBox(height: 40),
           ],
         ),
@@ -160,7 +216,50 @@ class _DetailSavingGoalScreenState extends State<DetailSavingGoalScreen> {
     );
   }
 
-  // Widget hiển thị Icon có viền Gradient đồng bộ
+  // --- HELPER WIDGETS ---
+
+  Widget _buildActionGroup(List<Widget> children) {
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF1C1C1E),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withOpacity(0.05)),
+      ),
+      child: Column(children: children),
+    );
+  }
+
+  Widget _buildActionItem(String title, IconData icon, Color color, VoidCallback onTap, {bool isSingle = false}) {
+    final content = InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(20),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 20),
+        child: Row(
+          children: [
+            Icon(icon, color: color, size: 22),
+            const SizedBox(width: 16),
+            Text(title, style: TextStyle(color: color, fontSize: 17, fontWeight: FontWeight.w600)),
+            const Spacer(),
+            Icon(Icons.chevron_right, color: Colors.white.withOpacity(0.2), size: 20),
+          ],
+        ),
+      ),
+    );
+
+    if (isSingle) {
+      return Container(
+        decoration: BoxDecoration(
+          color: const Color(0xFF1C1C1E),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.white.withOpacity(0.05)),
+        ),
+        child: content,
+      );
+    }
+    return content;
+  }
+
   Widget _buildAnimatedIcon(String? url, bool isCompleted) {
     return Container(
       width: 80,
@@ -181,7 +280,6 @@ class _DetailSavingGoalScreenState extends State<DetailSavingGoalScreen> {
     );
   }
 
-  // Widget Progress Bar đồng bộ với ListView
   Widget _buildFancyProgress(double progress, bool isCompleted) {
     return Column(
       children: [
@@ -226,7 +324,6 @@ class _DetailSavingGoalScreenState extends State<DetailSavingGoalScreen> {
     );
   }
 
-  // Các Widget Helper giữ UI sạch sẽ
   Widget _buildCard(List<Widget> children) {
     return Container(
       decoration: BoxDecoration(
@@ -286,21 +383,7 @@ class _DetailSavingGoalScreenState extends State<DetailSavingGoalScreen> {
     );
   }
 
-  Widget _buildDivider() => const Divider(height: 1, indent: 55, color: Color(0xFF2C2C2E));
-
-  Widget _actionButton(String title, Color color, VoidCallback onTap) {
-    return ElevatedButton(
-      onPressed: onTap,
-      style: ElevatedButton.styleFrom(
-        backgroundColor: const Color(0xFF1C1C1E),
-        foregroundColor: color,
-        minimumSize: const Size(double.infinity, 56),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        side: BorderSide(color: color.withOpacity(0.3)),
-      ),
-      child: Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-    );
-  }
+  Widget _buildDivider({double indent = 55}) => Divider(height: 1, indent: indent, color: const Color(0xFF2C2C2E));
 
   void _confirmDelete() {
     showDialog(
@@ -315,16 +398,12 @@ class _DetailSavingGoalScreenState extends State<DetailSavingGoalScreen> {
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Cancel")),
           TextButton(
               onPressed: () async {
-            // 1. Gọi hàm xóa (Backend + Local State của SavingGoal)
-            await context.read<SavingGoalProvider>().deleteGoal(widget.goal.id);
-            // 2. Ép TransactionProvider load lại list ví/mục tiêu mới
-            // để dropdown trong màn Transaction không còn hiện mục tiêu vừa bị soft-delete
-            if (context.mounted) {
-              context.read<TransactionProvider>().refreshSourceItems();
-            }
-            // 3. Đóng popup và quay về màn hình trước
-            if (mounted) { Navigator.pop(ctx); Navigator.pop(context, true); }
-          }, child: const Text("Delete", style: TextStyle(color: Colors.red))),
+                await context.read<SavingGoalProvider>().deleteGoal(widget.goal.id);
+                if (context.mounted) {
+                  context.read<TransactionProvider>().refreshSourceItems();
+                }
+                if (mounted) { Navigator.pop(ctx); Navigator.pop(context, true); }
+              }, child: const Text("Delete", style: TextStyle(color: Colors.red))),
         ],
       ),
     );

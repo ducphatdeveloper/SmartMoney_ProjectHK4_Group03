@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import '../../../core/helpers/token_helper.dart'; // Đảm bảo đúng path
 import '../providers/saving_goal_provider.dart';
 import 'saving_goal_list_view.dart';
 import '../../wallet/screens/add_wallet_type_screen.dart';
@@ -13,16 +14,33 @@ class SavingGoalListScreen extends StatefulWidget {
 }
 
 class SavingGoalListScreenState extends State<SavingGoalListScreen> {
+  bool _isFinished = false;
+  String? _accessToken; // Thêm biến lưu token
+
   @override
   void initState() {
     super.initState();
-    _refreshData();
+    _initData();
+  }
+
+  // Lấy token giống EventScreen
+  Future<void> _initData() async {
+    final token = await TokenHelper.getAccessToken();
+    if (mounted) {
+      setState(() => _accessToken = token);
+      _refreshData();
+    }
   }
 
   void _refreshData() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<SavingGoalProvider>().loadGoals();
-    });
+    // Gọi loadGoals (có thể truyền _isFinished nếu API backend hỗ trợ lọc)
+    context.read<SavingGoalProvider>().loadGoals(false, forceRefresh: true);
+  }
+
+  void _changeTab(bool value) {
+    if (_isFinished == value) return;
+    setState(() => _isFinished = value);
+    _refreshData();
   }
 
   @override
@@ -51,15 +69,64 @@ class SavingGoalListScreenState extends State<SavingGoalListScreen> {
       ),
       body: Column(
         children: [
-          // Phần Card tổng tiền dùng chung style Gradient với item cũ
+          _buildSegment(),
+
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
             child: _totalBalanceCard(),
           ),
-          const Expanded(
-            child: SavingGoalListView(),
+
+          Expanded(
+            child: (_accessToken == null)
+                ? const Center(child: CircularProgressIndicator(color: Colors.greenAccent))
+                : SavingGoalListView(
+              accessToken: _accessToken,
+              isFinished: _isFinished,
+            ),
           ),
         ],
+      ),
+    );
+  }
+
+  // --- UI Segment & Card giữ nguyên ---
+
+  Widget _buildSegment() {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+      height: 50,
+      decoration: BoxDecoration(
+          color: const Color(0xFF1C1C1E),
+          borderRadius: BorderRadius.circular(16)
+      ),
+      child: Row(
+        children: [
+          _segmentItem("Active", !_isFinished, () => _changeTab(false)),
+          _segmentItem("Finished", _isFinished, () => _changeTab(true)),
+        ],
+      ),
+    );
+  }
+
+  Widget _segmentItem(String title, bool isActive, VoidCallback onTap) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          margin: const EdgeInsets.all(4),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            color: isActive ? const Color(0xFF2C2C2E) : Colors.transparent,
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            title,
+            style: TextStyle(
+                color: isActive ? Colors.greenAccent : Colors.grey,
+                fontWeight: isActive ? FontWeight.w900 : FontWeight.w500
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -67,7 +134,12 @@ class SavingGoalListScreenState extends State<SavingGoalListScreen> {
   Widget _totalBalanceCard() {
     return Consumer<SavingGoalProvider>(
       builder: (context, provider, child) {
-        double total = provider.goals.fold(0, (sum, item) => sum + item.currentAmount);
+        final filteredGoals = provider.goals.where((g) {
+          bool complete = g.currentAmount >= g.targetAmount;
+          return _isFinished ? complete : !complete;
+        }).toList();
+
+        double total = filteredGoals.fold(0, (sum, item) => sum + item.currentAmount);
 
         return Container(
           width: double.infinity,
@@ -76,26 +148,16 @@ class SavingGoalListScreenState extends State<SavingGoalListScreen> {
             gradient: const LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [
-                Color(0xFF2C2C2E),
-                Color(0xFF1C1C1E),
-              ],
+              colors: [Color(0xFF2C2C2E), Color(0xFF1C1C1E)],
             ),
             borderRadius: BorderRadius.circular(24),
             border: Border.all(color: Colors.white.withOpacity(0.05), width: 1),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.3),
-                blurRadius: 15,
-                offset: const Offset(0, 8),
-              )
-            ],
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                "TOTAL SAVED",
+                _isFinished ? "TOTAL COLLECTED" : "TOTAL SAVED",
                 style: TextStyle(
                     color: Colors.white.withOpacity(0.3),
                     fontSize: 10,
@@ -109,13 +171,13 @@ class SavingGoalListScreenState extends State<SavingGoalListScreen> {
                 children: [
                   Text(
                     "${NumberFormat("#,###").format(total)} đ",
-                    style: const TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white
-                    ),
+                    style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white),
                   ),
-                  const Icon(Icons.account_balance_wallet, color: Colors.greenAccent, size: 30),
+                  Icon(
+                    _isFinished ? Icons.check_circle : Icons.account_balance_wallet,
+                    color: Colors.greenAccent,
+                    size: 30,
+                  ),
                 ],
               ),
             ],

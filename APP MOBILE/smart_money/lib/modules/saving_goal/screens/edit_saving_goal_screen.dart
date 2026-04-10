@@ -33,8 +33,6 @@ class _EditSavingGoalScreenState extends State<EditSavingGoalScreen> {
   @override
   void initState() {
     super.initState();
-
-    // Khởi tạo và loại bỏ .0 bằng cách toInt()
     _nameController = TextEditingController(text: widget.goal.goalName);
     _targetController = TextEditingController(text: widget.goal.targetAmount.toInt().toString());
     _currentController = TextEditingController(text: widget.goal.currentAmount.toInt().toString());
@@ -57,27 +55,24 @@ class _EditSavingGoalScreenState extends State<EditSavingGoalScreen> {
   String? _validateData() {
     final name = _nameController.text.trim();
     final targetStr = _targetController.text.trim();
+    final currentStr = _currentController.text.trim();
 
-    if (name.isEmpty) return "Please enter a goal name";
-    if (targetStr.isEmpty) return "Please enter your target amount";
+    if (name.isEmpty) return "Tên mục tiêu không được để trống";
+    if (targetStr.isEmpty) return "Số tiền mục tiêu không được để trống";
 
     final targetAmount = double.tryParse(targetStr);
-    if (targetAmount == null || targetAmount <= 1000) {
-      return "Target amount must be a number greater than 1,000";
+    if (targetAmount == null || targetAmount <= 0) return "Số tiền mục tiêu phải lớn hơn 0";
+    if (targetAmount >= 10000000000) return "Số tiền mục tiêu phải nhỏ hơn 10 tỷ";
+
+    if (currentStr.isEmpty) return "Số tiền hiện tại không được để trống";
+    final currentAmount = double.tryParse(currentStr);
+    if (currentAmount == null || currentAmount < 0) return "Số tiền hiện tại không hợp lệ";
+
+    if (currentAmount > targetAmount) {
+      return "Số dư hiện tại không được lớn hơn mục tiêu";
     }
 
-    // Do Current Balance không cho sửa nên lấy trực tiếp từ data cũ để so sánh
-    if (widget.goal.currentAmount > targetAmount) {
-      return "Target amount cannot be less than current balance";
-    }
-
-    if (_endDate == null) return "Please select a target date";
-
-    final now = DateTime.now();
-    final today = DateTime(now.year, now.month, now.day);
-    if (_endDate!.isBefore(today)) {
-      return "Target date cannot be in the past";
-    }
+    if (_endDate == null) return "Vui lòng chọn ngày kết thúc";
 
     return null;
   }
@@ -104,18 +99,19 @@ class _EditSavingGoalScreenState extends State<EditSavingGoalScreen> {
 
     setState(() => _isSaving = true);
 
-    final double targetAmount = double.tryParse(_targetController.text.trim()) ?? 0;
+    final double targetAmount = double.parse(_targetController.text.trim());
+    final double currentAmount = double.parse(_currentController.text.trim());
 
     final request = SavingGoalRequest(
       goalName: _nameController.text.trim(),
       targetAmount: targetAmount,
-      initialAmount: widget.goal.currentAmount, // Giữ nguyên số dư cũ
+      initialAmount: currentAmount,
       currencyCode: _currency,
       endDate: _endDate!,
       notified: _notify,
       reportable: _reportable,
       goalImageUrl: _selectedIconUrl,
-      amount: widget.goal.currentAmount,
+      amount: currentAmount,
     );
 
     final provider = Provider.of<SavingGoalProvider>(context, listen: false);
@@ -125,11 +121,11 @@ class _EditSavingGoalScreenState extends State<EditSavingGoalScreen> {
     setState(() => _isSaving = false);
 
     if (success) {
-      await provider.loadGoals();
-      _showSnackBar("Goal updated successfully!", isError: false);
+      await provider.loadGoals(false, forceRefresh: true);
+      _showSnackBar("Cập nhật thành công!", isError: false);
       Navigator.of(context).pop(true);
     } else {
-      _showSnackBar(provider.errorMessage ?? "Failed to save goal", isError: true);
+      _showSnackBar(provider.errorMessage ?? "Lỗi khi lưu", isError: true);
     }
   }
 
@@ -170,7 +166,6 @@ class _EditSavingGoalScreenState extends State<EditSavingGoalScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          // UI ICON + NAME
           _buildFieldWrapper(
             child: Row(
               children: [
@@ -193,11 +188,7 @@ class _EditSavingGoalScreenState extends State<EditSavingGoalScreen> {
                       ),
                       Container(
                         padding: const EdgeInsets.all(4),
-                        decoration: BoxDecoration(
-                          color: Colors.blueAccent,
-                          shape: BoxShape.circle,
-                          border: Border.all(color: Colors.black, width: 2),
-                        ),
+                        decoration: BoxDecoration(color: Colors.blueAccent, shape: BoxShape.circle, border: Border.all(color: Colors.black, width: 2)),
                         child: const Icon(Icons.edit_rounded, size: 12, color: Colors.white),
                       )
                     ],
@@ -231,13 +222,12 @@ class _EditSavingGoalScreenState extends State<EditSavingGoalScreen> {
                   iconColor: Colors.greenAccent,
                 ),
                 const Divider(height: 1, color: Colors.white10, indent: 40),
-                // LOCK CURRENT BALANCE
                 _buildTextField(
                   controller: _currentController,
                   label: "Current Balance",
                   icon: Icons.account_balance_wallet,
                   iconColor: Colors.blueAccent,
-                  enabled: false, // Khóa ô nhập liệu
+                  enabled: true, // GIỮ NGUYÊN UI NHƯNG CHO PHÉP SỬA
                 ),
                 const Divider(height: 1, color: Colors.white10, indent: 40),
                 ListTile(
@@ -292,33 +282,22 @@ class _EditSavingGoalScreenState extends State<EditSavingGoalScreen> {
     );
   }
 
-  // --- UI Helpers ---
-  Widget _sectionLabel(String text) {
-    return Padding(
-      padding: const EdgeInsets.only(left: 8, bottom: 8),
-      child: Text(text, style: const TextStyle(color: Color(0xFF8E8E93), fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
-    );
-  }
+  Widget _sectionLabel(String text) => Padding(
+    padding: const EdgeInsets.only(left: 8, bottom: 8),
+    child: Text(text, style: const TextStyle(color: Color(0xFF8E8E93), fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
+  );
 
-  Widget _buildFieldWrapper({required Widget child}) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      decoration: BoxDecoration(
-        color: const Color(0xFF1C1C1E),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withOpacity(0.05)),
-      ),
-      child: child,
-    );
-  }
+  Widget _buildFieldWrapper({required Widget child}) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 16),
+    decoration: BoxDecoration(
+      color: const Color(0xFF1C1C1E),
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(color: Colors.white.withOpacity(0.05)),
+    ),
+    child: child,
+  );
 
-  Widget _buildTextField({
-    required TextEditingController controller,
-    required String label,
-    required IconData icon,
-    Color iconColor = Colors.grey,
-    bool enabled = true,
-  }) {
+  Widget _buildTextField({required TextEditingController controller, required String label, required IconData icon, Color iconColor = Colors.grey, bool enabled = true}) {
     return TextField(
       controller: controller,
       enabled: enabled,
