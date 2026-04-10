@@ -119,20 +119,20 @@ class _DebtDetailScreenState extends State<DebtDetailScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Xóa khoản nợ?'),
+        title: const Text('Do you want to delete your debt?'),
         content: const Text(
-          'Khoản nợ sẽ bị xóa. '
-          'Các giao dịch liên quan sẽ KHÔNG bị xóa theo.',
+          'The debt will be delete.'
+          'Related transactions will NOT be deleted.',
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Hủy'),
+            child: const Text('Cancel'),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Xóa'),
+            child: const Text('Delete'),
           ),
         ],
       ),
@@ -180,7 +180,7 @@ class _DebtDetailScreenState extends State<DebtDetailScreen> {
     // Thu nợ (21) = income (ctgType=true), Trả nợ (22) = expense (ctgType=false)
     final preCategory = CategoryResponse(
       id: widget.debtType ? 21 : 22,
-      ctgName: widget.debtType ? 'Thu nợ' : 'Trả nợ',
+      ctgName: widget.debtType ? 'Debt collection' : 'Pay off the debt.',
       ctgType: widget.debtType,
     );
 
@@ -208,7 +208,7 @@ class _DebtDetailScreenState extends State<DebtDetailScreen> {
       if (mounted && provider.currentDebt == null) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Khoản nợ đã được tất toán hoặc không còn tồn tại'),
+            content: Text('The debt has been settled or no longer exists.'),
             backgroundColor: Colors.orange,
             duration: Duration(seconds: 3),
           ),
@@ -221,7 +221,7 @@ class _DebtDetailScreenState extends State<DebtDetailScreen> {
   void _showError(String? msg) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(msg ?? 'Đã xảy ra lỗi'),
+        content: Text(msg ?? 'An error has occurred.'),
         backgroundColor: Colors.red,
       ),
     );
@@ -247,7 +247,7 @@ class _DebtDetailScreenState extends State<DebtDetailScreen> {
 
           return Scaffold(
             appBar: AppBar(
-              title: Text(debt?.personName ?? 'Chi tiết nợ'),
+              title: Text(debt?.personName ?? 'Debt details'),
               leading: IconButton(
                 icon: const Icon(Icons.arrow_back),
                 onPressed: () => Navigator.pop(context, _hasChanges),
@@ -257,14 +257,14 @@ class _DebtDetailScreenState extends State<DebtDetailScreen> {
                 if (debt != null)
                   IconButton(
                     icon: const Icon(Icons.edit_outlined),
-                    tooltip: 'Sửa thông tin',
+                    tooltip: 'Edit information',
                     onPressed: provider.isSaving ? null : _openEdit,
                   ),
                 // Nút xóa
                 if (debt != null)
                   IconButton(
                     icon: const Icon(Icons.delete_outline),
-                    tooltip: 'Xóa khoản nợ',
+                    tooltip: 'Delete debt',
                     color: Colors.red[400],
                     onPressed: provider.isDeleting ? null : _confirmDelete,
                   ),
@@ -306,8 +306,8 @@ class _DebtDetailScreenState extends State<DebtDetailScreen> {
             icon: const Icon(Icons.add),
             label: Text(
               widget.debtType
-                  ? 'THÊM GIAO DỊCH THU NỢ'
-                  : 'THÊM GIAO DỊCH TRẢ NỢ',
+                  ? 'ADD DEBT COLLECTION TRANSACTION'
+                  : 'ADD DEBT REPAYMENT TRANSACTION',
             ),
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.green[600],
@@ -359,16 +359,16 @@ class _DebtDetailScreenState extends State<DebtDetailScreen> {
           // Row 3 cột: Tổng nợ | Đã trả/thu | Còn lại
           Row(
             children: [
-              _buildAmountCell('Tổng nợ',
+              _buildAmountCell('Total debt',
                   FormatHelper.formatVND(debt.totalAmount), Colors.grey[700]!),
               _buildDivider(),
               _buildAmountCell(
-                  widget.debtType ? 'Đã thu' : 'Đã trả',
+                  widget.debtType ? 'Debt collected' : 'Debt has been repaid.',
                   FormatHelper.formatVND(debt.paidAmount),
                   Colors.green[600]!),
               _buildDivider(),
               _buildAmountCell(
-                  'Còn lại',
+                  'Remaining',
                   FormatHelper.formatVND(debt.remainAmount),
                   mainColor),
             ],
@@ -393,7 +393,7 @@ class _DebtDetailScreenState extends State<DebtDetailScreen> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                '${(debt.progress * 100).toStringAsFixed(0)}% hoàn thành',
+                '${(debt.progress * 100).toStringAsFixed(0)}% complete',
                 style: TextStyle(fontSize: 12, color: Colors.grey[600]),
               ),
               if (debt.finished)
@@ -405,7 +405,7 @@ class _DebtDetailScreenState extends State<DebtDetailScreen> {
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: const Text(
-                    '✅ Hoàn thành',
+                    '✅ Complete',
                     style: TextStyle(
                         fontSize: 11,
                         color: Colors.green,
@@ -486,8 +486,8 @@ class _DebtDetailScreenState extends State<DebtDetailScreen> {
               child: CircularProgressIndicator(strokeWidth: 2))
           : Icon(finished ? Icons.undo : Icons.check_circle_outline),
       label: Text(finished
-          ? 'Đánh dấu chưa hoàn thành'
-          : 'Đánh dấu đã hoàn thành'),
+          ? 'Mark as incomplete'
+          : 'Mark as completed'),
       style: OutlinedButton.styleFrom(
         foregroundColor: finished ? Colors.orange : Colors.green,
         side: BorderSide(color: finished ? Colors.orange : Colors.green),
@@ -509,7 +509,7 @@ class _DebtDetailScreenState extends State<DebtDetailScreen> {
           const Icon(Icons.error_outline, size: 48, color: Colors.red),
           const SizedBox(height: 12),
           Text(
-            msg ?? 'Không thể tải thông tin khoản nợ',
+            msg ?? 'Unable to load debt information',
             textAlign: TextAlign.center,
             style: const TextStyle(color: Colors.red),
           ),
@@ -587,13 +587,13 @@ class _DebtTransactionSectionState extends State<_DebtTransactionSection> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             const Text(
-              'Lịch sử giao dịch',
+              'Transaction history',
               style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
             ),
             IconButton(
               icon: const Icon(Icons.refresh, size: 18, color: Colors.grey),
               onPressed: _load,
-              tooltip: 'Tải lại',
+              tooltip: 'Reload',
               padding: EdgeInsets.zero,
               constraints: const BoxConstraints(),
             ),
@@ -617,7 +617,7 @@ class _DebtTransactionSectionState extends State<_DebtTransactionSection> {
           Padding(
             padding: const EdgeInsets.all(16),
             child: Text(
-              'Chưa có giao dịch liên quan',
+              'No related transactions have been made.',
               style: TextStyle(color: Colors.grey[500]),
               textAlign: TextAlign.center,
             ),
@@ -653,14 +653,14 @@ class _DebtTransactionSectionState extends State<_DebtTransactionSection> {
       ),
       child: Column(
         children: [
-          _summaryRow('Tổng số giao dịch:', '${d.transactionCount}', Colors.white),
+          _summaryRow('Total number of transactions:', '${d.transactionCount}', Colors.white),
           const SizedBox(height: 6),
-          _summaryRow('Tổng thu:', FormatHelper.formatVND(d.totalIncome), Colors.green),
+          _summaryRow('Total income:', FormatHelper.formatVND(d.totalIncome), Colors.green),
           const SizedBox(height: 6),
-          _summaryRow('Tổng chi:', FormatHelper.formatVND(d.totalExpense), Colors.red),
+          _summaryRow('Total expense:', FormatHelper.formatVND(d.totalExpense), Colors.red),
           const Divider(height: 16),
           _summaryRow(
-            'Còn lại:',
+            'Remaining:',
             FormatHelper.formatVND(net),
             net >= 0 ? Colors.green : Colors.red,
           ),
@@ -718,15 +718,15 @@ class _DebtTransactionSectionState extends State<_DebtTransactionSection> {
       builder: (ctx) => AlertDialog(
         backgroundColor: Colors.grey[900],
         title:
-            const Text('Xóa giao dịch', style: TextStyle(color: Colors.white)),
+            const Text('Delete transaction', style: TextStyle(color: Colors.white)),
         content: const Text(
-          'Bạn có chắc muốn xóa giao dịch này?\nSố dư sổ nợ sẽ được tính lại tự động.',
+          'Are you sure you want to delete this transaction?\nThe debit balance will be recalculated automatically..',
           style: TextStyle(color: Colors.grey),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Hủy', style: TextStyle(color: Colors.grey)),
+            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
           ),
           TextButton(
             onPressed: () async {
@@ -742,7 +742,7 @@ class _DebtTransactionSectionState extends State<_DebtTransactionSection> {
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
-                      content: Text('Đã xóa giao dịch'),
+                      content: Text('Transaction deleted'),
                       backgroundColor: Color(0xFF4CAF50),
                       behavior: SnackBarBehavior.floating,
                     ),
@@ -752,14 +752,14 @@ class _DebtTransactionSectionState extends State<_DebtTransactionSection> {
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text(txProvider.errorMessage ?? 'Có lỗi xảy ra'),
+                      content: Text(txProvider.errorMessage ?? 'An error occurred.'),
                       backgroundColor: Colors.red,
                     ),
                   );
                 }
               }
             },
-            child: const Text('Xóa', style: TextStyle(color: Colors.red)),
+            child: const Text('Delete', style: TextStyle(color: Colors.red)),
           ),
         ],
       ),

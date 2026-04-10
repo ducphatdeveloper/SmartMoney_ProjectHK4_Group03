@@ -179,21 +179,21 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
     // Bước 1: Validate client-side — kiểm tra nhóm + số tiền
     final amount = double.tryParse(_amountStr) ?? 0;
     if (amount <= 0) {
-      _showSnackBar('Vui lòng nhập số tiền lớn hơn 0', isError: true);
+      _showSnackBar('Please enter an amount greater than 0.', isError: true);
       return;
     }
     if (_selectedCategory == null) {
-      _showSnackBar('Vui lòng chọn nhóm danh mục', isError: true);
+      _showSnackBar('Please select a category group.', isError: true);
       return;
     }
     if (_selectedSourceItem == null) {
-      _showSnackBar('Vui lòng chọn ví', isError: true);
+      _showSnackBar('Please select a wallet', isError: true);
       return;
     }
 
     // Bước 2: Validate nhắc nhở nếu có — phải là ngày tương lai
     if (_reminderTime != null && _reminderTime!.isBefore(DateTime.now())) {
-      _showSnackBar('Nhắc nhở phải là thời gian tương lai', isError: true);
+      _showSnackBar('The reminder should be in the future.', isError: true);
       return;
     }
 
@@ -202,7 +202,7 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
     if (_transactionType == 'debt' && !_requiresDebtSelection) {
       final personName = _withPersonController.text.trim();
       if (personName.isEmpty) {
-        _showSnackBar('Vui lòng nhập tên người vay/cho vay', isError: true);
+        _showSnackBar('Please enter the borrower/lender name.', isError: true);
         return;
       }
     }
@@ -241,10 +241,10 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
 
     // Bước 6: Hiện kết quả
     if (success) {
-      _showSnackBar(provider.successMessage ?? 'Tạo giao dịch thành công');
+      _showSnackBar(provider.successMessage ?? 'Successfully created the transaction.');
       Navigator.pop(context, true); // trả result=true để màn cha reload
     } else {
-      _showSnackBar(provider.errorMessage ?? 'Có lỗi xảy ra', isError: true);
+      _showSnackBar(provider.errorMessage ?? 'An error occurred.', isError: true);
     }
   }
 
@@ -308,7 +308,7 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
 
     // Nếu chưa có ví nào → hiện thông báo
     if (selectableSources.isEmpty) {
-      _showSnackBar('Không tìm thấy ví nào. Vui lòng tạo ví trước.', isError: true);
+      _showSnackBar('No wallets were found. Please create a wallet first.', isError: true);
       return;
     }
 
@@ -412,7 +412,7 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
                     const Icon(Icons.event, color: Color(0xFF4CAF50), size: 20),
                     const SizedBox(width: 8),
                     const Text(
-                      'Chọn sự kiện đang diễn ra',
+                      'Select the ongoing event',
                       style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
                     ),
                     const Spacer(),
@@ -426,7 +426,7 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
                           });
                           Navigator.pop(ctx);
                         },
-                        child: const Text('Bỏ chọn', style: TextStyle(color: Colors.red, fontSize: 13)),
+                        child: const Text('Deselect', style: TextStyle(color: Colors.red, fontSize: 13)),
                       ),
                   ],
                 ),
@@ -438,7 +438,7 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
                 const Padding(
                   padding: EdgeInsets.all(32),
                   child: Text(
-                    'Không có sự kiện đang diễn ra',
+                    'No events are currently taking place.',
                     style: TextStyle(color: Colors.grey),
                     textAlign: TextAlign.center,
                   ),
@@ -475,23 +475,23 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Đến ${FormatHelper.formatDate(event.endDate)}',
+                              'To ${FormatHelper.formatDate(event.endDate)}',
                               style: TextStyle(color: Colors.grey[500], fontSize: 11),
                             ),
                             Row(
                               children: [
                                 Text(
-                                  'Thu: ${FormatHelper.formatShort(event.totalIncome)}',
+                                  'Income: ${FormatHelper.formatShort(event.totalIncome)}',
                                   style: const TextStyle(color: Colors.green, fontSize: 11),
                                 ),
                                 const SizedBox(width: 8),
                                 Text(
-                                  'Chi: ${FormatHelper.formatShort(event.totalExpense)}',
+                                  'Expense: ${FormatHelper.formatShort(event.totalExpense)}',
                                   style: const TextStyle(color: Colors.red, fontSize: 11),
                                 ),
                                 const SizedBox(width: 8),
                                 Text(
-                                  'Còn lại: ${FormatHelper.formatShort(event.netAmount)}',
+                                  'Remaining: ${FormatHelper.formatShort(event.netAmount)}',
                                   style: TextStyle(
                                     color: event.netAmount >= 0 ? Colors.blue : Colors.orange,
                                     fontSize: 11,
@@ -575,7 +575,7 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      'Chọn khoản $tabLabel',
+                      'Choose the $tabLabel',
                       style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
                     ),
                     const Spacer(),
@@ -589,7 +589,7 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
                           });
                           Navigator.pop(ctx);
                         },
-                        child: const Text('Bỏ chọn', style: TextStyle(color: Colors.red, fontSize: 13)),
+                        child: const Text('Deselect', style: TextStyle(color: Colors.red, fontSize: 13)),
                       ),
                   ],
                 ),
@@ -601,7 +601,7 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
                 Padding(
                   padding: const EdgeInsets.all(32),
                   child: Text(
-                    'Không có khoản $tabLabel nào chưa hoàn thành',
+                    'There are no incomplete $tabLabel entries',
                     style: const TextStyle(color: Colors.grey),
                     textAlign: TextAlign.center,
                   ),
@@ -634,7 +634,7 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
                         ),
                         // Còn lại bao nhiêu
                         subtitle: Text(
-                          'Còn lại: ${FormatHelper.formatVND(debt.remainAmount)}',
+                          'Remaining: ${FormatHelper.formatVND(debt.remainAmount)}',
                           style: TextStyle(color: Colors.grey[500], fontSize: 12),
                         ),
                         trailing: isSelected
@@ -812,7 +812,7 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text(
-          'Thêm giao dịch',
+          'Add transaction',
           style: TextStyle(color: Colors.white, fontSize: 18),
         ),
         centerTitle: true,
@@ -981,8 +981,8 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
             Expanded(
               child: Text(
                 _isLoadingSources
-                    ? 'Đang tải danh sách ví...'
-                    : (_selectedSourceItem?.name ?? 'Chọn ví'),
+                    ? 'Loading wallet list...'
+                    : (_selectedSourceItem?.name ?? 'Choose a wallet'),
                 style: TextStyle(
                   color: (_isLoadingSources || _selectedSourceItem == null)
                       ? Colors.grey
@@ -1018,7 +1018,7 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
             Expanded(
               child: Text(
                 // Hiện tên sự kiện đã chọn hoặc placeholder
-                _selectedEventDisplay ?? 'Chọn sự kiện (tuỳ chọn)',
+                _selectedEventDisplay ?? 'Select event (optional)',
                 style: TextStyle(
                   color: _selectedEventId != null ? Colors.white : Colors.grey,
                   fontSize: 15,
@@ -1047,8 +1047,8 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
     // Nhãn phụ theo loại category
     final isCollect = _selectedCategory?.id == 21; // Thu nợ → CẦN THU
     final hintText = isCollect
-        ? 'Chọn khoản Cần Thu (tuỳ chọn)'
-        : 'Chọn khoản Cần Trả (tuỳ chọn)';
+        ? 'Select the amount of debt to be collected (optional)'
+        : 'Select the amount of debt to be repaid (optional)';
     final iconColor = isCollect ? Colors.blue : Colors.orange;
 
     return GestureDetector(
@@ -1103,7 +1103,7 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
                maxLength: 500,
                style: const TextStyle(color: Colors.white, fontSize: 15),
                decoration: const InputDecoration(
-                 hintText: 'Thêm ghi chú',
+                 hintText: 'Add a note',
                  hintStyle: TextStyle(color: Colors.grey),
                  border: InputBorder.none,
                  counterText: '', // ẩn counter ký tự
@@ -1131,8 +1131,8 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
                style: const TextStyle(color: Colors.white, fontSize: 15),
                decoration: InputDecoration(
                  hintText: _transactionType == 'debt'
-                     ? 'Tên người vay/cho vay *'
-                     : 'Với ai',
+                     ? 'Borrower/Lender name *'
+                     : 'With person',
                  hintStyle: const TextStyle(color: Colors.grey),
                  border: InputBorder.none,
                  counterText: '',
@@ -1159,7 +1159,7 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
             ),
             const SizedBox(width: 4),
             Text(
-              _showDetails ? 'ẨN CHI TIẾT' : 'THÊM CHI TIẾT',
+              _showDetails ? 'HIDE DETAILS' : 'MORE DETAILS',
               style: const TextStyle(
                 color: Color(0xFF4CAF50),
                 fontWeight: FontWeight.w600,
@@ -1187,7 +1187,7 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
               maxLength: 100,
               style: const TextStyle(color: Colors.white, fontSize: 15),
               decoration: const InputDecoration(
-                hintText: 'Với ai',
+                hintText: 'With person',
                 hintStyle: TextStyle(color: Colors.grey),
                 border: InputBorder.none,
                 counterText: '',
@@ -1216,11 +1216,11 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  'Không tính vào báo cáo',
+                  'Not included in the report.',
                   style: TextStyle(color: Colors.white, fontSize: 14),
                 ),
                 Text(
-                  'Không tính giao dịch này trong báo cáo',
+                  'This transaction is not included in the report.',
                   style: TextStyle(color: Colors.grey[600], fontSize: 11),
                 ),
               ],
@@ -1236,7 +1236,7 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
     // [FIX-3] Phím nhanh — đơn vị VND thực tế, phổ biến nhất trong chi tiêu
     // [TODO] Khi tích hợp đa tiền tệ (USD/EUR): đổi values theo tỷ giá, label "$5" / "$10"
     // Format dùng FormatHelper.formatShort() → "50k", "100k", "1tr", "2tr"
-    final quickKeyValues = [50000.0, 100000.0, 200000.0, 300000.0, 500000.0, 1000000.0, 2000000.0];
+    final quickKeyValues = [50000.0, 100000.0, 200000.0, 300000.0, 500000.0, 1000000.0, 2000000.0, 3000000.0, 5000000.0, 10000000.0];
 
     // 4 hàng bàn phím chính
     final mainKeys = [

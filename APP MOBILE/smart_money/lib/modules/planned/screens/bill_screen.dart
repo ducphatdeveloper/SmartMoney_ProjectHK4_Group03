@@ -86,7 +86,7 @@ class _BillScreenState extends State<BillScreen> with SingleTickerProviderStateM
         _wallets = response.data!;
       }
     } catch (e) {
-      debugPrint('❌ [BillScreen] Lỗi tải ví: $e');
+      debugPrint('❌ [BillScreen] Wallet loading error: $e');
     }
 
     _isLoadingWallets = false;
@@ -127,7 +127,7 @@ class _BillScreenState extends State<BillScreen> with SingleTickerProviderStateM
       ),
       // [TODO i18n] Screen title
       title: const Text(
-        'Hoá đơn',
+        'Bill',
         style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600),
       ),
       actions: [_buildWalletDropdown()],
@@ -137,8 +137,8 @@ class _BillScreenState extends State<BillScreen> with SingleTickerProviderStateM
         labelColor: const Color(0xFF4CAF50),
         unselectedLabelColor: const Color(0xFF8E8E93),
         tabs: const [
-          Tab(text: 'ĐANG ÁP DỤNG'),
-          Tab(text: 'ĐÃ KẾT THÚC'),
+          Tab(text: 'CURRENTLY APPLICABLE'),
+          Tab(text: 'IT IS OVER'),
         ],
       ),
     );
@@ -156,7 +156,7 @@ class _BillScreenState extends State<BillScreen> with SingleTickerProviderStateM
         final selected = billProv.selectedWalletId;
 
         // Tìm tên ví đang chọn để hiển thị trên AppBar
-        String displayName = 'Tất cả ví';
+        String displayName = 'All wallets';
         if (selected != null) {
           final found = wallets.where((w) => w.id == selected);
           if (found.isNotEmpty) displayName = found.first.walletName;
@@ -224,7 +224,7 @@ class _BillScreenState extends State<BillScreen> with SingleTickerProviderStateM
             // [TODO i18n] Wallet picker header
             const Padding(
               padding: EdgeInsets.all(16),
-              child: Text('Chọn ví', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
+              child: Text('Choose a wallet', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
             ),
             const Divider(height: 1, color: Color(0xFF3A3A3C)),
 
@@ -240,7 +240,7 @@ class _BillScreenState extends State<BillScreen> with SingleTickerProviderStateM
                 child: const Icon(Icons.account_balance_wallet, color: Colors.white, size: 22),
               ),
               title: Text(
-                'Tất cả ví',
+                'All wallets',
                 style: TextStyle(
                   color: billProv.selectedWalletId == null ? const Color(0xFF4CAF50) : Colors.white,
                   fontWeight: billProv.selectedWalletId == null ? FontWeight.bold : FontWeight.normal,
@@ -373,7 +373,7 @@ class _BillScreenState extends State<BillScreen> with SingleTickerProviderStateM
                       ),
                       const SizedBox(width: 12),
                       const Text(
-                        'Thêm hóa đơn',
+                        'Add bill',
                         style: TextStyle(
                           color: Color(0xFF4CAF50),
                           fontSize: 15,
@@ -410,7 +410,7 @@ class _BillScreenState extends State<BillScreen> with SingleTickerProviderStateM
     final items = provider.activeItems;
 
     if (items.isEmpty) {
-      return _buildEmptyState('Chưa có hóa đơn nào.\nNhấn + để thêm mới.');
+      return _buildEmptyState('No invoices yet.\nPress + to add new');
     }
 
     // [v2] Đếm hóa đơn chưa trả/đã trả từ displayStatus (thay isPaidThisCycle)
@@ -425,12 +425,12 @@ class _BillScreenState extends State<BillScreen> with SingleTickerProviderStateM
         // ✅ BANNER — "Chúc mừng! Bạn đã trả tất cả hóa đơn kỳ này." hoặc "⚠️ Còn X hóa đơn chưa trả"
         if (allPaid)
           _buildBanner(
-            '✅ Chúc mừng! Bạn đã trả tất cả hóa đơn kỳ này. 🎉',
+            '✅ Congratulations! You ve paid all your bills this period. 🎉',
             const Color(0xFF4CAF50),
           )
         else if (unpaidCount > 0)
           _buildBanner(
-            '⚠️ Còn $unpaidCount hóa đơn chưa trả',
+            '⚠️ There is still $unpaidCount Count for the unpaid bill.',
             const Color(0xFFFF9500),
           ),
 
@@ -438,7 +438,7 @@ class _BillScreenState extends State<BillScreen> with SingleTickerProviderStateM
         const Padding(
           padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           child: Text(
-            'Hóa đơn tiếp theo',
+            'Next bill',
             style: TextStyle(color: Color(0xFF8E8E93), fontSize: 13, fontWeight: FontWeight.w500),
           ),
         ),
@@ -509,7 +509,7 @@ class _BillScreenState extends State<BillScreen> with SingleTickerProviderStateM
         const Padding(
           padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           child: Text(
-            'Các hóa đơn đã kết thúc',
+            'The bills have been settled.',
             style: TextStyle(color: Color(0xFF8E8E93), fontSize: 13, fontWeight: FontWeight.w500),
           ),
         ),
@@ -576,7 +576,7 @@ class _BillScreenState extends State<BillScreen> with SingleTickerProviderStateM
               IconHelper.buildCircleAvatar(iconUrl: item.categoryIcon, radius: 24),
               const SizedBox(height: 6),
               Text(
-                item.categoryName ?? 'Hóa đơn',
+                item.categoryName ?? 'Bill',
                 style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: 2),
@@ -596,7 +596,7 @@ class _BillScreenState extends State<BillScreen> with SingleTickerProviderStateM
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        'Hóa đơn tiếp theo là ${item.nextDueDateLabel}',
+                        'The next bill is ${item.nextDueDateLabel}',
                         style: const TextStyle(color: Color(0xFF8E8E93), fontSize: 13),
                       ),
                     ),
@@ -610,7 +610,7 @@ class _BillScreenState extends State<BillScreen> with SingleTickerProviderStateM
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        'Hóa đơn tiếp theo là ${DateFormat("EEEE, dd 'tháng' M yyyy", 'vi_VN').format(item.nextDueDate!)}',
+                        'The next bill is ${DateFormat("EEEE, dd 'month' M yyyy", 'vi_VN').format(item.nextDueDate!)}',
                         style: const TextStyle(color: Color(0xFF8E8E93), fontSize: 13),
                       ),
                     ),
@@ -665,7 +665,7 @@ class _BillScreenState extends State<BillScreen> with SingleTickerProviderStateM
                      color: const Color(0xFF4CAF50),
                    ),
                    label: Text(
-                     item.active == true ? 'ĐÁNH DẤU HOÀN TẤT' : 'ĐÁNH DẤU CHƯA HOÀN TẤT',
+                     item.active == true ? 'MARK COMPLETE' : 'MARK AS INCOMPLETE',
                      style: const TextStyle(color: Color(0xFF4CAF50)),
                    ),
                    style: OutlinedButton.styleFrom(
@@ -686,7 +686,7 @@ class _BillScreenState extends State<BillScreen> with SingleTickerProviderStateM
                              children: [
                                CircularProgressIndicator(color: Color(0xFF4CAF50)),
                                SizedBox(width: 16),
-                               Text('Đang kiểm tra...', style: TextStyle(color: Colors.white)),
+                               Text('Checking...', style: TextStyle(color: Colors.white)),
                              ],
                            ),
                          ),
@@ -719,7 +719,7 @@ class _BillScreenState extends State<BillScreen> with SingleTickerProviderStateM
                          if (!mounted) return;
                          Navigator.pop(ctx); // Đóng bottom sheet
                          _showSnackBar(
-                           'Khoản nợ đã thanh toán xong, không thể kích hoạt lại',
+                           'The debt has been paid off and cannot be reactivated.',
                            isError: true,
                          );
                          return;
@@ -734,9 +734,9 @@ class _BillScreenState extends State<BillScreen> with SingleTickerProviderStateM
                      if (success) {
                        // Reload list after toggle to update UI immediately
                        provider.loadAll();
-                       _showSnackBar('Đã cập nhật trạng thái hóa đơn');
+                       _showSnackBar('Invoice status has been updated.');
                      } else {
-                       _showSnackBar(provider.errorMessage ?? 'Có lỗi xảy ra', isError: true);
+                       _showSnackBar(provider.errorMessage ?? 'An error occurred.', isError: true);
                      }
                    },
                  ),
@@ -749,7 +749,7 @@ class _BillScreenState extends State<BillScreen> with SingleTickerProviderStateM
                 child: OutlinedButton.icon(
                   icon: const Icon(Icons.receipt_long_outlined, color: Color(0xFF8E8E93), size: 18),
                   label: const Text(
-                    'Danh sách giao dịch',
+                    'Transaction list',
                     style: TextStyle(color: Color(0xFFE0E0E0), fontSize: 13, fontWeight: FontWeight.w500),
                   ),
                   style: OutlinedButton.styleFrom(
@@ -764,7 +764,7 @@ class _BillScreenState extends State<BillScreen> with SingleTickerProviderStateM
                       MaterialPageRoute(
                         builder: (_) => BillTransactionListScreen(
                           billId: item.id,
-                          billName: item.categoryName ?? 'Hóa đơn',
+                          billName: item.categoryName ?? 'Bill',
                         ),
                       ),
                     );
@@ -781,7 +781,7 @@ class _BillScreenState extends State<BillScreen> with SingleTickerProviderStateM
                     Expanded(
                       child: OutlinedButton.icon(
                         icon: const Icon(Icons.edit_outlined, color: Color(0xFF4CAF50), size: 18),
-                        label: const Text('Sửa', style: TextStyle(color: Color(0xFF4CAF50), fontSize: 13)),
+                        label: const Text('Edit', style: TextStyle(color: Color(0xFF4CAF50), fontSize: 13)),
                         style: OutlinedButton.styleFrom(
                           side: const BorderSide(color: Color(0xFF4CAF50)),
                           padding: const EdgeInsets.symmetric(vertical: 10),
@@ -819,7 +819,7 @@ class _BillScreenState extends State<BillScreen> with SingleTickerProviderStateM
                   Expanded(
                     child: OutlinedButton.icon(
                       icon: const Icon(Icons.delete_outline, color: Color(0xFFFF3B30), size: 18),
-                      label: const Text('Xóa', style: TextStyle(color: Color(0xFFFF3B30), fontSize: 13)),
+                      label: const Text('Delete', style: TextStyle(color: Color(0xFFFF3B30), fontSize: 13)),
                       style: OutlinedButton.styleFrom(
                         side: const BorderSide(color: Color(0xFFFF3B30)),
                         padding: const EdgeInsets.symmetric(vertical: 10),
@@ -851,27 +851,27 @@ class _BillScreenState extends State<BillScreen> with SingleTickerProviderStateM
   ({String text, Color color}) _resolveExpiry(int days) {
     if (days < 0) {
       return (
-      text: '🔴 Quá hạn ${days.abs()} ngày',
+      text: '🔴 Overdue ${days.abs()} day',
       color: const Color(0xFFFF3B30),   // đỏ
       );
     } else if (days == 0) {
       return (
-      text: '🟠 Đến hạn hôm nay',
+      text: '🟠 Today s deadline',
       color: const Color(0xFFFF9500),   // cam
       );
     } else if (days <= 3) {
       return (
-      text: '🟠 Còn $days ngày',
+      text: '🟠 $days days remaining',
       color: const Color(0xFFFF9500),   // cam
       );
     } else if (days <= 7) {
       return (
-      text: '🟡 Còn $days ngày',
+      text: '🟡 $days days remaining',
       color: const Color(0xFFFFCC00),   // vàng
       );
     } else {
       return (
-      text: '🟢 Còn $days ngày',
+      text: '🟢 $days days remaining',
       color: const Color(0xFF4CAF50),   // xanh lá — dùng màu accent của app
       );
     }
@@ -905,9 +905,9 @@ class _BillScreenState extends State<BillScreen> with SingleTickerProviderStateM
     final success = await provider.payBill(item.id);
     if (!mounted) return;
     if (success) {
-      _showSnackBar('Đã thanh toán hóa đơn');
+      _showSnackBar('The bill has been paid.');
     } else {
-      _showSnackBar(provider.errorMessage ?? 'Có lỗi xảy ra', isError: true);
+      _showSnackBar(provider.errorMessage ?? 'An error occurred.', isError: true);
     }
   }
 
@@ -922,7 +922,7 @@ class _BillScreenState extends State<BillScreen> with SingleTickerProviderStateM
       ),
     );
     if (result == true && mounted) {
-      _showSnackBar('Đã tạo hóa đơn');
+      _showSnackBar('Invoice created');
     }
   }
 
@@ -940,7 +940,7 @@ class _BillScreenState extends State<BillScreen> with SingleTickerProviderStateM
       ),
     );
     if (result == true && mounted) {
-      _showSnackBar('Đã cập nhật hóa đơn');
+      _showSnackBar('The invoice has been updated.');
     }
   }
 
@@ -953,16 +953,16 @@ class _BillScreenState extends State<BillScreen> with SingleTickerProviderStateM
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF2C2C2E),
         // [TODO i18n] Delete dialog title
-        title: const Text('Xóa hóa đơn?', style: TextStyle(color: Colors.white, fontSize: 16)),
+        title: const Text('Delete the invoice?', style: TextStyle(color: Colors.white, fontSize: 16)),
         content: Text(
-          'Bạn có chắc muốn xóa "${item.categoryName ?? ''}"?',
+          'v "${item.categoryName ?? ''}"?',
           style: const TextStyle(color: Color(0xFF8E8E93), fontSize: 14),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
             // [TODO i18n] Dialog cancel
-            child: const Text('Không', style: TextStyle(color: Color(0xFF8E8E93))),
+            child: const Text('No', style: TextStyle(color: Color(0xFF8E8E93))),
           ),
           TextButton(
             onPressed: () async {
@@ -971,9 +971,9 @@ class _BillScreenState extends State<BillScreen> with SingleTickerProviderStateM
               final success = await provider.delete(item.id);
               if (!mounted) return;
               if (success) {
-                _showSnackBar('Đã xóa hóa đơn');
+                _showSnackBar('Bill has been deleted');
               } else {
-                _showSnackBar(provider.errorMessage ?? 'Có lỗi xảy ra', isError: true);
+                _showSnackBar(provider.errorMessage ?? 'An error occurred.', isError: true);
               }
             },
             // [TODO i18n] Dialog delete

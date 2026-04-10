@@ -97,7 +97,7 @@ class _CommonTransactionListScreenState
       if (!mounted) return;
       setState(() {
         _isLoading = false;
-        _errorMessage = 'Lỗi: ${e.toString()}';
+        _errorMessage = 'Error: ${e.toString()}';
       });
     }
   }
@@ -126,7 +126,7 @@ class _CommonTransactionListScreenState
           IconButton(
             icon: const Icon(Icons.refresh, color: Colors.grey),
             onPressed: _loadData,
-            tooltip: 'Tải lại',
+            tooltip: 'Reload',
           ),
         ],
       ),
@@ -161,7 +161,7 @@ class _CommonTransactionListScreenState
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF4CAF50),
                 ),
-                child: const Text('Thử lại'),
+                child: const Text('Retry'),
               ),
             ],
           ),
@@ -172,7 +172,7 @@ class _CommonTransactionListScreenState
     if (_data == null || _data!.dailyGroups.isEmpty) {
       return const Center(
         child: Text(
-          'Không có giao dịch nào.',
+          'No transactions were made.',
           style: TextStyle(color: Color(0xFF8E8E93), fontSize: 14),
         ),
       );
@@ -224,7 +224,7 @@ class _CommonTransactionListScreenState
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               const Text(
-                'Tổng quan giao dịch',
+                'Transaction overview',
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: 16,
@@ -238,7 +238,7 @@ class _CommonTransactionListScreenState
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
-                  '${data.transactionCount} giao dịch',
+                  '${data.transactionCount} transaction',
                   style: const TextStyle(color: Colors.grey, fontSize: 12),
                 ),
               ),
@@ -248,7 +248,7 @@ class _CommonTransactionListScreenState
 
           // Income
           _summaryRow(
-            'Tổng thu:',
+            'Total income:',
             FormatHelper.formatVND(data.totalIncome),
             const Color(0xFF4CAF50),
           ),
@@ -256,7 +256,7 @@ class _CommonTransactionListScreenState
 
           // Expense
           _summaryRow(
-            'Tổng chi:',
+            'Total expense:',
             FormatHelper.formatVND(data.totalExpense),
             const Color(0xFFFF3B30),
           ),
@@ -264,7 +264,7 @@ class _CommonTransactionListScreenState
 
           // Net
           _summaryRow(
-            'Còn lại:',
+            'Remaining:',
             FormatHelper.formatVND(net),
             netColor,
           ),
@@ -323,7 +323,7 @@ class _CommonTransactionListScreenState
     );
 
     if (result == true && mounted) {
-      _showSnackBar('Đã cập nhật giao dịch');
+      _showSnackBar('Transaction updated');
       _loadData();
     }
   }
@@ -334,16 +334,16 @@ class _CommonTransactionListScreenState
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: Colors.grey[900],
-        title: const Text('Xóa giao dịch',
+        title: const Text('Delete transaction',
             style: TextStyle(color: Colors.white)),
         content: const Text(
-          'Bạn có chắc muốn xóa giao dịch này?',
+          'Are you sure you want to delete this transaction?',
           style: TextStyle(color: Colors.grey),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Hủy', style: TextStyle(color: Colors.grey)),
+            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
           ),
           TextButton(
             onPressed: () async {
@@ -356,16 +356,16 @@ class _CommonTransactionListScreenState
               if (!mounted) return;
 
               if (success) {
-                _showSnackBar('Đã xóa giao dịch');
+                _showSnackBar('Transaction deleted');
                 _loadData(); // Reload list
               } else {
                 _showSnackBar(
-                  provider.errorMessage ?? 'Có lỗi xảy ra',
+                  provider.errorMessage ?? 'An error occurred.',
                   isError: true,
                 );
               }
             },
-            child: const Text('Xóa', style: TextStyle(color: Colors.red)),
+            child: const Text('Delete', style: TextStyle(color: Colors.red)),
           ),
         ],
       ),

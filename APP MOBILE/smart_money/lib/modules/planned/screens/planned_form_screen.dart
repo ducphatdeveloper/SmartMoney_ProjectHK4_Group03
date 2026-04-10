@@ -162,7 +162,7 @@ class _PlannedFormScreenState extends State<PlannedFormScreen> {
         _wallets = response.data!;
       }
     } catch (e) {
-      debugPrint('❌ [PlannedFormScreen] Lỗi tải ví: $e');
+      debugPrint('❌ [PlannedFormScreen] Wallet loading error: $e');
     }
 
     _isLoadingWallets = false;
@@ -187,9 +187,9 @@ class _PlannedFormScreenState extends State<PlannedFormScreen> {
     // Tiêu đề phụ thuộc planType + isEditing
     String title;
     if (widget.planType == PlanType.recurring) {
-      title = _isEditing ? 'Sửa giao dịch định kỳ' : 'Giao dịch định kỳ mới';
+      title = _isEditing ? 'Modify recurring transactions' : 'New recurring transaction';
     } else {
-      title = _isEditing ? 'Sửa hoá đơn' : 'Hoá đơn mới';
+      title = _isEditing ? 'Edit bill' : 'New bill';
     }
 
     return Scaffold(
@@ -291,7 +291,7 @@ class _PlannedFormScreenState extends State<PlannedFormScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    _walletName ?? 'Chọn ví',
+                    _walletName ?? 'Choose a wallet',
                     style: TextStyle(
                       fontSize: 15,
                       color: _walletName != null ? Colors.white : const Color(0xFF8E8E93),
@@ -391,7 +391,7 @@ class _PlannedFormScreenState extends State<PlannedFormScreen> {
             const SizedBox(width: 14),
             Expanded(
               child: Text(
-                _categoryName ?? 'Chọn danh mục',
+                _categoryName ?? 'Select category',
                 style: TextStyle(
                   fontSize: 15,
                   color: _categoryName != null ? Colors.white : const Color(0xFF8E8E93),
@@ -420,7 +420,7 @@ class _PlannedFormScreenState extends State<PlannedFormScreen> {
               controller: _noteController,
               style: const TextStyle(color: Colors.white, fontSize: 15),
               decoration: const InputDecoration(
-                hintText: 'Ghi chú (không bắt buộc)',
+                hintText: 'Note (optional)',
                 hintStyle: TextStyle(color: Color(0xFF8E8E93), fontSize: 15),
                 border: InputBorder.none,
               ),
@@ -445,7 +445,7 @@ class _PlannedFormScreenState extends State<PlannedFormScreen> {
             const SizedBox(width: 14),
             Expanded(
               child: Text(
-                _repeatDescriptionPreview ?? 'Mời bạn chọn lịch lặp lại',
+                _repeatDescriptionPreview ?? 'Please select a recurring schedule.',
                 style: TextStyle(
                   fontSize: 15,
                   color: _repeatType != null ? Colors.white : const Color(0xFF8E8E93),
@@ -478,8 +478,8 @@ class _PlannedFormScreenState extends State<PlannedFormScreen> {
           const SizedBox(width: 10),
           const Expanded(
             child: Text(
-              'Lưu ý: Giao dịch định kỳ sẽ không được đồng bộ thực thi ngay lập tức. '
-              'Hệ thống sẽ tự động xử lý vào lúc nửa đêm.',
+              'Note: Recurring transactions will not be executed immediately.'
+              'The system will process automatically at midnight.',
               style: TextStyle(color: Color(0xFF8E8E93), fontSize: 13),
             ),
           ),
@@ -498,7 +498,7 @@ class _PlannedFormScreenState extends State<PlannedFormScreen> {
         icon: _isDeleting
             ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFFF3B30)))
             : const Icon(Icons.delete_outline, color: Color(0xFFFF3B30)),
-        label: const Text('Xóa', style: TextStyle(color: Color(0xFFFF3B30), fontSize: 15)),
+        label: const Text('Delete', style: TextStyle(color: Color(0xFFFF3B30), fontSize: 15)),
         style: OutlinedButton.styleFrom(
           side: const BorderSide(color: Color(0xFFFF3B30)),
           padding: const EdgeInsets.symmetric(vertical: 12),
@@ -534,7 +534,7 @@ class _PlannedFormScreenState extends State<PlannedFormScreen> {
             // Header
             const Padding(
               padding: EdgeInsets.all(16),
-              child: Text('Chọn ví', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
+              child: Text('Choose a wallet', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
             ),
             const Divider(height: 1, color: Color(0xFF3A3A3C)),
             // Danh sách ví
@@ -679,22 +679,22 @@ class _PlannedFormScreenState extends State<PlannedFormScreen> {
 
     switch (type) {
       case RepeatType.daily:
-        return interval == 1 ? 'Lặp hàng ngày' : 'Lặp mỗi $interval ngày';
+        return interval == 1 ? 'Repeat daily' : 'Repeat each $interval day';
       case RepeatType.weekly:
         final dayNames = FormatHelper.getDayNames(result.repeatOnDayVal ?? 0);
         final daysStr = dayNames.join(', ');
         return interval == 1
-            ? 'Lặp hàng tuần ($daysStr)'
-            : 'Lặp mỗi $interval tuần ($daysStr)';
+            ? 'Repeat weekly ($daysStr)'
+            : 'Repeat each $interval week ($daysStr)';
       case RepeatType.monthly:
         final day = result.beginDate.day;
         return interval == 1
-            ? 'Lặp vào ngày $day hàng tháng'
-            : 'Lặp vào ngày $day, mỗi $interval tháng';
+            ? 'Repeat on the same day $day of the month.'
+            : 'Repeat on the same day $day, of each $interval month';
       case RepeatType.yearly:
-        return interval == 1 ? 'Lặp hàng năm' : 'Lặp mỗi $interval năm';
+        return interval == 1 ? 'Repeat annually' : 'Repeat each $interval years';
       default:
-        return 'Không lặp';
+        return 'No repeat';
     }
   }
 
@@ -754,7 +754,7 @@ class _PlannedFormScreenState extends State<PlannedFormScreen> {
         ? debtProvider.receivableDebts   // CẦN THU — Cho vay chưa thu
         : debtProvider.payableDebts;     // CẦN TRẢ — Đi vay chưa trả
 
-    final tabLabel = debtType ? 'CẦN THU' : 'CẦN TRẢ';
+    final tabLabel = debtType ? 'NEED TO COLLECT' : 'PAYMENT REQUIRED';
     final activeColor = debtType ? Colors.blue : Colors.orange;
 
     // Bước 3: Hiện bottom sheet chọn khoản nợ
@@ -782,7 +782,7 @@ class _PlannedFormScreenState extends State<PlannedFormScreen> {
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      'Chọn khoản $tabLabel',
+                      'Select account $tabLabel',
                       style: const TextStyle(
                         color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold,
                       ),
@@ -799,7 +799,7 @@ class _PlannedFormScreenState extends State<PlannedFormScreen> {
                           Navigator.pop(ctx);
                         },
                         child: const Text(
-                          'Bỏ chọn',
+                          'Deselect',
                           style: TextStyle(color: Colors.red, fontSize: 13),
                         ),
                       ),
@@ -813,7 +813,7 @@ class _PlannedFormScreenState extends State<PlannedFormScreen> {
                 Padding(
                   padding: const EdgeInsets.all(32),
                   child: Text(
-                    'Không có khoản $tabLabel nào chưa hoàn thành',
+                    'No amount $tabLabel is incomplete.',
                     style: const TextStyle(color: Colors.grey),
                     textAlign: TextAlign.center,
                   ),
@@ -843,7 +843,7 @@ class _PlannedFormScreenState extends State<PlannedFormScreen> {
                         ),
                         // Số tiền còn lại
                         subtitle: Text(
-                          'Còn lại: ${FormatHelper.formatVND(debt.remainAmount)}',
+                          'Remaining: ${FormatHelper.formatVND(debt.remainAmount)}',
                           style: TextStyle(color: Colors.grey[500], fontSize: 12),
                         ),
                         // Icon check khi đang selected
@@ -894,7 +894,7 @@ class _PlannedFormScreenState extends State<PlannedFormScreen> {
             // Tên người nợ hoặc placeholder
             Expanded(
               child: Text(
-                _debtPersonName ?? 'Chọn khoản nợ liên kết',
+                _debtPersonName ?? 'Select linked debt',
                 style: TextStyle(
                   fontSize: 15,
                   color: _debtPersonName != null ? Colors.white : const Color(0xFF8E8E93),
@@ -914,36 +914,36 @@ class _PlannedFormScreenState extends State<PlannedFormScreen> {
   Future<void> _save() async {
     // Bước 1: Validate
     if (_walletId == null) {
-      _showSnackBar('Vui lòng chọn ví');
+      _showSnackBar('Please select a wallet.');
       return;
     }
     if (_amount <= 0) {
-      _showSnackBar('Số tiền phải lớn hơn 0');
+      _showSnackBar('The amount must be greater than 0.');
       return;
     }
     if (_categoryId == null) {
-      _showSnackBar('Vui lòng chọn danh mục');
+      _showSnackBar('Please select a category');
       return;
     }
     // [FIX] Validate debt khi category thuộc nhóm Nợ (19/20/21/22)
     // Nếu không chọn debt → debtId=null → backend tạo Transaction không liên kết nợ
     // → sổ nợ không recalculate → số dư sổ nợ sai
     if (_requiresDebtSelection && _debtId == null) {
-      _showSnackBar('Vui lòng chọn khoản nợ liên kết');
+      _showSnackBar('Please select the linked debt.');
       return;
     }
     if (_repeatType == null) {
-      _showSnackBar('Bạn cần chọn lịch lặp lại');
+      _showSnackBar('You need to select a recurring schedule.');
       return;
     }
     // Lặp tuần mà chưa chọn thứ nào
     if (_repeatType == RepeatType.weekly.value && (_repeatOnDayVal == null || _repeatOnDayVal == 0)) {
-      _showSnackBar('Vui lòng chọn ít nhất một ngày trong tuần');
+      _showSnackBar('Please select at least one day of the week.');
       return;
     }
     // COUNT mà repeatCount < 1
     if (_endDateOption == 'COUNT' && (_repeatCount == null || _repeatCount! < 1)) {
-      _showSnackBar('Số lần lặp phải >= 1');
+      _showSnackBar('The number of repetitions must be >= 1');
       return;
     }
 
@@ -1001,7 +1001,7 @@ class _PlannedFormScreenState extends State<PlannedFormScreen> {
       } else {
         err = Provider.of<BillProvider>(context, listen: false).errorMessage;
       }
-      _showSnackBar(err ?? 'Có lỗi xảy ra', isError: true);
+      _showSnackBar(err ?? 'An error occurred.', isError: true);
     }
   }
 
@@ -1014,17 +1014,17 @@ class _PlannedFormScreenState extends State<PlannedFormScreen> {
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF2C2C2E),
         title: Text(
-          widget.planType == PlanType.recurring ? 'Xóa giao dịch định kỳ?' : 'Xóa hóa đơn?',
+          widget.planType == PlanType.recurring ? 'Delete recurring transactions?' : 'Delete the bill?',
           style: const TextStyle(color: Colors.white, fontSize: 16),
         ),
         content: const Text(
-          'Hành động này không thể hoàn tác.',
+          'This action cannot be restore.',
           style: TextStyle(color: Color(0xFF8E8E93), fontSize: 14),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Không', style: TextStyle(color: Color(0xFF8E8E93))),
+            child: const Text('No', style: TextStyle(color: Color(0xFF8E8E93))),
           ),
           TextButton(
             onPressed: () async {
@@ -1045,10 +1045,10 @@ class _PlannedFormScreenState extends State<PlannedFormScreen> {
               if (success) {
                 Navigator.pop(context, true);
               } else {
-                _showSnackBar('Không thể xóa. Vui lòng thử lại.', isError: true);
+                _showSnackBar('Cannot delete. Please try again.', isError: true);
               }
             },
-            child: const Text('Xóa', style: TextStyle(color: Color(0xFFFF3B30))),
+            child: const Text('Delete', style: TextStyle(color: Color(0xFFFF3B30))),
           ),
         ],
       ),
