@@ -649,7 +649,9 @@ class _BillScreenState extends State<BillScreen> with SingleTickerProviderStateM
                     const Spacer(),
                     if (item.displayStatus == 'OVERDUE')
                       _buildInlineExpiryLabel(item.statusLabel ?? 'Quá hạn', const Color(0xFFFF3B30))
-                    else if (item.nextDueDate != null)
+                    else if (item.displayStatus != 'EXPIRED'
+                        && item.nextDueDateLabel != null
+                        && item.nextDueDate != null)
                       _buildInlineExpiryFromDate(item.nextDueDate!),
                   ],
                 ),

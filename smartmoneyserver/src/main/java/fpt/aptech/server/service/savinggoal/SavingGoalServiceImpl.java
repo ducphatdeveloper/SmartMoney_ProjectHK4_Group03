@@ -65,6 +65,11 @@ public class SavingGoalServiceImpl implements SavingGoalService {
                 ? request.getInitialAmount()
                 : BigDecimal.ZERO;
 
+        // Service-level guard (DTO đã có @PositiveOrZero nhưng cần guard thêm nếu gọi internal)
+        if (initialAmount.compareTo(BigDecimal.ZERO) < 0) {
+            throw new IllegalArgumentException("Số tiền ban đầu không được âm");
+        }
+
         // Bước 2: Tạo SavingGoal
         SavingGoal goal = SavingGoal.builder()
                 .goalName(request.getGoalName())
@@ -181,13 +186,13 @@ public class SavingGoalServiceImpl implements SavingGoalService {
                     "Số tiền mục tiêu không được nhỏ hơn số tiền hiện tại");
         }
 
-        // Bước 4: Cập nhật các trường thông tin
-        goal.setGoalName(request.getGoalName());
+        // Bước 4: Cập nhật các trường thông tin (chỉ update nếu client có gửi — tránh ghi null vào DB)
+        if (request.getGoalName() != null) goal.setGoalName(request.getGoalName());
         goal.setTargetAmount(request.getTargetAmount());
-        goal.setEndDate(request.getEndDate());
-        goal.setGoalImageUrl(request.getGoalImageUrl());
-        goal.setNotified(request.getNotified());
-        goal.setReportable(request.getReportable());
+        if (request.getEndDate() != null) goal.setEndDate(request.getEndDate());
+        if (request.getGoalImageUrl() != null) goal.setGoalImageUrl(request.getGoalImageUrl());
+        if (request.getNotified() != null)   goal.setNotified(request.getNotified());
+        if (request.getReportable() != null) goal.setReportable(request.getReportable());
 
         // Bước 5: Kiểm tra tự động hoàn thành nếu số tiền hiện tại đạt hoặc vượt mục tiêu
         if (goal.getCurrentAmount().compareTo(goal.getTargetAmount()) >= 0) {
@@ -229,6 +234,15 @@ public class SavingGoalServiceImpl implements SavingGoalService {
         double percentBefore = calcPercent(goal.getCurrentAmount(), goal.getTargetAmount());
 
         BigDecimal newAmount = goal.getCurrentAmount().add(amount);
+
+        // Guard: không cho nạp vượt quá số tiền mục tiêu
+        if (newAmount.compareTo(goal.getTargetAmount()) > 0) {
+            BigDecimal remaining = goal.getTargetAmount().subtract(goal.getCurrentAmount());
+            throw new IllegalArgumentException(
+                    String.format("Số tiền nạp vào vượt quá mục tiêu '%s'. Số tiền còn có thể nạp: %s đ.",
+                            goal.getGoalName(), remaining.toPlainString()));
+        }
+
         goal.setCurrentAmount(newAmount);
 
         double percentAfter = calcPercent(newAmount, goal.getTargetAmount());

@@ -41,6 +41,7 @@ public interface NotificationRepository extends JpaRepository<Notification, Inte
     @Query("SELECT n FROM Notification n WHERE n.account.id = :accId AND n.notifyType = :notifyType AND n.scheduledTime <= :now ORDER BY n.scheduledTime DESC")
     List<Notification> findAllVisibleNotificationsByAccount_IdAndNotifyTypeOrderByScheduledTimeDesc(@Param("accId") Integer accId, @Param("notifyType") Integer notifyType, @Param("now") LocalDateTime now);
 
+
     @Deprecated
     List<Notification> findAllByAccount_IdOrderByScheduledTimeDesc(Integer accId);
     @Deprecated

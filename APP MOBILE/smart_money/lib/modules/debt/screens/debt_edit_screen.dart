@@ -94,15 +94,22 @@ class _DebtEditScreenState extends State<DebtEditScreen> {
 
   // Mở DatePicker để chọn ngày hẹn trả
   Future<void> _pickDueDate() async {
+    final now = DateTime.now();
+    // [FIX] Nếu dueDate cũ đã quá khứ → dùng now+30 ngày làm initialDate
+    // tránh Flutter crash khi initialDate < firstDate
+    final safeInitial = (_selectedDueDate != null && _selectedDueDate!.isAfter(now))
+        ? _selectedDueDate!
+        : now.add(const Duration(days: 30));
+
     final picked = await showDatePicker(
       context: context,
-      initialDate: _selectedDueDate ?? DateTime.now().add(const Duration(days: 30)),
+      initialDate: safeInitial,
       // Hạn trả phải là tương lai — không chọn quá khứ
-      firstDate: DateTime.now(),
+      firstDate: now,
       lastDate: DateTime(2030, 12, 31),
-      helpText: 'Choose a return date',
-      confirmText: 'Confirm',
-      cancelText: 'Cancel',
+      helpText: 'Chọn ngày hẹn trả',
+      confirmText: 'Xác nhận',
+      cancelText: 'Hủy',
     );
 
     if (picked != null) {
@@ -126,7 +133,32 @@ class _DebtEditScreenState extends State<DebtEditScreen> {
     // Bước 1: Validate form (tên không được trống)
     if (!_formKey.currentState!.validate()) return;
 
+    // Bước 1.5: Confirm trước khi lưu — tránh bấm nhầm
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.grey[900],
+        title: const Text('Xác nhận sửa', style: TextStyle(color: Colors.white)),
+        content: const Text(
+          'Bạn có chắc muốn cập nhật khoản nợ này?',
+          style: TextStyle(color: Colors.grey),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Hủy', style: TextStyle(color: Colors.grey)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Xác nhận', style: TextStyle(color: Colors.blue)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
     // Bước 2: Build request — chỉ 3 field được phép sửa
+    // [NOTE] dueDate null → backend @NotNull tự trả lỗi "Vui lòng chọn ngày hẹn trả cho khoản nợ."
     final request = DebtUpdateRequest(
       personName: _nameController.text.trim(),
       dueDate: _selectedDueDate,

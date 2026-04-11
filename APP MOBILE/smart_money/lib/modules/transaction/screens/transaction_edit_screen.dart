@@ -234,6 +234,30 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
       return;
     }
 
+    // Bước 2.5: Confirm trước khi lưu — tránh bấm nhầm
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Colors.grey[900],
+        title: const Text('Xác nhận sửa', style: TextStyle(color: Colors.white)),
+        content: const Text(
+          'Bạn có chắc muốn cập nhật giao dịch này?',
+          style: TextStyle(color: Colors.grey),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Hủy', style: TextStyle(color: Colors.grey)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Xác nhận', style: TextStyle(color: Colors.blue)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
     // Bước 3: Build request body
     final request = TransactionRequest(
       walletId: _selectedSourceItem!.type == 'wallet' ? _selectedSourceItem!.id : null,
@@ -938,6 +962,9 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
                       // [H] Row chọn sự kiện đang diễn ra — tái dùng EventProvider
                       _buildEventRow(),
                       const Divider(color: Colors.grey, height: 1),
+                      // [I] Row đặt nhắc nhở — chọn ngày + giờ → lưu vào _reminderTime
+                      _buildReminderRow(),
+                      const Divider(color: Colors.grey, height: 1),
                       _buildWithPersonRow(),
                       const Divider(color: Colors.grey, height: 1),
                       _buildReportCheckbox(),
@@ -1064,6 +1091,95 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
         ),
       ),
     );
+  }
+
+  // ----- Widget: Row đặt nhắc nhở (DatePicker + TimePicker) -----
+  // [I] Chọn ngày + giờ nhắc nhở → gộp thành _reminderTime (DateTime)
+  //     → gửi lên server qua request.reminderDate
+  //     → server tạo Notification với scheduledTime = reminderDate
+  Widget _buildReminderRow() {
+    return GestureDetector(
+      onTap: _pickReminderDateTime,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          children: [
+            const Icon(Icons.notifications_outlined, color: Colors.grey, size: 20),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                _reminderTime != null
+                    ? 'Nhắc nhở: ${FormatHelper.formatDisplayDate(_reminderTime!)} ${_reminderTime!.hour.toString().padLeft(2, '0')}:${_reminderTime!.minute.toString().padLeft(2, '0')}'
+                    : 'Đặt nhắc nhở (tùy chọn)',
+                style: TextStyle(
+                  color: _reminderTime != null ? Colors.white : Colors.grey,
+                  fontSize: 15,
+                ),
+              ),
+            ),
+            if (_reminderTime != null)
+              GestureDetector(
+                onTap: () => setState(() => _reminderTime = null),
+                child: const Icon(Icons.close, color: Colors.grey, size: 18),
+              )
+            else
+              const Icon(Icons.chevron_right, color: Colors.grey, size: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ----- Helper: Mở DatePicker → TimePicker → gộp thành DateTime -----
+  Future<void> _pickReminderDateTime() async {
+    final now = DateTime.now();
+    final pickedDate = await showDatePicker(
+      context: context,
+      initialDate: _reminderTime ?? now,
+      firstDate: now,
+      lastDate: DateTime(now.year + 5),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.dark(
+              primary: Color(0xFF4CAF50),
+              surface: Color(0xFF1C1C1E),
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (pickedDate == null || !mounted) return;
+
+    final pickedTime = await showTimePicker(
+      context: context,
+      initialTime: _reminderTime != null
+          ? TimeOfDay.fromDateTime(_reminderTime!)
+          : TimeOfDay.fromDateTime(now.add(const Duration(hours: 1))),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.dark(
+              primary: Color(0xFF4CAF50),
+              surface: Color(0xFF1C1C1E),
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (pickedTime == null || !mounted) return;
+
+    setState(() {
+      _reminderTime = DateTime(
+        pickedDate.year,
+        pickedDate.month,
+        pickedDate.day,
+        pickedTime.hour,
+        pickedTime.minute,
+      );
+    });
   }
 
   // ----- Widget: Row liên kết khoản nợ (chỉ hiện khi category là Thu nợ/Trả nợ) -----

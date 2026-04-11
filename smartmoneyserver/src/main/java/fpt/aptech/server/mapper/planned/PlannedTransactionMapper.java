@@ -89,9 +89,19 @@ public class PlannedTransactionMapper {
         }
 
         // --- Bước 5: Format nextDueDateLabel ---
-        String nextDueDateLabel = p.getNextDueDate() != null
-                ? p.getNextDueDate().format(VN_DATE_FORMATTER)
-                : null;
+        // Ẩn nextDueDateLabel khi không còn lần lặp nào nữa:
+        //   (a) displayStatus = EXPIRED  → endDate đã qua hôm nay
+        //   (b) remainingCount = 0       → tính toán không còn lần nào
+        //   (c) nextDueDate > endDate    → lần kế tiếp vượt hạn dừng
+        String nextDueDateLabel = null;
+        if (p.getNextDueDate() != null) {
+            boolean noMoreRepetitions = "EXPIRED".equals(displayStatus)
+                    || (remainingCount != null && remainingCount == 0)
+                    || (p.getEndDate() != null && p.getNextDueDate().isAfter(p.getEndDate()));
+            if (!noMoreRepetitions) {
+                nextDueDateLabel = p.getNextDueDate().format(VN_DATE_FORMATTER);
+            }
+        }
 
 
         // ══════════════════════════════════════════════════════════════════

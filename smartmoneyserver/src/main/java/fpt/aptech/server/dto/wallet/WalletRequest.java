@@ -1,5 +1,6 @@
 package fpt.aptech.server.dto.wallet;
 
+import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.PositiveOrZero;
@@ -21,6 +22,7 @@ public class WalletRequest{
     private String walletName;
 
     @PositiveOrZero(message = "Số dư phải lớn hơn hoặc bằng 0")
+    @DecimalMax(value = "1000000000000.00", message = "Số dư không được vượt quá 1.000 tỷ VND")
     private BigDecimal balance;
 
     private Boolean notified;
