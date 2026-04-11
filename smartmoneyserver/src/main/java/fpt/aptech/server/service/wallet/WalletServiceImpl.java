@@ -159,8 +159,6 @@ public class WalletServiceImpl implements WalletService {
                 throw new IllegalArgumentException("Tên ví không hợp lệ");
             }
 
-            boolean exists = walletRepository
-                    .existsByAccountIdAndWalletNameIgnoreCase(accountId, name);
 
             wallet.setWalletName(name);
         }

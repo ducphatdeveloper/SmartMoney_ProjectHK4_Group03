@@ -199,6 +199,30 @@ class _CategoryEditScreenState extends State<CategoryEditScreen> {
       return;
     }
 
+    // Bước 1.5: Confirm trước khi lưu — tránh bấm nhầm
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1C1C1E),
+        title: const Text('Xác nhận sửa', style: TextStyle(color: Colors.white)),
+        content: Text(
+          'Bạn có chắc muốn cập nhật danh mục "$name"?',
+          style: const TextStyle(color: Colors.grey),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Hủy', style: TextStyle(color: Colors.grey)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Xác nhận', style: TextStyle(color: Colors.blue)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
     // Bước 2: Build request
     // [FIX-1] Dùng _effectiveParentId — không dùng ?? fallback
     final request = CategoryRequest(

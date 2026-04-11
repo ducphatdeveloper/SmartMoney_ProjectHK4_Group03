@@ -282,8 +282,33 @@ class BillListItem extends StatelessWidget {
       );
     }
 
-    // PAID — không cần hiện thêm label (nút "Đã trả" đã đủ)
-    if (status == 'PAID') return const SizedBox.shrink();
+    // PAID — đã trả kỳ này, vẫn hiện icon kỳ kế tiếp
+    // nextDueDate sau payBill đã được backend tự động chuyển sang kỳ tiếp theo
+    if (status == 'PAID') {
+      if (item.nextDueDateLabel != null && item.nextDueDate != null) {
+        final today = DateTime.now();
+        final todayDate = DateTime(today.year, today.month, today.day);
+        final dueDate = DateTime(
+          item.nextDueDate!.year,
+          item.nextDueDate!.month,
+          item.nextDueDate!.day,
+        );
+        final days = dueDate.difference(todayDate).inDays;
+        final r = _resolve(days);
+        return Padding(
+          padding: const EdgeInsets.only(top: 2),
+          child: Text(
+            r.label,
+            style: TextStyle(
+              fontSize: 12,
+              color: r.color,
+              fontWeight: r.weight,
+            ),
+          ),
+        );
+      }
+      return const SizedBox.shrink();
+    }
 
     // ACTIVE (hoặc null) — tính ngày còn lại từ nextDueDate local
     // [v2] Backend không còn trả daysUntilDue → tự tính

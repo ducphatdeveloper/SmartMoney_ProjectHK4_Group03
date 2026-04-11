@@ -57,6 +57,19 @@ public class DebtServiceImpl implements DebtService {
     public DebtResponse updateDebt(Integer debtId, DebtUpdateRequest request, Integer accId) {
         Debt debt = getOwnedDebt(debtId, accId);
 
+        // [VALIDATE-DUEDATE] Bắt buộc nhập ngày hẹn trả khi cập nhật khoản nợ
+        if (request.dueDate() == null) {
+            throw new IllegalArgumentException("Vui lòng chọn ngày hẹn trả cho khoản nợ.");
+        }
+
+        // [VALIDATE-DUEDATE] Chỉ validate "phải tương lai" khi user THỰC SỰ ĐỔI dueDate
+        // Nếu giữ nguyên dueDate cũ (VD: hạn trả tháng trước, user chỉ sửa tên/note) → skip
+        boolean dueDateChanged = debt.getDueDate() == null
+                || !request.dueDate().toLocalDate().isEqual(debt.getDueDate().toLocalDate());
+        if (dueDateChanged && !request.dueDate().isAfter(java.time.LocalDateTime.now())) {
+            throw new IllegalArgumentException("Ngày hẹn trả phải là ngày trong tương lai.");
+        }
+
         // Chỉ cho sửa 3 field — totalAmount và debtType KHÔNG được sửa
         debt.setPersonName(request.personName());
         debt.setDueDate(request.dueDate());

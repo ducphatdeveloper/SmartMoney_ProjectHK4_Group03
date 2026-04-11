@@ -4,6 +4,7 @@ import fpt.aptech.server.utils.currency.CurrencyUtils;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Locale;
 
@@ -58,6 +59,97 @@ public final class NotificationMessages {
         String content = String.format("Phát hiện giao dịch lớn: %s cho %s. Hãy kiểm tra lại!",
                 CurrencyUtils.formatVND(amount), categoryName);
         return new NotificationContent(title, content);
+    }
+
+    /**
+     * Nhắc nhở giao dịch theo lịch do user đặt.
+     * Dùng khi: TransactionService.createTransaction() / updateTransaction()
+     *           khi request.reminderDate() != null.
+     *
+     * Ví dụ output:
+     *   Title  : "💰 Nhắc nhở: Khoản thu của bạn"
+     *   Content: "Bạn đã thu 1.500.000 ₫ - Ăn uống ngày 11/04/2026 lúc 14:30 vào Ví chính.
+     *             Ghi chú: Ăn trưa team. | Sự kiện: Sinh nhật bạn. | Hóa đơn định kỳ. | Khoản nợ: Anh Tuấn."
+     *
+     * @param isIncome       true = khoản thu (income), false = khoản chi (expense)
+     * @param amount         số tiền của giao dịch
+     * @param categoryName   tên danh mục (VD: "Ăn uống", "Lương")
+     * @param sourceName     tên ví hoặc mục tiêu tiết kiệm đã chọn
+     * @param transDate      thời điểm giao dịch — dùng để format "ngày dd/MM/yyyy lúc HH:mm"
+     * @param note           ghi chú giao dịch (nullable — bỏ qua nếu null/blank)
+     * @param eventName      tên sự kiện liên kết (nullable — bỏ qua nếu null)
+     * @param plannedType    loại giao dịch định kỳ: 1=Hóa đơn, 2=Định kỳ tự động (nullable)
+     * @param debtPersonName tên người liên quan trong sổ nợ (nullable — bỏ qua nếu null)
+     */
+    public static NotificationContent transactionReminder(boolean isIncome,
+                                                          BigDecimal amount,
+                                                          String categoryName,
+                                                          String sourceName,
+                                                          LocalDateTime transDate,
+                                                          String note,
+                                                          String eventName,
+                                                          Integer plannedType,
+                                                          String debtPersonName) {
+        // Bước 1: Xác định nhãn loại giao dịch — "thu" hoặc "chi"
+        String type = isIncome ? "thu" : "chi";
+
+        // Bước 2: Xác định tiêu đề thông báo theo loại giao dịch
+        //   isIncome = true  → khoản thu → icon 💰
+        //   isIncome = false → khoản chi → icon 💸
+        String title = isIncome
+                ? "💰 Nhắc nhở: Khoản thu của bạn"
+                : "💸 Nhắc nhở: Khoản chi của bạn";
+
+        // Bước 3: Format ngày giờ đầy đủ từ transDate
+        //   VD: transDate = 2026-04-11T14:30:00 → "ngày 11/04/2026 lúc 14:30"
+        //   %02d: đảm bảo ngày/tháng/giờ/phút luôn 2 chữ số (VD: 7 → "07")
+        String dateTimeLabel = String.format("ngày %02d/%02d/%d lúc %02d:%02d",
+                transDate.getDayOfMonth(),   // ngày trong tháng (1-31)
+                transDate.getMonthValue(),   // tháng (1-12)
+                transDate.getYear(),         // năm 4 chữ số
+                transDate.getHour(),         // giờ (0-23)
+                transDate.getMinute()        // phút (0-59)
+        );
+
+        // Bước 4: Ghép nội dung thông báo chính
+        //   Cấu trúc: "Bạn đã [thu/chi] [số tiền] - [danh mục] [ngày giờ] vào [nguồn tiền]."
+        StringBuilder content = new StringBuilder(String.format(
+                "Bạn đã %s %s - %s %s vào %s.",
+                type,
+                CurrencyUtils.formatVND(amount),
+                categoryName,
+                dateTimeLabel,
+                sourceName
+        ));
+
+        // Bước 5: Nối các thông tin bổ sung (chỉ thêm nếu có giá trị)
+        if (note != null && !note.isBlank()) {
+            content.append(" Ghi chú: ").append(note.trim()).append(".");
+        }
+        if (eventName != null && !eventName.isBlank()) {
+            content.append(" Sự kiện: ").append(eventName.trim()).append(".");
+        }
+        if (plannedType != null) {
+            content.append(plannedType == 1 ? " Hóa đơn định kỳ." : " Giao dịch lặp lại tự động.");
+        }
+        if (debtPersonName != null && !debtPersonName.isBlank()) {
+            content.append(" Khoản nợ: ").append(debtPersonName.trim()).append(".");
+        }
+
+        return new NotificationContent(title, content.toString());
+    }
+
+    /**
+     * Overload không có thông tin bổ sung — dùng khi không có note/event/planned/debt.
+     * Giữ backward-compatibility cho các call site cũ (5 tham số).
+     */
+    public static NotificationContent transactionReminder(boolean isIncome,
+                                                          BigDecimal amount,
+                                                          String categoryName,
+                                                          String sourceName,
+                                                          LocalDateTime transDate) {
+        return transactionReminder(isIncome, amount, categoryName, sourceName, transDate,
+                null, null, null, null);
     }
 
     // ════════════════════════════════════════════════════════════════════════
