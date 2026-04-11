@@ -48,11 +48,15 @@ class _AddBudgetScreenState extends State<AddBudgetScreen> {
     final raw = value.replaceAll('.', '').replaceAll(',', '');
     int number = int.tryParse(raw) ?? 0;
 
-    // Giới hạn 500 triệu
-    if (number > 500000000) {
-      number = 500000000;
+    // Giới hạn 1000 tỷ
+    const MAX_AMOUNT = 1000000000000; // 1000 tỷ
 
-      // Hiển thị cảnh báo nhẹ, chỉ show 1 lần khi value vượt
+    if (number > MAX_AMOUNT) {
+      number = MAX_AMOUNT;
+
+
+
+    // Hiển thị cảnh báo nhẹ, chỉ show 1 lần khi value vượt
       if (!_hasShownLimitWarning) {
         _hasShownLimitWarning = true; // đánh dấu đã show
         // clear SnackBar cũ trước khi show
@@ -60,7 +64,7 @@ class _AddBudgetScreenState extends State<AddBudgetScreen> {
           ..removeCurrentSnackBar()
           ..showSnackBar(
             const SnackBar(
-              content: Text("Số tiền không được vượt quá 500 triệu"),
+              content: Text("Số tiền không được vượt quá 1000 tỷ"),
               duration: Duration(seconds: 2),
             ),
           );
