@@ -13,16 +13,13 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
 
-  final usernameController = TextEditingController(text: "minh.pham@gmail.com"); // Đặt giá trị mặc định hoặc sđt 0923456789
-  final passwordController = TextEditingController(text: "Test@123"); // Đặt giá trị mặc định
+  final usernameController = TextEditingController(text: "minh.pham@gmail.com"); 
+  final passwordController = TextEditingController(text: "Test@123"); 
   bool isHidePassword = true;
 
   String? _usernameError;
   String? _passwordError;
 
-  // =============================================
-  // [N] _showSnackBar — Hiện thông báo (copy vào mọi Screen)
-  // =============================================
   void _showSnackBar(String message, {bool isError = true}) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(message),
@@ -37,9 +34,7 @@ class _LoginScreenState extends State<LoginScreen> {
     final authProvider = Provider.of<AuthProvider>(context);
 
     return Scaffold(
-
       body: Container(
-
         decoration: const BoxDecoration(
           gradient: LinearGradient(
             colors: [
@@ -51,25 +46,17 @@ class _LoginScreenState extends State<LoginScreen> {
             end: Alignment.bottomCenter,
           ),
         ),
-
         child: Center(
-
           child: SingleChildScrollView(
-
             padding: const EdgeInsets.all(24),
-
             child: Column(
-
               children: [
-
                 Image.asset(
                   "assets/images/logo.png",
                   width: 150,
                   height: 150,
                 ),
-
                 const SizedBox(height: 20),
-
                 const Text(
                   "Access Your Account",
                   style: TextStyle(
@@ -78,13 +65,9 @@ class _LoginScreenState extends State<LoginScreen> {
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-
                 const SizedBox(height: 40),
-
                 Container(
-
                   padding: const EdgeInsets.all(24),
-
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(20),
@@ -95,37 +78,28 @@ class _LoginScreenState extends State<LoginScreen> {
                       )
                     ],
                   ),
-
                   child: Column(
-
                       children: [
-
-                        /// USERNAME
                         TextField(
                           controller: usernameController,
                           style: const TextStyle(
                             color: Colors.black,
                             fontSize: 16,
                           ),
-
                           decoration: InputDecoration(
                             labelText: "Username",
                             hintText: "Enter your username",
                             errorText: _usernameError,
-
                             prefixIcon: const Icon(
                               Icons.person,
                               color: Colors.blue,
                             ),
-
                             filled: true,
                             fillColor: Colors.white,
-
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(14),
                               borderSide: BorderSide.none,
                             ),
-
                             enabledBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(14),
                               borderSide: const BorderSide(
@@ -133,7 +107,6 @@ class _LoginScreenState extends State<LoginScreen> {
                                 width: 1.5,
                               ),
                             ),
-
                             focusedBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(14),
                               borderSide: const BorderSide(
@@ -141,17 +114,13 @@ class _LoginScreenState extends State<LoginScreen> {
                                 width: 2,
                               ),
                             ),
-
                             contentPadding: const EdgeInsets.symmetric(
                               vertical: 18,
                               horizontal: 16,
                             ),
                           ),
                         ),
-
                         const SizedBox(height: 20),
-
-                        /// PASSWORD
                         TextField(
                           controller: passwordController,
                           obscureText: isHidePassword,
@@ -159,18 +128,14 @@ class _LoginScreenState extends State<LoginScreen> {
                             color: Colors.black,
                             fontSize: 16,
                           ),
-
-
                           decoration: InputDecoration(
                             labelText: "Password",
                             hintText: "Enter your password",
                             errorText: _passwordError,
-
                             prefixIcon: const Icon(
                               Icons.lock,
                               color: Colors.blue,
                             ),
-
                             suffixIcon: IconButton(
                               icon: Icon(
                                 isHidePassword
@@ -184,15 +149,12 @@ class _LoginScreenState extends State<LoginScreen> {
                                 });
                               },
                             ),
-
                             filled: true,
                             fillColor: Colors.white,
-
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(14),
                               borderSide: BorderSide.none,
                             ),
-
                             enabledBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(14),
                               borderSide: const BorderSide(
@@ -200,7 +162,6 @@ class _LoginScreenState extends State<LoginScreen> {
                                 width: 1.5,
                               ),
                             ),
-
                             focusedBorder: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(14),
                               borderSide: const BorderSide(
@@ -208,17 +169,13 @@ class _LoginScreenState extends State<LoginScreen> {
                                 width: 2,
                               ),
                             ),
-
                             contentPadding: const EdgeInsets.symmetric(
                               vertical: 18,
                               horizontal: 16,
                             ),
                           ),
                         ),
-
                         const SizedBox(height: 10),
-
-                        /// FORGOT PASSWORD
                         Align(
                           alignment: Alignment.centerRight,
                           child: TextButton(
@@ -234,33 +191,25 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                           ),
                         ),
-
                         const SizedBox(height: 15),
-
-                        /// LOGIN BUTTON
                         SizedBox(
                           width: double.infinity,
                           height: 50,
-
                           child: ElevatedButton(
-
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.blue,
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(14),
                               ),
                             ),
-
                             onPressed: authProvider.isLoading
                                 ? null
                                 : () async {
-                              
                               setState(() {
                                 _usernameError = null;
                                 _passwordError = null;
                               });
 
-                              // Validate client-side nhanh (tránh gọi API thừa)
                               if (usernameController.text.trim().isEmpty) {
                                 _showSnackBar('Tên đăng nhập không được để trống');
                                 return;
@@ -270,30 +219,25 @@ class _LoginScreenState extends State<LoginScreen> {
                                 return;
                               }
 
-                              // Bước 2: Gọi Provider
                               final success = await authProvider.login(
                                 usernameController.text,
                                 passwordController.text,
+                                context, // Pass context here
                               );
 
-                              // Bước 3: LUÔN check mounted sau await (bắt buộc, không bỏ)
                               if (!mounted) return;
 
-                              // Bước 4: Hiện kết quả cho user
                               if (success) {
                                 _showSnackBar(authProvider.successMessage ?? 'Đăng nhập thành công!', isError: false);
                                 context.go("/main");
                               } else {
                                 setState(() {
-                                  // Key phải khớp tên field trong DTO Java
                                   _usernameError = authProvider.fieldErrors['username'];
                                   _passwordError = authProvider.fieldErrors['password'];
                                 });
                                 _showSnackBar(authProvider.errorMessage ?? 'Có lỗi xảy ra');
                               }
-
                             },
-
                             child: authProvider.isLoading
                                 ? const CircularProgressIndicator(
                                 color: Colors.white)
@@ -305,10 +249,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                           ),
                         ),
-
                         const SizedBox(height: 20),
-
-                        /// REGISTER LINK
                         TextButton(
                           onPressed: () {
                             context.go("/register");
@@ -321,10 +262,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                           ),
                         ),
-
                         const SizedBox(height: 10),
-
-                        /// SUPPORT ICON
                         IconButton(
                           onPressed: () {
                             Navigator.push(
@@ -339,10 +277,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                           tooltip: "Customer Support",
                         ),
-
                       ]
-
-
                   ),
                 )
               ],

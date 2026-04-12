@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:jwt_decoder/jwt_decoder.dart';
-import 'dart:io' show Platform; // Chỉ import Platform từ dart:io
-import 'package:flutter/foundation.dart'; // Import for kIsWeb
+import 'dart:io' show Platform;
+import 'package:flutter/foundation.dart';
 
 import '../../../core/di/setup_dependencies.dart';
 import '../../../core/models/user_model.dart';
@@ -11,14 +11,14 @@ import '../../../core/helpers/token_helper.dart';
 import '../models/login_request.dart';
 import '../models/register_request.dart';
 import '../models/update_profile_request.dart';
-
+import '../../notification/providers/notification_provider.dart';
+import 'package:provider/provider.dart';
 
 class AuthProvider extends ChangeNotifier {
   final AuthService _authService = getIt<AuthService>();
   UserModel? _currentUser;
   UserModel? _user;
 
-  // Thêm getter này để fix lỗi "The getter 'user' isn't defined"
   UserModel? get user => _user;
 
   bool _isLoading = false;
@@ -27,18 +27,15 @@ class AuthProvider extends ChangeNotifier {
   bool get isLoading => _isLoading;
   bool get isLoggedIn => _currentUser != null;
 
-  // Thêm 3 biến state mới
-  String? _errorMessage;    // lỗi từ backend — Screen đọc để hiện SnackBar đỏ
+  String? _errorMessage;
   String? get errorMessage => _errorMessage;
 
-  String? _successMessage;  // thành công — Screen đọc để hiện SnackBar xanh
+  String? _successMessage;
   String? get successMessage => _successMessage;
 
-  // Thêm fieldErrors cho lỗi từng ô
   Map<String, String> _fieldErrors = {};
   Map<String, String> get fieldErrors => _fieldErrors;
 
-  // Constructor: Tải thông tin user nếu đã đăng nhập trước đó
   AuthProvider() {
     _loadCurrentUser();
   }
@@ -53,11 +50,8 @@ class AuthProvider extends ChangeNotifier {
 
     final accessToken = await TokenHelper.getAccessToken();
     if (accessToken != null && !JwtDecoder.isExpired(accessToken)) {
-      // Giải mã token để lấy các trường (theo JwtUtils của Spring Boot)
-      // { "userId": 6, "sub": "minh.pham@gmail.com", "authorities": ["ROLE_USER", "USER_STANDARD_MANAGE"] }
       final decodedToken = JwtDecoder.decode(accessToken);
       
-      // Parse authorities thành roleCode và permissions
       List<dynamic> authorities = decodedToken['authorities'] ?? [];
       String? roleCode;
       List<String> permissions = [];
@@ -71,12 +65,8 @@ class AuthProvider extends ChangeNotifier {
         }
       }
 
-      // Tái tạo lại UserModel ở mức cơ bản từ JWT
-      // Lưu ý: Các field như avatarUrl, currency sẽ null cho đến khi gọi API /users/profile
       _currentUser = UserModel(
         userId: decodedToken['userId'],
-        // accEmail: decodedToken['sub'].contains('@') ? decodedToken['sub'] : null,
-        // accPhone: !decodedToken['sub'].contains('@') ? decodedToken['sub'] : null,
         accEmail: sub.contains('@') ? sub : null,
         accPhone: !sub.contains('@') ? sub : null,
         roleCode: roleCode,
@@ -87,8 +77,7 @@ class AuthProvider extends ChangeNotifier {
     _setLoading(false);
   }
 
-  Future<bool> login(String username, String password) async {
-    // Bước 1: Bật loading, xóa thông báo cũ
+  Future<bool> login(String username, String password, BuildContext context) async {
     _isLoading = true;
     _errorMessage = null;
     _successMessage = null;
@@ -97,7 +86,7 @@ class AuthProvider extends ChangeNotifier {
 
     try {
       final deviceInfo = DeviceInfoPlugin();
-      String? deviceToken; // FCM token
+      String? deviceToken;
       String? deviceType;
       String? deviceName;
 
@@ -108,12 +97,10 @@ class AuthProvider extends ChangeNotifier {
         final androidInfo = await deviceInfo.androidInfo;
         deviceType = "ANDROID";
         deviceName = androidInfo.model;
-        // deviceToken = await FirebaseMessaging.instance.getToken();
       } else if (Platform.isIOS) {
         final iosInfo = await deviceInfo.iosInfo;
         deviceType = "IOS";
         deviceName = iosInfo.name;
-        // deviceToken = await FirebaseMessaging.instance.getToken();
       } else {
         deviceType = Platform.operatingSystem.toUpperCase();
         deviceName = Platform.localHostname;
@@ -127,13 +114,17 @@ class AuthProvider extends ChangeNotifier {
         deviceName: deviceName,
       );
 
-      // Bước 2: Gọi Service (Service trả ApiResponse, không throw)
       final response = await _authService.login(request);
 
-      // Bước 3: Xử lý kết quả
       if (response.success && response.data != null) {
         _currentUser = UserModel.fromAuthResponse(response.data!);
         _successMessage = response.message ?? 'Đăng nhập thành công';
+        
+        // Tải thông báo ngay khi đăng nhập
+        if (context.mounted) {
+          context.read<NotificationProvider>().fetchNotifications();
+        }
+        
         _isLoading = false;
         notifyListeners();
         return true;
@@ -143,7 +134,7 @@ class AuthProvider extends ChangeNotifier {
         try {
           final raw = response.data as dynamic;
           if (raw is Map<String, dynamic> && raw != null && raw.isNotEmpty) {
-            _fieldErrors = Map<String, String>.from(raw as Map<String, dynamic>); // {"username": "Sai", ...}
+            _fieldErrors = Map<String, String>.from(raw as Map<String, dynamic>);
           }
         } catch (_) {}
         _isLoading = false;
@@ -161,7 +152,6 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<bool> register(String? email, String? phone, String password, String confirmPassword) async {
-    // Bước 1: Bật loading, xóa thông báo cũ
     _isLoading = true;
     _errorMessage = null;
     _successMessage = null;
@@ -176,10 +166,8 @@ class AuthProvider extends ChangeNotifier {
         confirmPassword: confirmPassword,
       );
 
-      // Bước 2: Gọi Service (Service trả ApiResponse, không throw)
       final response = await _authService.register(request);
 
-      // Bước 3: Xử lý kết quả
       if (response.success) {
         _successMessage = response.message ?? 'Đăng ký thành công';
         _isLoading = false;
@@ -190,7 +178,7 @@ class AuthProvider extends ChangeNotifier {
         try {
           final raw = response.data as dynamic;
           if (raw is Map<String, dynamic> && raw != null && raw.isNotEmpty) {
-            _fieldErrors = Map<String, String>.from(raw as Map<String, dynamic>); // {"accEmail": "Sai", ...}
+            _fieldErrors = Map<String, String>.from(raw as Map<String, dynamic>);
           }
         } catch (_) {}
         _isLoading = false;
@@ -206,12 +194,17 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> logout() async {
+  Future<void> logout(BuildContext context) async {
     _setLoading(true);
 
     try {
       String? deviceToken;
       await _authService.logout(deviceToken: deviceToken ?? "");
+      
+      // Xóa thông báo khi đăng xuất
+      if (context.mounted) {
+        context.read<NotificationProvider>().clearNotifications();
+      }
     } catch (e) {
       debugPrint("Logout Error: $e");
     } finally {
@@ -220,10 +213,8 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  /// Yêu cầu gửi mã OTP đặt lại mật khẩu qua Email (Alias cho requestPasswordReset)
   Future<bool> requestPasswordReset(String email) async {
     _setLoading(true);
-
     try {
       final response = await _authService.forgotPassword(email);
       return response.success == true;
@@ -235,14 +226,12 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  /// Xác nhận OTP và đặt mật khẩu mới
   Future<bool> confirmResetPassword({
     required String email,
     required String otp,
     required String newPassword,
   }) async {
     _setLoading(true);
-
     try {
       final response = await _authService.resetPassword(email, otp, newPassword);
       return response.success == true;
@@ -254,7 +243,6 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  /// Lấy thông tin hồ sơ chi tiết từ Server
   Future<void> getProfile() async {
     _setLoading(true);
     try {
@@ -269,18 +257,15 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  /// Cập nhật ảnh đại diện
   Future<String?> updateAvatar(String filePath) async {
     _setLoading(true);
-
     try {
       final response = await _authService.updateAvatar(filePath);
-
       if (response.success == true && response.data != null) {
         if (_currentUser != null) {
           _currentUser = _currentUser!.copyWith(avatarUrl: response.data);
         }
-        return response.data; // Trả về avatarUrl mới
+        return response.data;
       }
       return null;
     } catch (e) {
@@ -291,13 +276,10 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  /// Cập nhật thông tin hồ sơ
   Future<bool> updateProfile(UpdateProfileRequest request) async {
     _setLoading(true);
-
     try {
       final response = await _authService.updateProfile(request);
-
       if (response.success == true && response.data != null) {
         _currentUser = UserModel.fromAuthResponse(response.data!);
         return true;
@@ -311,10 +293,8 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  /// Gửi OTP khóa khẩn cấp
   Future<bool> sendEmergencyLockOTP(String identityCard) async {
     _setLoading(true);
-
     try {
       final response = await _authService.sendEmergencyLockOTP(identityCard);
       return response.success == true;
@@ -326,10 +306,8 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  /// Xác nhận và khóa tài khoản
   Future<bool> verifyAndLockAccount(String otpCode) async {
     _setLoading(true);
-
     try {
       final response = await _authService.verifyAndLockAccount(otpCode);
       return response.success == true;
@@ -341,17 +319,11 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  // =============================================
-  // [N] HELPER — Đọc lỗi từ response backend
-  // =============================================
-  // Xử lý 2 dạng lỗi:
-  //   • data là Map  → lỗi từng ô (@Valid) → gom thành 1 chuỗi
-  //   • data là null → lấy message trực tiếp (IllegalArgumentException...)
   String _extractErrorMessage(dynamic response) {
     try {
       final raw = response.data;
       if (raw is Map && raw.isNotEmpty) {
-        return raw.values.join('\n'); // "Số tiền trống\nChưa chọn ví"
+        return raw.values.join('\n');
       }
     } catch (_) {}
     return response.message?.toString().isNotEmpty == true

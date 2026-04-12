@@ -1,29 +1,16 @@
 // modules/transaction/screens/transaction_report_screen.dart
-// Báo cáo tài chính theo giai đoạn — dùng được cả inline (TransactionReportPanel)
-//
-// [TransactionReportPanel] — widget công khai, nhúng inline vào TransactionListScreen
-//   • Dùng Consumer<TransactionProvider> nội bộ để tự đọc startDate/endDate/source
-//   • Dùng ValueKey để tự reload khi người dùng đổi range hoặc đổi ví
-//   • Chỉ gọi 1 API: GET /api/transactions/report/summary
-//
-// Cấu trúc widget:
-//   TransactionReportPanel (StatelessWidget, public)
-//     └─ Consumer<TransactionProvider>
-//           └─ _ReportLoader (StatefulWidget, private — xử lý API + UI)
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:fl_chart/fl_chart.dart';
 import 'package:smart_money/core/helpers/format_helper.dart';
+import 'package:smart_money/core/models/api_response.dart';
 import 'package:smart_money/modules/transaction/models/report/transaction_report_response.dart';
+import 'package:smart_money/modules/transaction/models/report/category_report_dto.dart';
 import 'package:smart_money/modules/transaction/providers/transaction_provider.dart';
 import 'package:smart_money/modules/transaction/screens/common_transaction_list_screen.dart';
 import 'package:smart_money/modules/transaction/services/transaction_service.dart';
 
-// =============================================================================
-// TransactionReportPanel — PUBLIC widget, nhúng vào bất kỳ screen nào
-// =============================================================================
 class TransactionReportPanel extends StatelessWidget {
-  /// Callback khi user bấm "← Quay lại" để thoát chế độ báo cáo
   final VoidCallback onClose;
 
   const TransactionReportPanel({super.key, required this.onClose});
@@ -32,7 +19,6 @@ class TransactionReportPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer<TransactionProvider>(
       builder: (context, provider, _) {
-        // ── Xác định khoảng thời gian từ provider ──────────────
         DateTime startDate;
         DateTime endDate;
         String periodLabel;
@@ -46,7 +32,6 @@ class TransactionReportPanel extends StatelessWidget {
           endDate = provider.selectedDateRange!.endDate;
           periodLabel = provider.selectedDateRange!.label;
         } else {
-          // Chưa chọn khoảng thời gian
           return Center(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -72,7 +57,6 @@ class TransactionReportPanel extends StatelessWidget {
             ? provider.selectedSource.id
             : null;
 
-        // ValueKey → _ReportLoader tự rebuild + gọi lại API khi params thay đổi
         return _ReportLoader(
           key: ValueKey('$startDate|$endDate|$walletId|$savingGoalId'),
           startDate: startDate,
@@ -87,9 +71,6 @@ class TransactionReportPanel extends StatelessWidget {
   }
 }
 
-// =============================================================================
-// _ReportLoader — PRIVATE StatefulWidget: gọi API + hiển thị kết quả
-// =============================================================================
 class _ReportLoader extends StatefulWidget {
   final DateTime startDate;
   final DateTime endDate;
@@ -116,16 +97,29 @@ class _ReportLoaderState extends State<_ReportLoader> {
   bool _isLoading = true;
   String? _errorMessage;
   TransactionReportResponse? _report;
+  List<CategoryReportDTO> _categoryExpenses = [];
+  int _touchedIndex = -1;
 
-  // ─── Lifecycle ───────────────────────────────────────────────
+  final List<Color> _chartColors = [
+    Colors.blue,
+    Colors.red,
+    Colors.orange,
+    Colors.green,
+    Colors.purple,
+    Colors.amber,
+    Colors.cyan,
+    Colors.pink,
+    Colors.indigo,
+    Colors.teal,
+  ];
+
   @override
   void initState() {
     super.initState();
-    _loadReport();
+    _loadAllData();
   }
 
-  // ─── API ─────────────────────────────────────────────────────
-  Future<void> _loadReport() async {
+  Future<void> _loadAllData() async {
     if (!mounted) return;
     setState(() {
       _isLoading = true;
@@ -133,20 +127,39 @@ class _ReportLoaderState extends State<_ReportLoader> {
     });
 
     try {
-      final response = await TransactionService.getReport(
-        startDate: widget.startDate,
-        endDate: widget.endDate,
-        walletId: widget.walletId,
-        savingGoalId: widget.savingGoalId,
-      );
+      final results = await Future.wait([
+        TransactionService.getReport(
+          startDate: widget.startDate,
+          endDate: widget.endDate,
+          walletId: widget.walletId,
+          savingGoalId: widget.savingGoalId,
+        ),
+        TransactionService.getCategoryReport(
+          startDate: widget.startDate,
+          endDate: widget.endDate,
+          walletId: widget.walletId,
+          savingGoalId: widget.savingGoalId,
+        ),
+      ]);
+
+      final reportRes = results[0] as ApiResponse<TransactionReportResponse>;
+      final categoryRes = results[1] as ApiResponse<List<CategoryReportDTO>>;
 
       if (!mounted) return;
       setState(() {
-        if (response.success && response.data != null) {
-          _report = response.data;
+        if (reportRes.success && reportRes.data != null) {
+          _report = reportRes.data;
         } else {
-          _errorMessage = response.message;
+          _errorMessage = reportRes.message;
         }
+
+        if (categoryRes.success && categoryRes.data != null) {
+          _categoryExpenses = categoryRes.data!
+              .where((c) => c.categoryType == false && c.totalAmount > 0)
+              .toList()
+            ..sort((a, b) => b.totalAmount.compareTo(a.totalAmount));
+        }
+        
         _isLoading = false;
       });
     } catch (e) {
@@ -158,11 +171,10 @@ class _ReportLoaderState extends State<_ReportLoader> {
     }
   }
 
-  // ─── Build ───────────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
     return RefreshIndicator(
-      onRefresh: _loadReport,
+      onRefresh: _loadAllData,
       color: Colors.green,
       child: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
@@ -199,7 +211,6 @@ class _ReportLoaderState extends State<_ReportLoader> {
     );
   }
 
-  // ─── Header ──────────────────────────────────────────────────
   Widget _buildHeader() {
     return Row(
       children: [
@@ -227,14 +238,13 @@ class _ReportLoaderState extends State<_ReportLoader> {
         ),
         IconButton(
           icon: const Icon(Icons.refresh, color: Colors.grey, size: 18),
-          onPressed: _loadReport,
+          onPressed: _loadAllData,
           tooltip: 'Reload',
         ),
       ],
     );
   }
 
-  // ─── Error ───────────────────────────────────────────────────
   Widget _buildError() {
     return Center(
       child: Padding(
@@ -249,7 +259,7 @@ class _ReportLoaderState extends State<_ReportLoader> {
                 textAlign: TextAlign.center),
             const SizedBox(height: 12),
             ElevatedButton(
-              onPressed: _loadReport,
+              onPressed: _loadAllData,
               style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
               child: const Text('Retry'),
             ),
@@ -259,7 +269,6 @@ class _ReportLoaderState extends State<_ReportLoader> {
     );
   }
 
-  // ─── Card: Số dư đầu / cuối kỳ ──────────────────────────────
   Widget _buildBalanceCard() {
     return _card(
       child: Column(
@@ -283,7 +292,6 @@ class _ReportLoaderState extends State<_ReportLoader> {
     );
   }
 
-  // ─── Card: Thu nhập ròng ────────────────────────────────────
   Widget _buildIncomeExpenseCard() {
     final net = _report!.netIncome;
     final isPositive = net >= 0;
@@ -293,10 +301,8 @@ class _ReportLoaderState extends State<_ReportLoader> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ── Title row ──────────────────────────────────────
           Row(
             children: [
-              // ? icon giải thích
               GestureDetector(
                 onTap: () => _showNetIncomeTooltip(context),
                 child: Container(
@@ -336,8 +342,6 @@ class _ReportLoaderState extends State<_ReportLoader> {
             ],
           ),
           const SizedBox(height: 12),
-
-          // ── Net income với circle icon +/- ─────────────────
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
@@ -370,11 +374,8 @@ class _ReportLoaderState extends State<_ReportLoader> {
             ],
           ),
           const SizedBox(height: 12),
-
           Divider(color: Colors.grey[800], height: 1),
           const SizedBox(height: 12),
-
-          // ── Tiền vào / Tiền ra ─────────────────────────────
           Row(
             children: [
               Expanded(
@@ -391,7 +392,6 @@ class _ReportLoaderState extends State<_ReportLoader> {
     );
   }
 
-  /// Popup giải thích — dùng AlertDialog Flutter chuẩn
   void _showNetIncomeTooltip(BuildContext context) {
     showDialog(
       context: context,
@@ -412,32 +412,127 @@ class _ReportLoaderState extends State<_ReportLoader> {
     );
   }
 
-  // ─── Card: Báo cáo theo nhóm (placeholder) ──────────────────
   Widget _buildCategoryReportCard() {
+    if (_categoryExpenses.isEmpty) {
+      return _card(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _sectionTitle(Icons.pie_chart_outline_rounded, 'Category report'),
+            const SizedBox(height: 20),
+            const Center(
+              child: Text('No expense data for this period',
+                  style: TextStyle(color: Colors.grey, fontSize: 13)),
+            ),
+          ],
+        ),
+      );
+    }
+
     return _card(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _sectionTitle(Icons.pie_chart_outline_rounded, 'Category report'),
-          const SizedBox(height: 14),
-          Center(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              child: Text(
-                'Coming soon...',
-                style: TextStyle(color: Colors.grey[600], fontSize: 13),
+          const SizedBox(height: 20),
+          
+          SizedBox(
+            height: 200,
+            child: PieChart(
+              PieChartData(
+                pieTouchData: PieTouchData(
+                  touchCallback: (FlTouchEvent event, pieTouchResponse) {
+                    setState(() {
+                      if (!event.isInterestedForInteractions ||
+                          pieTouchResponse == null ||
+                          pieTouchResponse.touchedSection == null) {
+                        _touchedIndex = -1;
+                        return;
+                      }
+                      _touchedIndex = pieTouchResponse.touchedSection!.touchedSectionIndex;
+                    });
+                  },
+                ),
+                borderData: FlBorderData(show: false),
+                sectionsSpace: 2,
+                centerSpaceRadius: 40,
+                sections: _buildPieSections(),
               ),
             ),
           ),
+          
+          const SizedBox(height: 24),
+          
+          ...List.generate(_categoryExpenses.length, (index) {
+            final item = _categoryExpenses[index];
+            final color = _chartColors[index % _chartColors.length];
+            
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: InkWell(
+                onTap: () {
+                },
+                child: Row(
+                  children: [
+                    Container(
+                      width: 12,
+                      height: 12,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: color,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(item.categoryName,
+                          style: const TextStyle(color: Colors.white, fontSize: 13)),
+                    ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text(FormatHelper.formatVND(item.totalAmount),
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold)),
+                        Text('${item.percentage.toStringAsFixed(1)}%',
+                            style: const TextStyle(color: Colors.grey, fontSize: 11)),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }),
         ],
       ),
     );
   }
 
-  // ─── Card: Nợ & Vay ─────────────────────────────────────────
-  // debtAmount  : DEBT_BORROWING (20)  — Đi vay
-  // loanAmount  : DEBT_LENDING   (19)  — Cho vay
-  // otherAmount : DEBT_COLLECTION(21) − DEBT_REPAYMENT(22) — Khác (có thể âm)
+  List<PieChartSectionData> _buildPieSections() {
+    return List.generate(_categoryExpenses.length, (i) {
+      final isTouched = i == _touchedIndex;
+      final item = _categoryExpenses[i];
+      
+      final double radius = isTouched ? 75.0 : 65.0;
+      final double fontSize = isTouched ? 16.0 : 10.0;
+
+      return PieChartSectionData(
+        color: _chartColors[i % _chartColors.length],
+        value: item.totalAmount,
+        title: '${item.percentage.toStringAsFixed(0)}%',
+        radius: radius,
+        titleStyle: TextStyle(
+          fontSize: fontSize,
+          fontWeight: FontWeight.bold,
+          color: Colors.white,
+          shadows: const [Shadow(color: Colors.black45, blurRadius: 2)],
+        ),
+        titlePositionPercentageOffset: 0.7,
+      );
+    });
+  }
+
   Widget _buildDebtCard() {
     final debtAmount  = _report!.debtAmount;
     final loanAmount  = _report!.loanAmount;
@@ -451,34 +546,20 @@ class _ReportLoaderState extends State<_ReportLoader> {
         children: [
           _sectionTitle(Icons.handshake_outlined, 'Debt and Loans'),
           const SizedBox(height: 14),
-          // Dòng 1 — Nợ (Đi vay) → categoryIds=20
-          _debtRow(
-            Icons.arrow_circle_down_rounded, 'Amount of Debt', debtAmount, Colors.orange,
-            onTap: () => _navigateToTransactionList('Borrow money', {'categoryIds': '20'}),
-          ),
-          // Dòng 2 — Cho vay → categoryIds=19
-          _debtRow(
-            Icons.arrow_circle_up_rounded, 'Loan amount', loanAmount, Colors.amber,
-            onTap: () => _navigateToTransactionList('Loan', {'categoryIds': '19'}),
-          ),
-          // Dòng 3 — Khác (Thu nợ − Trả nợ) → categoryIds=21,22
-          _debtRow(
-            otherIcon, 'Paid / Received', otherAmount, otherColor,
-            onTap: () => _navigateToTransactionList('Debt Collection/Repayment', {'categoryIds': '21,22'}),
-          ),
+          _debtRow(Icons.arrow_circle_down_rounded, 'Amount of Debt', debtAmount, Colors.orange),
+          _debtRow(Icons.arrow_circle_up_rounded, 'Loan amount', loanAmount, Colors.amber),
+          _debtRow(otherIcon, 'Paid / Received', otherAmount, otherColor),
         ],
       ),
     );
   }
 
-  /// Điều hướng đến CommonTransactionListScreen — tự động truyền date range hiện tại
   void _navigateToTransactionList(String title, Map<String, dynamic> extraFilters) {
-    // Luôn truyền khoảng thời gian đang hiển thị trên slider vào danh sách chi tiết
     final mergedFilters = <String, dynamic>{
       'range': 'CUSTOM',
       'startDate': widget.startDate.toIso8601String(),
       'endDate': widget.endDate.toIso8601String(),
-      ...extraFilters, // categoryIds, eventId, debtId, v.v.
+      ...extraFilters,
     };
 
     Navigator.push(
@@ -492,8 +573,7 @@ class _ReportLoaderState extends State<_ReportLoader> {
     );
   }
 
-  Widget _debtRow(IconData icon, String label, double amount, Color color,
-      {VoidCallback? onTap}) {
+  Widget _debtRow(IconData icon, String label, double amount, Color color) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Row(
@@ -509,19 +589,11 @@ class _ReportLoaderState extends State<_ReportLoader> {
             style: TextStyle(
                 color: color, fontSize: 14, fontWeight: FontWeight.bold),
           ),
-          if (onTap != null) ...[
-            const SizedBox(width: 4),
-            GestureDetector(
-              onTap: onTap,
-              child: const Icon(Icons.chevron_right, color: Colors.grey, size: 20),
-            ),
-          ],
         ],
       ),
     );
   }
 
-  // ─── UI Helpers ──────────────────────────────────────────────
   Widget _card({required Widget child}) {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -565,5 +637,3 @@ class _ReportLoaderState extends State<_ReportLoader> {
     );
   }
 }
-
-

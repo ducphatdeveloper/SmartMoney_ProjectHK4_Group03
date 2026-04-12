@@ -60,6 +60,7 @@ export const adminApi = {
     getAllUserTransactions: (id, params) => api.get(`/admin/users/${id}/transactions/all`, {
         params: cleanParams(params)
     }),
+    getGlobalDeletedTransactions: () => api.get('/admin/transactions/deleted-global'),
     restoreTransaction: (id) => api.patch(`/admin/transactions/${id}/restore`),
     restoreAllUserTransactions: (userId) => api.patch(`/admin/users/${userId}/transactions/restore-all`),
     getStats: () => api.get('/admin/stats'), 
