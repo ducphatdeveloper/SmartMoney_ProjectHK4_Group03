@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:smart_money/modules/wallet/models/wallet_request.dart';
 import '../../../core/helpers/icon_helper.dart';
@@ -23,15 +24,25 @@ class _EditWalletScreenState extends State<EditWalletScreen> {
   bool excludeFromTotal = false;
   String currency = "VND";
   bool isSaving = false;
-
+  // final name = nameController.text.trim();
+  late final name = nameController.text.trim();
   String? _selectedIconUrl;
 
   String? nameError;
   String? balanceError;
 
+  String? _validateName(String text) {
+    if (text.isEmpty) return "Tên ví không được để trống";
+    if (text.length > 30) return "Tên ví tối đa 30 ký tự";
+    return null;
+  }
+
+
   @override
   void initState() {
     super.initState();
+    _lastValidText = balanceController.text;
+
 
     notification = widget.wallet.notified ?? true;
     nameController = TextEditingController(text: widget.wallet.walletName);
@@ -51,7 +62,10 @@ class _EditWalletScreenState extends State<EditWalletScreen> {
         title: const Text("Chỉnh sửa ví"),
         actions: [
           TextButton(
-            onPressed: _save, // nút luôn hiển thị
+            onPressed: (nameError == null && balanceError == null)
+                ? _save
+                : null,
+            // nút luôn hiển thị
             child: isSaving
                 ? const SizedBox(
               width: 18,
@@ -102,11 +116,21 @@ class _EditWalletScreenState extends State<EditWalletScreen> {
                 border: InputBorder.none,
                 errorText: nameError,
               ),
-              onChanged: (_) {
+              inputFormatters: [
+
+                LengthLimitingTextInputFormatter(31),
+
+
+              ],
+              onChanged: (value) {
+                // tránh lỗi Telex
+                if (nameController.value.composing.isValid) return;
+
                 setState(() {
-                  nameError = null;
+                  nameError = _validateName(value);
                 });
               },
+
             ),
           ),
           const Divider(color: Colors.grey, height: 1),
@@ -151,7 +175,10 @@ class _EditWalletScreenState extends State<EditWalletScreen> {
                 TextField(
                   controller: balanceController,
                   keyboardType: TextInputType.number,
-                  onChanged: _onMoneyChanged,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.digitsOnly, // 🔥 QUAN TRỌNG
+                  ],
+                  onChanged: _onBalanceChanged,
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 28,
@@ -164,6 +191,7 @@ class _EditWalletScreenState extends State<EditWalletScreen> {
                     errorText: balanceError,
                   ),
                 ),
+
               ],
             ),
           ),
@@ -235,53 +263,120 @@ class _EditWalletScreenState extends State<EditWalletScreen> {
     );
   }
 
-  void _onMoneyChanged(String value) {
-    String digits = value.replaceAll('.', '');
-    if (digits.isEmpty) return;
+  bool _hasShownLimitWarning = false;
+  String _lastValidText = '';
 
-    final formatted = digits.replaceAllMapped(
-      RegExp(r'\B(?=(\d{3})+(?!\d))'),
-          (match) => '.',
-    );
 
-    balanceController.value = TextEditingValue(
-      text: formatted,
-      selection: TextSelection.collapsed(offset: formatted.length),
-    );
+  void _onBalanceChanged(String value) {
+    final raw = value.replaceAll(RegExp(r'[^0-9]'), '');
+
+    if (raw.isEmpty) {
+      setState(() {
+        _lastValidText = '';
+        balanceController.text = '';
+        balanceError = "Số tiền không được để trống";
+      });
+      return;
+    }
+
+    int number = int.parse(raw);
+    const MAX = 1000000000000;
+
+    // ❌ nếu vượt → rollback
+    if (number > MAX) {
+      if (!_hasShownLimitWarning) {
+        _hasShownLimitWarning = true;
+
+        ScaffoldMessenger.of(context)
+          ..removeCurrentSnackBar()
+          ..showSnackBar(
+            const SnackBar(
+              content: Text("Số tiền không được vượt quá 1000 tỷ"),
+            ),
+          );
+      }
+
+      // 🔥 rollback về giá trị hợp lệ trước đó
+      balanceController.value = TextEditingValue(
+        text: _lastValidText,
+        selection: TextSelection.collapsed(offset: _lastValidText.length),
+      );
+
+      return;
+    }
+
+    _hasShownLimitWarning = false;
+
+    final formatted = _formatNumber(number.toDouble());
+
+    // 🔥 lưu lại giá trị hợp lệ
+    _lastValidText = formatted;
+
+    setState(() {
+      balanceController.value = TextEditingValue(
+        text: formatted,
+        selection: TextSelection.collapsed(offset: formatted.length),
+      );
+
+      balanceError = null;
+    });
   }
+
+
+
+
+
+
+
 
   // ================= VALIDATION =================
 
   String? _validateBalance(String text) {
     if (text.isEmpty) return "Số tiền không được để trống";
+
     final raw = text.replaceAll('.', '');
+
     final value = double.tryParse(raw);
+
     if (value == null) return "Số tiền không hợp lệ";
     if (value < 0) return "Số tiền không được âm";
-    if (value > 500000000) return "Số tiền tối đa là 500,000,000 VND";
+    if (value > 1000000000000) {
+      return "Số tiền tối đa là 1000 Tỷ VND";
+    }
+
     return null;
   }
+
 
   // ================= ACTION =================
 
   Future<void> _save() async {
-    // chạy validator
+    final name = nameController.text.trim();
+
     setState(() {
-      nameError =
-      nameController.text.trim().isEmpty ? "Tên ví không được để trống" : null;
+      nameError = _validateName(name);
       balanceError = _validateBalance(balanceController.text);
     });
 
-    // nếu lỗi tên hoặc số tiền → không save
-    if (nameError != null || balanceError != null) return;
+    if (nameError != null || balanceError != null) {
+      ScaffoldMessenger.of(context)
+        ..removeCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(nameError ?? balanceError!),
+          ),
+        );
+      return;
+    }
 
     setState(() => isSaving = true);
 
     final provider = Provider.of<WalletProvider>(context, listen: false);
 
     final rawBalance = balanceController.text.replaceAll('.', '');
+
     final request = WalletRequest(
-      walletName: nameController.text.trim(),
+      walletName: name,
       balance: double.tryParse(rawBalance) ?? 0,
       currencyCode: currency,
       reportable: !excludeFromTotal,
@@ -299,6 +394,7 @@ class _EditWalletScreenState extends State<EditWalletScreen> {
       _showError(provider.error ?? "Cập nhật ví thất bại");
     }
   }
+
 
   void _openIconPicker() async {
     final result = await Navigator.push(
