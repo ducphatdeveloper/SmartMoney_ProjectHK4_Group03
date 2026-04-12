@@ -90,11 +90,11 @@ class EditEventScreenState extends State<EditEventScreen> {
   Future<void> _update() async {
     final name = _nameController.text.trim();
     if (name.isEmpty) {
-      _showError("Event name is required");
+      _showError("Tên sự kiện không được để trống");
       return;
     }
     if (_endDate == null) {
-      _showError("Please select an end date");
+      _showError("Vui lòng chọn ngày kết thúc");
       return;
     }
     if (_isSaving) return;

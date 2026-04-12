@@ -72,7 +72,7 @@ class _AddSavingGoalScreenState extends State<AddSavingGoalScreen> {
       return "Số tiền ban đầu không được lớn hơn số tiền mục tiêu";
     }
 
-    if (_endDate == null) return "Please select a target date";
+    if (_endDate == null) return "Vui lòng chọn ngày kết thúc";
 
     // Safety check for past dates
     if (_endDate!.isBefore(DateTime.now().subtract(const Duration(days: 1)))) {
