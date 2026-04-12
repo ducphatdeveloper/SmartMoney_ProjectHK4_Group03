@@ -1,4 +1,4 @@
-import 'package:smart_money/core/helpers/api_handler.dart';
+﻿import 'package:smart_money/core/helpers/api_handler.dart';
 import 'package:smart_money/core/models/api_response.dart';
 import 'package:smart_money/core/constants/app_constants.dart';
 import '../models/saving_goal_response.dart';
@@ -91,8 +91,10 @@ class SavingGoalService {
   // Khi gọi hàm này, item sẽ nhảy từ tab "Đang thực hiện" sang "Hoàn thành" và ngược lại
   // -----------------------------------------------------------
   static Future<ApiResponse<SavingGoalResponse>> toggleStatus(int id) async {
-    final url = '$_base/$id/status';
-    return ApiHandler.put<SavingGoalResponse>(
+    // PATCH /api/saving-goals/{id}/toggle-pause
+    // ACTIVE → CANCELLED (tạm dừng) | CANCELLED/OVERDUE → ACTIVE (kích hoạt lại)
+    final url = '$_base/$id/toggle-pause';
+    return ApiHandler.patch<SavingGoalResponse>(
       url,
       fromJson: (json) => SavingGoalResponse.fromJson(json as Map<String, dynamic>),
     );

@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -50,4 +51,21 @@ public interface DebtRepository extends JpaRepository<Debt, Integer> {
                    "             WHERE goal_id = :goalId AND debt_id IS NOT NULL)",
            nativeQuery = true)
     void softDeleteAllBySavingGoalId(@Param("goalId") Integer goalId);
+
+    // ── SCHEDULER QUERIES ───────────────────────────────────────────────────────────
+
+    /// [SCHEDULER] Tìm khoản nợ chưa xong, có due_date nằm trong khoảng [from, to]
+    /// Dùng cho DebtScheduler — nhắc khoản nợ sắp đến hạn (today → today+3)
+    @Query("SELECT d FROM Debt d WHERE d.finished = false " +
+           "AND d.dueDate IS NOT NULL " +
+           "AND d.dueDate >= :from AND d.dueDate < :to")
+    List<Debt> findActiveDebtsWithDueDateBetween(@Param("from") LocalDateTime from,
+                                                  @Param("to") LocalDateTime to);
+
+    /// [SCHEDULER] Tìm khoản nợ quá hạn (due_date < now AND finished = false)
+    /// Dùng cho DebtScheduler — nhắc khoản nợ đã quá hạn
+    @Query("SELECT d FROM Debt d WHERE d.finished = false " +
+           "AND d.dueDate IS NOT NULL " +
+           "AND d.dueDate < :now")
+    List<Debt> findOverdueDebts(@Param("now") LocalDateTime now);
 }

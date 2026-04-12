@@ -1,4 +1,10 @@
-### 1. Đăng nhập
+### =================================================================
+### SMARTMONEY - USER PROFILE API TEST
+### Base path: /api/users
+### Endpoints: profile (GET/PATCH), avatar (POST), emergency-lock
+### =================================================================
+
+### [0] Đăng nhập lấy token
 POST http://localhost:9999/api/auth/login
 Content-Type: application/json
 
@@ -14,6 +20,97 @@ Content-Type: application/json
     client.global.set("auth_token", response.body.data.accessToken);
 %}
 
-### 2. Xem thông tin cá nhân (Profile)
+### =================================================================
+### [1] THÔNG TIN CÁ NHÂN
+### =================================================================
+
+### [1.1] Xem thông tin cá nhân (Profile)
+# Kỳ vọng: 200 OK — accEmail, accPhone, fullname, avatarUrl, ...
+# Lấy từ JWT → không cần truyền userId qua URL
 GET http://localhost:9999/api/users/profile
+Authorization: Bearer {{auth_token}}
+
+### [1.2] Cập nhật thông tin cá nhân
+# Kỳ vọng: 200 OK — profile đã được cập nhật + gửi thông báo profileUpdated()
+PATCH http://localhost:9999/api/users/profile
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "accFullname": "Phạm Quốc Minh (Đã sửa)",
+  "accPhone": "0923456789",
+  "accGender": true,
+  "accBirth": "1998-05-15",
+  "accAddress": "TP. Hồ Chí Minh",
+  "accIdentityCard": "012345678910"
+}
+
+### [1.3] Lỗi: Cập nhật không có token
+# Kỳ vọng: 401 Unauthorized
+PATCH http://localhost:9999/api/users/profile
+Content-Type: application/json
+
+{
+  "accFullname": "Hack thử"
+}
+
+### =================================================================
+### [2] ẢNH ĐẠI DIỆN
+### =================================================================
+
+### [2.1] Cập nhật ảnh đại diện (Avatar)
+# Kỳ vọng: 200 OK — trả về URL ảnh mới trên Cloudinary
+# ⚠️ Thay đường dẫn file bằng ảnh thật trên máy
+# Gửi thành công → gửi thông báo avatarUpdated()
+POST http://localhost:9999/api/users/avatar
+Authorization: Bearer {{auth_token}}
+Content-Type: multipart/form-data; boundary=boundary
+
+--boundary
+Content-Disposition: form-data; name="file"; filename="avatar.jpg"
+Content-Type: image/jpeg
+
+< D:/path/to/your/avatar.jpg
+--boundary--
+
+### [2.2] Lỗi: Upload file rỗng
+# Kỳ vọng: 400 Bad Request — "File không được để trống"
+POST http://localhost:9999/api/users/avatar
+Authorization: Bearer {{auth_token}}
+Content-Type: multipart/form-data; boundary=boundary
+
+--boundary
+Content-Disposition: form-data; name="file"; filename=""
+Content-Type: application/octet-stream
+
+--boundary--
+
+### =================================================================
+### [3] KHÓA KHẨN CẤP (EMERGENCY LOCK)
+### Flow: [3.1] Xác minh CMND → gửi OTP email → [3.2] Nhập OTP → tài khoản bị khóa
+### =================================================================
+
+### [3.1] Bước 1: Gửi OTP khóa khẩn cấp (xác minh qua CMND)
+# Kỳ vọng: 200 OK — "Mã OTP đã được gửi đến Gmail của bạn..."
+# Backend kiểm tra identityCard khớp với accIdentityCard trong DB → gửi OTP đến email
+POST http://localhost:9999/api/users/emergency-lock/send-otp?identityCard=012345678910
+Authorization: Bearer {{auth_token}}
+
+### [3.2] Bước 2: Xác nhận OTP để khóa tài khoản
+# Kỳ vọng: 200 OK — "Tài khoản của bạn đã được khóa khẩn cấp thành công."
+# Sau khi gọi API này: token sẽ hết hiệu lực, tài khoản bị locked=true
+# Đồng thời: gửi thông báo accountEmergencyLockedConfirm() cho user
+#            gửi thông báo userEmergencyLockAlert() cho Admin
+# ⚠️ Thay otpCode bằng mã thật nhận từ email ở bước [3.1]
+POST http://localhost:9999/api/users/emergency-lock/verify-and-lock?otpCode=123456
+Authorization: Bearer {{auth_token}}
+
+### [3.3] Lỗi: OTP sai
+# Kỳ vọng: 400 Bad Request — thông báo OTP không hợp lệ
+POST http://localhost:9999/api/users/emergency-lock/verify-and-lock?otpCode=000000
+Authorization: Bearer {{auth_token}}
+
+### [3.4] Lỗi: CMND không khớp
+# Kỳ vọng: 400 Bad Request — thông báo CMND không đúng
+POST http://localhost:9999/api/users/emergency-lock/send-otp?identityCard=000000000000
 Authorization: Bearer {{auth_token}}

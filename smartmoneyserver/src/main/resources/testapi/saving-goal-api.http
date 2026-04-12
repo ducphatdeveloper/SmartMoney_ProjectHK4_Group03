@@ -2,7 +2,8 @@
 ### MODULE: SAVING GOAL (Mục tiêu tiết kiệm)
 ### Controller: /api/saving-goals
 ### Endpoints: create, update(/{id}), deposit(/{id}/deposit),
-###            delete(/{id}), getAll, getDetail(/{id}), check-now
+###            delete(/{id}), getAll, getDetail(/{id}),
+###            toggle-pause(/{id}/toggle-pause), check-now
 ### ============================================================
 
 ### 1. Đăng nhập (Lấy Token & UserID)
@@ -105,7 +106,26 @@ GET http://localhost:9999/api/user/wallets/total-balance
 Authorization: Bearer {{auth_token}}
 
 ### ============================================================
-### 10. Hủy / Xóa Mục tiêu (DELETE)
+### 11. Toggle Bật / Tắt Mục Tiêu (ACTIVE ↔ CANCELLED)
+### PATCH /api/saving-goals/{id}/toggle-pause
+###
+### Lần 1 gọi: ACTIVE    → CANCELLED (finished=true)   Tạm dừng / kết thúc sớm
+### Lần 2 gọi: CANCELLED → ACTIVE   (finished=false)  Kích hoạt lại
+###             OVERDUE   → ACTIVE   (finished=false)  Kích hoạt lại mục tiêu quá hạn
+###
+### ⚠️ COMPLETED → 400 Bad Request (đã hoàn thành đầy đủ, không thể đổi)
+###
+### Phân biệt với DELETE:
+###   • Toggle: CANCELLED + deleted=false → vẫn hiện trong danh sách, có thể kích hoạt lại
+###   • Delete: CANCELLED + deleted=true  → ẩn hẳn, KHÔNG phục hồi được
+###
+### Kỳ vọng: 200 OK — goalStatus đổi tương ứng
+### ============================================================
+PATCH http://localhost:9999/api/saving-goals/9/toggle-pause
+Authorization: Bearer {{auth_token}}
+
+### ============================================================
+### 12. Hủy / Xóa Mục tiêu (DELETE)
 ### DELETE /api/saving-goals/{id}
 ### Thay {id} bằng ID mục tiêu muốn hủy
 ### Lưu ý: Hủy = chuyển trạng thái CANCELLED, không xóa vật lý
@@ -114,7 +134,7 @@ DELETE http://localhost:9999/api/saving-goals/9
 Authorization: Bearer {{auth_token}}
 
 ### ============================================================
-### 11. Chạy scheduler thủ công (Test kiểm tra mục tiêu quá hạn)
+### 13. Chạy scheduler thủ công (Test kiểm tra mục tiêu quá hạn)
 ### POST /api/saving-goals/check-now
 ### ============================================================
 POST http://localhost:9999/api/saving-goals/check-now
