@@ -87,13 +87,16 @@ public class CategoryServiceImpl implements CategoryService {
 
     /**
      * Xóa danh mục - HYBRID (Hỗ trợ MERGE và DELETE_ALL).
-     * 
+     *
      * LOGIC:
      * 1. Kiểm tra quyền sở hữu danh mục.
-     * 2. Xử lý Giao dịch (Transactions): Hoàn tiền ví -> (Gộp hoặc Xóa giao dịch).
-     * 3. Xóa Danh mục: Sử dụng deleteAllInBatch để xóa các danh mục con trước, 
-     *    nhằm đảm bảo tính toàn vẹn dữ liệu (FK constraint) trước khi xóa danh mục cha.
-     * 
+     * 2. Xử lý Giao dịch:
+     *    - MERGE      : Chỉ chuyển category_id của transactions sang category mới.
+     *                   KHÔNG hoàn tiền vì transactions vẫn còn tồn tại — số dư ví/goal không đổi.
+     *    - DELETE_ALL : Hoàn tiền ví/goal trước, rồi soft-delete toàn bộ transactions.
+     *                   Cần revert vì transactions bị xóa → ví phải nhận lại tiền.
+     * 3. Xóa Danh mục: soft-delete con trước, cha sau (tránh FK constraint).
+     *
      * ⚠️ LƯU Ý: Không thay đổi object trong childCategories trước khi gọi deleteAllInBatch,
      *    vì nó chạy bằng query thuần (không dọn dẹp Hibernate Session).
      */
@@ -106,7 +109,17 @@ public class CategoryServiceImpl implements CategoryService {
 
         if ("MERGE".equals(action)) {
             if (newCategoryId == null) throw new IllegalArgumentException("Thiếu tham số: newCategoryId");
-            Category targetCategory = getOwnedCategory(newCategoryId, accountId);
+
+            // [FIX] Danh mục đích (merge target) có thể là danh mục hệ thống (account=null)
+            // → Không dùng getOwnedCategory() vì nó chặn danh mục hệ thống
+            // → Chỉ cần kiểm tra: tồn tại + cùng loại Thu/Chi + không phải chính nó
+            Category targetCategory = categoryRepository.findById(newCategoryId)
+                    .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy danh mục đích với ID: " + newCategoryId));
+
+            // Nếu target là danh mục của user khác → chặn
+            if (targetCategory.getAccount() != null && !targetCategory.getAccount().getId().equals(accountId)) {
+                throw new SecurityException("Bạn không có quyền gộp vào danh mục này.");
+            }
 
             if (!category.getCtgType().equals(targetCategory.getCtgType())) {
                 throw new IllegalArgumentException("Không thể gộp khác loại (Thu/Chi).");
@@ -115,15 +128,8 @@ public class CategoryServiceImpl implements CategoryService {
                 throw new IllegalArgumentException("Không thể gộp vào chính nó.");
             }
 
-            // --- PHẢI LÀM THEO THỨ TỰ NÀY ---
-
-            // A. Hoàn tiền cho CHA và TOÀN BỘ CON (Khi chúng vẫn còn gắn với Category cũ)
-            transactionService.revertAllTransactionBalancesForCategoryNoFetch(categoryId, accountId);
-            for (Category child : childCategories) {
-                transactionService.revertAllTransactionBalancesForCategoryNoFetch(child.getId(), accountId);
-            }
-
-            // B. Sau khi hoàn tiền xong, mới đổi Category ID sang mục mới
+            // MERGE: Chỉ chuyển category_id của transactions sang category mới.
+            // KHÔNG hoàn tiền vì transactions vẫn còn tồn tại — số dư ví/goal không đổi.
             transactionRepository.updateCategoryForUserTransactions(categoryId, newCategoryId, accountId);
             for (Category child : childCategories) {
                 transactionRepository.updateCategoryForUserTransactions(child.getId(), newCategoryId, accountId);
@@ -301,6 +307,12 @@ public class CategoryServiceImpl implements CategoryService {
             if (parent.getAccount() != null && !parent.getAccount().getId().equals(accountId)) {
                 throw new SecurityException("Không có quyền sử dụng danh mục cha này.");
             }
+
+            // [FIX-PARENT-TYPE] Chặn tạo danh mục con với parent khác loại Thu/Chi
+            if (!parent.getCtgType().equals(request.ctgType())) {
+                throw new IllegalArgumentException("Parent and child category must be the same type. Income parent → Income child only. Expense parent → Expense child only.");
+            }
+
             category.setParent(parent);
         }
 
@@ -322,6 +334,13 @@ public class CategoryServiceImpl implements CategoryService {
     public CategoryResponse updateCategory(Integer categoryId, CategoryRequest request, Integer accountId) {
         // 1. Tìm danh mục cần cập nhật và validate quyền
         Category category = getOwnedCategory(categoryId, accountId);
+
+        // 1b. Chặn thay đổi loại danh mục (Thu ↔ Chi)
+        // Lý do: Đổi ctgType sẽ làm sai lệch toàn bộ giao dịch đang dùng danh mục này.
+        // Mọi giao dịch liên kết vẫn giữ nguyên ctgType cũ → dữ liệu mâu thuẫn.
+        if (!category.getCtgType().equals(request.ctgType())) {
+            throw new IllegalArgumentException("Category type cannot be changed. To change category type, delete and create a new one.");
+        }
 
         // 2. Validate trùng tên (chỉ khi tên thay đổi) - Phân biệt Gốc/Con
         if (!Objects.equals(category.getCtgName(), request.ctgName())) {
@@ -366,6 +385,14 @@ public class CategoryServiceImpl implements CategoryService {
             if (parent.getAccount() != null && !parent.getAccount().getId().equals(accountId)) {
                 throw new SecurityException("Không có quyền sử dụng danh mục cha này.");
             }
+
+            // [FIX-PARENT-TYPE] Chặn gán parent khác loại Thu/Chi
+            // Ví dụ: danh mục Chi KHÔNG được có parent loại Thu và ngược lại.
+            // Nếu không chặn → UI hiện nhầm tab, báo cáo sai loại, revert balance tính sai.
+            if (!parent.getCtgType().equals(category.getCtgType())) {
+                throw new IllegalArgumentException("Parent and child category must be the same type. Income parent → Income child only. Expense parent → Expense child only.");
+            }
+
             category.setParent(parent);
         }
         // Nếu request.parentId() == null → không cập nhật quan hệ cha, giữ nguyên cái cũ

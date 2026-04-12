@@ -12,5 +12,6 @@ public record CategoryResponse(
     String ctgName,
     Boolean ctgType,
     String ctgIconUrl,
-    Integer parentId
+    Integer parentId,
+    String parentName   // Tên danh mục cha — dùng để hiển thị trực tiếp trên UI, tránh gọi API thừa
 ) {}
