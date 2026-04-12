@@ -3,6 +3,7 @@ package fpt.aptech.server.entity;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.SQLRestriction;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -13,6 +14,7 @@ import java.time.LocalDateTime;
  */
 @Entity
 @Table(name = "tTransactions")
+@SQLRestriction("deleted = 0")
 @Getter
 @Setter
 @NoArgsConstructor
@@ -54,6 +56,7 @@ public class Transaction {
 
     // ✅ THÊM: Link giao dịch về PlannedTransaction gốc (nullable)
     // Chỉ có giá trị khi source_type = 5 (PLANNED)
+    // Flutter dùng để: "Xem danh sách giao dịch thuộc hóa đơn này"
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "planned_id")
     private PlannedTransaction plannedTransaction;
