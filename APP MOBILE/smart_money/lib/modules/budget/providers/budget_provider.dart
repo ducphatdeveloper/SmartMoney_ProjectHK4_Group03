@@ -25,29 +25,30 @@ class BudgetProvider extends ChangeNotifier {
   int? get selectedWalletId => _selectedWalletId;
   WalletResponse? get selectedWallet => _selectedWallet;
 
-  // ================= WALLET =================
-  // Future<void> setWallet(WalletResponse wallet) async {
-  //   if (_selectedWalletId == wallet.id && _budgets.isNotEmpty) return;
-  //
-  //   _selectedWallet = wallet;
-  //   _selectedWalletId = wallet.id;
-  //
-  //   notifyListeners();
-  //
-  //   await loadBudgets(
-  //     walletId: wallet.id,
-  //     forceRefresh: true,
-  //   );
-  // }
 
   Future<void> setWallet(WalletResponse wallet) async {
+    if (_selectedWalletId == wallet.id) return; // 🔥 CHẶN RELOAD LẶP
+
     _selectedWallet = wallet;
     _selectedWalletId = wallet.id;
-    await refreshAllData();
+
+    notifyListeners(); // update UI trước
+
+    await loadBudgets(
+      walletId: wallet.id,
+      forceRefresh: true,
+    );
   }
 
+
+
+
+
   // ================= LOAD =================
-  Future<void> loadBudgets({int? walletId, bool forceRefresh = false}) async {
+  Future<void> loadBudgets({
+    int? walletId,
+    bool forceRefresh = false,
+  }) async {
     if (walletId == null) {
       _budgets = [];
       notifyListeners();
@@ -65,17 +66,9 @@ class BudgetProvider extends ChangeNotifier {
 
     try {
       final res = await _service.getBudgets(walletId: walletId);
+
       if (res.success && res.data != null) {
         _budgets = res.data!.whereType<BudgetResponse>().toList();
-
-        // 🔹 Load transaction cho từng budget
-        for (var i = 0; i < _budgets.length; i++) {
-          final budget = _budgets[i];
-          final txRes = await _service.getBudgetTransactions(budget.id);
-          if (txRes?.success == true && txRes?.data != null) {
-            _budgets[i] = budget.copyWith(transactions: txRes!.data!);
-          }
-        }
       } else {
         _budgets = [];
       }
@@ -87,6 +80,7 @@ class BudgetProvider extends ChangeNotifier {
     _isLoading = false;
     notifyListeners();
   }
+
 
 
   // ================= CREATE =================
@@ -154,25 +148,10 @@ class BudgetProvider extends ChangeNotifier {
   // ================= DISPLAY =================
   List<BudgetResponse> get displayBudgets {
     if (_budgets.isEmpty) return [];
-
-    final now = DateTime.now();
-
-    final active = _budgets.where((b) {
-      try {
-        final begin = b.beginDate;
-        final end = b.endDate;
-
-        if (begin == null || end == null) return false;
-
-        return begin.isBefore(now) && end.isAfter(now);
-      } catch (e) {
-        debugPrint("❌ DATE ERROR: $e");
-        return false;
-      }
-    }).toList();
-
-    return _mergeOtherBudget(active);
+    return _mergeOtherBudget(_budgets);
   }
+
+
 
 
 

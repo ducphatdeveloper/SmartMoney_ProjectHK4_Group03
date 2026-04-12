@@ -70,16 +70,18 @@ class _AddBudgetScreenState extends State<AddBudgetScreen> {
           );
       }
     } else {
-      // reset cờ khi số tiền <= 500 triệu
+      // reset cờ khi số tiền <= 1000 TỶ
       _hasShownLimitWarning = false;
     }
 
     final formatted = NumberFormat('#,###', 'vi_VN').format(number);
 
-    _amountCtrl.value = TextEditingValue(
-      text: formatted,
-      selection: TextSelection.collapsed(offset: formatted.length),
-    );
+    setState(() {
+      _amountCtrl.value = TextEditingValue(
+        text: formatted,
+        selection: TextSelection.collapsed(offset: formatted.length),
+      );
+    });
   }
 
   // =========================
@@ -271,9 +273,9 @@ class _AddBudgetScreenState extends State<AddBudgetScreen> {
       return;
     }
 
-    if (amountValue > 500000000) {
+    if (amountValue > 1000000000000) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Số tiền không được vượt quá 500 triệu")),
+        const SnackBar(content: Text("Số tiền không được vượt quá 1000 tỷ")),
       );
       return;
     }

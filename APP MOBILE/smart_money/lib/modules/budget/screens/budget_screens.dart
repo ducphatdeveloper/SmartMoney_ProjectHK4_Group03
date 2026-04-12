@@ -17,12 +17,14 @@ import 'package:smart_money/modules/budget/widget/budget_filter_tabs.dart';
 import 'package:smart_money/modules/budget/screens/ExpiredBudgetScreen.dart';
 
 import '../../transaction/models/view/transaction_response.dart';
+import '../../wallet/providers/wallet_provider.dart';
 import '../services/budget_service.dart';
 import 'add_budget_screens.dart';
 import 'budget_details_screens.dart';
 
 class BudgetScreen extends StatefulWidget {
-  const BudgetScreen({super.key});
+  final WalletResponse? initialWallet;
+  const BudgetScreen({super.key , this.initialWallet});
 
   @override
   State<BudgetScreen> createState() => _BudgetScreenState();
@@ -31,10 +33,13 @@ class BudgetScreen extends StatefulWidget {
 class _BudgetScreenState extends State<BudgetScreen>
     with TickerProviderStateMixin  {
   WalletResponse? selectedWallet;
+  //load budget theo ví từ trang walletdelete
+  WalletResponse? tempInitialWallet;
   List<TransactionResponse> transaction = [];
   late AnimationController _controller;
   late Animation<double> _animation;
   bool isLoading = true;
+  bool isPreviewBeforeDelete = false;
 
   // AnimationController? _controller;
 
@@ -88,34 +93,65 @@ class _BudgetScreenState extends State<BudgetScreen>
     }
   }
 
+
+
   // @override
   // void initState() {
   //   super.initState();
-  //
   //   _controller = AnimationController(
   //     vsync: this,
   //     duration: const Duration(milliseconds: 600),
   //   );
-  //   _animation = CurvedAnimation(parent: _controller, curve: Curves.easeOutCubic);
   //
+  //   // Gọi load lần đầu
   //   WidgetsBinding.instance.addPostFrameCallback((_) {
-  //     _reloadBudgets();
+  //     context.read<BudgetProvider>().refreshAllData();
   //   });
+  //
+  //   final provider = context.read<BudgetProvider>();
+  //
+  //   tempInitialWallet = widget.initialWallet; // ✅ THÊM
+  //
+  //   if (widget.initialWallet != null) {
+  //     isPreviewBeforeDelete = true; // ✅ THÊM DÒNG NÀY
+  //
+  //     provider.setWallet(widget.initialWallet!);
+  //
+  //     Future.microtask(() {
+  //       provider.loadBudgets(walletId: widget.initialWallet!.id);
+  //     });
+  //   }
+  //
+  //
   // }
-
   @override
   void initState() {
     super.initState();
+
     _controller = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 600),
     );
 
-    // Gọi load lần đầu
+    tempInitialWallet = widget.initialWallet;
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<BudgetProvider>().refreshAllData();
+      final provider = context.read<BudgetProvider>();
+
+      // 🔥 CASE 1: đi từ xoá ví → preview
+      if (widget.initialWallet != null) {
+        isPreviewBeforeDelete = true;
+
+        provider.setWallet(widget.initialWallet!); // ✅ chỉ 1 API
+      }
+      // 🔥 CASE 2: vào bình thường
+      else {
+        provider.refreshAllData(); // ✅ chỉ 1 API
+      }
     });
   }
+
+
 
   // Hàm này dùng chung cho cả việc tạo mới và đóng chi tiết
   Future<void> _handleDataChange() async {
@@ -153,15 +189,16 @@ class _BudgetScreenState extends State<BudgetScreen>
       ),
     );
 
-    if (result != null) {
-      final provider = context.read<BudgetProvider>();
+    if (result == null) return;
 
-       provider.setWallet(result);
+    final provider = context.read<BudgetProvider>();
 
-      if (!mounted) return;
-      _controller?.forward(from: 0);
-    }
+    await provider.setWallet(result); // 🔥 load xong mới update UI
+
+    if (!mounted) return;
+    _controller.forward(from: 0);
   }
+
 
   @override
   void dispose() {
@@ -236,11 +273,16 @@ class _BudgetScreenState extends State<BudgetScreen>
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<BudgetProvider>();
+    final walletProvider = context.watch<WalletProvider>();
     final budgets = provider.displayBudgets;
     final isLoading = provider.isLoading;
-    final selectedWalletId = provider.selectedWalletId;
-    final wallet = provider.selectedWallet;
-    final hasSelectedWallet = selectedWalletId != null;
+    final selectedWallet = provider.selectedWallet;
+    final walletExists = selectedWallet != null &&
+        walletProvider.wallets.any((w) => w.id == selectedWallet.id);
+
+    final hasSelectedWallet = walletExists;
+
+
 
     // final availableTypes = provider.budgets
     //     .map((b) => b.budgetType)
@@ -303,17 +345,23 @@ class _BudgetScreenState extends State<BudgetScreen>
             const Spacer(),
             Builder(
               builder: (context) {
-                final provider = context.watch<BudgetProvider>();
+                final budgetProvider = context.watch<BudgetProvider>();
+                final walletProvider = context.watch<WalletProvider>();
 
-                if (provider.selectedWallet == null) {
+                final selectedWallet = budgetProvider.selectedWallet;
+
+                final walletExists = selectedWallet != null &&
+                    walletProvider.wallets.any((w) => w.id == selectedWallet.id);
+
+                if (selectedWallet == null || !walletExists) {
                   return const SizedBox();
                 }
 
                 return GestureDetector(
                   onTap: _pickWallet,
                   child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 6),
+                    padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(
                       color: const Color(0xFF2C2C2E),
                       borderRadius: BorderRadius.circular(20),
@@ -321,12 +369,11 @@ class _BudgetScreenState extends State<BudgetScreen>
                     child: Row(
                       children: [
                         IconHelper.buildCircleAvatar(
-                          iconUrl:
-                          provider.selectedWallet!.goalImageUrl,
+                          iconUrl: selectedWallet.goalImageUrl ?? "",
                           radius: 10,
                         ),
                         const SizedBox(width: 6),
-                        Text(provider.selectedWallet!.walletName),
+                        Text(selectedWallet.walletName),
                         const Icon(Icons.arrow_drop_down),
                       ],
                     ),
@@ -349,55 +396,92 @@ class _BudgetScreenState extends State<BudgetScreen>
           ],
         ),
       ),
-      body: !hasSelectedWallet
-          ? _selectWalletFirst()
-          : isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : RefreshIndicator(
-        onRefresh: () async {
-          await context
-              .read<BudgetProvider>()
-              .loadBudgets(
-            walletId: provider.selectedWalletId,
+
+      // ✅ FIX CHUẨN Ở ĐÂY
+      body: Builder(
+        builder: (context) {
+          final budgetProvider = context.watch<BudgetProvider>();
+          final walletProvider = context.watch<WalletProvider>();
+
+          final selectedWallet = budgetProvider.selectedWallet;
+
+          final walletExists = selectedWallet != null &&
+              walletProvider.wallets.any((w) => w.id == selectedWallet.id);
+
+          // ❗ CASE 1: chưa chọn ví
+          if (selectedWallet == null) {
+            return _selectWalletFirst();
+          }
+
+          // ❗ CASE 2: ví đã bị xoá
+          if (!walletExists && !isPreviewBeforeDelete) {
+            return _walletDeletedState();
+          }
+
+
+          // ❗ CASE 3: loading
+          if (isLoading) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          // ❗ CASE 4: bình thường
+          return RefreshIndicator(
+            onRefresh: () async {
+              await context.read<BudgetProvider>().loadBudgets(
+                walletId: budgetProvider.selectedWalletId,
+              );
+            },
+            child: ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+
+                // 🔥 CHÈN NGAY ĐÂY (TRÊN CÙNG)
+                if (isPreviewBeforeDelete)
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.withOpacity(0.15),
+
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      children: const [
+                        Icon(Icons.warning_amber, color: Colors.orange),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            "Bạn đang xem ngân sách của ví này trước khi xóa",
+                            style: TextStyle(color: Colors.orange),
+                          ),
+                        ),
+                      ],
+                    ),
+
+                  ),
+
+                // 🔽 logic cũ giữ nguyên
+                if (budgets.isEmpty)
+                  _empty(context)
+                else ...[
+                  if (availableTypes.isNotEmpty)
+                    BudgetFilterTabs(
+                      selected: _selected,
+                      availableTypes: availableTypes,
+                      onChanged: _onFilterChanged,
+                    ),
+                  _overview(totalBudget, totalSpent),
+                  const SizedBox(height: 20),
+                  _budgetSection(filteredBudgets),
+                ],
+              ],
+            ),
+
           );
         },
-        child: budgets.isEmpty
-            ? ListView(children: [_empty(context)])
-            : ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            if (availableTypes.isNotEmpty)
-              Padding(
-                padding:
-                const EdgeInsets.only(bottom: 12),
-                child: BudgetFilterTabs(
-                  selected: _selected,
-                  availableTypes: availableTypes,
-                  onChanged: (type) {
-                    _onFilterChanged(type);
-                  },
-                )
-
-              ),
-            if (budgets.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(
-                    left: 4, bottom: 10),
-                child: Text(
-                  filteredBudgets.isNotEmpty
-                      ? getFullTimeLabel(filteredBudgets.first)
-                      : "",
-                  style: const TextStyle(color: Colors.grey),
-                ),
-
-              ),
-            _overview(totalBudget, totalSpent),
-            const SizedBox(height: 20),
-            _budgetSection(filteredBudgets),
-          ],
-        ),
       ),
     );
+
   }
 
   // ================= LIST =================
@@ -649,6 +733,43 @@ class _BudgetScreenState extends State<BudgetScreen>
       ),
     );
   }
+  // ================= Hiển thị chọn lại ví nếu ví đã bị xóa =================
+  Widget _walletDeletedState() {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.warning_amber_rounded,
+              color: Colors.redAccent, size: 40),
+
+          const SizedBox(height: 8),
+
+          const Text(
+            "Ví trước đó đã bị xóa",
+            style: TextStyle(
+              color: Colors.redAccent,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+
+          const SizedBox(height: 4),
+
+          const Text(
+            "Vui lòng chọn ví khác để tiếp tục",
+            style: TextStyle(color: Colors.grey),
+          ),
+
+          const SizedBox(height: 12),
+
+          ElevatedButton(
+            onPressed: _pickWallet,
+            child: const Text("Chọn ví khác"),
+          ),
+        ],
+      ),
+    );
+  }
+
 
   Widget _empty(BuildContext context) {
     return Center(
