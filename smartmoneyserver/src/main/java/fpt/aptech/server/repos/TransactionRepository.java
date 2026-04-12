@@ -405,6 +405,10 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
     @Query("SELECT t FROM Transaction t WHERE t.account.id = :accountId ORDER BY t.transDate DESC")
     List<Transaction> findAllByAccount_IdOrderByTransDateDesc(@Param("accountId") Integer accountId);
 
+    // =================================================================================
+    // 12. CÁC HÀM PHÁT HIỆN GIAO DỊCH BẤT THƯỜNG (SUSPICIOUS DETECTION)
+    // =================================================================================        
+
     @Query("SELECT COUNT(t) FROM Transaction t " +
            "WHERE t.account.id = :accountId " +
            "  AND t.amount = :amount " +
@@ -427,4 +431,60 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
             @Param("from") LocalDateTime from,
             @Param("to") LocalDateTime to
     );
+        
+    // =================================================================================
+    // 13. CÁC HÀM CHO SCHEDULER — NHẮC GHI CHÉP & TỔNG KẾT TUẦN (REMINDER)
+    // =================================================================================
+
+    /// [REMINDER] Lấy danh sách acc_id đã có giao dịch trong ngày hôm nay
+    /// Dùng cho ReminderScheduler.dailyRecordReminder() — loại trừ user đã ghi chép
+    @Query("SELECT DISTINCT t.account.id FROM Transaction t " +
+           "WHERE t.transDate >= :startOfDay AND t.transDate < :endOfDay " +
+           "AND t.deleted = false")
+    List<Integer> findAccountIdsWithTransactionToday(@Param("startOfDay") LocalDateTime startOfDay,
+                                                     @Param("endOfDay") LocalDateTime endOfDay);
+
+    /// [REMINDER] Tính tổng chi tiêu trong khoảng thời gian (cho weekly digest)
+    @Query("SELECT COALESCE(SUM(t.amount), 0) FROM Transaction t " +
+           "JOIN t.category c " +
+           "WHERE t.account.id = :accId " +
+           "AND c.ctgType = false " +
+           "AND t.transDate BETWEEN :start AND :end " +
+           "AND t.reportable = true " +
+           "AND t.deleted = false")
+    BigDecimal sumExpenseByDateRange(@Param("accId") Integer accId,
+                                     @Param("start") LocalDateTime start,
+                                     @Param("end") LocalDateTime end);
+
+    /// [REMINDER] Lấy top danh mục chi nhiều nhất trong khoảng thời gian (cho weekly digest)
+    @Query("SELECT c.ctgName, SUM(t.amount) FROM Transaction t " +
+           "JOIN t.category c " +
+           "WHERE t.account.id = :accId " +
+           "AND c.ctgType = false " +
+           "AND t.transDate BETWEEN :start AND :end " +
+           "AND t.reportable = true " +
+           "AND t.deleted = false " +
+           "GROUP BY c.ctgName " +
+           "ORDER BY SUM(t.amount) DESC")
+    List<Object[]> findTopExpenseCategoryByDateRange(@Param("accId") Integer accId,
+                                                      @Param("start") LocalDateTime start,
+                                                      @Param("end") LocalDateTime end);
+
+    // =================================================================================
+    // WALLET SCHEDULER — Quét chi tiêu bất thường trong 24h
+    // =================================================================================
+
+    // [WALLET-SCHEDULER] Đếm số giao dịch CHI + tổng tiền theo từng wallet_id trong 24h qua
+    // Trả về: [wallet_id (Integer), count (Long), totalAmount (BigDecimal)]
+    // Bảo mật: Kết quả gắn liền wallet_id → Scheduler tra ngược wallet.getAccount() để gửi đúng user
+    @Query("SELECT t.wallet.id, COUNT(t), SUM(t.amount) FROM Transaction t " +
+           "JOIN t.category c " +
+           "WHERE c.ctgType = false " +
+           "AND t.transDate >= :since " +
+           "AND t.wallet IS NOT NULL " +
+           "AND t.deleted = false " +
+           "GROUP BY t.wallet.id " +
+           "HAVING COUNT(t) > :threshold")
+    List<Object[]> findAbnormalExpenseWallets(@Param("since") LocalDateTime since,
+                                              @Param("threshold") long threshold);        
 }
