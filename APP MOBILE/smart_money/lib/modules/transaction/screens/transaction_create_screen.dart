@@ -26,6 +26,8 @@
 //   • "Không tìm thấy ví" (400 — walletId không hợp lệ)
 //   • "Không tìm thấy danh mục" (400 — categoryId không hợp lệ)
 //   • "Dữ liệu không hợp lệ" (400 — @Valid fail)
+//   • "Vui lòng chọn ngày hẹn trả cho khoản nợ." (400 — dueDate null khi tạo nợ mới)
+//   • "Ngày hẹn trả phải là ngày trong tương lai." (400 — dueDate ở quá khứ)
 //   • "Bạn không có quyền thực hiện thao tác này." (403)
 // ===========================================================
 
@@ -91,6 +93,7 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
   int? _selectedDebtId;                          // ID khoản nợ đã chọn (nullable) — gửi lên server
   String? _selectedDebtDisplay;                 // tên/info khoản nợ đã chọn — hiển thị trên UI
   DateTime? _reminderTime;                       // nhắc nhở (nullable, phải > now)
+  DateTime? _debtDueDate;                        // ngày hẹn trả nợ (nullable) — chỉ khi Cho vay/Đi vay
   bool _notReportable = false;                   // checkbox "Không tính vào báo cáo"
   bool _isSaving = false;                        // đang gửi request — disable nút Lưu
   bool _isLoadingSources = false;                // đang load ví/mục tiêu — hiện loading trong wallet row
@@ -197,6 +200,25 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
       return;
     }
 
+    // Bước 2a: Validate ngày hẹn trả nợ — bắt buộc khi TẠO nợ mới (Cho vay=19/Đi vay=20)
+    // [NOTE] Backend cũng validate: dueDate null → 400, dueDate quá khứ → 400
+    //        Frontend validate trước để tránh gọi API thừa
+    final bool isCreatingNewDebt = _transactionType == 'debt'
+        && !_requiresDebtSelection
+        && _selectedDebtId == null;
+    if (isCreatingNewDebt) {
+      // Bắt buộc phải chọn ngày hẹn trả
+      if (_debtDueDate == null) {
+        _showSnackBar('Vui lòng chọn ngày hẹn trả cho khoản nợ.', isError: true);
+        return;
+      }
+      // Ngày hẹn trả phải là ngày trong tương lai
+      if (!_debtDueDate!.isAfter(DateTime.now())) {
+        _showSnackBar('Ngày hẹn trả phải là ngày trong tương lai.', isError: true);
+        return;
+      }
+    }
+
     // Bước 2b: Validate tên người — bắt buộc khi TẠO nợ mới (Cho vay=19/Đi vay=20)
     // [FIX] Bỏ qua khi Thu nợ (21)/Trả nợ (22) — đã chọn từ danh sách nợ có sẵn
     if (_transactionType == 'debt' && !_requiresDebtSelection) {
@@ -208,8 +230,12 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
     }
 
     // Bước 3: Build request body — tương ứng TransactionRequest.java
+    // [FIX-DUEDATE] Khi tạo nợ mới (Cho vay=19/Đi vay=20)
+    // → gửi _debtDueDate riêng biệt với _reminderTime:
+    //   - dueDate     → lưu vào tDebts.due_date (hiển thị trong Sổ nợ, gia hạn ở DebtEditScreen)
+    //   - reminderDate → lưu vào tNotifications.scheduled_time (push notification nhắc nhở)
+    // [NOTE] isCreatingNewDebt đã được khai báo ở Bước 2a — tái dùng biến cùng scope
     final request = TransactionRequest(
-      // Nếu ví là wallet → gửi walletId, nếu là saving_goal → gửi goalId
       walletId: _selectedSourceItem!.type == 'wallet' ? _selectedSourceItem!.id : null,
       goalId: _selectedSourceItem!.type == 'saving_goal' ? _selectedSourceItem!.id : null,
       amount: amount,
@@ -219,15 +245,15 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
       withPerson: _withPersonController.text.trim().isNotEmpty
           ? _withPersonController.text.trim()
           : null,
-      // [FIX] personName: chỉ gửi khi TẠO nợ mới (Cho vay=19/Đi vay=20)
-      // Với Thu nợ (21)/Trả nợ (22) → backend lấy tên từ debt record qua debtId
       personName: _transactionType == 'debt' && !_requiresDebtSelection && _withPersonController.text.trim().isNotEmpty
           ? _withPersonController.text.trim()
           : null,
       eventId: _selectedEventId,
-      debtId: _selectedDebtId, // liên kết khoản nợ — chỉ khi category Thu nợ (21) hoặc Trả nợ (22)
+      debtId: _selectedDebtId,
       reminderDate: _reminderTime,
-      reportable: !_notReportable, // checkbox "Không tính" → reportable = false
+      // [FIX-DUEDATE] Gán ngày hẹn trả riêng biệt cho khoản nợ mới
+      dueDate: isCreatingNewDebt ? _debtDueDate : null,
+      reportable: !_notReportable,
     );
 
     // Bước 4: Gọi Provider (không gọi Service trực tiếp từ Screen)
@@ -841,6 +867,8 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
                           _transactionType = type;
                           // Reset nhóm khi đổi tab vì nhóm thuộc loại khác
                           _selectedCategory = null;
+                          // [FIX-DUEDATE] Reset ngày hẹn trả khi đổi tab (chỉ dùng cho debt)
+                          _debtDueDate = null;
                         });
                       },
                     ),
@@ -905,6 +933,13 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
                     if (_transactionType == 'debt' && !_requiresDebtSelection)
                       const Divider(color: Colors.grey, height: 1),
 
+                    // [G2-debt] Row chọn ngày hẹn trả — chỉ hiện khi TẠO nợ mới (Cho vay=19/Đi vay=20)
+                    // Ngày này lưu vào tDebts.due_date — khác với reminder (lưu vào tNotifications)
+                    if (_transactionType == 'debt' && !_requiresDebtSelection) ...[
+                      _buildDebtDueDateRow(),
+                      const Divider(color: Colors.grey, height: 1),
+                    ],
+
                     // Nút "THÊM CHI TIẾT"
                     _buildToggleDetailsButton(),
 
@@ -913,6 +948,9 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
                       const Divider(color: Colors.grey, height: 1),
                       // [H] Row chọn sự kiện đang diễn ra — tái dùng EventProvider
                       _buildEventRow(),
+                      const Divider(color: Colors.grey, height: 1),
+                      // [I] Row đặt nhắc nhở — chọn ngày + giờ → lưu vào _reminderTime
+                      _buildReminderRow(),
                       const Divider(color: Colors.grey, height: 1),
                       if (_transactionType != 'debt')
                         _buildWithPersonRow(),
@@ -942,6 +980,10 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
   // ----- Widget: Row chọn ví -----
   Widget _buildWalletRow() {
     return GestureDetector(
+      // [FIX-LAG] opaque: toàn bộ vùng row (kể cả padding transparent) nhận hit
+      // Không có behavior này, vùng padding trong suốt sẽ xuyên qua xuống body GestureDetector
+      // gây ra setState rebuild → bottomSheet không kịp mở → phải click 2-3 lần
+      behavior: HitTestBehavior.opaque,
       onTap: _isLoadingSources ? null : _showSourceBottomSheet,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -1040,6 +1082,95 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
         ),
       ),
     );
+  }
+
+  // ----- Widget: Row đặt nhắc nhở (DatePicker + TimePicker) -----
+  // [I] Chọn ngày + giờ nhắc nhở → gộp thành _reminderTime (DateTime)
+  //     → gửi lên server qua request.reminderDate
+  //     → server tạo Notification với scheduledTime = reminderDate
+  Widget _buildReminderRow() {
+    return GestureDetector(
+      onTap: _pickReminderDateTime,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          children: [
+            const Icon(Icons.notifications_outlined, color: Colors.grey, size: 20),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                _reminderTime != null
+                    ? 'Nhắc nhở: ${FormatHelper.formatDisplayDate(_reminderTime!)} ${_reminderTime!.hour.toString().padLeft(2, '0')}:${_reminderTime!.minute.toString().padLeft(2, '0')}'
+                    : 'Đặt nhắc nhở (tùy chọn)',
+                style: TextStyle(
+                  color: _reminderTime != null ? Colors.white : Colors.grey,
+                  fontSize: 15,
+                ),
+              ),
+            ),
+            if (_reminderTime != null)
+              GestureDetector(
+                onTap: () => setState(() => _reminderTime = null),
+                child: const Icon(Icons.close, color: Colors.grey, size: 18),
+              )
+            else
+              const Icon(Icons.chevron_right, color: Colors.grey, size: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ----- Helper: Mở DatePicker → TimePicker → gộp thành DateTime -----
+  Future<void> _pickReminderDateTime() async {
+    final now = DateTime.now();
+    final pickedDate = await showDatePicker(
+      context: context,
+      initialDate: _reminderTime ?? now,
+      firstDate: now,
+      lastDate: DateTime(now.year + 5),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.dark(
+              primary: Color(0xFF4CAF50),
+              surface: Color(0xFF1C1C1E),
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (pickedDate == null || !mounted) return;
+
+    final pickedTime = await showTimePicker(
+      context: context,
+      initialTime: _reminderTime != null
+          ? TimeOfDay.fromDateTime(_reminderTime!)
+          : TimeOfDay.fromDateTime(now.add(const Duration(hours: 1))),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.dark(
+              primary: Color(0xFF4CAF50),
+              surface: Color(0xFF1C1C1E),
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+    if (pickedTime == null || !mounted) return;
+
+    setState(() {
+      _reminderTime = DateTime(
+        pickedDate.year,
+        pickedDate.month,
+        pickedDate.day,
+        pickedTime.hour,
+        pickedTime.minute,
+      );
+    });
   }
 
   // ----- Widget: Row liên kết khoản nợ (chỉ hiện khi category là Thu nợ/Trả nợ) -----
@@ -1143,6 +1274,82 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
        ),
      );
    }
+
+  // ----- Widget: Row chọn ngày hẹn trả nợ (dueDate) -----
+  // Chỉ hiện khi TẠO nợ mới (Cho vay=19/Đi vay=20)
+  // [REQUIRED] Bắt buộc nhập — backend validate null → 400, quá khứ → 400
+  // Khác với reminder: dueDate lưu vào tDebts.due_date, reminder lưu vào tNotifications
+  Widget _buildDebtDueDateRow() {
+    return GestureDetector(
+      onTap: _pickDebtDueDate,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          children: [
+            const Icon(Icons.event_available, color: Colors.orange, size: 20),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                _debtDueDate != null
+                    ? 'Hạn trả: ${_debtDueDate!.day.toString().padLeft(2, '0')}/'
+                        '${_debtDueDate!.month.toString().padLeft(2, '0')}/'
+                        '${_debtDueDate!.year}'
+                    // [REQUIRED] Đổi hint thành bắt buộc — có dấu * và màu cam
+                    : 'Chọn ngày hẹn trả *',
+                style: TextStyle(
+                  // Màu đỏ nhạt khi chưa chọn để nhắc nhở bắt buộc
+                  color: _debtDueDate != null ? Colors.white : Colors.orangeAccent,
+                  fontSize: 15,
+                ),
+              ),
+            ),
+            if (_debtDueDate != null)
+              GestureDetector(
+                onTap: () => setState(() => _debtDueDate = null),
+                child: const Icon(Icons.close, color: Colors.grey, size: 18),
+              )
+            else
+              const Icon(Icons.chevron_right, color: Colors.grey, size: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ----- Helper: Mở DatePicker cho ngày hẹn trả nợ -----
+  // Chỉ cho chọn ngày tương lai (không chọn quá khứ)
+  // Gán giờ cuối ngày (23:59:59) để khớp logic backend
+  Future<void> _pickDebtDueDate() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _debtDueDate ?? now.add(const Duration(days: 30)),
+      firstDate: now,
+      lastDate: DateTime(now.year + 10),
+      helpText: 'Chọn ngày hẹn trả',
+      confirmText: 'Xác nhận',
+      cancelText: 'Hủy',
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.dark(
+              primary: Color(0xFFFF9800), // orange cho debt
+              surface: Color(0xFF1C1C1E),
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (picked != null && mounted) {
+      setState(() {
+        // Gán 23:59:59 để "hạn cuối ngày" — khớp với DebtEditScreen
+        _debtDueDate = DateTime(picked.year, picked.month, picked.day, 23, 59, 59);
+      });
+    }
+  }
+
   // ----- Widget: Nút "THÊM CHI TIẾT" -----
   Widget _buildToggleDetailsButton() {
     return GestureDetector(

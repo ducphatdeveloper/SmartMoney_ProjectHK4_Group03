@@ -39,23 +39,12 @@ public class PlannedTransactionMapper {
         Integer remainingCount = null; // Sẽ tính sau nếu có thể
 
         // --- Bước 2: Kiểm tra xem kỳ hiện tại đã được trả chưa ---
-        // Bills: có lastExecutedAt = đã trả TRỪ KHI nextDueDate đến hạn
-        // Recurring: cần kiểm tra transaction thực tế
+        // Cả Bills và Recurring đều dùng transaction thực tế để xác định trạng thái PAID
+        // ⚠️ KHÔNG dùng lastExecutedAt cho Bills vì Scheduler cũng set lastExecutedAt khi gửi reminder
+        //    (dùng lastExecutedAt sẽ báo PAID sai khi scheduler chỉ nhắc chứ chưa có transaction)
         boolean hasPaidForCurrentCycle;
-        if (p.getPlanType() == 1) {
-            // Bills: có lastExecutedAt nhưng nextDueDate đã đến hạn → cần trả lại
-            if (p.getLastExecutedAt() != null && !p.getNextDueDate().isBefore(today)) {
-                // Đã trả và chưa đến hạn kỳ tiếp theo
-                hasPaidForCurrentCycle = true;
-            } else {
-                // Chưa trả HOẶC đã đến hạn kỳ tiếp theo → cần trả lại
-                hasPaidForCurrentCycle = false;
-            }
-        } else {
-            // Recurring: kiểm tra transaction thực tế
-            LocalDate cycleDateToCheck = determineCycleDateToCheck(p, today);
-            hasPaidForCurrentCycle = hasTransactionForCycle(p, cycleDateToCheck);
-        }
+        LocalDate cycleDateToCheck = determineCycleDateToCheck(p, today);
+        hasPaidForCurrentCycle = hasTransactionForCycle(p, cycleDateToCheck);
 
         // --- Bước 3: Xác định `displayStatus` theo thứ tự ưu tiên ---
         if (p.getEndDate() != null && p.getEndDate().isBefore(today)) {
@@ -89,9 +78,19 @@ public class PlannedTransactionMapper {
         }
 
         // --- Bước 5: Format nextDueDateLabel ---
-        String nextDueDateLabel = p.getNextDueDate() != null
-                ? p.getNextDueDate().format(VN_DATE_FORMATTER)
-                : null;
+        // Ẩn nextDueDateLabel khi không còn lần lặp nào nữa:
+        //   (a) displayStatus = EXPIRED  → endDate đã qua hôm nay
+        //   (b) remainingCount = 0       → tính toán không còn lần nào
+        //   (c) nextDueDate > endDate    → lần kế tiếp vượt hạn dừng
+        String nextDueDateLabel = null;
+        if (p.getNextDueDate() != null) {
+            boolean noMoreRepetitions = "EXPIRED".equals(displayStatus)
+                    || (remainingCount != null && remainingCount == 0)
+                    || (p.getEndDate() != null && p.getNextDueDate().isAfter(p.getEndDate()));
+            if (!noMoreRepetitions) {
+                nextDueDateLabel = p.getNextDueDate().format(VN_DATE_FORMATTER);
+            }
+        }
 
 
         // ══════════════════════════════════════════════════════════════════

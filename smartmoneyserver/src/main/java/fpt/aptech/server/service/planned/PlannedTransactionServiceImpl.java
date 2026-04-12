@@ -653,40 +653,49 @@ public class PlannedTransactionServiceImpl implements PlannedTransactionService 
      * Bước 3 — Recalculate debt nếu planned có liên kết debt.
      */
     public void createTransactionFromPlanned(PlannedTransaction planned) {
-        boolean isIncome = Boolean.TRUE.equals(planned.getCategory().getCtgType());
+        boolean isIncome = Boolean.TRUE.equals(planned.getCategory().getCtgType()); // true=Thu, false=Chi
 
-        // Bước 1: Tạo Transaction
+        // Bước 1: Kiểm tra số dư ví TRƯỚC khi tạo transaction (tránh lưu rồi rollback)
+        // Chỉ áp dụng cho CHI tiêu (isIncome=false) — Thu nhập không cần check
+        // Caller (Scheduler / payBill) sẽ xử lý exception này theo cách riêng:
+        //   - Scheduler:  pre-check tại Bước 4 trong processRecurring() → sẽ không tới đây nếu balance không đủ
+        //   - payBill():  exception propagate lên → Spring rollback → frontend nhận 400 Bad Request
+        Wallet wallet = planned.getWallet();
+        if (!isIncome && wallet.getBalance().compareTo(planned.getAmount()) < 0) {
+            throw new IllegalArgumentException(
+                    "Ví '" + wallet.getWalletName() + "' hiện có "
+                    + wallet.getBalance().toPlainString()
+                    + " không đủ để thực hiện giao dịch "
+                    + planned.getAmount().toPlainString());
+        }
+
+        // Bước 2: Tạo và lưu Transaction (số dư đã được kiểm tra ở Bước 1)
         Transaction transaction = Transaction.builder()
                 .account(planned.getAccount())
                 .wallet(planned.getWallet())
                 .category(planned.getCategory())
                 .debt(planned.getDebt())
-                .plannedTransaction(planned) // ✅ Link FK planned_id
+                .plannedTransaction(planned) // Link FK planned_id để tracking nguồn gốc
                 .amount(planned.getAmount())
                 .note(planned.getNote() != null
                         ? planned.getNote()
                         : planned.getCategory().getCtgName())
                 .transDate(LocalDateTime.now())
                 .reportable(true)
-                .sourceType(TransactionSourceType.PLANNED.getValue())
+                .sourceType(TransactionSourceType.PLANNED.getValue()) // sourceType=5 (PLANNED)
                 .build();
         transactionRepo.save(transaction);
 
-        // Bước 2: Cập nhật số dư ví
-        Wallet wallet = planned.getWallet();
-        // [6.1] Bảo vệ: Không cho phép ví bị âm (nếu nghiệp vụ yêu cầu)
-        // Nếu là CHI (isIncome == false) và số dư hiện tại < amount -> chặn
-        if (!isIncome && wallet.getBalance().compareTo(planned.getAmount()) < 0) {
-            throw new IllegalArgumentException("Ví '" + wallet.getWalletName() + "' hiện có "
-                    + wallet.getBalance().toPlainString() + " không đủ để thực hiện giao dịch");
-        }
-
+        // Bước 3: Cập nhật số dư ví
+        // Thu (isIncome=true)  → cộng vào balance
+        // Chi (isIncome=false) → trừ ra khỏi balance (đã kiểm tra >= 0 ở Bước 1)
         wallet.setBalance(isIncome
                 ? wallet.getBalance().add(planned.getAmount())
                 : wallet.getBalance().subtract(planned.getAmount()));
         walletRepo.save(wallet);
 
-        // Bước 3: Recalculate debt nếu có
+        // Bước 4: Recalculate debt nếu planned có liên kết khoản nợ
+        // (cập nhật remainAmount, finished flag trong tDebts)
         if (planned.getDebt() != null) {
             debtCalculationService.recalculateDebt(
                     planned.getDebt().getId(),

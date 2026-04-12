@@ -431,7 +431,7 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
             @Param("from") LocalDateTime from,
             @Param("to") LocalDateTime to
     );
-        
+
     // =================================================================================
     // 13. CÁC HÀM CHO SCHEDULER — NHẮC GHI CHÉP & TỔNG KẾT TUẦN (REMINDER)
     // =================================================================================
@@ -486,5 +486,5 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
            "GROUP BY t.wallet.id " +
            "HAVING COUNT(t) > :threshold")
     List<Object[]> findAbnormalExpenseWallets(@Param("since") LocalDateTime since,
-                                              @Param("threshold") long threshold);        
+                                              @Param("threshold") long threshold);
 }

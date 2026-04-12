@@ -32,14 +32,14 @@ public interface SavingGoalRepository extends JpaRepository<SavingGoal, Integer>
     List<SavingGoal> findByAccount_Id(Integer accId);
 
     /**
-     * [2.2] Lấy tất cả mục tiêu chưa bị hủy (goalStatus != CANCELLED=3).
-     * Dùng cho màn hình danh sách mục tiêu — ẩn những mục đã hủy.
+     * [2.2] Lấy tất cả mục tiêu của tài khoản theo status cụ thể (không dùng nữa trực tiếp).
+     * Giữ lại để tương thích nếu module khác dùng.
      */
     List<SavingGoal> findByAccount_IdAndGoalStatusNot(Integer accId, Integer status);
 
     /**
-     * [2.3] Tìm mục tiêu theo tên (không phân biệt hoa/thường), loại trừ đã hủy.
-     * Dùng cho thanh tìm kiếm trong màn hình danh sách mục tiêu.
+     * [2.3] Tìm mục tiêu theo tên (không phân biệt hoa/thường), lọc theo status.
+     * Giữ lại để tương thích nếu module khác dùng.
      */
     List<SavingGoal> findByAccount_IdAndGoalNameContainingIgnoreCaseAndGoalStatusNot(
             Integer accId,
@@ -57,8 +57,9 @@ public interface SavingGoalRepository extends JpaRepository<SavingGoal, Integer>
     Optional<SavingGoal> findByIdAndAccount_Id(Integer id, Integer userId);
 
     /**
-     * [3.2] Lấy một mục tiêu theo ID + accId, loại trừ đã hủy.
-     * Dùng trong getOwnedGoal() — không cho thao tác trên mục tiêu đã hủy.
+     * [3.2] Lấy một mục tiêu theo ID + accId, lọc theo status.
+     * Giữ lại để tương thích nếu module khác dùng.
+     * Lưu ý: @SQLRestriction("deleted=0") đã tự loại trừ các goal đã xóa mềm.
      */
     Optional<SavingGoal> findByIdAndAccount_IdAndGoalStatusNot(
             Integer id,
@@ -71,8 +72,9 @@ public interface SavingGoalRepository extends JpaRepository<SavingGoal, Integer>
     // =================================================================================
 
     /**
-     * [4.1] Kiểm tra tên mục tiêu đã tồn tại chưa (tránh trùng tên, loại trừ đã hủy).
-     * Dùng trước khi tạo mới hoặc đổi tên mục tiêu.
+     * [4.1] Kiểm tra tên mục tiêu đã tồn tại chưa (tránh trùng tên, loại trừ đã xóa mềm).
+     * @SQLRestriction("deleted=0") đã xử lý, không cần thêm điều kiện deleted.
+     * Truyền statusToExclude = CANCELLED(3) để không trùng với goal đang tạm dừng.
      */
     boolean existsByGoalNameAndAccount_IdAndGoalStatusNot(
             String goalName,

@@ -11,9 +11,9 @@ import java.util.List;
 @Mapper(componentModel = "spring")
 public interface CategoryMapper {
 
-    // Ánh xạ parent.id sang parentId.
-    // MapStruct tự động ánh xạ vì có cùng tên và kiểu.
+    // Ánh xạ parent.id → parentId, parent.ctgName → parentName.
     @Mapping(source = "parent.id", target = "parentId")
+    @Mapping(source = "parent.ctgName", target = "parentName")
     CategoryResponse toDto(Category category);
 
     // MapStruct sẽ tự động áp dụng toDto cho từng phần tử trong list.

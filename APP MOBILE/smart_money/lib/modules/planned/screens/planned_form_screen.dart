@@ -964,6 +964,32 @@ class _PlannedFormScreenState extends State<PlannedFormScreen> {
       repeatCount: _repeatCount,
     );
 
+    // Bước 2.5: Confirm trước khi lưu khi sửa — tránh bấm nhầm
+    if (_isEditing) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: const Color(0xFF2C2C2E),
+          title: const Text('Xác nhận sửa', style: TextStyle(color: Colors.white)),
+          content: Text(
+            'Bạn có chắc muốn cập nhật ${widget.planType == PlanType.recurring ? "giao dịch định kỳ" : "hóa đơn"} này?',
+            style: const TextStyle(color: Colors.grey),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Hủy', style: TextStyle(color: Colors.grey)),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Xác nhận', style: TextStyle(color: Colors.blue)),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true || !mounted) return;
+    }
+
     // Bước 3: Gọi Provider
     setState(() => _isSaving = true);
 

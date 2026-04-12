@@ -56,7 +56,7 @@ public class SavingGoal {
     @Column(name = "end_date", nullable = false)
     private LocalDate endDate;
 
-    // 1: Active | 2: Completed | 3: Cancelled
+    // 1: Active | 2: Completed | 3: Cancelled (tạm dừng/kết thúc sớm) | 4: Overdue
     @Column(name = "goal_status", nullable = false)
     @Builder.Default
     private Integer goalStatus = 1;

@@ -86,11 +86,11 @@ class AddEventScreenState extends State<AddEventScreen> {
     final name = _nameController.text.trim();
 
     if (name.isEmpty) {
-      _showError("Please enter an event name");
+      _showError("Tên sự kiện không được để trống");
       return;
     }
     if (_endDate == null) {
-      _showError("Please select an end date");
+      _showError("Vui lòng nhập ngày kết thúc");
       return;
     }
     if (_isSaving) return;
@@ -114,7 +114,7 @@ class AddEventScreenState extends State<AddEventScreen> {
     if (success) {
       Navigator.pop(context, true);
     } else {
-      _showError(provider.errorMessage ?? "Failed to create event");
+      _showError(provider.errorMessage ?? "Không thể tạo sự kiện");
     }
   }
 

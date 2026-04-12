@@ -1,0 +1,286 @@
+### ══════════════════════════════════════════════════════════════════════
+### SMARTMONEY — SCHEDULER API TEST
+### Tổng hợp tất cả scheduler endpoints để test thủ công thay lịch cron.
+###
+### ─── DANH SÁCH SCHEDULER & HTTP TRIGGER ─────────────────────────────
+###
+###   [1] BudgetScheduler          → POST /api/budgets/check-now
+###       Cron: 08:00 sáng (notify) | 01:00 sáng (renew)
+###       Tác dụng: Kiểm tra ngân sách ≥80%/100%, gửi dự báo vượt hạn,
+###                 gia hạn ngân sách lặp lại (repeating=true)
+###
+###   [2] SavingGoalScheduler      → POST /api/saving-goals/check-now
+###       Cron: 01:00 sáng (overdue) | 08:00 sáng (near deadline)
+###       Tác dụng: Đánh dấu mục tiêu OVERDUE + nhắc mục tiêu sắp hết hạn
+###
+###   [3] PlannedTransactionScheduler → POST /api/planned/check-now
+###       Cron: 01:00 sáng mỗi ngày
+###       Tác dụng: Tự động tạo giao dịch cho Recurring đến hạn,
+###                 gửi thông báo nhắc cho Bill đến hạn (user duyệt tay)
+###
+###   [4] EventScheduler           → KHÔNG có HTTP trigger (chạy nền)
+###       Cron: 08:00 sáng (nhắc sắp tới 7 ngày) | 01:00 sáng (auto-complete quá hạn)
+###       Verify qua: GET /api/events, GET /api/notifications
+###
+###   [5] DebtScheduler            → KHÔNG có HTTP trigger (chạy nền)
+###       Cron: 08:00 sáng mỗi ngày
+###       Verify qua: GET /api/debts, GET /api/notifications
+###
+###   [6] WalletScheduler          → KHÔNG có HTTP trigger (chạy nền)
+###       Cron: 20:00 tối mỗi ngày
+###       Verify qua: GET /api/notifications (cảnh báo chi tiêu bất thường)
+###
+###   [7] ReminderScheduler        → KHÔNG có HTTP trigger (chạy nền)
+###       Cron: 21:00 tối (daily remind) | 20:00 Chủ nhật (weekly digest)
+###       Verify qua: GET /api/notifications
+###
+###   [8] NotificationScheduler    → KHÔNG có HTTP trigger (chạy nền)
+###       Cron: mỗi 1 phút — gửi push notification FCM đến hạn
+###       Verify qua: GET /api/notifications (notifySent=true sau khi chạy)
+### ─────────────────────────────────────────────────────────────────────
+### ══════════════════════════════════════════════════════════════════════
+
+### ══════════════════════════════════════════════════════════════════════
+###  🔐 ĐĂNG NHẬP
+### ══════════════════════════════════════════════════════════════════════
+
+### [0.1] Đăng nhập USER (để trigger scheduler user-related)
+POST http://localhost:9999/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "minh.pham@gmail.com",
+  "password": "Test@123",
+  "deviceToken": "device_token_scheduler_test",
+  "deviceType": "Postman",
+  "deviceName": "Scheduler Test Client"
+}
+
+> {%
+    client.global.set("user_token", response.body.data.accessToken);
+    client.log("User Token: " + response.body.data.accessToken);
+%}
+
+### [0.2] Đăng nhập ADMIN (để trigger scheduler budget có quyền ADMIN)
+POST http://localhost:9999/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "admin@smartmoney.vn",
+  "password": "Test@123",
+  "deviceToken": "device_token_admin_scheduler",
+  "deviceType": "Postman",
+  "deviceName": "Admin Scheduler Client"
+}
+
+> {%
+    client.global.set("admin_token", response.body.data.accessToken);
+    client.log("Admin Token: " + response.body.data.accessToken);
+%}
+
+
+### ══════════════════════════════════════════════════════════════════════
+###  [1] BUDGET SCHEDULER — POST /api/budgets/check-now
+###  Lịch cron thực: 08:00 sáng hàng ngày (notify) + 01:00 sáng (renew)
+###  Quyền: USER_STANDARD_MANAGE
+### ══════════════════════════════════════════════════════════════════════
+
+### [1.1] Trigger BudgetScheduler kiểm tra ngay
+# Kỳ vọng: 200 OK — "Đã kích hoạt kiểm tra ngân sách."
+# Tác dụng:
+#   • Ngân sách chi ≥ 80%  → thông báo budgetWarning()
+#   • Ngân sách chi ≥ 100% → thông báo budgetExceeded()
+#   • Chi tiêu tăng ≥ 30% so tháng trước → budgetComparedToLastMonth()
+#   • Dự báo vượt hạn sớm → budgetOverrunForecast()
+#   • Gợi ý chi theo ngày  → budgetDailyAllowance()
+#   • Ngân sách lặp lại hết hạn → tạo kỳ mới + budgetRenewed()
+POST http://localhost:9999/api/budgets/check-now
+Authorization: Bearer {{user_token}}
+
+### [1.2] Verify: Kiểm tra thông báo ngân sách đã được tạo chưa
+# Kỳ vọng: 200 OK — danh sách notification chứa BUDGET notifications mới
+GET http://localhost:9999/api/notifications
+Authorization: Bearer {{user_token}}
+
+### [1.3] Verify: Xem danh sách ngân sách sau khi trigger
+# Kỳ vọng: Ngân sách lặp (repeating=true) đã có kỳ mới nếu đến hạn
+GET http://localhost:9999/api/budgets
+Authorization: Bearer {{user_token}}
+
+### [1.4] Verify: Ngân sách đã kết thúc (có thể được gia hạn thành kỳ mới)
+GET http://localhost:9999/api/budgets/expired
+Authorization: Bearer {{user_token}}
+
+
+### ══════════════════════════════════════════════════════════════════════
+###  [2] SAVING GOAL SCHEDULER — POST /api/saving-goals/check-now
+###  Lịch cron thực: 01:00 sáng (overdue) + 08:00 sáng (near deadline)
+###  Quyền: USER_STANDARD_MANAGE
+### ══════════════════════════════════════════════════════════════════════
+
+### [2.1] Trigger SavingGoalScheduler kiểm tra ngay
+# Kỳ vọng: 200 OK — "Đã kích hoạt thủ công scheduler của Mục tiêu tiết kiệm."
+# Tác dụng:
+#   checkOverdueGoals():        Mục tiêu quá hạn (endDate < today, chưa hoàn thành)
+#                               → đổi status = OVERDUE + thông báo savingOverdue()
+#   remindNearDeadlineGoals():  Mục tiêu còn 7 ngày → thông báo savingNearDeadline()
+POST http://localhost:9999/api/saving-goals/check-now
+Authorization: Bearer {{user_token}}
+
+### [2.2] Verify: Kiểm tra thông báo mục tiêu đã được tạo chưa
+# Kỳ vọng: 200 OK — notification list chứa SAVING_GOAL notifications mới
+GET http://localhost:9999/api/notifications
+Authorization: Bearer {{user_token}}
+
+### [2.3] Verify: Xem danh sách mục tiêu — kiểm tra status có đổi sang OVERDUE chưa
+GET http://localhost:9999/api/saving-goals/getAll
+Authorization: Bearer {{user_token}}
+
+
+### ══════════════════════════════════════════════════════════════════════
+###  [3] PLANNED TRANSACTION SCHEDULER — POST /api/planned/check-now
+###  Lịch cron thực: 01:00 sáng mỗi ngày
+###  Quyền: USER_STANDARD_MANAGE (xác thực qua JWT nhưng scheduler chạy cho ALL users)
+### ══════════════════════════════════════════════════════════════════════
+
+### [3.1] Trigger PlannedTransactionScheduler kiểm tra ngay
+# Kỳ vọng: 200 OK — "Đã kích hoạt scheduler kiểm tra giao dịch định kỳ và hóa đơn."
+# Tác dụng:
+#   processRecurring():
+#     Recurring đến hạn (nextDueDate <= today, active=true):
+#       • Ví đủ tiền  → tạo Transaction + cập nhật nextDueDate + thông báo recurringExecuted()
+#       • Ví không đủ → BỎ QUA kỳ này, tiến nextDueDate + thông báo recurringInsufficientBalance()
+#       • Hết COUNT/endDate → đánh dấu active=false
+#   processBill():
+#     Bill đến hạn (nextDueDate <= today, active=true, isPaidThisCycle=false):
+#       → Gửi thông báo billDue() nhắc user (KHÔNG tự tạo Transaction)
+POST http://localhost:9999/api/planned/check-now
+Authorization: Bearer {{user_token}}
+
+### [3.2] Verify: Kiểm tra Recurring — nextDueDate đã được cập nhật chưa
+# Kỳ vọng: nextDueDate tiến sang kỳ tiếp theo cho Recurring đã đến hạn
+GET http://localhost:9999/api/recurring?active=true
+Authorization: Bearer {{user_token}}
+
+### [3.3] Verify: Kiểm tra Recurring đã bị deactivate chưa (hết COUNT hoặc endDate)
+GET http://localhost:9999/api/recurring?active=false
+Authorization: Bearer {{user_token}}
+
+### [3.4] Verify: Kiểm tra Bills — nhắc nhở đã được gửi chưa
+# Kỳ vọng: notification list chứa REMINDER notifications mới (billDue)
+GET http://localhost:9999/api/notifications
+Authorization: Bearer {{user_token}}
+
+### [3.5] Verify: Xem giao dịch mới được tạo bởi Recurring trong tháng này
+# Kỳ vọng: giao dịch mới với sourceType=5 (PLANNED) trong ngày hôm nay
+GET http://localhost:9999/api/transactions/list?range=THIS_MONTH
+Authorization: Bearer {{user_token}}
+
+### [3.6] Verify: Xem lịch sử giao dịch của một Bill cụ thể (thay 39 bằng bill_id thực)
+# Kỳ vọng: lịch sử giao dịch Bill — chỉ hiện giao dịch do user trả tay (payBill)
+GET http://localhost:9999/api/bills/39/transactions
+Authorization: Bearer {{user_token}}
+
+
+### ══════════════════════════════════════════════════════════════════════
+###  [4] EVENT SCHEDULER — Không có HTTP trigger
+###  Lịch cron thực: 08:00 sáng (remind) | 01:00 sáng (auto-complete)
+###  Verify bằng cách tạo dữ liệu rồi xem notifications
+### ══════════════════════════════════════════════════════════════════════
+
+### [4.1] Verify: Xem danh sách sự kiện đang hoạt động
+# Nếu có sự kiện endDate = hôm nay + 7 ngày → EventScheduler sẽ gửi eventReminder()
+GET http://localhost:9999/api/events
+Authorization: Bearer {{user_token}}
+
+### [4.2] Verify: Xem sự kiện đã kết thúc (auto-complete bởi scheduler)
+# Nếu có sự kiện endDate < hôm nay & finished=false → scheduler tự set finished=true
+# và gửi thông báo eventAutoCompleted()
+GET http://localhost:9999/api/events?isFinished=true
+Authorization: Bearer {{user_token}}
+
+### [4.3] Verify: Kiểm tra thông báo sự kiện
+# Kỳ vọng: notification có notifyType=7 (EVENTS): eventReminder hoặc eventAutoCompleted
+GET http://localhost:9999/api/notifications
+Authorization: Bearer {{user_token}}
+
+
+### ══════════════════════════════════════════════════════════════════════
+###  [5] DEBT SCHEDULER — Không có HTTP trigger
+###  Lịch cron thực: 08:00 sáng mỗi ngày
+###  Verify bằng cách xem notifications sau 08:00 sáng
+### ══════════════════════════════════════════════════════════════════════
+
+### [5.1] Verify: Xem khoản CẦN TRẢ (Đi vay)
+# Nếu dueDate trong 10 ngày tới → scheduler sẽ gửi debtEarlyReminder()
+# Nếu dueDate trong 0-3 ngày    → debtPayableReminder()
+# Nếu dueDate < today            → debtOverdue()
+GET http://localhost:9999/api/debts?debtType=false
+Authorization: Bearer {{user_token}}
+
+### [5.2] Verify: Xem khoản CẦN THU (Cho vay)
+# Tương tự nhưng gửi debtReceivableReminder() hoặc debtOverdue(isPayable=false)
+GET http://localhost:9999/api/debts?debtType=true
+Authorization: Bearer {{user_token}}
+
+### [5.3] Verify: Kiểm tra thông báo nợ
+# Kỳ vọng: notification có notifyType=8 (DEBT_LOAN)
+GET http://localhost:9999/api/notifications
+Authorization: Bearer {{user_token}}
+
+
+### ══════════════════════════════════════════════════════════════════════
+###  [6] WALLET SCHEDULER — Không có HTTP trigger
+###  Lịch cron thực: 20:00 tối mỗi ngày
+###  Quét ví có > 5 giao dịch chi trong 24h → cảnh báo bất thường
+### ══════════════════════════════════════════════════════════════════════
+
+### [6.1] Verify (USER): Xem thông báo cảnh báo chi tiêu bất thường
+# Kỳ vọng: notification có notifyType=6 (WALLETS) với title "Cảnh báo chi tiêu bất thường 🚩"
+# Điều kiện: ví phải có > 5 giao dịch chi tiêu trong 24h để trigger cảnh báo
+GET http://localhost:9999/api/notifications
+Authorization: Bearer {{user_token}}
+
+### [6.2] Verify (ADMIN): Xem thông báo rủi ro ví người dùng
+# Kỳ vọng: notification có notifyType=4 (SYSTEM) với title "Cảnh báo rủi ro ví người dùng 🚨"
+# Admin nhận thêm cảnh báo với thông tin email user bị flagged
+GET http://localhost:9999/api/notifications/admin/system
+Authorization: Bearer {{admin_token}}
+
+
+### ══════════════════════════════════════════════════════════════════════
+###  [7] REMINDER SCHEDULER — Không có HTTP trigger
+###  Cron: 21:00 tối (daily) | 20:00 Chủ nhật (weekly digest)
+### ══════════════════════════════════════════════════════════════════════
+
+### [7.1] Verify: Kiểm tra thông báo nhắc ghi chép hàng ngày
+# Điều kiện trigger: user chưa có giao dịch nào hôm nay → 21:00 tối gửi dailyRecordReminder()
+# Kỳ vọng: notification với title "Nhắc ghi chép 📝"
+GET http://localhost:9999/api/notifications
+Authorization: Bearer {{user_token}}
+
+### [7.2] Verify: Kiểm tra thông báo tổng kết tuần (chạy Chủ nhật 20:00)
+# Kỳ vọng: notification với title "Tổng kết tuần 📊" (chỉ có vào thứ Hai sau khi scheduler chạy Chủ nhật)
+# Content: "Tuần này bạn đã chi X đ. Danh mục chi nhiều nhất: Ăn uống (Y đ)."
+GET http://localhost:9999/api/notifications
+Authorization: Bearer {{user_token}}
+
+
+### ══════════════════════════════════════════════════════════════════════
+###  [8] NOTIFICATION SCHEDULER — Không có HTTP trigger
+###  Cron: mỗi 1 phút — gửi FCM push notification đến hạn
+###  Xử lý: Notification có scheduledTime <= now AND notifySent=false → gửi FCM
+### ══════════════════════════════════════════════════════════════════════
+
+### [8.1] Verify: Lấy danh sách thông báo — kiểm tra trạng thái notifySent
+# Kỳ vọng: notification mới nhất đều có notifySent=true sau 1 phút kể từ khi tạo
+# notifyDelivered=true sẽ được set khi mobile gọi PATCH /notifications/{id}/delivered
+GET http://localhost:9999/api/notifications
+Authorization: Bearer {{user_token}}
+
+### [8.2] Xác nhận nhận push notification (Mobile gọi sau khi nhận FCM)
+# Kỳ vọng: 200 OK — "Đã xác nhận nhận thông báo."
+# ⚠️ Thay 1 bằng notification ID thực từ danh sách
+PATCH http://localhost:9999/api/notifications/1/delivered
+Authorization: Bearer {{user_token}}
+

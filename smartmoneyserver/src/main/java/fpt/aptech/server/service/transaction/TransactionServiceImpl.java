@@ -117,6 +117,14 @@ public class TransactionServiceImpl implements TransactionService {
                     "Giao dịch chỉ được thuộc về Ví hoặc Mục tiêu, không được thuộc về cả hai.");
         }
 
+        // Bước 3.5: Chặn tạo giao dịch trong kỳ đã chốt (quá khứ)
+        // Giao dịch tương lai vẫn cho phép (PlannedTransaction, Event, nhắc nhở)
+        if (isPastPeriod(request.transDate())) {
+            throw new IllegalArgumentException(
+                    "Không thể tạo giao dịch trong kỳ đã chốt. " +
+                    "Nếu bạn cần điều chỉnh số liệu quá khứ, hãy tạo giao dịch ở tháng hiện tại.");
+        }
+
         // Bước 4: Validate và lấy Danh mục
         Category category = categoryRepository.findById(request.categoryId())
                 .orElseThrow(() -> new IllegalArgumentException(
@@ -161,36 +169,11 @@ public class TransactionServiceImpl implements TransactionService {
         }
 
         // Bước 10a: Nếu user đặt ngày nhắc nhở → tạo thông báo hẹn giờ
+        // (Chỉ tạo khi user chọn lịch nhắc nhở — không bắn thông báo tự động khi tạo giao dịch)
         if (request.reminderDate() != null) {
-            notificationService.createNotification(
-                    currentUser,
-                    "Nhắc nhở giao dịch",
-                    "Bạn có nhắc nhở cho giao dịch: "
-                            + (request.note() != null ? request.note() : "Không có ghi chú"),
-                    NotificationType.REMINDER,
-                    savedTransaction.getId(),
-                    request.reminderDate()
-            );
+            createReminderNotification(savedTransaction, currentUser, request.reminderDate());
         }
 
-        // Bước 10b: Gửi thông báo xác nhận giao dịch (chỉ các giao dịch có reportable=true)
-        if (Boolean.TRUE.equals(request.reportable())) {
-            NotificationContent msg = NotificationMessages.transactionCreated(
-                    Boolean.TRUE.equals(category.getCtgType()),
-                    request.amount(),
-                    category.getCtgName(),
-                    savedTransaction.getWallet() != null
-                            ? savedTransaction.getWallet().getWalletName()
-                            : "Mục tiêu tiết kiệm"
-            );
-            notificationService.createNotification(
-                    currentUser,
-                    msg.title(), msg.content(),
-                    NotificationType.TRANSACTION,
-                    savedTransaction.getId(),
-                    null
-            );
-        }
 
         // [NOTE] Bước 11: Phát hiện giao dịch bất thường — thêm 4/2026
         // 3 kịch bản được kiểm tra theo thứ tự (chỉ ném cảnh báo cho kịch bản đầu tiên phát hiện được):
@@ -424,27 +407,33 @@ public class TransactionServiceImpl implements TransactionService {
         // otherAmount = Thu nợ (DEBT_COLLECTION) - Trả nợ (DEBT_REPAYMENT)
         BigDecimal otherAmount = collectionAmount.subtract(repaymentAmount);
 
-        // Bước 4: Tính số dư cuối kỳ
-        // FIX: Lấy số dư thực tế từ wallet/goal thay vì tính openingBalance + netIncome
-        //      (vì số dư hiện tại chính xác hơn, bao gồm cả giao dịch không reportable)
-        BigDecimal netIncome      = totalIncome.subtract(totalExpense);
+        // Bước 4: Tính số dư cuối kỳ từ lịch sử giao dịch (đến hết endDate)
+        // FIX: Dùng nextDayStart = endDate.toLocalDate().plusDays(1).atStartOfDay()
+        //      thay vì endDate.plusSeconds(1) để tránh lỗi nanosecond:
+        //      LocalTime.MAX = 23:59:59.999999999 → plusSeconds(1) = next day 00:00:00.999999999
+        //      → giao dịch đầu ngày sau (00:00:00.000) bị lọt vào closing balance sai kỳ.
+        //      nextDayStart luôn là 00:00:00.000000000 → chặn đúng.
+        BigDecimal netIncome  = totalIncome.subtract(totalExpense);
         BigDecimal closingBalance;
+        LocalDateTime nextDayStart = endDate.toLocalDate().plusDays(1).atStartOfDay();
 
         if (walletId != null) {
-            // Filter theo wallet → lấy số dư từ wallet
-            Wallet wallet = walletRepository.findById(walletId)
-                    .orElseThrow(() -> new IllegalArgumentException("Ví không tồn tại."));
-            closingBalance = wallet.getBalance();
+            BigDecimal balanceAtEnd = transactionRepository.calculateBalanceBeforeDate(
+                    accountId, nextDayStart, walletId, null);
+            closingBalance = balanceAtEnd != null ? balanceAtEnd : BigDecimal.ZERO;
         } else if (savingGoalId != null) {
-            // Filter theo goal → lấy số dư từ goal
-            SavingGoal goal = savingGoalRepository.findById(savingGoalId)
-                    .orElseThrow(() -> new IllegalArgumentException("Mục tiêu tiết kiệm không tồn tại."));
-            closingBalance = goal.getCurrentAmount();
+            BigDecimal balanceAtEnd = transactionRepository.calculateBalanceBeforeDate(
+                    accountId, nextDayStart, null, savingGoalId);
+            closingBalance = balanceAtEnd != null ? balanceAtEnd : BigDecimal.ZERO;
         } else {
-            // Không filter → tính tổng số dư toàn bộ ví của user
-            BigDecimal totalBalance = walletRepository.sumBalanceByAccountIdAndReportableTrue(accountId);
-            closingBalance = totalBalance != null ? totalBalance : BigDecimal.ZERO;
+            BigDecimal balanceAtEnd = transactionRepository.calculateBalanceBeforeDate(
+                    accountId, nextDayStart, null, null);
+            closingBalance = balanceAtEnd != null ? balanceAtEnd : BigDecimal.ZERO;
         }
+
+        // FIX: Wallet và SavingGoal không bao giờ được âm tiền
+        openingBalance = openingBalance.max(BigDecimal.ZERO);
+        closingBalance = closingBalance.max(BigDecimal.ZERO);
 
         return TransactionReportResponse.builder()
                 .openingBalance(openingBalance)
@@ -592,6 +581,7 @@ public class TransactionServiceImpl implements TransactionService {
                  eventId, debtId, plannedId, categoryIds);
 
          List<Transaction> transactions = transactionRepository.findAll(spec);
+
 
         // Tính tổng thu/chi
         BigDecimal totalIncome  = BigDecimal.ZERO;
@@ -766,6 +756,67 @@ public class TransactionServiceImpl implements TransactionService {
             }
         }
 
+        // Bước 1.5: Kiểm tra kỳ đã chốt — KHÓA hoàn toàn, không cho sửa giao dịch tháng quá khứ
+        if (isPastPeriod(transaction.getTransDate())) {
+
+            // Ngoại lệ: Cho phép đặt nhắc nhở cho giao dịch quá khứ
+            // (chỉ tạo notification, không sửa giao dịch gốc)
+            if (request.reminderDate() != null) {
+                Account account = accountRepository.findById(accountId)
+                        .orElseThrow(() -> new IllegalArgumentException("Tài khoản không tồn tại."));
+                createReminderNotification(transaction, account, request.reminderDate());
+                return transactionMapper.toDto(transaction); // Trả về giao dịch gốc không đổi
+            }
+
+            // Không có reminderDate → chặn hoàn toàn như cũ
+            throw new IllegalArgumentException(
+                    "Không thể sửa giao dịch thuộc kỳ đã chốt (tháng trước trở về trước). " +
+                    "Nếu cần điều chỉnh, hãy tạo giao dịch mới ở tháng hiện tại.");
+        }
+        // isPastPeriod = false → tiếp tục flow sửa bình thường bên dưới
+
+        // Bước 1.3: Chặn sửa giao dịch khởi tạo ví/mục tiêu
+        // Giao dịch khởi tạo (reportable=false, note chứa "Số dư ban đầu") không được phép
+        // sửa amount/category/wallet vì sẽ phá vỡ số dư. Chỉ cho phép đặt reminder.
+        boolean isInitTransaction = !Boolean.TRUE.equals(transaction.getReportable())
+                && transaction.getNote() != null
+                && (transaction.getNote().equals("Số dư ban đầu")
+                        || transaction.getNote().equals("Số dư ban đầu cho mục tiêu tiết kiệm"));
+
+        if (isInitTransaction) {
+            if (request.reminderDate() != null) {
+                Account account = accountRepository.findById(accountId)
+                        .orElseThrow(() -> new IllegalArgumentException("Tài khoản không tồn tại."));
+                createReminderNotification(transaction, account, request.reminderDate());
+                return transactionMapper.toDto(transaction);
+            }
+
+            throw new IllegalArgumentException(
+                    "Giao dịch khởi tạo số dư không thể sửa. " +
+                    "Nếu muốn điều chỉnh số dư ví, hãy dùng tính năng 'Điều chỉnh số dư' trong màn hình ví.");
+        }
+
+        // Bước 1.4: Nếu chỉ đặt reminder (không thay đổi gì khác) → skip balance ops
+        // Detect bằng cách so sánh các field quan trọng với giá trị gốc
+        boolean amountUnchanged    = request.amount().compareTo(transaction.getAmount()) == 0;
+        boolean categoryUnchanged  = request.categoryId().equals(transaction.getCategory().getId());
+        boolean walletUnchanged    = Objects.equals(request.walletId(),
+                transaction.getWallet() != null ? transaction.getWallet().getId() : null);
+        boolean goalUnchanged      = Objects.equals(request.goalId(),
+                transaction.getSavingGoal() != null ? transaction.getSavingGoal().getId() : null);
+        boolean transDateUnchanged = request.transDate().equals(transaction.getTransDate());
+
+        boolean isReminderOnly = request.reminderDate() != null
+                && amountUnchanged && categoryUnchanged
+                && walletUnchanged && goalUnchanged && transDateUnchanged;
+
+        if (isReminderOnly) {
+            Account account = accountRepository.findById(accountId)
+                    .orElseThrow(() -> new IllegalArgumentException("Tài khoản không tồn tại."));
+            createReminderNotification(transaction, account, request.reminderDate());
+            return transactionMapper.toDto(transaction); // Trả về gốc không đổi
+        }
+
         // Bước 2: Hoàn tiền giao dịch cũ
         revertTransactionBalance(transaction);
 
@@ -838,6 +889,15 @@ public class TransactionServiceImpl implements TransactionService {
             debtCalculationService.recalculateDebt(updated.getDebt().getId(), account);
         }
 
+        // Xử lý reminder khi sửa giao dịch
+        // Nếu request có reminderDate → tạo notification reminder mới
+        // (Notification cũ nếu có vẫn giữ nguyên trong DB, scheduler tự bỏ qua nếu đã sent)
+        if (request.reminderDate() != null) {
+            Account account = accountRepository.findById(accountId)
+                    .orElseThrow(() -> new IllegalArgumentException("Tài khoản không tồn tại."));
+            createReminderNotification(updated, account, request.reminderDate());
+        }
+
         return transactionMapper.toDto(updated);
     }
 
@@ -857,6 +917,27 @@ public class TransactionServiceImpl implements TransactionService {
                         "Không tìm thấy giao dịch với ID: " + transactionId));
         if (!transaction.getAccount().getId().equals(accountId)) {
             throw new SecurityException("Bạn không có quyền xóa giao dịch này.");
+        }
+
+        // Bước 1.5: Kiểm tra kỳ đã chốt — KHÓA hoàn toàn, không cho xóa giao dịch tháng quá khứ
+        if (isPastPeriod(transaction.getTransDate())) {
+            throw new IllegalArgumentException(
+                    "Không thể xóa giao dịch thuộc kỳ đã chốt (tháng trước trở về trước). " +
+                    "Nếu cần điều chỉnh, hãy tạo giao dịch mới ở tháng hiện tại.");
+        }
+        // isPastPeriod = false → tiếp tục flow xóa bình thường bên dưới
+
+        // Bước 1.6: Chặn xóa giao dịch khởi tạo số dư ví/mục tiêu
+        // Xóa giao dịch khởi tạo sẽ phá vỡ số dư (revert income → ví âm nếu đã chi tiêu).
+        // Không cho phép dù ví mới tạo tháng này.
+        boolean isInitTx = !Boolean.TRUE.equals(transaction.getReportable())
+                && transaction.getNote() != null
+                && (transaction.getNote().equals("Số dư ban đầu")
+                        || transaction.getNote().equals("Số dư ban đầu cho mục tiêu tiết kiệm"));
+        if (isInitTx) {
+            throw new IllegalArgumentException(
+                    "Giao dịch khởi tạo số dư không thể xóa. " +
+                    "Nếu muốn điều chỉnh số dư ví, hãy dùng tính năng 'Điều chỉnh số dư' trong màn hình ví.");
         }
 
         // Lưu debtId và categoryId TRƯỚC khi xóa mềm
@@ -920,9 +1001,14 @@ public class TransactionServiceImpl implements TransactionService {
             // 3. Hoàn tiền về ví
             if (isIncome) {
                 // Giao dịch là THU → hoàn tiền = trừ số dư ví
-                wallet.setBalance(wallet.getBalance().subtract(transaction.getAmount()));
+                // Guard: không cho phép số dư âm — phải throw exception thay vì set = 0
+                BigDecimal newBalance = wallet.getBalance().subtract(transaction.getAmount());
+                if (newBalance.compareTo(BigDecimal.ZERO) < 0) {
+                    throw new IllegalArgumentException("Số dư hiện tại không đủ để thực hiện giao dịch");
+                }
+                wallet.setBalance(newBalance);
             } else {
-                // Giao dịch là CHI → hoàn tiền = cộng số dư ví
+                // Giao dịch là CHI → hoàn tiền = cộng số dư ví (add không thể âm)
                 wallet.setBalance(wallet.getBalance().add(transaction.getAmount()));
             }
 
@@ -935,9 +1021,14 @@ public class TransactionServiceImpl implements TransactionService {
             // 5. Hoàn tiền về mục tiêu (linh hoạt theo isIncome)
             if (isIncome) {
                 // Nạp vào mục tiêu (THU) → hoàn tiền = trừ số tiền mục tiêu
-                goal.setCurrentAmount(goal.getCurrentAmount().subtract(transaction.getAmount()));
+                // Guard: không cho phép số dư mục tiêu âm — throw exception
+                BigDecimal newAmount = goal.getCurrentAmount().subtract(transaction.getAmount());
+                if (newAmount.compareTo(BigDecimal.ZERO) < 0) {
+                    throw new IllegalArgumentException("Số dư hiện tại không đủ để thực hiện giao dịch");
+                }
+                goal.setCurrentAmount(newAmount);
             } else {
-                // Rút từ mục tiêu (CHI) → hoàn tiền = cộng số tiền mục tiêu
+                // Rút từ mục tiêu (CHI) → hoàn tiền = cộng số tiền mục tiêu (add không thể âm)
                 goal.setCurrentAmount(goal.getCurrentAmount().add(transaction.getAmount()));
             }
 
@@ -972,9 +1063,7 @@ public class TransactionServiceImpl implements TransactionService {
         } else {
             // 3.1 Kiểm tra số dư trước khi trừ (Chặn đứng nếu là Chi tiêu và số dư không đủ)
             if (wallet.getBalance().compareTo(amount) < 0) {
-                throw new IllegalArgumentException(
-                        String.format("Số dư trong ví '%s' không đủ để thực hiện giao dịch này (Hiện có: %s đ).",
-                                wallet.getWalletName(), wallet.getBalance().toPlainString()));
+                throw new IllegalArgumentException("Số dư hiện tại không đủ để thực hiện giao dịch");
             }
             wallet.setBalance(wallet.getBalance().subtract(amount)); // Chi → Trừ
         }
@@ -1027,9 +1116,7 @@ public class TransactionServiceImpl implements TransactionService {
         } else {
             // 3.1 Kiểm tra số dư Mục tiêu (Rút tiền không được vượt quá số hiện có)
             if (goal.getCurrentAmount().compareTo(amount) < 0) {
-                throw new IllegalArgumentException(
-                        String.format("Số dư trong mục tiêu '%s' không đủ (Hiện có: %s đ).",
-                                goal.getGoalName(), goal.getCurrentAmount().toPlainString()));
+                throw new IllegalArgumentException("Số dư hiện tại không đủ để thực hiện giao dịch");
             }
             goal.setCurrentAmount(goal.getCurrentAmount().subtract(amount)); // Rút → Trừ
         }
@@ -1062,6 +1149,16 @@ public class TransactionServiceImpl implements TransactionService {
                             ? "Vui lòng nhập tên người cho vay."
                             : "Vui lòng nhập tên người vay.");
                 }
+
+                // [VALIDATE-DUEDATE] Bắt buộc nhập ngày hẹn trả khi tạo khoản nợ mới
+                if (request.dueDate() == null) {
+                    throw new IllegalArgumentException("Vui lòng chọn ngày hẹn trả cho khoản nợ.");
+                }
+                // [VALIDATE-DUEDATE] Ngày hẹn trả phải là ngày trong tương lai (sau ngày hiện tại)
+                if (!request.dueDate().isAfter(LocalDateTime.now())) {
+                    throw new IllegalArgumentException("Ngày hẹn trả phải là ngày trong tương lai.");
+                }
+
                 Debt debt = Debt.builder()
                         .account(currentUser)
                         .debtType(isLending)          // false=Đi vay/CẦN TRẢ, true=Cho vay/CẦN THU
@@ -1213,5 +1310,66 @@ public class TransactionServiceImpl implements TransactionService {
                     null
             );
         }
+    }
+
+    // =================================================================================
+    // 6. KIỂM SOÁT KỲ KẾ TOÁN (PERIOD CONTROL)
+    // =================================================================================
+
+    /**
+     * [6.0] Tạo notification nhắc nhở cho giao dịch (dùng chung cho mọi flow: create, update, pastPeriod, initTx, reminderOnly).
+     * Extract từ 5 block lặp code giống nhau → 1 method duy nhất.
+     *
+     * @param transaction   giao dịch cần tạo nhắc nhở
+     * @param account       tài khoản nhận thông báo
+     * @param reminderDate  thời điểm nhắc nhở (scheduledTime cho NotificationScheduler)
+     */
+    private void createReminderNotification(Transaction transaction, Account account, LocalDateTime reminderDate) {
+        // Xác định nguồn tiền — ưu tiên Ví → Mục tiêu → fallback "Không xác định"
+        String sourceName = transaction.getWallet() != null
+                ? transaction.getWallet().getWalletName()
+                : (transaction.getSavingGoal() != null
+                        ? transaction.getSavingGoal().getGoalName()
+                        : "Không xác định");
+
+        // Thu thập thông tin bổ sung (nullable — bỏ qua nếu null)
+        String  debtPersonName = transaction.getDebt() != null ? transaction.getDebt().getPersonName() : null;
+        String  eventName      = transaction.getEvent() != null ? transaction.getEvent().getEventName() : null;
+        Integer plannedType    = transaction.getPlannedTransaction() != null
+                ? transaction.getPlannedTransaction().getPlanType() : null;
+
+        // Build message từ template tập trung (NotificationMessages)
+        // → Bao gồm đầy đủ: ngày giờ + ghi chú + sự kiện + loại định kỳ + sổ nợ
+        NotificationContent msg = NotificationMessages.transactionReminder(
+                Boolean.TRUE.equals(transaction.getCategory().getCtgType()),
+                transaction.getAmount(),
+                transaction.getCategory().getCtgName(),
+                sourceName,
+                transaction.getTransDate(),
+                transaction.getNote(),
+                eventName,
+                plannedType,
+                debtPersonName
+        );
+
+        // Lưu notification với scheduledTime = reminderDate
+        // → NotificationScheduler sẽ quét và gửi push khi đến giờ
+        notificationService.createNotification(
+                account,
+                msg.title(), msg.content(),
+                NotificationType.TRANSACTION,
+                transaction.getId(),
+                reminderDate
+        );
+    }
+
+    /**
+     * [6.1] Kiểm tra xem một thời điểm có thuộc kỳ đã chốt (trước tháng hiện tại) không.
+     * - true  → quá khứ (tháng trước trở về trước) → KHÓA hoàn toàn: không cho tạo/sửa/xóa
+     * - false → tháng hiện tại hoặc tương lai → cho phép thao tác bình thường
+     */
+    private boolean isPastPeriod(LocalDateTime transDate) {
+        LocalDate firstOfCurrentMonth = LocalDate.now().withDayOfMonth(1);
+        return transDate.toLocalDate().isBefore(firstOfCurrentMonth);
     }
 }

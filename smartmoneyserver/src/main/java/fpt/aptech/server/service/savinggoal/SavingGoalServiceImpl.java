@@ -65,6 +65,11 @@ public class SavingGoalServiceImpl implements SavingGoalService {
                 ? request.getInitialAmount()
                 : BigDecimal.ZERO;
 
+        // Service-level guard (DTO đã có @PositiveOrZero nhưng cần guard thêm nếu gọi internal)
+        if (initialAmount.compareTo(BigDecimal.ZERO) < 0) {
+            throw new IllegalArgumentException("Số tiền ban đầu không được âm");
+        }
+
         // Bước 2: Tạo SavingGoal
         SavingGoal goal = SavingGoal.builder()
                 .goalName(request.getGoalName())
@@ -181,13 +186,13 @@ public class SavingGoalServiceImpl implements SavingGoalService {
                     "Số tiền mục tiêu không được nhỏ hơn số tiền hiện tại");
         }
 
-        // Bước 4: Cập nhật các trường thông tin
-        goal.setGoalName(request.getGoalName());
+        // Bước 4: Cập nhật các trường thông tin (chỉ update nếu client có gửi — tránh ghi null vào DB)
+        if (request.getGoalName() != null) goal.setGoalName(request.getGoalName());
         goal.setTargetAmount(request.getTargetAmount());
-        goal.setEndDate(request.getEndDate());
-        goal.setGoalImageUrl(request.getGoalImageUrl());
-        goal.setNotified(request.getNotified());
-        goal.setReportable(request.getReportable());
+        if (request.getEndDate() != null) goal.setEndDate(request.getEndDate());
+        if (request.getGoalImageUrl() != null) goal.setGoalImageUrl(request.getGoalImageUrl());
+        if (request.getNotified() != null)   goal.setNotified(request.getNotified());
+        if (request.getReportable() != null) goal.setReportable(request.getReportable());
 
         // Bước 5: Kiểm tra tự động hoàn thành nếu số tiền hiện tại đạt hoặc vượt mục tiêu
         if (goal.getCurrentAmount().compareTo(goal.getTargetAmount()) >= 0) {
@@ -229,6 +234,15 @@ public class SavingGoalServiceImpl implements SavingGoalService {
         double percentBefore = calcPercent(goal.getCurrentAmount(), goal.getTargetAmount());
 
         BigDecimal newAmount = goal.getCurrentAmount().add(amount);
+
+        // Guard: không cho nạp vượt quá số tiền mục tiêu
+        if (newAmount.compareTo(goal.getTargetAmount()) > 0) {
+            BigDecimal remaining = goal.getTargetAmount().subtract(goal.getCurrentAmount());
+            throw new IllegalArgumentException(
+                    String.format("Số tiền nạp vào vượt quá mục tiêu '%s'. Số tiền còn có thể nạp: %s đ.",
+                            goal.getGoalName(), remaining.toPlainString()));
+        }
+
         goal.setCurrentAmount(newAmount);
 
         double percentAfter = calcPercent(newAmount, goal.getTargetAmount());
@@ -270,16 +284,20 @@ public class SavingGoalServiceImpl implements SavingGoalService {
     }
 
     // =================================================================================
-    // 4. HỦY MỤC TIÊU (DELETE / CANCEL)
+    // 4. XÓA MỤC TIÊU (SOFT DELETE)
     // =================================================================================
 
     /**
-     * [4.1] Hủy mục tiêu (Soft delete — chuyển sang CANCELLED + đánh dấu deleted).
+     * [4.1] Xóa mục tiêu vĩnh viễn (Soft delete — deleted=true + CANCELLED).
+     *
+     * Phân biệt với "tạm dừng" (toggleActive):
+     *   • Xóa: CANCELLED + deleted=true  → @SQLRestriction ẩn hẳn, KHÔNG phục hồi được
+     *   • Tạm dừng: CANCELLED + deleted=false → vẫn hiển thị, CÓ THỂ kích hoạt lại
+     *
      * Mục tiêu tiết kiệm là NGUỒN TIỀN → cascade xóa mềm toàn bộ dữ liệu liên kết:
      *   • Transactions thuộc goal_id
      *   • Debts có giao dịch trong mục tiêu này (qua subquery tTransactions)
      *   • Events có giao dịch trong mục tiêu này (qua subquery tTransactions)
-     * Sau đó soft-delete chính SavingGoal (status = CANCELLED).
      */
     @Override
     @Transactional
@@ -289,7 +307,7 @@ public class SavingGoalServiceImpl implements SavingGoalService {
         goal.setGoalStatus(GoalStatus.CANCELLED.getValue());
         goal.setFinished(true);
 
-        // Soft delete cascade — xóa mềm mục tiêu + các bản ghi liên kết
+        // Soft delete cascade — ẩn vĩnh viễn khỏi mọi query (@SQLRestriction "deleted=0")
         goal.setDeleted(true);
         goal.setDeletedAt(java.time.LocalDateTime.now());
         transactionRepository.softDeleteAllBySavingGoalId(id);   // Giao dịch thuộc mục tiêu
@@ -300,43 +318,97 @@ public class SavingGoalServiceImpl implements SavingGoalService {
     }
 
     // =================================================================================
-    // 5. LẤY DANH SÁCH & CHI TIẾT (READ)
+    // 5. BẬT / TẮT MỤC TIÊU (TOGGLE ACTIVE)
     // =================================================================================
 
     /**
-     * [5.1] Lấy tất cả mục tiêu của user (trừ CANCELLED), hỗ trợ tìm kiếm theo tên.
+     * [5.1] Toggle trạng thái ACTIVE ↔ CANCELLED (tạm dừng/kích hoạt lại).
+     *
+     * Quy tắc:
+     *   • ACTIVE   → CANCELLED (finished=true)  : tạm dừng / kết thúc sớm
+     *   • CANCELLED→ ACTIVE   (finished=false)  : kích hoạt lại mục tiêu đã tạm dừng
+     *   • OVERDUE  → ACTIVE   (finished=false)  : kích hoạt lại mục tiêu quá hạn
+     *   • COMPLETED → ném lỗi (đã hoàn thành đầy đủ, KHÔNG kích hoạt lại)
+     *
+     * Lưu ý: CANCELLED ở đây là deleted=false (tạm dừng).
+     *        CANCELLED + deleted=true là xóa vĩnh viễn — không bao giờ vào được hàm này
+     *        vì @SQLRestriction("deleted=0") lọc ra trước rồi.
+     */
+    @Override
+    @Transactional
+    public SavingGoalResponse togglePauseSavingGoal(Integer id, Integer userId) {
+        // Dùng helper riêng — cho phép tìm cả goal đang CANCELLED (tạm dừng)
+        SavingGoal goal = getOwnedGoalForToggle(id, userId);
+
+        Integer currentStatus = goal.getGoalStatus();
+
+        if (currentStatus.equals(GoalStatus.COMPLETED.getValue())) {
+            throw new IllegalStateException(
+                    "Mục tiêu đã hoàn thành (đủ tiền), không thể thay đổi trạng thái.");
+        }
+
+        if (currentStatus.equals(GoalStatus.ACTIVE.getValue())) {
+            // ACTIVE → CANCELLED (tạm dừng)
+            goal.setGoalStatus(GoalStatus.CANCELLED.getValue());
+            goal.setFinished(true);
+        } else if (currentStatus.equals(GoalStatus.CANCELLED.getValue())
+                || currentStatus.equals(GoalStatus.OVERDUE.getValue())) {
+            // CANCELLED hoặc OVERDUE → ACTIVE (kích hoạt lại)
+            goal.setGoalStatus(GoalStatus.ACTIVE.getValue());
+            goal.setFinished(false);
+        } else {
+            throw new IllegalStateException("Không thể thay đổi trạng thái mục tiêu này.");
+        }
+
+        savingGoalRepository.save(goal);
+        return mapToResponse(goal);
+    }
+
+    // =================================================================================
+    // 6. LẤY DANH SÁCH & CHI TIẾT (READ)
+    // =================================================================================
+
+    /**
+     * [6.1] Lấy tất cả mục tiêu của user (kể cả CANCELLED=tạm dừng), hỗ trợ tìm kiếm theo tên.
+     * Mục tiêu đã xóa (deleted=true) tự động bị ẩn bởi @SQLRestriction("deleted=0").
      */
     @Override
     public List<SavingGoalResponse> getSavingGoalsByAccount(Integer userId, String search) {
-        Integer statusToExclude = GoalStatus.CANCELLED.getValue();
+        // Lấy tất cả goal chưa bị xóa (bao gồm CANCELLED=tạm dừng)
+        List<SavingGoal> goals = savingGoalRepository.findByAccount_Id(userId);
 
-        List<SavingGoal> goals = (search != null && !search.isBlank())
-                ? savingGoalRepository
-                .findByAccount_IdAndGoalNameContainingIgnoreCaseAndGoalStatusNot(
-                        userId, search, statusToExclude)
-                : savingGoalRepository
-                .findByAccount_IdAndGoalStatusNot(userId, statusToExclude);
+        // Lọc theo tên nếu có từ khóa tìm kiếm
+        if (search != null && !search.isBlank()) {
+            String keyword = search.trim().toLowerCase();
+            goals = goals.stream()
+                    .filter(g -> g.getGoalName().toLowerCase().contains(keyword))
+                    .toList();
+        }
 
         return goals.stream().map(this::mapToResponse).toList();
     }
 
     /**
-     * [5.2] Lấy chi tiết một mục tiêu theo ID + kiểm tra quyền sở hữu.
+     * [6.2] Lấy chi tiết một mục tiêu theo ID + kiểm tra quyền sở hữu.
      */
     @Override
     public SavingGoalResponse getSavingGoalDetail(Integer id, Integer userId) {
-        return mapToResponse(getOwnedGoal(id, userId));
+        return mapToResponse(getOwnedGoalForToggle(id, userId));
     }
 
     // =================================================================================
-    // 6. PRIVATE HELPERS
+    // 7. PRIVATE HELPERS
     // =================================================================================
 
     /**
-     * [6.1] Tìm mục tiêu và kiểm tra quyền sở hữu.
-     * Không cho thao tác trên mục tiêu đã CANCELLED.
+     * [7.1] Tìm mục tiêu và kiểm tra quyền sở hữu.
+     * Dùng cho: create, deposit, update, delete.
+     * Chỉ cho phép thao tác khi mục tiêu ACTIVE (hoặc OVERDUE cho delete).
+     * Mục tiêu CANCELLED (tạm dừng) → KHÔNG thao tác (chỉ dùng toggleActive).
+     * Mục tiêu deleted=true → @SQLRestriction tự lọc, findById trả về empty.
      */
     private SavingGoal getOwnedGoal(Integer id, Integer userId) {
+        // @SQLRestriction("deleted=0") → goal deleted=true sẽ không tìm thấy → orElseThrow luôn đúng
         SavingGoal goal = savingGoalRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException(
                         "Không tìm thấy mục tiêu với ID: " + id));
@@ -346,9 +418,26 @@ public class SavingGoalServiceImpl implements SavingGoalService {
             throw new SecurityException("Bạn không có quyền thao tác trên mục tiêu này.");
         }
 
-        // Không cho thao tác trên mục tiêu đã hủy
+        // CANCELLED (tạm dừng) → không cho deposit/update, chỉ cho toggle hoặc delete
         if (goal.getGoalStatus().equals(GoalStatus.CANCELLED.getValue())) {
-            throw new IllegalStateException("Mục tiêu này đã bị hủy và không thể thao tác.");
+            throw new IllegalStateException(
+                    "Mục tiêu đang tạm dừng. Hãy kích hoạt lại trước khi thực hiện thao tác.");
+        }
+
+        return goal;
+    }
+
+    /**
+     * [7.2] Tìm mục tiêu cho toggle active (cho phép cả CANCELLED=tạm dừng).
+     * Dùng riêng cho: togglePauseSavingGoal(), getSavingGoalDetail().
+     */
+    private SavingGoal getOwnedGoalForToggle(Integer id, Integer userId) {
+        SavingGoal goal = savingGoalRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Không tìm thấy mục tiêu với ID: " + id));
+
+        if (goal.getAccount() == null || !goal.getAccount().getId().equals(userId)) {
+            throw new SecurityException("Bạn không có quyền thao tác trên mục tiêu này.");
         }
 
         return goal;

@@ -1,4 +1,9 @@
-### 1. Đăng nhập ADMIN (Bắt buộc dùng acc Admin)
+### =================================================================
+### SMARTMONEY - ADMIN API TEST
+### Requires: admin@smartmoney.vn token (ROLE_ADMIN / ADMIN_SYSTEM_ALL)
+### =================================================================
+
+### [0] Đăng nhập ADMIN (Bắt buộc dùng acc Admin)
 POST http://localhost:9999/api/auth/login
 Content-Type: application/json
 
@@ -12,25 +17,165 @@ Content-Type: application/json
 
 > {%
     client.global.set("admin_token", response.body.data.accessToken);
+    client.log("Admin Token: " + response.body.data.accessToken);
 %}
 
-### 2. Lấy danh sách User (Phân trang & Tìm kiếm)
-GET http://localhost:9999/api/admin/users?page=0&size=10&search=minh
+### =================================================================
+### [1] QUẢN LÝ NGƯỜI DÙNG
+### =================================================================
+
+### [1.1] Lấy danh sách User (Phân trang & Tìm kiếm)
+# Kỳ vọng: 200 OK, data.content chứa danh sách user, data.totalElements tổng số
+GET http://localhost:9999/api/admin/users?page=0&size=8&search=minh
 Authorization: Bearer {{admin_token}}
 
-### 3. Lấy danh sách User (Lọc theo trạng thái Locked)
+### [1.2] Lấy danh sách User (Lọc theo trạng thái Locked)
+# Kỳ vọng: 200 OK, tất cả user có locked=true
 GET http://localhost:9999/api/admin/users?locked=true
 Authorization: Bearer {{admin_token}}
 
-### 4. Lấy thống kê Dashboard
-GET http://localhost:9999/api/admin/dashboard/stats
+### [1.3] Lấy danh sách User (Lọc theo onlineStatus=online)
+# Kỳ vọng: 200 OK, tất cả user đang online
+GET http://localhost:9999/api/admin/users?onlineStatus=online
 Authorization: Bearer {{admin_token}}
 
-### 5. Khóa tài khoản User
-# Thay ID 100 bằng ID user muốn khóa
-PUT http://localhost:9999/api/admin/users/100/lock
+### [1.4] Khóa tài khoản User (thay ID 6 bằng ID user muốn khóa)
+# Kỳ vọng: 200 OK — "Tài khoản đã bị khóa."
+# Đồng thời gửi thông báo accountLocked() cho user
+PUT http://localhost:9999/api/admin/users/6/lock
 Authorization: Bearer {{admin_token}}
 
-### 6. Mở khóa tài khoản User
-PUT http://localhost:9999/api/admin/users/100/unlock
+### [1.5] Mở khóa tài khoản User
+# Kỳ vọng: 200 OK — "Tài khoản đã được mở khóa."
+# Đồng thời gửi thông báo accountUnlocked() cho user
+PUT http://localhost:9999/api/admin/users/6/unlock
 Authorization: Bearer {{admin_token}}
+
+### [1.6] Xem tóm tắt tài chính của một User cụ thể
+# Kỳ vọng: 200 OK — Map thống kê: tổng ví, tổng thu/chi, số giao dịch...
+GET http://localhost:9999/api/admin/users/6/insights
+Authorization: Bearer {{admin_token}}
+
+### =================================================================
+### [2] QUẢN LÝ GIAO DỊCH CỦA USER
+### =================================================================
+
+### [2.1] Lấy giao dịch của User theo trang (mặc định chỉ ACTIVE)
+# Kỳ vọng: 200 OK, page 0, size 5
+GET http://localhost:9999/api/admin/users/6/transactions?page=0&size=5
+Authorization: Bearer {{admin_token}}
+
+### [2.2] Lấy giao dịch đã xóa của User (deletedStatus=DELETED)
+# Kỳ vọng: 200 OK — danh sách giao dịch đã bị xóa mềm
+GET http://localhost:9999/api/admin/users/6/transactions?deletedStatus=DELETED&page=0&size=5
+Authorization: Bearer {{admin_token}}
+
+### [2.3] Lấy giao dịch theo loại (type=income)
+# Kỳ vọng: 200 OK — chỉ giao dịch thu nhập
+GET http://localhost:9999/api/admin/users/6/transactions?type=income&page=0&size=5
+Authorization: Bearer {{admin_token}}
+
+### [2.4] Lấy TẤT CẢ giao dịch của User (không phân trang)
+# Kỳ vọng: 200 OK — List đầy đủ, dùng cho export CSV
+GET http://localhost:9999/api/admin/users/6/transactions/all
+Authorization: Bearer {{admin_token}}
+
+### [2.5] Lấy tất cả giao dịch đã xóa (không phân trang)
+GET http://localhost:9999/api/admin/users/6/transactions/all?deletedStatus=DELETED
+Authorization: Bearer {{admin_token}}
+
+### [2.6] Khôi phục một giao dịch đã xóa (thay ID 999 bằng ID thực)
+# Kỳ vọng: 200 OK — "Giao dịch đã được khôi phục thành công."
+# Giao dịch bị deleted=true → trở lại deleted=false, balance ví được tính lại
+PATCH http://localhost:9999/api/admin/transactions/999/restore
+Authorization: Bearer {{admin_token}}
+
+### [2.7] Khôi phục TẤT CẢ giao dịch đã xóa của một User
+# Kỳ vọng: 200 OK — "Tất cả giao dịch của người dùng đã được khôi phục."
+PATCH http://localhost:9999/api/admin/users/6/transactions/restore-all
+Authorization: Bearer {{admin_token}}
+
+### =================================================================
+### [3] THỐNG KÊ & DASHBOARD
+### =================================================================
+
+### [3.1] Lấy thống kê tổng quan Dashboard
+# Kỳ vọng: 200 OK — Map: totalUsers, activeUsers, totalTransactions, ...
+GET http://localhost:9999/api/admin/stats
+Authorization: Bearer {{admin_token}}
+
+### [3.2] Phân tích dòng tiền hệ thống theo khoảng ngày
+# Kỳ vọng: 200 OK — totalIncome, totalExpense theo khoảng thời gian
+GET http://localhost:9999/api/admin/system/transaction-stats?startDate=2026-04-01T00:00:00&endDate=2026-04-30T23:59:59
+Authorization: Bearer {{admin_token}}
+
+### [3.3] Phân tích dòng tiền cả năm 2026
+GET http://localhost:9999/api/admin/system/transaction-stats?startDate=2026-01-01T00:00:00&endDate=2026-12-31T23:59:59
+Authorization: Bearer {{admin_token}}
+
+### [3.4] Đếm số người dùng đang online
+# Kỳ vọng: 200 OK — số Long đếm user có last_active_at gần đây
+GET http://localhost:9999/api/admin/analytics/online-users
+Authorization: Bearer {{admin_token}}
+
+### =================================================================
+### [4] QUẢN LÝ HỆ THỐNG
+### =================================================================
+
+### [4.1] Thu hồi phiên đăng nhập quá hạn (auto-logout)
+# Kỳ vọng: 200 OK — "Đã thu hồi phiên quá hạn."
+# Xóa device token của các user bị auto-logout sau thời gian không hoạt động
+POST http://localhost:9999/api/admin/system/auto-logout
+Authorization: Bearer {{admin_token}}
+
+### =================================================================
+### [5] THÔNG BÁO ADMIN
+### =================================================================
+
+### [5.1] Lấy thông báo của Admin (thay 1 bằng adminId thực)
+# Kỳ vọng: 200 OK — Danh sách notification của admin có acc_id=1
+GET http://localhost:9999/api/admin/notifications/1
+Authorization: Bearer {{admin_token}}
+
+### =================================================================
+### [6] YÊU CẦU HỖ TRỢ (CONTACT REQUESTS) — qua Admin endpoint
+### =================================================================
+
+### [6.1] Lấy tất cả yêu cầu hỗ trợ (không filter)
+# Kỳ vọng: 200 OK — toàn bộ danh sách
+GET http://localhost:9999/api/admin/contact-requests
+Authorization: Bearer {{admin_token}}
+
+### [6.2] Lọc theo status=PENDING
+GET http://localhost:9999/api/admin/contact-requests?status=PENDING
+Authorization: Bearer {{admin_token}}
+
+### [6.3] Lọc kết hợp: type=ACCOUNT_LOCK + priority=HIGH
+GET http://localhost:9999/api/admin/contact-requests?type=ACCOUNT_LOCK&priority=HIGH
+Authorization: Bearer {{admin_token}}
+
+### [6.4] Xem chi tiết 1 yêu cầu (thay 1 bằng ID thực)
+# Kỳ vọng: 200 OK — thông tin đầy đủ
+GET http://localhost:9999/api/admin/contact-requests/1
+Authorization: Bearer {{admin_token}}
+
+### [6.5] Duyệt yêu cầu (PENDING → APPROVED)
+# Nếu type=ACCOUNT_LOCK → backend tự gọi lockAccount()
+PATCH http://localhost:9999/api/admin/contact-requests/1/resolve
+Authorization: Bearer {{admin_token}}
+Content-Type: application/json
+
+{
+  "requestStatus": "APPROVED",
+  "adminNote": "Đã xác minh, chấp nhận yêu cầu."
+}
+
+### [6.6] Từ chối yêu cầu (→ REJECTED)
+PATCH http://localhost:9999/api/admin/contact-requests/1/resolve
+Authorization: Bearer {{admin_token}}
+Content-Type: application/json
+
+{
+  "requestStatus": "REJECTED",
+  "adminNote": "Không đủ thông tin xác minh."
+}

@@ -1,5 +1,6 @@
 package fpt.aptech.server.dto.savinggoal;
 
+import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.FutureOrPresent;
 import jakarta.validation.constraints.NotBlank;
@@ -22,10 +23,12 @@ public class SavingGoalRequest {
     // Số tiền mục tiêu > 0 (theo CHECK constraint)
     @NotNull(message = "Số tiền mục tiêu không được để trống")
     @DecimalMin(value = "0.01", message = "Số tiền mục tiêu phải lớn hơn 0")
+    @DecimalMax(value = "1000000000000.00", message = "Số tiền mục tiêu không được vượt quá 1.000 tỷ VND")
     private BigDecimal targetAmount;
 
     // Số tiền khởi tạo (nếu có)
     @PositiveOrZero(message = "Số tiền khởi tạo phải lớn hơn hoặc bằng 0")
+    @DecimalMax(value = "1000000000000.00", message = "Số tiền khởi tạo không được vượt quá 1.000 tỷ VND")
     private BigDecimal initialAmount;
 
     // Currency FK

@@ -75,6 +75,22 @@ public class SavingGoalController {
         return ResponseEntity.ok(ApiResponse.success("Hủy mục tiêu thành công"));
     }
 
+    // TOGGLE ACTIVE / CANCELLED
+    // Lần 1: ACTIVE   → CANCELLED (finished=true)  — tạm dừng / kết thúc sớm
+    // Lần 2: CANCELLED→ ACTIVE   (finished=false)  — kích hoạt lại
+    //        OVERDUE  → ACTIVE   (finished=false)  — kích hoạt lại mục tiêu quá hạn
+    //        COMPLETED → 400 Bad Request            — đã hoàn thành, không thể đổi
+    @PatchMapping("/{id}/toggle-pause")
+    @PreAuthorize("hasAuthority('USER_STANDARD_MANAGE')")
+    public ResponseEntity<ApiResponse<SavingGoalResponse>> togglePause(
+            @PathVariable Integer id,
+            @AuthenticationPrincipal Account currentUser) {
+
+        return ResponseEntity.ok(ApiResponse.success(
+                savingGoalService.togglePauseSavingGoal(id, currentUser.getId()),
+                "Cập nhật trạng thái mục tiêu thành công"));
+    }
+
     // GET ALL
     @GetMapping("/getAll")
     @PreAuthorize("hasAuthority('USER_STANDARD_MANAGE')")

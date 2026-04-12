@@ -31,22 +31,14 @@ class _SelectWalletScreenState extends State<SelectWalletScreen> {
         .where((e) => e.reportable == true)
         .fold<double>(0, (sum, e) => sum + (e.balance ?? 0));
 
-    final reportable = wallets
-        .where((e) =>
-    e.reportable == true &&
-        (e.goalImageUrl == null || e.goalImageUrl!.isEmpty))
+    final reportableWallets = wallets
+        .where((e) => (e.reportable ?? true) == true)
         .toList();
 
-    final nonReportable = wallets
-        .where((e) =>
-    e.reportable == false &&
-        (e.goalImageUrl == null || e.goalImageUrl!.isEmpty))
+    final nonReportableWallets = wallets
+        .where((e) => (e.reportable ?? true) == false)
         .toList();
 
-    final savingWallets = wallets
-        .where((e) =>
-    e.goalImageUrl != null && e.goalImageUrl!.isNotEmpty)
-        .toList();
 
     return Scaffold(
       backgroundColor: const Color(0xFF0E0E10),
@@ -79,11 +71,12 @@ class _SelectWalletScreenState extends State<SelectWalletScreen> {
 
           const SizedBox(height: 20),
 
-          if (reportable.isNotEmpty)
-            _group("TÍNH VÀO TỔNG", reportable),
+          if (reportableWallets.isNotEmpty)
+            _group("VÍ TỔNG", reportableWallets),
 
-          if (nonReportable.isNotEmpty)
-            _group("KHÔNG TÍNH VÀO TỔNG", nonReportable),
+          if (nonReportableWallets.isNotEmpty)
+            _group("VÍ KHÔNG TÍNH TỔNG", nonReportableWallets),
+
           const SizedBox(height: 20),
 
           _actionSection(context, wallets),
@@ -257,20 +250,6 @@ class _SelectWalletScreenState extends State<SelectWalletScreen> {
         ],
       ),
     );
-  }
-
-  // ================= HELPER =================
-
-  IconData _getIcon(WalletResponse w) {
-    if (w.goalImageUrl != null) return Icons.savings;
-    if (w.reportable == false) return Icons.lock;
-    return Icons.account_balance_wallet;
-  }
-
-  Color _getColor(WalletResponse w) {
-    if (w.goalImageUrl != null) return Colors.orange;
-    if (w.reportable == false) return Colors.grey;
-    return Colors.green;
   }
 
   BoxDecoration _card() {

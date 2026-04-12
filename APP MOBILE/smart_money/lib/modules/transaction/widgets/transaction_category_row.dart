@@ -28,6 +28,10 @@ class TransactionCategoryRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
+      // [FIX-LAG] opaque: toàn bộ vùng row (kể cả padding transparent) nhận hit
+      // Không có behavior này, vùng padding trong suốt sẽ xuyên qua xuống body GestureDetector
+      // gây ra setState rebuild → bottomSheet / Navigator.push không kịp fire → phải click 2-3 lần
+      behavior: HitTestBehavior.opaque,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Row(
