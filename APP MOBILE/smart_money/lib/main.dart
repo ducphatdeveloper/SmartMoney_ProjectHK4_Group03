@@ -6,13 +6,13 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'core/routing/app_router.dart';
 import 'modules/auth/providers/auth_provider.dart';
 import 'modules/budget/providers/budget_provider.dart';
-import 'firebase_options.dart'; // Import file cấu hình Firebase
+import 'firebase_options.dart'; 
 import 'modules/wallet/providers/wallet_provider.dart';
 import 'modules/transaction/providers/transaction_provider.dart';
 import 'modules/category/providers/category_provider.dart';
 import 'modules/planned/providers/recurring_provider.dart';
 import 'modules/planned/providers/bill_provider.dart';
-import 'modules/planned/providers/bill_transaction_provider.dart'; // Import mới
+import 'modules/planned/providers/bill_transaction_provider.dart';
 import 'package:smart_money/modules/event/providers/event_provider.dart';
 import 'package:smart_money/modules/saving_goal/providers/saving_goal_provider.dart';
 import 'modules/debt/providers/debt_provider.dart';
@@ -20,24 +20,52 @@ import 'package:smart_money/modules/notification/providers/notification_provider
 import 'package:smart_money/modules/contact/providers/contact_provider.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+
+// --- CẤU HÌNH THÔNG BÁO CỤC BỘ (LOCAL NOTIFICATIONS) ---
+final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
+    FlutterLocalNotificationsPlugin();
+
+const AndroidNotificationChannel channel = AndroidNotificationChannel(
+  'smart_money_high_importance_channel', 
+  'Smart Money Notifications', 
+  description: 'This channel is used for important notifications.', 
+  importance: Importance.max,
+  playSound: true,
+  enableVibration: true,
+);
+
+@pragma('vm:entry-point')
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  debugPrint("Handling a background message: ${message.messageId}");
+}
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Format ngày tháng tiếng Việt
-  await initializeDateFormatting('vi_VN', null);
-
-  // Khởi tạo Firebase — bắt buộc trước khi dùng FCM
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
+  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
-  // Đăng ký tất cả Service vào getIt
+  const AndroidInitializationSettings initializationSettingsAndroid =
+      AndroidInitializationSettings('@mipmap/ic_launcher');
+  const InitializationSettings initializationSettings =
+      InitializationSettings(android: initializationSettingsAndroid);
+  
+  await flutterLocalNotificationsPlugin.initialize(initializationSettings);
+
+  await flutterLocalNotificationsPlugin
+      .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin>()
+      ?.createNotificationChannel(channel);
+
+  await initializeDateFormatting('vi_VN', null);
   setupDependencies();
 
   runApp(const MyApp());
-
 }
 
 class MyApp extends StatelessWidget {
@@ -54,7 +82,7 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => CategoryProvider()),
         ChangeNotifierProvider(create: (_) => RecurringProvider()),
         ChangeNotifierProvider(create: (_) => BillProvider()),
-        ChangeNotifierProvider(create: (_) => BillTransactionProvider()), // Đăng ký BillTransactionProvider
+        ChangeNotifierProvider(create: (_) => BillTransactionProvider()),
         ChangeNotifierProvider(create: (_) => EventProvider()),
         ChangeNotifierProvider(create: (_) => SavingGoalProvider()),
         ChangeNotifierProvider(create: (_) => DebtProvider()),
@@ -65,12 +93,6 @@ class MyApp extends StatelessWidget {
     );
   }
 }
-
-
-
-
-
-
 
 class SmartMoneyApp extends StatefulWidget {
   const SmartMoneyApp({super.key});
@@ -83,25 +105,76 @@ class _SmartMoneyAppState extends State<SmartMoneyApp> {
   @override
   void initState() {
     super.initState();
+    // Thực hiện xin quyền ngay khi khởi tạo app
+    _requestNotificationPermissions();
     _setupFCM();
   }
 
-  void _setupFCM() {
-    // Xử lý khi nhận thông báo ở Foreground (App đang mở)
-    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-      debugPrint("Nhận thông báo mới: ${message.notification?.title}");
+  // Hàm chuyên biệt để xin quyền thông báo trên mọi nền tảng
+  Future<void> _requestNotificationPermissions() async {
+    // 1. Xin quyền từ Firebase Messaging (iOS + Android 13+)
+    FirebaseMessaging messaging = FirebaseMessaging.instance;
+    NotificationSettings settings = await messaging.requestPermission(
+      alert: true,
+      announcement: false,
+      badge: true,
+      carPlay: false,
+      criticalAlert: false,
+      provisional: false,
+      sound: true,
+    );
+    debugPrint('Firebase Permission: ${settings.authorizationStatus}');
 
-      // 1. Lấy ID thông báo từ data payload của Firebase
+    // 2. Xin quyền cụ thể cho Android 13+ để hiển thị Local Notifications (HUD)
+    final AndroidFlutterLocalNotificationsPlugin? androidImplementation =
+        flutterLocalNotificationsPlugin.resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin>();
+    
+    // Yêu cầu quyền POST_NOTIFICATIONS trên Android 13 trở lên
+    final bool? grantedAndroid = await androidImplementation?.requestNotificationsPermission();
+    debugPrint('Android Local Notification Permission: $grantedAndroid');
+    
+    // 3. Xin quyền cụ thể cho iOS (Local Notifications)
+    final IOSFlutterLocalNotificationsPlugin? iosImplementation =
+        flutterLocalNotificationsPlugin.resolvePlatformSpecificImplementation<
+            IOSFlutterLocalNotificationsPlugin>();
+    
+    final bool? grantedIOS = await iosImplementation?.requestPermissions(
+      alert: true,
+      badge: true,
+      sound: true,
+    );
+    debugPrint('iOS Local Notification Permission: $grantedIOS');
+  }
+
+  void _setupFCM() async {
+    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+      RemoteNotification? notification = message.notification;
+      AndroidNotification? android = message.notification?.android;
+
+      if (notification != null && android != null) {
+        flutterLocalNotificationsPlugin.show(
+          notification.hashCode,
+          notification.title,
+          notification.body,
+          NotificationDetails(
+            android: AndroidNotificationDetails(
+              channel.id,
+              channel.name,
+              channelDescription: channel.description,
+              icon: android.smallIcon,
+              importance: Importance.max,
+              priority: Priority.high,
+            ),
+          ),
+        );
+      }
+
       final notifyIdStr = message.data['id'];
-      if (notifyIdStr != null) {
+      if (notifyIdStr != null && mounted) {
         try {
           int notifyId = int.parse(notifyIdStr);
-
-          // 2. Gọi API báo đã nhận (để backend set read = 1 và sent = 1)
-          // Sử dụng context của State để truy cập Provider
-          if (mounted) {
-            context.read<NotificationProvider>().markAsDelivered(notifyId);
-          }
+          context.read<NotificationProvider>().markAsDelivered(notifyId);
         } catch (e) {
           debugPrint("Lỗi parse notifyId: $e");
         }
@@ -113,23 +186,18 @@ class _SmartMoneyAppState extends State<SmartMoneyApp> {
   Widget build(BuildContext context) {
     return MaterialApp.router(
       debugShowCheckedModeBanner: false,
-
-      // Bắt buộc để DatePicker hiển thị tiếng Việt (tháng, thứ, nút OK/HỦY)
       localizationsDelegates: const [
         GlobalMaterialLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
         GlobalWidgetsLocalizations.delegate,
       ],
       supportedLocales: const [
-        Locale('vi', 'VN'),  // Tiếng Việt
-        Locale('en', 'US'),  // English
+        Locale('vi', 'VN'),
+        Locale('en', 'US'),
       ],
-
-      // cấu hình GoRouter
       routerDelegate: AppRouter.router.routerDelegate,
       routeInformationParser: AppRouter.router.routeInformationParser,
       routeInformationProvider: AppRouter.router.routeInformationProvider,
-
       theme: ThemeData.dark().copyWith(scaffoldBackgroundColor: Colors.black),
     );
   }

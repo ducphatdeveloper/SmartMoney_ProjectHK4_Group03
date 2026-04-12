@@ -11,14 +11,34 @@ import 'package:smart_money/modules/budget/screens/budget_screens.dart';
 import 'account_screen.dart';
 
 class MainNavigation extends StatefulWidget {
-  const MainNavigation({super.key});
+  final int initialIndex;
+  final int timestamp; // Dùng timestamp để nhận biết sự thay đổi từ Router
+  const MainNavigation({super.key, this.initialIndex = 0, this.timestamp = 0});
 
   @override
   State<MainNavigation> createState() => _MainNavigationState();
 }
 
 class _MainNavigationState extends State<MainNavigation> {
-  int index = 0;
+  late int index;
+
+  @override
+  void initState() {
+    super.initState();
+    index = widget.initialIndex;
+  }
+
+  // Cập nhật lại index khi widget nhận được tham số mới từ Router
+  @override
+  void didUpdateWidget(covariant MainNavigation oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Luôn cập nhật index nếu timestamp thay đổi (kể cả khi initialIndex giống nhau)
+    if (widget.timestamp != oldWidget.timestamp) {
+      setState(() {
+        index = widget.initialIndex;
+      });
+    }
+  }
 
   Widget _buildScreen() {
     switch (index) {
@@ -58,7 +78,7 @@ class _MainNavigationState extends State<MainNavigation> {
           );
         },
         child: KeyedSubtree(
-          key: ValueKey(index),
+          key: ValueKey("$index-${widget.timestamp}"), // Thêm timestamp vào key để switcher nhận biết
           child: _buildScreen(),
         ),
       ),

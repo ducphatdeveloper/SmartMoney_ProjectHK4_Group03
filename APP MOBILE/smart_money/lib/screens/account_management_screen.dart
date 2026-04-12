@@ -15,16 +15,17 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
   @override
   void initState() {
     super.initState();
-    // Automatically update data from database when entering the screen
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<AuthProvider>().getProfile();
+      if (context.read<AuthProvider>().isLoggedIn) {
+        context.read<AuthProvider>().getProfile();
+      }
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    // Get instance of AuthProvider
     final authProvider = context.watch<AuthProvider>();
+    final isLoggedIn = authProvider.isLoggedIn;
     final user = authProvider.currentUser;
 
     return Scaffold(
@@ -36,14 +37,14 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
       ),
       body: RefreshIndicator(
         onRefresh: () async {
-          // Call API to get latest information from database
-          await authProvider.getProfile();
+          if (isLoggedIn) {
+            await authProvider.getProfile();
+          }
         },
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.all(16),
           children: [
-            // Show small loading bar at the top if loading data
             if (authProvider.isLoading)
               const Padding(
                 padding: EdgeInsets.only(bottom: 16),
@@ -59,105 +60,119 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
               ),
               child: Column(
                 children: [
-
-                  // Avatar with update function
                   GestureDetector(
-                    onTap: () => _pickAndUploadImage(context, authProvider),
+                    onTap: isLoggedIn ? () => _pickAndUploadImage(context, authProvider) : null,
                     child: Stack(
                       children: [
                         CircleAvatar(
                           radius: 35,
                           backgroundColor: Colors.purple,
-                          backgroundImage: user?.avatarUrl != null ? NetworkImage(user!.avatarUrl!) : null,
-                          child: user?.avatarUrl == null
+                          backgroundImage: (isLoggedIn && user?.avatarUrl != null && !user!.avatarUrl!.contains('svg')) 
+                              ? NetworkImage(user!.avatarUrl!) 
+                              : null,
+                          child: (isLoggedIn && (user?.avatarUrl == null || user!.avatarUrl!.contains('svg')))
                               ? Text(
                                   (user?.fullname != null && user!.fullname!.isNotEmpty)
                                       ? user.fullname![0].toUpperCase()
                                       : "U", 
                                   style: const TextStyle(fontSize: 28, color: Colors.white))
-                              : null,
+                              : (!isLoggedIn ? const Icon(Icons.person, size: 40, color: Colors.white) : null),
                         ),
-                        const Positioned(
-                          right: 0,
-                          bottom: 0,
-                          child: CircleAvatar(radius: 10, backgroundColor: Colors.green, child: Icon(Icons.camera_alt, size: 12, color: Colors.white)),
-                        )
+                        if (isLoggedIn)
+                          const Positioned(
+                            right: 0,
+                            bottom: 0,
+                            child: CircleAvatar(radius: 10, backgroundColor: Colors.green, child: Icon(Icons.camera_alt, size: 12, color: Colors.white)),
+                          )
                       ],
                     ),
                   ),
 
                 const SizedBox(height: 12),
 
-                // Badge
-                Container(
-                  padding:
-                  const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade700,
-                    borderRadius: BorderRadius.circular(20),
+                if (isLoggedIn)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade700,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: const Text(
+                      "FREE ACCOUNT",
+                      style: TextStyle(fontSize: 12, color: Colors.white),
+                    ),
                   ),
-                  child: const Text(
-                    "FREE ACCOUNT",
-                    style: TextStyle(fontSize: 12, color: Colors.white),
-                  ),
-                ),
 
                 const SizedBox(height: 12),
 
                 Text(
-                  user?.fullname ?? "No name set",
-                  style: const TextStyle(fontSize: 18, color: Colors.white),
+                  isLoggedIn ? (user?.fullname ?? "No name set") : "Guest User",
+                  style: const TextStyle(fontSize: 18, color: Colors.white, fontWeight: FontWeight.bold),
                 ),
 
                 const SizedBox(height: 4),
 
                 Text(
-                  user?.accEmail ?? "",
+                  isLoggedIn ? (user?.accEmail ?? "") : "Sign in to sync your data",
                   style: const TextStyle(color: Colors.grey),
                 ),
               ],
             ),
           ),
 
-          const SizedBox(height: 20),
+          const SizedBox(height: 30),
 
-          // ===== EDIT PROFILE =====
-          _button(
-            title: "Edit Profile",
-            color: Colors.blueAccent,
-            onTap: () => context.push('/edit-profile'),
-          ),
-
-          const SizedBox(height: 12),
-
-          // ===== CHANGE PASSWORD =====
-          _button(
-            title: "Change Password",
-            color: Colors.green,
-            onTap: () async {
-              final email = user?.accEmail;
-              if (email != null) {
-                context.push('/reset-password', extra: email);
-              }
-            },
-          ),
-          const SizedBox(height: 12),
-
-          // ===== LOGOUT =====
-          _button(
-            title: "Logout",
-            color: Colors.red,
-            onTap: () {
-              _confirmLogout(context, authProvider);
-            },
-          ),
+          if (isLoggedIn) ...[
+            _button(
+              title: "Edit Profile",
+              color: Colors.blueAccent,
+              onTap: () => context.push('/edit-profile'),
+            ),
+            const SizedBox(height: 12),
+            _button(
+              title: "Change Password",
+              color: Colors.green,
+              onTap: () async {
+                final email = user?.accEmail;
+                if (email != null) {
+                  context.push('/reset-password', extra: email);
+                }
+              },
+            ),
+            const SizedBox(height: 12),
+            _button(
+              title: "Logout",
+              color: Colors.red,
+              onTap: () => _confirmLogout(context, authProvider),
+            ),
+          ] else ...[
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+              child: Text(
+                "You are currently not logged in. Login to access all features and protect your data.",
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.grey, fontSize: 13),
+              ),
+            ),
+            const SizedBox(height: 16),
+            _button(
+              title: "Login",
+              color: Colors.greenAccent,
+              onTap: () => context.go('/login'),
+            ),
+            const SizedBox(height: 12),
+            _button(
+              title: "Register",
+              color: Colors.blueAccent,
+              onTap: () => context.go('/register'),
+            ),
+          ],
         ],
       ),
     )
     );
   }
 
-  // ===== BUTTON STYLE =====
   Widget _button({
     required String title,
     required Color color,
@@ -177,14 +192,13 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
           style: TextStyle(
             color: color,
             fontSize: 16,
-            fontWeight: FontWeight.w500,
+            fontWeight: FontWeight.w600,
           ),
         ),
       ),
     );
   }
 
-  // ===== DIALOG =====
   void _confirmLogout(BuildContext context, AuthProvider authProvider) {
     showDialog(
       context: context,
@@ -199,15 +213,10 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
           TextButton(
             child: const Text("Logout", style: TextStyle(color: Colors.red)),
             onPressed: () async {
-              // Close confirmation dialog
               Navigator.pop(context);
-              
-              // Call logout function in AuthProvider
-              await authProvider.logout();
-              
-              // Navigate back to login page
+              await authProvider.logout(context);
               if (context.mounted) {
-                context.go("/login");
+                context.go("/main");
               }
             },
           ),

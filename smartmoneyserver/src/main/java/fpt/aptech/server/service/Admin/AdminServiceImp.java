@@ -7,17 +7,19 @@ import fpt.aptech.server.entity.Account;
 import fpt.aptech.server.entity.Transaction;
 import fpt.aptech.server.entity.Notification;
 import fpt.aptech.server.entity.UserDevice;
-import fpt.aptech.server.entity.Wallet;
 import fpt.aptech.server.enums.notification.NotificationType;
 import fpt.aptech.server.enums.contact.ContactRequestType;
 import fpt.aptech.server.enums.contact.ContactRequestStatus;
 import fpt.aptech.server.repos.AccountRepository;
 import fpt.aptech.server.repos.UserDeviceRepository;
 import fpt.aptech.server.repos.TransactionRepository;
-import fpt.aptech.server.repos.ContactRequestRepository; // Import ContactRequestRepository
+import fpt.aptech.server.repos.ContactRequestRepository;
 import fpt.aptech.server.service.notification.NotificationService;
 import fpt.aptech.server.service.notification.NotificationContent;
 import fpt.aptech.server.service.notification.NotificationMessages;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
+import jakarta.persistence.Query;
 import jakarta.persistence.criteria.Predicate;
 import jakarta.persistence.criteria.Root;
 import jakarta.persistence.criteria.Subquery;
@@ -51,7 +53,10 @@ public class AdminServiceImp implements AdminService {
     private final UserDeviceRepository userDeviceRepository;
     private final NotificationService notificationService;
     private final TransactionRepository transactionRepository;
-    private final ContactRequestRepository contactRequestRepository; // Inject ContactRequestRepository
+    private final ContactRequestRepository contactRequestRepository;
+
+    @PersistenceContext
+    private EntityManager entityManager;
 
     @Override
     public PageResponse<AccountDto> getUsers(String search, Boolean locked, String onlineStatus, Pageable pageable) {
@@ -124,7 +129,6 @@ public class AdminServiceImp implements AdminService {
         Account account = accountRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy tài khoản ID: " + id));
 
-        // Check for an APPROVED ContactRequest of type ACCOUNT_LOCK
         contactRequestRepository.findFirstByAccountIdAndRequestTypeAndRequestStatusOrderByCreatedAtDesc(
                 id, ContactRequestType.ACCOUNT_LOCK, ContactRequestStatus.APPROVED)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy yêu cầu khóa tài khoản đã được duyệt cho ID: " + id));
@@ -151,7 +155,6 @@ public class AdminServiceImp implements AdminService {
         Account account = accountRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy tài khoản ID: " + id));
 
-        // Check for an APPROVED ContactRequest of type ACCOUNT_UNLOCK
         contactRequestRepository.findFirstByAccountIdAndRequestTypeAndRequestStatusOrderByCreatedAtDesc(
                 id, ContactRequestType.ACCOUNT_UNLOCK, ContactRequestStatus.APPROVED)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy yêu cầu mở khóa tài khoản đã được duyệt cho ID: " + id));
@@ -208,22 +211,14 @@ public class AdminServiceImp implements AdminService {
         return null;
     }
 
-    /**
-     * [CẬP NHẬT] Thống kê hệ thống dựa trên startDate và endDate thực tế từ Client.
-     * Tính tổng của bảng Transaction (toàn bộ User) theo startDate và endDate là 100%.
-     * Các hạng mục Category và Saving Goal là % dựa theo tổng giao dịch toàn hệ thống.
-     */
     @Override
     public Map<String, Object> getSystemTransactionStats(LocalDateTime startDate, LocalDateTime endDate) {
-        // Dự phòng nếu Client không gửi ngày (mặc định lấy tháng hiện tại)
         if (startDate == null) startDate = LocalDate.now().with(TemporalAdjusters.firstDayOfMonth()).atStartOfDay();
         if (endDate == null) endDate = LocalDateTime.now();
 
-        // 1. Tổng volume thực tế TOÀN HỆ THỐNG = 100%
         BigDecimal totalVolume = transactionRepository.getTotalVolumeRange(startDate, endDate);
         if (totalVolume == null) totalVolume = BigDecimal.ZERO;
 
-        // 2. Thống kê theo danh mục (Category) của TOÀN HỆ THỐNG
         List<Object[]> rawStats = transactionRepository.getGlobalCategoryStats(startDate, endDate);
         BigDecimal income = BigDecimal.ZERO; 
         BigDecimal expense = BigDecimal.ZERO;
@@ -239,7 +234,6 @@ public class AdminServiceImp implements AdminService {
             if (Boolean.TRUE.equals(ctgType)) income = income.add(amount);
             else expense = expense.add(amount);
 
-            // Tính % dựa trên tổng volume của toàn hệ thống (không phải của 1 user)
             BigDecimal pct = (totalVolume.compareTo(BigDecimal.ZERO) > 0)
                     ? amount.multiply(new BigDecimal("100")).divide(totalVolume, 4, RoundingMode.HALF_UP)
                     : BigDecimal.ZERO;
@@ -254,14 +248,12 @@ public class AdminServiceImp implements AdminService {
             breakdown.add(item);
         }
 
-        // 3. Thống kê theo mục tiêu tiết kiệm (Saving Goals) của TOÀN HỆ THỐNG
         List<Object[]> goalStats = transactionRepository.getGlobalGoalStats(startDate, endDate);
         List<Map<String, Object>> goalBreakdown = new ArrayList<>();
         for (Object[] row : goalStats) {
             String goalName = (String) row[0];
             BigDecimal amount = row[1] != null ? (BigDecimal) row[1] : BigDecimal.ZERO;
             
-            // Tính % dựa trên tổng volume của toàn hệ thống
             BigDecimal pct = (totalVolume.compareTo(BigDecimal.ZERO) > 0)
                     ? amount.multiply(new BigDecimal("100")).divide(totalVolume, 4, RoundingMode.HALF_UP)
                     : BigDecimal.ZERO;
@@ -289,59 +281,6 @@ public class AdminServiceImp implements AdminService {
 
         return result;
     }
-//
-//    @Override
-//    public void notifyAbnormalTransactions(BigDecimal threshold) {
-//        int frequencyThreshold = 10;
-//        LocalDateTime since = LocalDateTime.now().minusDays(1);
-//        List<Transaction> recentTransactions = transactionRepository.findAllByTransDateAfter(since);
-//        Map<Wallet, List<Transaction>> walletActivity = recentTransactions.stream()
-//                .filter(t -> t.getCategory() != null && Boolean.FALSE.equals(t.getCategory().getCtgType()))
-//                .filter(t -> t.getWallet() != null)
-//                .collect(Collectors.groupingBy(Transaction::getWallet));
-//
-//        walletActivity.forEach((wallet, transList) -> {
-//            BigDecimal walletTotalExpense = transList.stream().map(Transaction::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
-//            if (walletTotalExpense.compareTo(threshold) > 0 || transList.size() >= frequencyThreshold) {
-//                Account userAccount = transList.get(0).getAccount();
-//                String walletName = wallet.getWalletName() != null ? wallet.getWalletName() : "Ví người dùng";
-//                NotificationContent userMsg = NotificationMessages.abnormalWalletActivity(walletName, transList.size(), walletTotalExpense);
-//                notificationService.createNotification(userAccount, userMsg.title(), userMsg.content(), NotificationType.TRANSACTION, null, LocalDateTime.now());
-//
-//                NotificationContent adminMsg = NotificationMessages.adminWalletRiskAlert(userAccount.getAccEmail(), walletName, transList.size(), walletTotalExpense);
-//                List<Account> admins = accountRepository.findByRole_RoleCode("ROLE_ADMIN");
-//                for (Account admin : admins) {
-//                    notificationService.createNotification(admin, adminMsg.title(), adminMsg.content(), NotificationType.SYSTEM, null, LocalDateTime.now());
-//                }
-//            }
-//        });
-//    }
-//
-//    @Override
-//    public List<Map<String, Object>> getAbnormalTransactionUsers(BigDecimal threshold) {
-//        int frequencyThreshold = 10;
-//        LocalDateTime since = LocalDateTime.now().minusDays(1);
-//        List<Transaction> recentTransactions = transactionRepository.findAllByTransDateAfter(since);
-//        Map<Account, List<Transaction>> groupedByAccount = recentTransactions.stream()
-//                .filter(t -> t.getCategory() != null && Boolean.FALSE.equals(t.getCategory().getCtgType()))
-//                .collect(Collectors.groupingBy(Transaction::getAccount));
-//
-//        return groupedByAccount.entrySet().stream().map(entry -> {
-//            Account acc = entry.getKey();
-//            Map<Wallet, List<Transaction>> byWallet = entry.getValue().stream().filter(t -> t.getWallet() != null).collect(Collectors.groupingBy(Transaction::getWallet));
-//            List<Map<String, Object>> abnormalWallets = new ArrayList<>();
-//            BigDecimal userTotal = BigDecimal.ZERO;
-//            for (Map.Entry<Wallet, List<Transaction>> wEntry : byWallet.entrySet()) {
-//                BigDecimal wTotal = wEntry.getValue().stream().map(Transaction::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
-//                if (wTotal.compareTo(threshold) > 0 || wEntry.getValue().size() >= frequencyThreshold) {
-//                    abnormalWallets.add(Map.of("walletName", wEntry.getKey().getWalletName(), "transactionCount", wEntry.getValue().size(), "totalSpent", wTotal));
-//                    userTotal = userTotal.add(wTotal);
-//                }
-//            }
-//            if (abnormalWallets.isEmpty()) return null;
-//            return Map.of("userId", acc.getId(), "username", acc.getFullname() != null ? acc.getFullname() : acc.getAccEmail(), "abnormalWallets", abnormalWallets, "totalAmount", userTotal, "transactionCount", entry.getValue().size());
-//        }).filter(Objects::nonNull).collect(Collectors.toList());
-//    }
 
     @Override
     public long countOnlineUsers() { return userDeviceRepository.countActiveUsers(LocalDateTime.now().minusMinutes(5)); }
@@ -374,19 +313,42 @@ public class AdminServiceImp implements AdminService {
     @Transactional(readOnly = true)
     public Map<String, Object> getUserFinancialInsights(Integer userId) {
         Account acc = accountRepository.findById(userId).orElseThrow(() -> new RuntimeException("User not found"));
-        return Map.of("userInfo", new AccountDto(acc), "totalIncome", transactionRepository.sumAmountByAccountAndType(userId, true), "totalExpense", transactionRepository.sumAmountByAccountAndType(userId, false));
+        AccountDto userInfo = new AccountDto(acc);
+        return Map.of(
+            "userInfo", userInfo, 
+            "totalIncome", transactionRepository.sumLifetimeByAccountAndType(userId, true), 
+            "totalExpense", transactionRepository.sumLifetimeByAccountAndType(userId, false)
+        );
     }
 
+    /**
+     * Khôi phục giao dịch.
+     * GIẢI PHÁP FIX LỖI: Loại bỏ hoàn toàn việc gọi Stored Procedure.
+     * Chỉ thực hiện cập nhật deleted=0 qua Repository. 
+     * Trigger 'trg_Transactions_SoftDelete_Balance' trong DB sẽ tự động cập nhật số dư ví.
+     */
     @Override
     @Transactional
     public void restoreTransaction(Long transactionId) {
-        Transaction transaction = transactionRepository.findById(transactionId)
+        Transaction transaction = transactionRepository.findAnyById(transactionId)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy giao dịch ID: " + transactionId));
+        
         if (Boolean.FALSE.equals(transaction.getDeleted())) {
             throw new RuntimeException("Giao dịch này hiện không bị xóa.");
         }
+
+        // 1. Khôi phục trạng thái xóa (Trigger DB sẽ tự động lo phần cộng/trừ lại balance)
         transactionRepository.restoreTransaction(transactionId);
-        log.info("Admin đã khôi phục giao dịch ID: {}", transactionId);
+        
+        // 2. Gửi thông báo cho người dùng (Sử dụng service có Propagation.REQUIRES_NEW để tránh rollback chéo)
+        try {
+            String title = "Giao dịch được khôi phục";
+            String content = "Giao dịch trị giá " + transaction.getAmount().toString() + " đã được Admin khôi phục thành công.";
+            notificationService.createNotification(transaction.getAccount(), title, content, NotificationType.SYSTEM, transaction.getId(), LocalDateTime.now());
+            log.info("Admin đã khôi phục giao dịch ID: {} thành công.", transactionId);
+        } catch (Exception e) {
+            log.warn("Giao dịch đã khôi phục nhưng không thể gửi thông báo: {}", e.getMessage());
+        }
     }
 
     @Override
@@ -394,7 +356,32 @@ public class AdminServiceImp implements AdminService {
     public void restoreAllUserTransactions(Integer userId) {
         accountRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy người dùng ID: " + userId));
+        
         transactionRepository.restoreAllUserTransactions(userId);
+        
         log.info("Admin đã khôi phục tất cả giao dịch cho người dùng ID: {}", userId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Map<String, Object>> getGlobalDeletedTransactions() {
+        Query query = entityManager.createNativeQuery("SELECT * FROM vAdminDeletedTransactions ORDER BY deleted_at DESC");
+        List<Object[]> results = query.getResultList();
+        
+        return results.stream().map(row -> {
+            Map<String, Object> map = new HashMap<>();
+            map.put("transactionId", row[0]);
+            map.put("userName", row[1]);
+            map.put("userEmail", row[2]);
+            map.put("walletName", row[3]);
+            map.put("categoryName", row[4]);
+            map.put("type", row[5]);
+            map.put("amount", row[6]);
+            map.put("note", row[7]);
+            map.put("transDate", row[8]);
+            map.put("deletedAt", row[9]);
+            map.put("sourceType", row[10]);
+            return map;
+        }).collect(Collectors.toList());
     }
 }

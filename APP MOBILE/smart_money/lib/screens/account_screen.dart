@@ -5,7 +5,6 @@ import '../../modules/planned/screens/recurring_screen.dart';
 import '../../modules/planned/screens/bill_screen.dart';
 import '../../modules/event/screens/event_screen.dart';
 import '../../modules/saving_goal/screens/saving_goal_list_screen.dart';
-import 'package:smart_money/modules/saving_goal/screens/saving_goal_list_view.dart';
 import '../../modules/wallet/screens/wallet_screen.dart';
 import '../../modules/debt/screens/debt_list_screen.dart';
 import '../modules/contact/screens/contact_support_screen.dart';
@@ -23,9 +22,10 @@ class _AccountScreenState extends State<AccountScreen> {
   @override
   void initState() {
     super.initState();
-    // Update profile data when entering screen
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<AuthProvider>().getProfile();
+      if (context.read<AuthProvider>().isLoggedIn) {
+        context.read<AuthProvider>().getProfile();
+      }
     });
   }
 
@@ -33,11 +33,11 @@ class _AccountScreenState extends State<AccountScreen> {
   Widget build(BuildContext context) {
     final authProvider = context.watch<AuthProvider>();
     final user = authProvider.currentUser;
+    final isLoggedIn = authProvider.isLoggedIn;
 
-    // Display fullname if available, otherwise email or "User"
-    final String displayName = (user?.fullname != null && user!.fullname!.trim().isNotEmpty)
-        ? user.fullname!
-        : (user?.accEmail ?? "User");
+    final String displayName = isLoggedIn 
+        ? ((user?.fullname != null && user!.fullname!.trim().isNotEmpty) ? user.fullname! : (user?.accEmail ?? "User"))
+        : "Guest User";
 
     return Scaffold(
       appBar: AppBar(
@@ -47,14 +47,15 @@ class _AccountScreenState extends State<AccountScreen> {
       ),
       body: RefreshIndicator(
         onRefresh: () async {
-          // Allow user to pull down to refresh profile data
-          await authProvider.getProfile();
+          if (isLoggedIn) {
+            await authProvider.getProfile();
+          }
         },
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.all(16),
           children: [
-            _profileCard(displayName, user?.accEmail ?? ""),
+            _profileCard(displayName, isLoggedIn ? (user?.accEmail ?? "") : "Sign in to protect your data", isLoggedIn, user?.avatarUrl),
             const SizedBox(height: 24),
 
             _item(
@@ -80,7 +81,7 @@ class _AccountScreenState extends State<AccountScreen> {
           ),
 
           _item(
-            Icons.account_balance_wallet,
+            Icons.savings,
             "My Savings",
             onTap: () {
               Navigator.push(
@@ -90,7 +91,7 @@ class _AccountScreenState extends State<AccountScreen> {
             },
           ),
 
-          _item(Icons.group, "Categories" ,
+          _item(Icons.category, "Categories" ,
               onTap: () {
                 Navigator.push(
                   context,
@@ -161,9 +162,7 @@ class _AccountScreenState extends State<AccountScreen> {
     );
   }
 
-  // ===== Widgets =====
-
-  Widget _profileCard(String name, String email) {
+  Widget _profileCard(String name, String subtitle, bool isLoggedIn, String? avatarUrl) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -172,29 +171,34 @@ class _AccountScreenState extends State<AccountScreen> {
       ),
       child: Row(
         children: [
-          const CircleAvatar(
+          CircleAvatar(
             radius: 30,
             backgroundColor: Colors.green,
-            child: Icon(Icons.person, size: 32, color: Colors.white),
+            backgroundImage: (isLoggedIn && avatarUrl != null && !avatarUrl.contains('svg')) 
+                ? NetworkImage(avatarUrl) 
+                : null,
+            child: (isLoggedIn && (avatarUrl == null || avatarUrl.contains('svg')))
+                ? Text(name.isNotEmpty ? name[0].toUpperCase() : "U", style: const TextStyle(fontSize: 24, color: Colors.white, fontWeight: FontWeight.bold))
+                : (!isLoggedIn ? const Icon(Icons.person, size: 32, color: Colors.white) : null),
           ),
           const SizedBox(width: 16),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                name,
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 4),
-              Text(email.isNotEmpty ? email : "Free account", style: const TextStyle(color: Colors.grey)),
-            ],
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  name,
+                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 4),
+                Text(subtitle, style: const TextStyle(color: Colors.grey, fontSize: 13)),
+              ],
+            ),
           ),
         ],
       ),
     );
   }
-
-
 
   Widget _section(String title) {
     return Padding(

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:smart_money/core/helpers/token_helper.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -30,7 +29,12 @@ class _SplashScreenState extends State<SplashScreen>
 
     _controller.forward();
 
-    checkLogin();
+    // Chuyển hướng sau khi animation kết thúc
+    Future.delayed(const Duration(seconds: 3), () {
+      if (mounted) {
+        context.go("/main"); // Luôn vào trang main bất kể đăng nhập hay chưa
+      }
+    });
   }
 
   @override
@@ -39,28 +43,10 @@ class _SplashScreenState extends State<SplashScreen>
     super.dispose();
   }
 
-  Future<void> checkLogin() async {
-
-    final token = await TokenHelper.getAccessToken();
-
-    // Comment dòng này lại khi dev cho nhanh
-    // await Future.delayed(const Duration(seconds: 2)); // ← Bỏ khi test
-
-    if (!mounted) return;
-
-    if (token != null) {
-      context.go("/main"); // ← Sửa từ /home thành /main
-    } else {
-      context.go("/login");
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-
     return Scaffold(
       body: Container(
-
         decoration: const BoxDecoration(
           gradient: LinearGradient(
             colors: [
@@ -72,22 +58,18 @@ class _SplashScreenState extends State<SplashScreen>
             end: Alignment.bottomRight,
           ),
         ),
-
         child: Center(
           child: FadeTransition(
             opacity: _animation,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-
                 Image.asset(
                   "assets/images/logo.png",
                   width: 150,
                   height: 150,
                 ),
-
                 const SizedBox(height: 20),
-
                 const Text(
                   "Smart Money ",
                   style: TextStyle(
@@ -96,7 +78,6 @@ class _SplashScreenState extends State<SplashScreen>
                     color: Colors.white,
                   ),
                 ),
-
               ],
             ),
           ),

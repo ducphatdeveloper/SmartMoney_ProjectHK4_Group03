@@ -24,15 +24,14 @@ public interface AdminService {
 
     long countOnlineUsers();
     List<AccountDto> getAllLiveOnlineUsers();
-//    void notifyAbnormalTransactions(BigDecimal threshold);
-//    List<Map<String, Object>> getAbnormalTransactionUsers(BigDecimal threshold);
-//
+
     void handleAutoLogout();
     PageResponse<TransactionDto> getUserTransactions(Integer userId, Pageable pageable, String deletedStatus, String type);
     List<TransactionDto> getAllUserTransactions(Integer userId, String deletedStatus, String type);
 
     /**
      * Khôi phục một giao dịch đã xóa mềm.
+     * Sử dụng Stored Procedure sp_RestoreTransaction để đảm bảo Trigger cập nhật số dư chạy đúng.
      */
     void restoreTransaction(Long transactionId);
 
@@ -40,4 +39,10 @@ public interface AdminService {
      * Khôi phục tất cả giao dịch đã xóa mềm của một người dùng.
      */
     void restoreAllUserTransactions(Integer userId);
+
+    /**
+     * Lấy danh sách giao dịch đã bị xóa mềm trên toàn hệ thống (Dành cho Admin theo dõi).
+     * Tận dụng View vAdminDeletedTransactions trong Database.
+     */
+    List<Map<String, Object>> getGlobalDeletedTransactions();
 }

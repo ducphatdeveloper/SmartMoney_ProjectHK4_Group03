@@ -18,26 +18,31 @@ class NotificationProvider extends ChangeNotifier {
     _setLoading(true);
 
     try {
-      // Gọi Service thực tế để lấy dữ liệu từ Backend
       final results = await _service.getNotifications();
       _notifications = results;
-      
       _calculateUnreadCount();
     } catch (e) {
       debugPrint("Error fetching notifications: $e");
+      // Nếu lỗi (vd: 401 Unauthorized), xóa sạch dữ liệu cục bộ
+      clearNotifications();
     } finally {
       _isLoading = false;
       notifyListeners();
     }
   }
 
+  /// Xóa sạch thông báo khi người dùng đăng xuất
+  void clearNotifications() {
+    _notifications = [];
+    _unreadCount = 0;
+    notifyListeners();
+  }
+
   /// Đánh dấu một thông báo là đã đọc
   Future<void> markAsRead(int id) async {
     try {
       final success = await _service.markAsRead(id);
-      
       if (success) {
-        // Sau khi Backend cập nhật thành công, tải lại danh sách để đồng bộ UI
         await fetchNotifications(); 
       }
     } catch (e) {
@@ -57,18 +62,12 @@ class NotificationProvider extends ChangeNotifier {
     }
   }
 
-  // [NEW] Gọi khi nhận được thông báo từ FCM để báo cho backend là đã tới máy
   Future<void> markAsDelivered(int id) async {
     try {
-      // Sử dụng _service thay vì _apiService
       await _service.markAsDelivered(id);
-
-      // Sau khi báo delivered, backend set read=1 nên ta cập nhật local luôn
       final index = _notifications.indexWhere((n) => n.id == id);
       if (index != -1) {
-        // Vì notifyRead là final, ta dùng copyWith để thay thế object trong list
         _notifications[index] = _notifications[index].copyWith(notifyRead: true);
-        
         _calculateUnreadCount();
         notifyListeners();
       }
@@ -77,21 +76,14 @@ class NotificationProvider extends ChangeNotifier {
     }
   }
 
-  // Cập nhật hàm xóa để đảm bảo UI mượt mà
   Future<void> deleteNotification(int id) async {
-    // Sao lưu danh sách cũ để revert nếu lỗi
     final oldNotifications = List<NotificationResponse>.from(_notifications);
-
     try {
-      // Xóa ở local trước (Optimistic UI)
       _notifications.removeWhere((n) => n.id == id);
       _calculateUnreadCount();
       notifyListeners();
-
-      // Gọi API xóa ở backend
       await _service.deleteNotification(id);
     } catch (e) {
-      // Nếu lỗi thì hoàn tác lại danh sách cũ
       _notifications = oldNotifications;
       _calculateUnreadCount();
       notifyListeners();
@@ -99,12 +91,10 @@ class NotificationProvider extends ChangeNotifier {
     }
   }
 
-  /// Tính toán lại số lượng thông báo chưa đọc
   void _calculateUnreadCount() {
     _unreadCount = _notifications.where((n) => n.notifyRead != true).length;
   }
 
-  /// Phương thức hỗ trợ cập nhật trạng thái loading
   void _setLoading(bool value) {
     _isLoading = value;
     notifyListeners();
