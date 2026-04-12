@@ -38,9 +38,14 @@ class CategoryProvider extends ChangeNotifier {
   String _currentGroup = 'expense';
   String get currentGroup => _currentGroup;
 
-  // Trạng thái loading — hiện vòng xoay khi đang gọi API
+  // Trạng thái loading — hiện vòng xoay khi đang gọi API (cho category list)
   bool _isLoading = false;
   bool get isLoading => _isLoading;
+
+  // Trạng thái loading riêng cho loadParents / loadMergeTargets
+  // → Tránh làm trigger rebuild toàn bộ CategoryTabContent khi mở bottom sheet
+  bool _isLoadingSheet = false;
+  bool get isLoadingSheet => _isLoadingSheet;
 
   // Thông báo lỗi — hiện SnackBar khi API lỗi
   String? _errorMessage;
@@ -116,6 +121,7 @@ class CategoryProvider extends ChangeNotifier {
     _categories = [];
     _currentGroup = 'expense';
     _isLoading = false;
+    _isLoadingSheet = false;
     _errorMessage = null;
   }
 
@@ -148,8 +154,9 @@ class CategoryProvider extends ChangeNotifier {
   // Gọi khi: Mở bottom sheet chọn nhóm cha (tạo/sửa danh mục con)
   // API: GET /api/categories/parents?type=false
   // ctgType: true = Thu nhập, false = Chi tiêu
+  // Dùng _isLoadingSheet thay vì _isLoading để tránh trigger rebuild CategoryTabContent
   Future<void> loadParents(bool ctgType) async {
-    _isLoading = true;
+    _isLoadingSheet = true;
     _errorMessage = null;
     notifyListeners();
 
@@ -162,7 +169,7 @@ class CategoryProvider extends ChangeNotifier {
       _errorMessage = response.message;
     }
 
-    _isLoading = false;
+    _isLoadingSheet = false;
     notifyListeners();
   }
 
@@ -250,11 +257,12 @@ class CategoryProvider extends ChangeNotifier {
   // Gọi khi: User chọn MERGE → cần hiện danh sách danh mục cùng loại
   // API: GET /api/categories/merge-targets?type=true|false
   // excludeId: loại bỏ danh mục đang xóa ra khỏi danh sách
+  // Dùng _isLoadingSheet để tránh trigger reload CategoryTabContent
   List<CategoryResponse> _mergeTargets = [];
   List<CategoryResponse> get mergeTargets => _mergeTargets;
 
   Future<void> loadMergeTargets(bool ctgType, {int? excludeId}) async {
-    _isLoading = true;
+    _isLoadingSheet = true;
     _errorMessage = null;
     notifyListeners();
 
@@ -270,7 +278,7 @@ class CategoryProvider extends ChangeNotifier {
       _errorMessage = response.message;
     }
 
-    _isLoading = false;
+    _isLoadingSheet = false;
     notifyListeners();
   }
 

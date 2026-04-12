@@ -213,7 +213,7 @@ class _WalletDetailScreenState extends State<WalletDetailScreen> {
       ),
       onPressed: () => _confirmDelete(context),
       child: const Text(
-        "Xóa",
+        "Delete Wallet",
         style: TextStyle(color: Colors.red, fontSize: 16),
       ),
     );

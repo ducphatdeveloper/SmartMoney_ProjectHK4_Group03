@@ -6,6 +6,7 @@ class CategoryResponse {
   final bool? ctgType;
   final String? ctgIconUrl;
   final int? parentId;
+  final String? parentName; // Tên danh mục cha — server trả về để tránh gọi API thừa
 
   const CategoryResponse({
     required this.id,
@@ -13,6 +14,7 @@ class CategoryResponse {
     this.ctgType,
     this.ctgIconUrl,
     this.parentId,
+    this.parentName,
   });
 
   factory CategoryResponse.fromJson(Map<String, dynamic> json) {
@@ -22,7 +24,10 @@ class CategoryResponse {
       ctgType: json['ctgType'] as bool?,
       ctgIconUrl: json['ctgIconUrl'] as String?,
       parentId: json['parentId'] as int?,
+      parentName: json['parentName'] as String?,
     );
   }
 }
+
+
 

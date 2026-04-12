@@ -291,7 +291,7 @@ class _DebtEditScreenState extends State<DebtEditScreen> {
 
                 // ----- [Field 2] Ngày hẹn trả -----
                 const Text(
-                  'Delivery date',
+                  'Due date',
                   style: TextStyle(
                       fontWeight: FontWeight.w600, fontSize: 13),
                 ),

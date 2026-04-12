@@ -89,10 +89,9 @@ class _CategoryEditScreenState extends State<CategoryEditScreen> {
     // Bước 2b: Gán icon ban đầu từ category hiện tại
     _selectedIconFileName = widget.category.ctgIconUrl;
 
-    // Bước 3: [FIX-2] Nếu có cha, load tên cha để hiển thị
-    if (widget.category.parentId != null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => _loadParentName());
-    }
+    // Bước 3: [FIX-2] Lấy tên cha trực tiếp từ server response (parentName)
+    // → Không cần gọi API thừa, tránh lag & flicker loading spinner trên list screen
+    _parentDisplayName = widget.category.parentName;
   }
 
   @override
@@ -101,28 +100,6 @@ class _CategoryEditScreenState extends State<CategoryEditScreen> {
     super.dispose();
   }
 
-  // =============================================
-  // [6.3] _loadParentName — load tên cha hiện tại để hiển thị
-  // =============================================
-  // Gọi trong initState nếu category đang có cha (parentId != null)
-  // Mục đích: hiện đúng tên cha thay vì placeholder "Chọn nhóm cha"
-  // API: GET /api/categories/parents?type={ctgType}
-  // Lưu ý: firstOrNull trả null nếu cha bị xóa → hiện placeholder
-  Future<void> _loadParentName() async {
-    final provider = Provider.of<CategoryProvider>(context, listen: false);
-    await provider.loadParents(_ctgType); // GET /api/categories/parents?type=...
-
-    if (!mounted) return;
-
-    // Tìm cha trong danh sách theo parentId
-    final parent = provider.parentCategories
-        .where((p) => p.id == widget.category.parentId)
-        .firstOrNull;
-
-    setState(() {
-      _parentDisplayName = parent?.ctgName;
-    });
-  }
 
   // =============================================
   // [6.4] _openParentSheet — mở bottom sheet chọn cha
@@ -195,7 +172,7 @@ class _CategoryEditScreenState extends State<CategoryEditScreen> {
     // Bước 1: Validate client-side
     final name = _nameController.text.trim();
     if (name.isEmpty) {
-      _showSnackBar("Vui lòng nhập tên danh mục", isError: true);
+      _showSnackBar("Please enter a category name", isError: true);
       return;
     }
 
@@ -204,19 +181,19 @@ class _CategoryEditScreenState extends State<CategoryEditScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF1C1C1E),
-        title: const Text('Xác nhận sửa', style: TextStyle(color: Colors.white)),
+        title: const Text('Confirm Update', style: TextStyle(color: Colors.white)),
         content: Text(
-          'Bạn có chắc muốn cập nhật danh mục "$name"?',
+          'Are you sure you want to update "$name"?',
           style: const TextStyle(color: Colors.grey),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Hủy', style: TextStyle(color: Colors.grey)),
+            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Xác nhận', style: TextStyle(color: Colors.blue)),
+            child: const Text('Confirm', style: TextStyle(color: Colors.blue)),
           ),
         ],
       ),
@@ -228,7 +205,7 @@ class _CategoryEditScreenState extends State<CategoryEditScreen> {
     final request = CategoryRequest(
       ctgName: name,
       ctgType: _ctgType,
-      ctgIconUrl: _selectedIconFileName, // icon đã chọn (hoặc icon gốc nếu chưa đổi)
+      ctgIconUrl: _selectedIconFileName,
       parentId: _effectiveParentId,
     );
 
@@ -244,42 +221,119 @@ class _CategoryEditScreenState extends State<CategoryEditScreen> {
 
     // Bước 4: Xử lý kết quả
     if (success) {
-      _showSnackBar(provider.successMessage ?? "Cập nhật thành công");
+      _showSnackBar(provider.successMessage ?? "Category updated successfully");
       Navigator.pop(context, true);
     } else {
-      _showSnackBar(provider.errorMessage ?? "Có lỗi xảy ra", isError: true);
+      _showSnackBar(provider.errorMessage ?? "An error occurred", isError: true);
     }
   }
 
   // =============================================
   // [6.6] _deleteCategory — Xóa danh mục (DELETE_ALL)
   // =============================================
-  // Backend Controller: DELETE /api/categories/{id}?actionType=DELETE_ALL
-  // Backend Service (deleteCategoryWithOptions):
-  //   - actionType = null → mặc định DELETE_ALL
-  //   - Cascade: xóa giao dịch con → xóa giao dịch cha → xóa danh mục con → xóa cha
-  //   - getOwnedCategory() chặn danh mục hệ thống (account=null)
-  // Flutter: Truyền actionType=DELETE_ALL rõ ràng cho an toàn
+  // Step 1: Show a rich warning dialog with two options:
+  //   - "Merge & Delete" → redirect to merge sheet (preserve transactions)
+  //   - "Delete All"     → second confirm → hard DELETE_ALL (lose all transactions)
+  // Step 2 (only for Delete All): second confirm to prevent accidental data loss
   Future<void> _deleteCategory() async {
-    // Bước 1: Confirm xóa
+    // Bước 1: Dialog cảnh báo với 2 lựa chọn
+    final choice = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1C1C1E),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: const [
+            Icon(Icons.warning_amber_rounded, color: Colors.redAccent, size: 26),
+            SizedBox(width: 10),
+            Text("Delete Category", style: TextStyle(color: Colors.white, fontSize: 17)),
+          ],
+        ),
+        content: RichText(
+          text: TextSpan(
+            style: const TextStyle(color: Colors.grey, fontSize: 14, height: 1.55),
+            children: [
+              TextSpan(
+                text: '"${widget.category.ctgName}"',
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+              ),
+              const TextSpan(
+                text: ' has transactions linked to it.\n\n'
+                    '⚠️ ',
+              ),
+              const TextSpan(
+                text: 'Deleting will permanently remove ALL transactions',
+                style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold),
+              ),
+              const TextSpan(
+                text: ' in this category and all its subcategories.\n\n'
+                    'To keep your history, use ',
+              ),
+              const TextSpan(
+                text: '"Merge & Delete"',
+                style: TextStyle(color: Colors.blueAccent, fontWeight: FontWeight.bold),
+              ),
+              const TextSpan(text: ' to move transactions to another category first.'),
+            ],
+          ),
+        ),
+        actionsPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text("Cancel", style: TextStyle(color: Colors.grey)),
+          ),
+          OutlinedButton(
+            style: OutlinedButton.styleFrom(
+              side: const BorderSide(color: Colors.blueAccent),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            onPressed: () => Navigator.pop(ctx, 'merge'),
+            child: const Text("Merge & Delete", style: TextStyle(color: Colors.blueAccent)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            onPressed: () => Navigator.pop(ctx, 'delete'),
+            child: const Text("Delete All", style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (choice == null || !mounted) return;
+
+    // Bước 2a: User chọn Merge → mở sheet gộp (không xóa ngay)
+    if (choice == 'merge') {
+      _showMergeCategorySheet();
+      return;
+    }
+
+    // Bước 2b: User chọn Delete All → xác nhận lần 2
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF1C1C1E),
-        title: const Text("Xóa danh mục", style: TextStyle(color: Colors.white)),
-        content: Text(
-          'Bạn có chắc muốn xóa "${widget.category.ctgName}"?\n'
-          'Danh mục con và giao dịch liên quan sẽ bị xóa theo.',
-          style: const TextStyle(color: Colors.grey),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text("Confirm Delete All", style: TextStyle(color: Colors.white)),
+        content: const Text(
+          'This action CANNOT be undone.\nAll transactions will be permanently lost.',
+          style: TextStyle(color: Colors.grey, height: 1.5),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text("Hủy", style: TextStyle(color: Colors.grey)),
+            child: const Text("Cancel", style: TextStyle(color: Colors.grey)),
           ),
-          TextButton(
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text("Xóa", style: TextStyle(color: Colors.red)),
+            child: const Text("Delete Permanently", style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -287,7 +341,7 @@ class _CategoryEditScreenState extends State<CategoryEditScreen> {
 
     if (confirmed != true || !mounted) return;
 
-    // Bước 2: Gọi API xóa với actionType=DELETE_ALL rõ ràng
+    // Bước 3: Gọi API xóa với actionType=DELETE_ALL
     setState(() => _isDeleting = true);
 
     final provider = Provider.of<CategoryProvider>(context, listen: false);
@@ -301,11 +355,10 @@ class _CategoryEditScreenState extends State<CategoryEditScreen> {
 
     // Bước 3: Kết quả
     if (success) {
-      _showSnackBar(provider.successMessage ?? "Xóa thành công");
+      _showSnackBar(provider.successMessage ?? "Category deleted successfully");
       Navigator.pop(context, true);
     } else {
-      // Lỗi: 403 hệ thống, 404 không tìm thấy, ...
-      _showSnackBar(provider.errorMessage ?? "Không thể xóa", isError: true);
+      _showSnackBar(provider.errorMessage ?? "Failed to delete category", isError: true);
     }
   }
 
@@ -327,7 +380,7 @@ class _CategoryEditScreenState extends State<CategoryEditScreen> {
 
     // Bước 2: Kiểm tra danh sách rỗng
     if (provider.mergeTargets.isEmpty) {
-      _showSnackBar("Không có danh mục nào cùng loại để gộp", isError: true);
+      _showSnackBar("No categories of the same type available for merging", isError: true);
       return;
     }
 
@@ -362,10 +415,10 @@ class _CategoryEditScreenState extends State<CategoryEditScreen> {
     if (!mounted) return;
 
     if (success) {
-      _showSnackBar(provider.successMessage ?? "Gộp danh mục thành công");
-      Navigator.pop(context, true); // quay về list
+      _showSnackBar(provider.successMessage ?? "Category merged successfully");
+      Navigator.pop(context, true);
     } else {
-      _showSnackBar(provider.errorMessage ?? "Không thể gộp danh mục", isError: true);
+      _showSnackBar(provider.errorMessage ?? "Failed to merge category", isError: true);
     }
   }
 
@@ -390,7 +443,7 @@ class _CategoryEditScreenState extends State<CategoryEditScreen> {
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
-        title: const Text("Chỉnh sửa nhóm"),
+        title: const Text("Edit Category"),
         backgroundColor: Colors.black,
         centerTitle: true,
         actions: [
@@ -433,7 +486,7 @@ class _CategoryEditScreenState extends State<CategoryEditScreen> {
                     style: const TextStyle(color: Colors.white, fontSize: 16),
                     maxLength: 100, // khớp backend @Size(max = 100) trong CategoryRequest.java
                     decoration: const InputDecoration(
-                      hintText: "Tên nhóm",
+                      hintText: "Category name",
                       hintStyle: TextStyle(color: Colors.grey),
                       counterStyle: TextStyle(color: Colors.grey),
                       enabledBorder: UnderlineInputBorder(
@@ -450,68 +503,61 @@ class _CategoryEditScreenState extends State<CategoryEditScreen> {
 
             const SizedBox(height: 24),
 
-            // ===== [B] Row 2: Chọn loại =====
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              decoration: BoxDecoration(
-                color: const Color(0xFF1C1C1E),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.swap_horiz, color: Colors.grey),
-                  const SizedBox(width: 12),
-                  // Khoản chi
-                  Expanded(
-                    child: GestureDetector(
-                      onTap: () {
-                        setState(() {
-                          _ctgType = false;
-                          // [FIX-1] Xóa cha khi đổi loại
-                          _effectiveParentId = null;
-                          _parentDisplayName = null;
-                        });
-                      },
-                      child: Row(
-                        children: [
-                          Icon(
-                            !_ctgType ? Icons.radio_button_checked : Icons.radio_button_off,
-                            color: !_ctgType ? Colors.green : Colors.grey,
-                            size: 20,
-                          ),
-                          const SizedBox(width: 8),
-                          const Text("Khoản chi",
-                              style: TextStyle(color: Colors.white, fontSize: 14)),
-                        ],
+            // ===== [B] Row 2: Loại Thu/Chi — LOCKED, không thể thay đổi khi sửa =====
+            // [TYPE-LOCK] ctgType được khóa khi edit để tránh làm sai dữ liệu giao dịch.
+            // Muốn đổi loại → xóa và tạo lại category mới.
+            IgnorePointer( // chặn toàn bộ gesture trong container này
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF1C1C1E),
+                  borderRadius: BorderRadius.circular(16),
+                  // Viền mờ để nhận ra là disabled
+                  border: Border.all(color: Colors.grey.shade800, width: 1),
+                ),
+                child: Row(
+                  children: [
+                    // Icon khóa thay vì swap_horiz — báo hiệu field này bị locked
+                    const Icon(Icons.lock_outline, color: Colors.grey, size: 18),
+                    const SizedBox(width: 12),
+                    // Expense radio — hiển thị trạng thái nhưng không click được
+                    Expanded(
+                      child: Opacity(
+                        opacity: 0.5,
+                        child: Row(
+                          children: [
+                            Icon(
+                              !_ctgType ? Icons.radio_button_checked : Icons.radio_button_off,
+                              color: !_ctgType ? Colors.green : Colors.grey,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 8),
+                            const Text("Expense",
+                                style: TextStyle(color: Colors.white, fontSize: 14)),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-                  // Khoản thu
-                  Expanded(
-                    child: GestureDetector(
-                      onTap: () {
-                        setState(() {
-                          _ctgType = true;
-                          // [FIX-1] Xóa cha khi đổi loại
-                          _effectiveParentId = null;
-                          _parentDisplayName = null;
-                        });
-                      },
-                      child: Row(
-                        children: [
-                          Icon(
-                            _ctgType ? Icons.radio_button_checked : Icons.radio_button_off,
-                            color: _ctgType ? Colors.green : Colors.grey,
-                            size: 20,
-                          ),
-                          const SizedBox(width: 8),
-                          const Text("Khoản thu",
-                              style: TextStyle(color: Colors.white, fontSize: 14)),
-                        ],
+                    // Income radio — hiển thị trạng thái nhưng không click được
+                    Expanded(
+                      child: Opacity(
+                        opacity: 0.5,
+                        child: Row(
+                          children: [
+                            Icon(
+                              _ctgType ? Icons.radio_button_checked : Icons.radio_button_off,
+                              color: _ctgType ? Colors.green : Colors.grey,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 8),
+                            const Text("Income",
+                                style: TextStyle(color: Colors.white, fontSize: 14)),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
 
@@ -532,8 +578,8 @@ class _CategoryEditScreenState extends State<CategoryEditScreen> {
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
-                        // [FIX-2] Hiển thị tên cha thực sự
-                        _parentDisplayName ?? "Chọn nhóm cha",
+                        // [FIX-2] Hiển thị tên cha thực sự, fallback về placeholder nếu chưa chọn
+                        _parentDisplayName ?? "Select parent category",
                         style: TextStyle(
                           color: _parentDisplayName != null ? Colors.white : Colors.grey,
                           fontSize: 15,
@@ -548,7 +594,7 @@ class _CategoryEditScreenState extends State<CategoryEditScreen> {
 
             const SizedBox(height: 12),
 
-            // ===== [C.1] Nút GỘP NHÓM =====
+            // ===== [C.1] Nút MERGE CATEGORY =====
             SizedBox(
               width: double.infinity,
               height: 50,
@@ -561,7 +607,7 @@ class _CategoryEditScreenState extends State<CategoryEditScreen> {
                   ),
                 ),
                 child: const Text(
-                  "GỘP NHÓM",
+                  "MERGE CATEGORY",
                   style: TextStyle(color: Colors.blue, fontSize: 16),
                 ),
               ),
@@ -586,17 +632,12 @@ class _CategoryEditScreenState extends State<CategoryEditScreen> {
                         width: 24, height: 24,
                         child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
                       )
-                    : const Text("Lưu",
+                    : const Text("Save",
                         style: TextStyle(fontSize: 16, color: Colors.white)),
               ),
             ),
 
-            const SizedBox(height: 12),
-
-            // ===== [E] Button "Xóa" =====
-            // (Đã được chuyển sang icon thùng rác ở AppBar bên phải)
-
-            const SizedBox(height: 16),
+            const SizedBox(height: 28),
           ],
         ),
       ),
@@ -673,7 +714,7 @@ class _MergeTargetSheet extends StatelessWidget {
               children: [
                 Expanded(
                   child: Text(
-                    "Gộp giao dịch từ \"$categoryName\" vào:",
+                    'Move transactions from "$categoryName" to:',
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 16,
@@ -714,7 +755,7 @@ class _MergeTargetSheet extends StatelessWidget {
                   ),
                   // Hiển thị loại (Thu/Chi) nhỏ bên dưới
                   subtitle: Text(
-                    target.ctgType == true ? "Khoản thu" : "Khoản chi",
+                    target.ctgType == true ? "Income" : "Expense",
                     style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
                   ),
                   onTap: () => Navigator.pop(context, target), // trả về danh mục đã chọn
@@ -727,4 +768,7 @@ class _MergeTargetSheet extends StatelessWidget {
     );
   }
 }
+
+
+
 

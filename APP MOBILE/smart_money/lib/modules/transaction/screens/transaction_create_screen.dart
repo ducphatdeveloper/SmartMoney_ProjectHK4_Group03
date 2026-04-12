@@ -980,6 +980,10 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
   // ----- Widget: Row chọn ví -----
   Widget _buildWalletRow() {
     return GestureDetector(
+      // [FIX-LAG] opaque: toàn bộ vùng row (kể cả padding transparent) nhận hit
+      // Không có behavior này, vùng padding trong suốt sẽ xuyên qua xuống body GestureDetector
+      // gây ra setState rebuild → bottomSheet không kịp mở → phải click 2-3 lần
+      behavior: HitTestBehavior.opaque,
       onTap: _isLoadingSources ? null : _showSourceBottomSheet,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
