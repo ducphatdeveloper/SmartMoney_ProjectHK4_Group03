@@ -58,4 +58,8 @@ public interface AccountRepository extends JpaRepository<Account, Integer>, JpaS
            "OR (:online = false AND (d.refreshToken IS NULL OR d.lastActive < :activeLimit)))")
     Page<Account> findUsersWithFilters(@Param("search") String search, @Param("locked") Boolean locked, 
                                        @Param("online") Boolean online, @Param("activeLimit") LocalDateTime activeLimit, Pageable pageable);
+
+    /// [SCHEDULER] Lấy tất cả tài khoản active (chưa bị khóa) — dùng cho ReminderScheduler
+    @Query("SELECT a FROM Account a WHERE a.locked = false")
+    List<Account> findAllActiveAccounts();
 }

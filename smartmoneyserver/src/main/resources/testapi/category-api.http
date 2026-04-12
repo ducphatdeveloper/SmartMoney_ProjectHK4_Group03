@@ -202,15 +202,16 @@ Authorization: Bearer {{auth_token}}
 ================================================================================
 
 ### 21. Tạo ví test để tạo giao dịch
-POST http://localhost:9999/api/wallets
+POST http://localhost:9999/api/user/wallets
 Authorization: Bearer {{auth_token}}
 Content-Type: application/json
 
 {
   "walletName": "Test Wallet Delete Category",
-  "walletType": "CASH",
-  "balance": 1000.00,
-  "currency": "VND"
+  "currencyCode": "VND",
+  "balance": 1000000,
+  "notified": false,
+  "reportable": true
 }
 
 > {%
@@ -350,7 +351,7 @@ Content-Type: application/json
 %}
 
 ### 29. Ghi lại wallet balance trước khi DELETE_ALL (Để verify hoàn tiền)
-GET http://localhost:9999/api/wallets/{{test_wallet_id}}
+GET http://localhost:9999/api/user/wallets/{{test_wallet_id}}
 Authorization: Bearer {{auth_token}}
 
 > {%
@@ -377,7 +378,7 @@ Authorization: Bearer {{auth_token}}
 %}
 
 ### 31. Verify wallet balance sau khi DELETE_ALL (Phải hoàn tiền)
-GET http://localhost:9999/api/wallets/{{test_wallet_id}}
+GET http://localhost:9999/api/user/wallets/{{test_wallet_id}}
 Authorization: Bearer {{auth_token}}
 
 > {%

@@ -1,4 +1,10 @@
-### 1. Đăng ký tài khoản mới
+### =================================================================
+### SMARTMONEY - AUTH API TEST
+### Endpoints: /api/auth/register | login | logout | forgot-password | reset-password
+### =================================================================
+
+### [1] Đăng ký tài khoản mới
+# Kỳ vọng: 201 Created — trả về UserInfoDTO + gửi email chào mừng
 POST http://localhost:9999/api/auth/register
 Content-Type: application/json
 
@@ -8,14 +14,15 @@ Content-Type: application/json
   "password": "Test@123"
 }
 
-### 2. Đăng nhập (Login)
+### [2] Đăng nhập (Login)
+# Kỳ vọng: 200 OK — accessToken, userId, role, ...
 POST http://localhost:9999/api/auth/login
 Content-Type: application/json
 
 {
-  "username": "0923456789",
+  "username": "minh.pham@gmail.com",
   "password": "Test@123",
-  "deviceToken": "device_token_new_user",
+  "deviceToken": "device_token_test_auth",
   "deviceType": "Android",
   "deviceName": "Samsung S24 Ultra"
 }
@@ -25,11 +32,41 @@ Content-Type: application/json
     client.log("Token: " + response.body.data.accessToken);
 %}
 
-### 3. Đăng xuất (Logout)
-POST http://localhost:9999/api/auth/logout
+### [3] Đăng xuất (Logout)
+# ⚠️ deviceToken phải truyền dưới dạng query param, KHÔNG phải request body
+# Kỳ vọng: 200 OK — "Đăng xuất thành công"
+POST http://localhost:9999/api/auth/logout?deviceToken=device_token_test_auth
 Authorization: Bearer {{auth_token}}
+
+### [4] Quên mật khẩu — Yêu cầu gửi OTP về email
+# Kỳ vọng: 200 OK — "Mã xác thực đã được gửi đến email của bạn"
+# Backend sinh OTP 6 chữ số, lưu DB có TTL, gửi email
+POST http://localhost:9999/api/auth/forgot-password
 Content-Type: application/json
 
 {
-  "deviceToken": "device_token_new_user"
+  "email": "minh.pham@gmail.com"
+}
+
+### [5] Đặt lại mật khẩu bằng OTP
+# Kỳ vọng: 200 OK — "Đặt lại mật khẩu thành công"
+# OTP lấy từ email sau khi gọi [4]
+POST http://localhost:9999/api/auth/reset-password
+Content-Type: application/json
+
+{
+  "email": "minh.pham@gmail.com",
+  "otp": "123456",
+  "newPassword": "NewPass@456"
+}
+
+### [6] Lỗi: Đặt lại mật khẩu với OTP sai
+# Kỳ vọng: 400 Bad Request — thông báo OTP không hợp lệ hoặc đã hết hạn
+POST http://localhost:9999/api/auth/reset-password
+Content-Type: application/json
+
+{
+  "email": "minh.pham@gmail.com",
+  "otp": "000000",
+  "newPassword": "NewPass@456"
 }

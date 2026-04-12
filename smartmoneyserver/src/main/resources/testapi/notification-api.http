@@ -79,3 +79,30 @@ Authorization: Bearer {{admin_token}}
 ### [8] ADMIN — Đánh dấu tất cả đã đọc
 PUT http://localhost:9999/api/notifications/read-all
 Authorization: Bearer {{admin_token}}
+
+### ══════════════════════════════════════════════════════════════════
+###  🗑️ XÓA THÔNG BÁO
+### ══════════════════════════════════════════════════════════════════
+
+### [9] USER — Xóa một thông báo (thay 1 bằng ID thực)
+# Kỳ vọng: 200 OK — "Đã xóa thông báo thành công."
+# Chỉ xóa được thông báo của chính mình
+DELETE http://localhost:9999/api/notifications/1
+Authorization: Bearer {{user_token}}
+
+### [10] ADMIN — Xóa một thông báo SYSTEM của Admin (thay 35 bằng ID thực)
+# Kỳ vọng: 200 OK — "Đã xóa thông báo thành công."
+DELETE http://localhost:9999/api/notifications/35
+Authorization: Bearer {{admin_token}}
+
+### ══════════════════════════════════════════════════════════════════
+###  📱 MOBILE — Xác nhận nhận thông báo FCM (delivered)
+###  Gọi khi: điện thoại nhận được push notification từ Firebase (Background/Foreground)
+### ══════════════════════════════════════════════════════════════════
+
+### [11] MOBILE — Đánh dấu thông báo đã được giao đến thiết bị (thay 1 bằng ID thực)
+# Kỳ vọng: 200 OK — "Đã xác nhận nhận thông báo."
+# Backend update notifyDelivered=true để theo dõi tỷ lệ giao nhận
+PATCH http://localhost:9999/api/notifications/1/delivered
+Authorization: Bearer {{user_token}}
+

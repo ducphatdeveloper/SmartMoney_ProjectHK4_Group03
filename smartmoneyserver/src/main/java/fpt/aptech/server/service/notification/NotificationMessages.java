@@ -255,6 +255,55 @@ public final class NotificationMessages {
         return new NotificationContent(title, content);
     }
 
+    /**
+     * Gợi ý phân bổ chi tiêu theo ngày (tính toán Java thuần — KHÔNG phải AI).
+     * Công thức: dailyAllowance = remaining / daysLeft
+     * Dùng khi: BudgetScheduler.checkAndNotify() → percent >= 60 VÀ còn > 5 ngày.
+     */
+    public static NotificationContent budgetDailyAllowance(String label,
+                                                           BigDecimal remaining,
+                                                           long daysLeft,
+                                                           BigDecimal dailyAllowance) {
+        String title = "💡 Gợi ý chi tiêu hôm nay";
+        String content = String.format(
+                "Ngân sách %s còn %s cho %d ngày tới. Mỗi ngày bạn chỉ nên chi tối đa %s để đảm bảo đủ tháng.",
+                label, CurrencyUtils.formatVND(remaining),
+                daysLeft, CurrencyUtils.formatVND(dailyAllowance));
+        return new NotificationContent(title, content);
+    }
+
+    /**
+     * Dự báo ngày vượt ngân sách dựa trên tốc độ chi tiêu hiện tại (tính toán Java thuần — KHÔNG phải AI).
+     * Công thức: daysUntilOverrun = remainingBudget / dailyBurnRate
+     * Dùng khi: BudgetScheduler.checkAndNotify() → percent >= 50 VÀ forecastDate trước endDate.
+     */
+    public static NotificationContent budgetOverrunForecast(String label,
+                                                            LocalDate forecastDate,
+                                                            long daysUntilOverrun) {
+        String title = "🔮 Dự báo vượt ngân sách";
+        String content = String.format(
+                "Với tốc độ chi tiêu hiện tại, ngân sách %s của bạn sẽ cạn vào khoảng %s (còn %d ngày). " +
+                "Hãy điều chỉnh chi tiêu ngay hôm nay!",
+                label, forecastDate.format(VN_DATE), daysUntilOverrun);
+        return new NotificationContent(title, content);
+    }
+
+    /**
+     * So sánh chi tiêu với tháng trước (tính toán Java thuần — KHÔNG phải AI).
+     * Công thức: increasePercent = (spent - lastMonthSpent) / lastMonthSpent * 100
+     * Dùng khi: BudgetScheduler.checkAndNotify() → chi tăng >= 30% so với cùng kỳ tháng trước.
+     */
+    public static NotificationContent budgetComparedToLastMonth(String label,
+                                                                int increasePercent,
+                                                                BigDecimal lastMonthAmount) {
+        String title = "📈 Chi tiêu tăng so với tháng trước";
+        String content = String.format(
+                "Bạn đang chi %s nhiều hơn %d%% so với cùng kỳ tháng trước (%s). " +
+                "Hãy kiểm tra lại thói quen chi tiêu!",
+                label, increasePercent, CurrencyUtils.formatVND(lastMonthAmount));
+        return new NotificationContent(title, content);
+    }
+
     // ════════════════════════════════════════════════════════════════════════
     // TYPE 4 — SYSTEM
     // ════════════════════════════════════════════════════════════════════════
@@ -438,8 +487,8 @@ public final class NotificationMessages {
     // ════════════════════════════════════════════════════════════════════════
 
     /**
-     * Nhắc sự kiện sắp tới.
-     * Dùng khi: EventScheduler (chưa có) quét events sắp đến.
+     * Nhắc sự kiện sắp tới (còn X ngày).
+     * Dùng khi: EventScheduler quét events có endDate = today + 7 ngày.
      */
     public static NotificationContent eventReminder(String eventName,
                                                     int daysLeft,
@@ -456,7 +505,7 @@ public final class NotificationMessages {
     }
 
     /**
-     * Sự kiện đã hoàn thành.
+     * Sự kiện đã hoàn thành (user bấm thủ công).
      * Dùng khi: EventService.updateEventStatus() → finished=true.
      */
     public static NotificationContent eventCompleted(String eventName,
@@ -468,13 +517,27 @@ public final class NotificationMessages {
         return new NotificationContent(title, content);
     }
 
+    /**
+     * Sự kiện đã quá hạn và được hệ thống tự động hoàn tất.
+     * Dùng khi: EventScheduler quét events có endDate < today AND finished=false → auto-complete.
+     */
+    public static NotificationContent eventAutoCompleted(String eventName,
+                                                         LocalDate endDate,
+                                                         BigDecimal totalSpent) {
+        String title = "Sự kiện đã kết thúc tự động ✅";
+        String content = String.format(
+                "Sự kiện \"%s\" đã hết hạn vào %s và được tự động kết thúc. Tổng chi tiêu: %s.",
+                eventName, endDate.format(VN_DATE), CurrencyUtils.formatVND(totalSpent));
+        return new NotificationContent(title, content);
+    }
+
     // ════════════════════════════════════════════════════════════════════════
     // TYPE 8 — DEBT_LOAN
     // ════════════════════════════════════════════════════════════════════════
 
     /**
-     * Nhắc khoản phải trả (Đi vay).
-     * Dùng khi: DebtScheduler (chưa có) quét debts sắp đến hạn.
+     * Nhắc khoản phải trả (Đi vay) — sắp đến hạn (3 ngày hoặc đúng ngày).
+     * Dùng khi: DebtScheduler quét debts sắp đến hạn.
      */
     public static NotificationContent debtPayableReminder(String personName,
                                                           BigDecimal remainAmount,
@@ -487,7 +550,7 @@ public final class NotificationMessages {
     }
 
     /**
-     * Nhắc khoản phải thu (Cho vay).
+     * Nhắc khoản phải thu (Cho vay) — sắp đến hạn (3 ngày hoặc đúng ngày).
      * Dùng khi: DebtScheduler quét receivable debts sắp đến hạn.
      */
     public static NotificationContent debtReceivableReminder(String personName,
@@ -497,6 +560,45 @@ public final class NotificationMessages {
         String content = String.format(
                 "Khoản cho %s vay %s đến hạn thu vào %s. Hãy liên hệ!",
                 personName, CurrencyUtils.formatVND(remainAmount), dueDate.format(VN_DATE));
+        return new NotificationContent(title, content);
+    }
+
+    /**
+     * Nhắc sớm khoản nợ trước 10 ngày — nhắc lần đầu xa hạn.
+     * Dùng khi: DebtScheduler quét debts có due_date = today + 10 ngày.
+     * Phân loại: isPayable=true → Đi vay (cần trả), isPayable=false → Cho vay (cần thu).
+     */
+    public static NotificationContent debtEarlyReminder(String personName,
+                                                        BigDecimal remainAmount,
+                                                        LocalDate dueDate,
+                                                        int daysLeft,
+                                                        boolean isPayable) {
+        String title = isPayable ? "Nhắc nợ sắp đến hạn 📋" : "Nhắc thu nợ sắp đến hạn 📋";
+        String action = isPayable
+                ? String.format("Bạn còn nợ %s số tiền %s", personName, CurrencyUtils.formatVND(remainAmount))
+                : String.format("Khoản cho %s vay %s", personName, CurrencyUtils.formatVND(remainAmount));
+        String content = String.format(
+                "%s. Còn %d ngày nữa đến hạn (%s). Hãy chuẩn bị!",
+                action, daysLeft, dueDate.format(VN_DATE));
+        return new NotificationContent(title, content);
+    }
+
+    /**
+     * Nhắc khoản nợ đã quá hạn (chưa thanh toán xong).
+     * Dùng khi: DebtScheduler quét debts có due_date < today AND finished=false.
+     * Phân loại: isPayable=true → Đi vay (cần trả), isPayable=false → Cho vay (cần thu).
+     */
+    public static NotificationContent debtOverdue(String personName,
+                                                  BigDecimal remainAmount,
+                                                  LocalDate dueDate,
+                                                  boolean isPayable) {
+        String title = isPayable ? "Khoản nợ quá hạn ⚠️" : "Khoản thu quá hạn ⚠️";
+        String action = isPayable
+                ? String.format("Bạn còn nợ %s số tiền %s", personName, CurrencyUtils.formatVND(remainAmount))
+                : String.format("Khoản cho %s vay %s", personName, CurrencyUtils.formatVND(remainAmount));
+        String content = String.format(
+                "%s đã quá hạn từ %s. Hãy xử lý ngay!",
+                action, dueDate.format(VN_DATE));
         return new NotificationContent(title, content);
     }
 
@@ -522,13 +624,32 @@ public final class NotificationMessages {
 
     /**
      * Hóa đơn (Bill) đến hạn thanh toán.
-     * Dùng khi: PlannedTransactionScheduler.processBill().
+     * Dùng khi: PlannedTransactionScheduler.processBill() — khi nextDueDate == today.
+     * Scheduler CHỈ nhắc, KHÔNG tạo transaction và KHÔNG advance nextDueDate.
      */
     public static NotificationContent billDue(String billName, BigDecimal amount) {
         String title = "Hóa đơn đến hạn! 📋";
         String content = String.format(
                 "Hóa đơn \"%s\" trị giá %s đã đến hạn thanh toán. Nhấn để thanh toán ngay!",
                 billName, CurrencyUtils.formatVND(amount));
+        return new NotificationContent(title, content);
+    }
+
+    /**
+     * Hóa đơn (Bill) đã quá hạn thanh toán (chưa trả, nextDueDate đã qua).
+     * Dùng khi: PlannedTransactionScheduler.processBill() — khi nextDueDate < today.
+     * Scheduler gửi nhắc nhở MỖI NGÀY cho đến khi user bấm "Trả tiền" (payBill).
+     * Scheduler vẫn CHỈ nhắc, KHÔNG tạo transaction và KHÔNG advance nextDueDate.
+     *
+     * Ví dụ output:
+     *   Title  : "Hóa đơn quá hạn! ⏰"
+     *   Content: "Hóa đơn \"Tiền điện\" trị giá 800.000 ₫ đã quá hạn 3 ngày. Hãy thanh toán ngay!"
+     */
+    public static NotificationContent billOverdue(String billName, BigDecimal amount, long daysOverdue) {
+        String title = "Hóa đơn quá hạn! ⏰";
+        String content = String.format(
+                "Hóa đơn \"%s\" trị giá %s đã quá hạn %d ngày. Hãy thanh toán ngay!",
+                billName, CurrencyUtils.formatVND(amount), daysOverdue);
         return new NotificationContent(title, content);
     }
 
@@ -555,6 +676,28 @@ public final class NotificationMessages {
                 CurrencyUtils.formatVND(totalSpent),
                 topCategoryName,
                 CurrencyUtils.formatVND(topCategoryAmount));
+        return new NotificationContent(title, content);
+    }
+
+    /**
+     * Giao dịch định kỳ bị bỏ qua do số dư ví không đủ.
+     * Dùng khi: PlannedTransactionScheduler.processRecurring() — ví không đủ tiền tự động chi.
+     * Scheduler sẽ tiến lịch sang kỳ sau (không retry kỳ này).
+     *
+     * Thông báo tạo ra: Title="Giao dịch định kỳ bị bỏ qua ⚠️"
+     * Content="Giao dịch định kỳ \"Tiền nhà\" không thể thực hiện: Ví \"MoMo\" chỉ còn 50.000 ₫,
+     *          cần 5.000.000 ₫. Kỳ này đã bị bỏ qua — vui lòng nạp thêm tiền vào ví."
+     */
+    public static NotificationContent recurringInsufficientBalance(String label,
+                                                                    BigDecimal amount,
+                                                                    String walletName,
+                                                                    BigDecimal walletBalance) {
+        String title = "Giao dịch định kỳ bị bỏ qua ⚠️";
+        // Chỉ báo số dư hiện tại (theo yêu cầu: không hiển thị số tiền cần thêm)
+        String content = String.format(
+                "Giao dịch định kỳ \"%s\" không thể thực hiện: Ví \"%s\" chỉ còn %s (không đủ để thực hiện giao dịch). " +
+                "Kỳ này đã bị bỏ qua — vui lòng nạp thêm tiền vào ví.",
+                label, walletName, CurrencyUtils.formatVND(walletBalance));
         return new NotificationContent(title, content);
     }
 
