@@ -58,9 +58,11 @@ class _EditBudgetDetailScreenState extends State<EditBudgetDetailScreen> {
     final raw = value.replaceAll(RegExp(r'[.,]'), '');
     int number = int.tryParse(raw) ?? 0;
 
-    // Giới hạn 500 triệu
-    if (number > 500000000) {
-      number = 500000000;
+    // Giới hạn 1000 tỷ
+    const MAX_AMOUNT = 1000000000000; // 1000 tỷ
+
+    if (number > MAX_AMOUNT) {
+      number = MAX_AMOUNT;
 
       if (!_hasShownLimitWarning) {
         _hasShownLimitWarning = true;
@@ -68,7 +70,7 @@ class _EditBudgetDetailScreenState extends State<EditBudgetDetailScreen> {
           ..removeCurrentSnackBar()
           ..showSnackBar(
             const SnackBar(
-              content: Text("Số tiền không được vượt quá 500 triệu"),
+              content: Text("Số tiền không được vượt quá 1000 tỷ"),
               duration: Duration(seconds: 2),
             ),
           );
