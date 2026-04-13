@@ -13,6 +13,9 @@ import fpt.aptech.server.mapper.planned.PlannedTransactionMapper;
 import fpt.aptech.server.mapper.transaction.TransactionMapper;
 import fpt.aptech.server.repos.*;
 import fpt.aptech.server.service.debt.DebtCalculationService;
+import fpt.aptech.server.enums.notification.NotificationType;
+import fpt.aptech.server.service.notification.NotificationContent;
+import fpt.aptech.server.service.notification.NotificationMessages;
 import fpt.aptech.server.service.notification.NotificationService;
 import fpt.aptech.server.utils.date.DateUtils;
 import fpt.aptech.server.utils.plannedtransaction.RepeatDayBitmask;
@@ -117,7 +120,9 @@ public class PlannedTransactionServiceImpl implements PlannedTransactionService 
 
     /**
      * [1.6] Toggle active của Recurring.
-     * Không cho kích hoạt lại nếu Debt liên kết đã finished.
+     * Không cho kích hoạt lại nếu:
+     *   - Debt liên kết đã finished (đã trả xong)
+     *   - endDate đã qua (hết hạn)
      */
     @Override
     @Transactional
@@ -129,7 +134,16 @@ public class PlannedTransactionServiceImpl implements PlannedTransactionService 
                 && planned.getDebt() != null
                 && Boolean.TRUE.equals(planned.getDebt().getFinished())) {
             throw new IllegalArgumentException(
-                    "Khoản nợ đã thanh toán xong, không thể kích hoạt lại");
+                    "Khoản nợ đã thanh toán xong, không thể kích hoạt lại giao dịch định kỳ này.");
+        }
+
+        // Không cho reactivate nếu giao dịch định kỳ đã hết hạn (endDate đã qua)
+        if (!planned.getActive()
+                && planned.getEndDate() != null
+                && planned.getEndDate().isBefore(LocalDate.now())) {
+            throw new IllegalArgumentException(String.format(
+                    "Giao dịch định kỳ đã hết hạn từ ngày %s. Vui lòng tạo mới nếu muốn tiếp tục.",
+                    DateUtils.formatDisplayDate(planned.getEndDate())));
         }
 
         planned.setActive(!planned.getActive());
@@ -241,6 +255,18 @@ public class PlannedTransactionServiceImpl implements PlannedTransactionService 
             throw new IllegalArgumentException("Hóa đơn đã được thanh toán cho kỳ này.");
         }
 
+        // 3.4. [FIX-DEBT-PRECHECK] Kiểm tra khoản nợ liên kết đã hoàn thành TRƯỚC KHI tạo GD
+        // Reload debt từ DB để đảm bảo lấy trạng thái mới nhất (tránh Hibernate cache)
+        // [IMPORTANT] KHÔNG thêm plannedRepo.save() ở đây: throw sẽ rollback mọi thứ trong @Transactional
+        // Việc deactivate bill được thực hiện bởi: recalculateDebt() → deactivateAllByDebtId()
+        if (planned.getDebt() != null) {
+            Debt linkedDebt = debtRepo.findById(planned.getDebt().getId()).orElse(null);
+            if (linkedDebt != null && Boolean.TRUE.equals(linkedDebt.getFinished())) {
+                throw new IllegalArgumentException(
+                    "Khoản nợ liên kết đã được thanh toán xong. Hóa đơn không còn hiệu lực.");
+            }
+        }
+
         // --- Bước 4: Tạo Transaction ---
         // Nếu tất cả validate đều qua, tiến hành tạo giao dịch
         createTransactionFromPlanned(planned);
@@ -258,11 +284,37 @@ public class PlannedTransactionServiceImpl implements PlannedTransactionService 
         }
 
         // --- Bước 6: Cập nhật lịch trình cho kỳ tiếp theo ---
+        // [FIX-CATCHUP] Giống Scheduler: vòng lặp tiến nextDueDate đến tương lai
+        // BUG CŨ: chỉ tiến 1 kỳ → nếu trả trễ, nextDueDate mới vẫn < today
+        //   VD: nextDueDate=01/03, trả ngày 14/04 → nextDue=01/04 < 14/04 → vẫn "quá hạn" ngay!
+        // FIX: vòng lặp catch-up cho đến khi nextDueDate > today
         LocalDate nextDue = calculateNextDueDate(planned, planned.getNextDueDate());
+        int safety = 0;
+        while (!nextDue.isAfter(today) && safety++ < 1000) {
+            nextDue = calculateNextDueDate(planned, nextDue);
+        }
         planned.setLastExecutedAt(today);
         planned.setNextDueDate(nextDue);
 
-        // --- Bước 7: Lưu và trả về DTO mới nhất ---
+        // [FIX-ENDDATE] Nếu nextDue vượt endDate → deactivate bill (giống Scheduler Bước 10)
+        if (planned.getEndDate() != null && nextDue.isAfter(planned.getEndDate())) {
+            planned.setActive(false);
+        }
+
+        // --- Bước 7: Gửi thông báo xác nhận thanh toán thành công ---
+        String label = planned.getNote() != null ? planned.getNote() : planned.getCategory().getCtgName();
+        // Truyền nextDueDate = null nếu bill đã bị deactivate (debt xong hoặc hết hạn)
+        LocalDate nextDueForMsg = Boolean.TRUE.equals(planned.getActive()) ? nextDue : null;
+        NotificationContent billPaidMsg = NotificationMessages.billPaid(label, planned.getAmount(), nextDueForMsg);
+        notificationService.createNotification(
+                planned.getAccount(),
+                billPaidMsg.title(), billPaidMsg.content(),
+                NotificationType.REMINDER,
+                Long.valueOf(planned.getId()),
+                null
+        );
+
+        // --- Bước 8: Lưu và trả về DTO mới nhất ---
         // Mapper sẽ tự động tính lại displayStatus và các label khác
         return mapper.toDto(plannedRepo.save(planned));
     }
@@ -270,7 +322,9 @@ public class PlannedTransactionServiceImpl implements PlannedTransactionService 
 
     /**
      * [2.7] Toggle active của Bill (đánh dấu hoàn tất / chưa hoàn tất).
-     * Không cho reactivate nếu khoản nợ liên kết đã finished.
+     * Không cho reactivate nếu:
+     *   - Khoản nợ liên kết đã finished (đã trả xong)
+     *   - endDate đã qua (hết hạn)
      */
     @Override
     @Transactional
@@ -282,7 +336,16 @@ public class PlannedTransactionServiceImpl implements PlannedTransactionService 
                 && planned.getDebt() != null
                 && Boolean.TRUE.equals(planned.getDebt().getFinished())) {
             throw new IllegalArgumentException(
-                    "Khoản nợ đã thanh toán xong, không thể kích hoạt lại");
+                    "Khoản nợ đã thanh toán xong, không thể kích hoạt lại hóa đơn này.");
+        }
+
+        // Không cho reactivate nếu hóa đơn đã hết hạn (endDate đã qua)
+        if (!planned.getActive()
+                && planned.getEndDate() != null
+                && planned.getEndDate().isBefore(LocalDate.now())) {
+            throw new IllegalArgumentException(String.format(
+                    "Hóa đơn đã hết hạn từ ngày %s. Vui lòng tạo mới nếu muốn tiếp tục.",
+                    DateUtils.formatDisplayDate(planned.getEndDate())));
         }
 
         planned.setActive(!planned.getActive());
@@ -397,13 +460,45 @@ public class PlannedTransactionServiceImpl implements PlannedTransactionService 
             throw new SecurityException("Không có quyền sử dụng danh mục này");
         }
 
-        // Bước 1.4: Validate Debt (chỉ khi category là nợ/vay)
+        // Bước 1.4: Validate category Nợ/Vay cho PlannedTransaction
+        // [FIX-BLOCK-DEBT-ORIGIN] Chặn tạo planned với Cho vay (19) / Đi vay (20)
+        // Lý do: 2 category này dùng để KHỞI TẠO khoản nợ trong module Debt (tạo tDebts mới),
+        // PlannedTransaction chỉ dùng Thu nợ (21) / Trả nợ (22) để trả/thu nợ đã có
+        if (req.categoryId() == SystemCategory.DEBT_LENDING.getId()
+                || req.categoryId() == SystemCategory.DEBT_BORROWING.getId()) {
+            throw new IllegalArgumentException(
+                    "Không thể tạo giao dịch định kỳ/hóa đơn với danh mục Cho vay hoặc Đi vay. " +
+                    "Vui lòng sử dụng danh mục Thu nợ hoặc Trả nợ.");
+        }
+
+        // Bước 1.5: Validate Debt cho Thu nợ (21) / Trả nợ (22)
+        // Bắt buộc chọn debt_id + debt_type phải phù hợp với category
         Debt debt = null;
-        if (DEBT_CATEGORY_IDS.contains(req.categoryId()) && req.debtId() != null) {
+        if (req.categoryId() == SystemCategory.DEBT_COLLECTION.getId()
+                || req.categoryId() == SystemCategory.DEBT_REPAYMENT.getId()) {
+            // 1.5a: Bắt buộc chọn khoản nợ liên kết
+            if (req.debtId() == null) {
+                throw new IllegalArgumentException(
+                        "Vui lòng chọn khoản nợ liên kết cho danh mục Thu nợ / Trả nợ.");
+            }
             debt = debtRepo.findById(req.debtId())
                     .orElseThrow(() -> new IllegalArgumentException("Khoản nợ không tồn tại"));
             if (!debt.getAccount().getId().equals(userId)) {
                 throw new SecurityException("Không có quyền sử dụng khoản nợ này");
+            }
+            // 1.5b: Validate debt_type phù hợp:
+            //   Thu nợ (21) → debt phải là "Cần Thu" (debtType=true/1, tức Cho vay)
+            //   Trả nợ (22) → debt phải là "Cần Trả" (debtType=false/0, tức Đi vay)
+            boolean requireDebtType = req.categoryId() == SystemCategory.DEBT_COLLECTION.getId();
+            if (!debt.getDebtType().equals(requireDebtType)) {
+                throw new IllegalArgumentException(requireDebtType
+                        ? "Danh mục Thu nợ chỉ được liên kết với khoản nợ loại 'Cần Thu' (Cho vay)."
+                        : "Danh mục Trả nợ chỉ được liên kết với khoản nợ loại 'Cần Trả' (Đi vay).");
+            }
+            // 1.5c: Chặn liên kết debt đã trả xong
+            if (Boolean.TRUE.equals(debt.getFinished())) {
+                throw new IllegalArgumentException(
+                        "Khoản nợ đã thanh toán xong, không thể tạo giao dịch định kỳ/hóa đơn liên kết.");
             }
         }
 
@@ -479,12 +574,37 @@ public class PlannedTransactionServiceImpl implements PlannedTransactionService 
         if (category.getAccount() != null && !category.getAccount().getId().equals(userId))
             throw new SecurityException("Không có quyền sử dụng danh mục này");
 
+        // [FIX-BLOCK-DEBT-ORIGIN] Chặn đổi sang category Cho vay (19) / Đi vay (20) khi update
+        if (req.categoryId() == SystemCategory.DEBT_LENDING.getId()
+                || req.categoryId() == SystemCategory.DEBT_BORROWING.getId()) {
+            throw new IllegalArgumentException(
+                    "Không thể sử dụng danh mục Cho vay hoặc Đi vay cho giao dịch định kỳ/hóa đơn. " +
+                    "Vui lòng sử dụng danh mục Thu nợ hoặc Trả nợ.");
+        }
+
+        // Validate Debt cho Thu nợ (21) / Trả nợ (22)
         Debt debt = null;
-        if (DEBT_CATEGORY_IDS.contains(req.categoryId()) && req.debtId() != null) {
+        if (req.categoryId() == SystemCategory.DEBT_COLLECTION.getId()
+                || req.categoryId() == SystemCategory.DEBT_REPAYMENT.getId()) {
+            if (req.debtId() == null) {
+                throw new IllegalArgumentException(
+                        "Vui lòng chọn khoản nợ liên kết cho danh mục Thu nợ / Trả nợ.");
+            }
             debt = debtRepo.findById(req.debtId())
                     .orElseThrow(() -> new IllegalArgumentException("Khoản nợ không tồn tại"));
             if (!debt.getAccount().getId().equals(userId))
                 throw new SecurityException("Không có quyền sử dụng khoản nợ này");
+            // Validate debt_type phù hợp với category
+            boolean requireDebtType = req.categoryId() == SystemCategory.DEBT_COLLECTION.getId();
+            if (!debt.getDebtType().equals(requireDebtType)) {
+                throw new IllegalArgumentException(requireDebtType
+                        ? "Danh mục Thu nợ chỉ được liên kết với khoản nợ loại 'Cần Thu' (Cho vay)."
+                        : "Danh mục Trả nợ chỉ được liên kết với khoản nợ loại 'Cần Trả' (Đi vay).");
+            }
+            if (Boolean.TRUE.equals(debt.getFinished())) {
+                throw new IllegalArgumentException(
+                        "Khoản nợ đã thanh toán xong, không thể liên kết.");
+            }
         }
 
         // ── Bước 3: Overwrite các field ──────────────────────────────────

@@ -309,7 +309,7 @@ public class SavingGoalServiceImpl implements SavingGoalService {
 
         // Soft delete cascade — ẩn vĩnh viễn khỏi mọi query (@SQLRestriction "deleted=0")
         goal.setDeleted(true);
-        goal.setDeletedAt(java.time.LocalDateTime.now());
+        goal.setDeletedAt(LocalDateTime.now());
         transactionRepository.softDeleteAllBySavingGoalId(id);   // Giao dịch thuộc mục tiêu
         debtRepository.softDeleteAllBySavingGoalId(id);          // Khoản nợ có giao dịch thuộc mục tiêu
         eventRepository.softDeleteAllBySavingGoalId(id);         // Sự kiện có giao dịch thuộc mục tiêu
