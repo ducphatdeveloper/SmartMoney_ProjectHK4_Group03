@@ -146,6 +146,9 @@ class TransactionProvider extends ChangeNotifier {
   //   3. Gộp wallets + savingGoals → sourceItems
   //   4. Gọi loadTransactionData() với selectedDateRange + selectedSource
   Future<void> initialize() async {
+    // [OPTIMIZE] Tránh chạy lại nếu đang tải
+    if (_isLoading) return;
+
     // Bước 1: Bật loading, xóa lỗi cũ
     _isLoading = true;
     _errorMessage = null;
@@ -154,7 +157,7 @@ class TransactionProvider extends ChangeNotifier {
     try {
       // Bước 2: Gọi song song — tải date ranges và sources (ví + mục tiêu)
       await Future.wait([
-        _loadDateRanges(),
+        _loadDateRanges(mode: _dateRangeMode),
         _loadSourceItems(),
       ]);
 
@@ -183,7 +186,7 @@ class TransactionProvider extends ChangeNotifier {
   // Logic: Chỉ load nếu sourceItems chưa có dữ liệu (rỗng).
   // Không đụng đến dateRanges hay transactions — chỉ load ví + mục tiêu.
   Future<void> ensureSourceItemsLoaded() async {
-    if (_sourceItems.isNotEmpty) return; // đã có data rồi, bỏ qua
+    if (_sourceItems.isNotEmpty && _sourceItems.length > 1) return; // đã có data rồi, bỏ qua
     await _loadSourceItems();
     notifyListeners();
   }
@@ -318,6 +321,8 @@ class TransactionProvider extends ChangeNotifier {
   // =============================================
   // Gọi khi: User bấm vào 1 item trên thanh trượt ngày
   Future<void> selectDateRange(DateRangeDTO dateRange) async {
+    if (_selectedDateRange == dateRange && !_isAllMode && !_isCustomMode) return;
+
     _selectedDateRange = dateRange;
     _isAllMode = false;
     _isCustomMode = false;
@@ -350,6 +355,8 @@ class TransactionProvider extends ChangeNotifier {
   // =============================================
   // Gọi khi: User chọn ví trong dropdown bottom sheet
   Future<void> selectSource(SourceItem source) async {
+    if (_selectedSource.id == source.id && _selectedSource.type == source.type) return;
+
     _selectedSource = source;
     _isLoading = true;
     _errorMessage = null;
@@ -448,7 +455,21 @@ class TransactionProvider extends ChangeNotifier {
   // =============================================
   // Gọi khi: User kéo refresh (pull-to-refresh)
   Future<void> refresh() async {
-    await initialize();
+    _isLoading = true;
+    notifyListeners();
+    try {
+      await Future.wait([
+        _loadDateRanges(mode: _dateRangeMode),
+        _loadSourceItems(),
+      ]);
+      _findAndSelectCurrent();
+      await _loadTransactionData();
+      _isLoading = false;
+      notifyListeners();
+    } catch (e) {
+      _isLoading = false;
+      notifyListeners();
+    }
   }
 
   // =============================================
@@ -530,7 +551,7 @@ class TransactionProvider extends ChangeNotifier {
         for (var wallet in walletsResponse.data!) {
           // Convert filename.png → Cloudinary URL
           final walletIcon = IconHelper.buildCloudinaryUrl(wallet.goalImageUrl);
-          
+
           _sourceItems.add(
             SourceItem.fromWallet(
               id: wallet.id,
@@ -547,7 +568,7 @@ class TransactionProvider extends ChangeNotifier {
         for (var goal in goalsResponse.data!) {
           // Convert filename.png → Cloudinary URL
           final goalIcon = IconHelper.buildCloudinaryUrl(goal.imageUrl);
-          
+
           _sourceItems.add(
             SourceItem.fromSavingGoal(
               id: goal.id,

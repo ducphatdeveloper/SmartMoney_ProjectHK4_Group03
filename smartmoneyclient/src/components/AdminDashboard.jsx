@@ -31,8 +31,8 @@ const translations = {
         day: "Ngày", quarter: "Quý", future: "Tương lai", loading: "Đang tải...", createdAt: "Ngày gửi",
         netFlow: "Dòng tiền thuần", totalVolume: "Tổng khối lượng", weight: "Tỷ trọng", today: "Hôm nay",
         restoreAll: "Khôi phục tất cả", confirmRestoreAll: "Khôi phục tất cả giao dịch?", confirmRestoreAllDesc: "Hành động này sẽ khôi phục tất cả giao dịch đã xóa của người dùng này.",
-        syncing: "Đang đồng bộ...", lastUpdate: "Cập nhật lúc: {time}", deletedGlobal: "Giao dịch đã xóa (HT)", user: "Người dùng", wallet: "Ví", amount: "Số tiền", note: "Ghi chú", deletedAt: "Ngày xóa", refresh: "Làm mới", category: "Danh mục",
-        searchDeleted: "Tìm giao dịch đã xóa..."
+        syncing: "Đang đồng bộ...", lastUpdate: "Cập nhật lúc: {time}", user: "Người dùng", wallet: "Ví", amount: "Số tiền", note: "Ghi chú", deletedAt: "Ngày xóa", refresh: "Làm mới", category: "Danh mục",
+        restore: "Khôi phục"
     },
     en: {
         dashboard: "Dashboard", users: "Users", contactRequests: "Support Requests", totalUsers: "Total Users", onlineUsers: "Online Users",
@@ -58,8 +58,8 @@ const translations = {
         day: "Day", quarter: "Quarter", future: "Future", loading: "Loading...", createdAt: "Created At",
         netFlow: "Net Cash Flow", totalVolume: "Total Volume", weight: "Weight", today: "Today",
         restoreAll: "Restore All", confirmRestoreAll: "Restore all transactions?", confirmRestoreAllDesc: "This action will restore all deleted transactions for this user.",
-        syncing: "Syncing...", lastUpdate: "Last updated: {time}", deletedGlobal: "Deleted Trans (Sys)", user: "User", wallet: "Wallet", amount: "Amount", note: "Note", deletedAt: "Deleted At", refresh: "Refresh", category: "Category",
-        searchDeleted: "Search deleted transactions..."
+        syncing: "Syncing...", lastUpdate: "Last updated: {time}", user: "User", wallet: "Wallet", amount: "Amount", note: "Note", deletedAt: "Deleted At", refresh: "Refresh", category: "Category",
+        restore: "Restore"
     }
 };
 
@@ -73,8 +73,6 @@ const AdminDashboard = () => {
     const [lang, setLang] = useState(localStorage.getItem('adminLang') || 'vi');
     const [stats, setStats] = useState({ totalUsers: 0, totalTransactions: 0, activeDevices: 0 });
     const [users, setUsers] = useState([]);
-    const [deletedGlobalTrans, setDeletedGlobalTrans] = useState([]);
-    const [deletedSearchTerm, setDeletedSearchTerm] = useState('');
     const [transactionStats, setTransactionStats] = useState(null);
     const [notifications, setNotifications] = useState([]);
     const [contactRequests, setContactRequests] = useState([]);
@@ -117,6 +115,7 @@ const AdminDashboard = () => {
     // --- TRANSLATION HELPER ---
     const t = useCallback((key, params = {}) => {
         let text = translations[lang][key] || key;
+        if (!text) return key;
         Object.keys(params).forEach(p => { text = text.replace(`{${p}}`, params[p]); });
         return text;
     }, [lang]);
@@ -185,14 +184,6 @@ const AdminDashboard = () => {
         } catch (err) { console.error(err); }
     }, []);
 
-    const fetchGlobalDeletedTransactions = useCallback(async (isBackground = false) => {
-        if (!isBackground) setLoading(true);
-        try {
-            const res = await adminApi.getGlobalDeletedTransactions();
-            if (res.data && res.data.success) { setDeletedGlobalTrans(res.data.data || []); }
-        } catch (err) { console.error("Fetch deleted global trans error:", err); } finally { if (!isBackground) setLoading(false); }
-    }, []);
-
     const fetchDateRanges = useCallback(async (mode) => {
         setLoadingRanges(true);
         try {
@@ -228,7 +219,9 @@ const AdminDashboard = () => {
 
     const fetchNotifications = useCallback(async () => {
         try {
-            const res = await notificationApi.getAdminSystemNotifications();
+            const storedUser = JSON.parse(localStorage.getItem('user'));
+            if (!storedUser || !storedUser.id) return;
+            const res = await adminApi.getAdminNotifications(storedUser.id);
             const data = res.data.success ? res.data.data : res.data;
             setNotifications(data || []);
         } catch (err) { console.error(err); }
@@ -376,7 +369,6 @@ const AdminDashboard = () => {
                 if (detailModal.user) {
                     await fetchUserTransactions(detailModal.user.id, detailModal.userTransCurrentPage, detailModal.deletedStatus, detailModal.userTransFilterType);
                 }
-                if (activeTab === 'deleted-trans') await fetchGlobalDeletedTransactions(true);
                 await fetchStats();
             } else {
                 showToast(res.data.message || t('notifyError'), 'error');
@@ -396,7 +388,6 @@ const AdminDashboard = () => {
                 if (detailModal.user) {
                     await fetchUserTransactions(detailModal.user.id, detailModal.userTransCurrentPage, detailModal.deletedStatus, detailModal.userTransFilterType);
                 }
-                if (activeTab === 'deleted-trans') await fetchGlobalDeletedTransactions(true);
                 await fetchStats();
             } else {
                 showToast(res.data.message || t('notifyError'), 'error');
@@ -422,14 +413,13 @@ const AdminDashboard = () => {
             const promises = [fetchStats(), fetchNotifications()];
             if (activeTab === 'users') promises.push(fetchUsers(true));
             if (activeTab === 'contacts') promises.push(fetchContactRequests(true));
-            if (activeTab === 'deleted-trans') promises.push(fetchGlobalDeletedTransactions(true));
             if (activeTab === 'overview' && selectedRange) promises.push(fetchTransactionStats(selectedRange));
             await Promise.all(promises);
             setLastUpdated(new Date());
         } catch (err) { console.error("Refresh error:", err); } finally {
             if (isBackground) setIsSyncing(false); else setLoading(false);
         }
-    }, [activeTab, selectedRange, fetchStats, fetchNotifications, fetchUsers, fetchContactRequests, fetchGlobalDeletedTransactions, fetchTransactionStats]);
+    }, [activeTab, selectedRange, fetchStats, fetchNotifications, fetchUsers, fetchContactRequests, fetchTransactionStats]);
 
     // --- CHART DATA PREP ---
     const chartStats = useMemo(() => {
@@ -519,22 +509,23 @@ const AdminDashboard = () => {
         const delayDebounceFn = setTimeout(async () => {
             if (activeTab === 'users') await fetchUsers(false);
             if (activeTab === 'contacts') await fetchContactRequests(false);
-            if (activeTab === 'deleted-trans') await fetchGlobalDeletedTransactions(false);
         }, 500); return () => clearTimeout(delayDebounceFn);
-    }, [fetchUsers, fetchContactRequests, fetchGlobalDeletedTransactions, activeTab, filterStatus, filterType, filterPriority]);
+    }, [fetchUsers, fetchContactRequests, activeTab, filterStatus, filterType, filterPriority]);
 
     useEffect(() => {
         const path = location.pathname; if (path.includes('/admin/contact-requests')) { setActiveTab('contacts'); }
     }, [location]);
 
     useEffect(() => {
-        if (!loadingRanges && selectedRange && dateRanges.length > 0 && rangeScrollRef.current) {
+        if (activeTab === 'overview' && !loadingRanges && selectedRange && dateRanges.length > 0 && rangeScrollRef.current) {
             const timer = setTimeout(() => {
-                const activeItem = rangeScrollRef.current.querySelector('.range-item-active');
-                if (activeItem) { activeItem.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' }); }
+                if (rangeScrollRef.current) {
+                    const activeItem = rangeScrollRef.current.querySelector('.range-item-active');
+                    if (activeItem) { activeItem.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' }); }
+                }
             }, 150); return () => clearTimeout(timer);
         }
-    }, [selectedRange, dateRanges, loadingRanges]);
+    }, [selectedRange, dateRanges, loadingRanges, activeTab]);
 
     useEffect(() => {
         if (highlightRequestId && activeTab === 'contacts' && contactRequests.length > 0) {
@@ -556,7 +547,6 @@ const AdminDashboard = () => {
                 <li className="nav-item mb-1"><button onClick={() => setActiveTab('overview')} className={`nav-link w-100 text-start text-white ${activeTab === 'overview' ? 'active bg-primary shadow' : ''}`}><i className="bi bi-speedometer2 me-2"></i> {t('dashboard')}</button></li>
                 <li className="nav-item mb-1"><button onClick={() => setActiveTab('users')} className={`nav-link w-100 text-start text-white ${activeTab === 'users' ? 'active bg-primary shadow' : ''}`}><i className="bi bi-people me-2"></i> {t('users')}</button></li>
                 <li className="nav-item mb-1"><button onClick={() => setActiveTab('contacts')} className={`nav-link w-100 text-start text-white ${activeTab === 'contacts' ? 'active bg-primary shadow' : ''}`}><i className="bi bi-chat-dots me-2"></i> {t('contactRequests')}</button></li>
-                <li className="nav-item mb-1"><button onClick={() => setActiveTab('deleted-trans')} className={`nav-link w-100 text-start text-white ${activeTab === 'deleted-trans' ? 'active bg-primary shadow' : ''}`}><i className="bi bi-trash3 me-2"></i> {t('deletedGlobal')}</button></li>
             </ul><hr />
             <div className="mt-auto px-2"><button className="btn btn-outline-light btn-sm w-100 d-flex align-items-center justify-content-center gap-2 py-2" onClick={handleAutoLogoutTrigger} disabled={autoLoggingOut}>{autoLoggingOut ? <span className="spinner-border spinner-border-sm"></span> : <i className="bi bi-shield-check"></i>}<span className="extra-small fw-bold text-uppercase" style={{fontSize: '0.65rem'}}>{t('autoLogout')}</span></button></div>
         </div>
@@ -568,7 +558,7 @@ const AdminDashboard = () => {
             <nav className="navbar navbar-expand-lg navbar-light bg-white border-bottom shadow-sm px-4 py-2 sticky-top" style={{zIndex: 1000}}>
                 <div className="d-flex w-100 justify-content-between align-items-center">
                     <div className="d-flex align-items-center gap-3">
-                        <h5 className="mb-0 fw-bold text-dark">{t(activeTab === 'overview' ? 'dashboard' : activeTab === 'users' ? 'users' : activeTab === 'contacts' ? 'contactRequests' : 'deletedGlobal')}</h5>
+                        <h5 className="mb-0 fw-bold text-dark">{t(activeTab === 'overview' ? 'dashboard' : activeTab === 'users' ? 'users' : 'contactRequests')}</h5>
                         <div className="vr h-100 mx-2"></div>
                         <div className="d-flex align-items-center">
                             {isSyncing ? (<span className="badge rounded-pill bg-light text-primary border px-3 py-2 animate-pulse small"><span className="spinner-border spinner-border-sm me-2" style={{width: '0.7rem', height: '0.7rem'}}></span>{t('syncing')}</span>) : (<span className="text-muted extra-small">{t('lastUpdate', { time: formatTimeOnly(lastUpdated) })}</span>)}
@@ -670,20 +660,6 @@ const AdminDashboard = () => {
         <div className="container-fluid py-4"><div className="card shadow-sm border-0 rounded-4 overflow-hidden"><div className="card-header bg-white py-4 border-0 d-flex flex-wrap gap-3 justify-content-between align-items-center"><div className="d-flex gap-2"><select className="form-select form-select-sm" style={{width: '160px'}} value={filterStatus} onChange={e => setFilterStatus(e.target.value)}><option value="">{t('status')}</option><option value="PENDING">{t('PENDING')}</option><option value="PROCESSING">{t('PROCESSING')}</option><option value="APPROVED">{t('APPROVED')}</option><option value="REJECTED">{t('REJECTED')}</option></select><select className="form-select form-select-sm" style={{width: '180px'}} value={filterType} onChange={e => setFilterType(e.target.value)}><option value="">{t('requestType')}</option><option value="SUSPICIOUS_TX">{t('SUSPICIOUS_TX')}</option><option value="EMERGENCY">{t('EMERGENCY')}</option><option value="ACCOUNT_LOCK">{t('ACCOUNT_LOCK')}</option><option value="ACCOUNT_UNLOCK">{t('ACCOUNT_UNLOCK')}</option><option value="DATA_LOSS">{t('DATA_LOSS')}</option><option value="FORGOT_PASSWORD">{t('FORGOT_PASSWORD')}</option><option value="BUG_REPORT">{t('BUG_REPORT')}</option><option value="DATA_RECOVERY">{t('DATA_RECOVERY')}</option><option value="GENERAL">{t('GENERAL')}</option></select><select className="form-select form-select-sm" style={{width: '160px'}} value={filterPriority} onChange={e => setFilterPriority(e.target.value)}><option value="">{t('priority')}</option><option value="URGENT">{t('URGENT')}</option><option value="HIGH">{t('HIGH')}</option><option value="NORMAL">{t('NORMAL')}</option></select></div><button className="btn btn-sm btn-outline-primary rounded-pill px-3" onClick={() => fetchContactRequests(false)}><i className="bi bi-arrow-clockwise me-1"></i> {t('refresh')}</button></div><div className="table-responsive" style={{ minHeight: '400px' }}><table className="table table-hover align-middle mb-0"><thead className="table-light"><tr><th className="ps-4">ID</th><th>{t('requestType')}</th><th>{t('sender')}</th><th>{t('priority')}</th><th>{t('status')}</th><th>{t('createdAt')}</th><th>{t('resolvedBy')}</th><th>{t('resolvedAt')}</th><th className="text-end pe-4">{t('actions')}</th></tr></thead><tbody>{loading ? [1,2,3,4,5].map(i => <tr key={i}><td colSpan="9" className="p-3"><div className="skeleton-shimmer" style={{height: '35px'}}></div></td></tr>) : contactRequests.length === 0 ? <tr><td colSpan="9" className="text-center py-5 text-muted">Không có yêu cầu nào</td></tr> : contactRequests.map(r => (<tr key={r.id} id={`contact-request-${r.id}`} className={highlightRequestId === r.id ? 'highlight-row' : ''}><td className="ps-4 fw-bold">#{r.id}</td><td><span className="fw-medium">{t(r.requestType)}</span><div className="extra-small text-muted">{r.title}</div></td><td><div className="small fw-bold">{r.fullname}</div><div className="extra-small text-muted">{r.contactPhone || r.contactEmail}</div></td><td><span className={`badge rounded-pill ${r.requestPriority === 'URGENT' ? 'bg-danger' : r.requestPriority === 'HIGH' ? 'bg-warning text-dark' : 'bg-success'}`}>{t(r.requestPriority)}</span></td><td><span className={`badge bg-opacity-10 py-2 px-3 rounded-pill ${r.requestStatus === 'PENDING' ? 'bg-warning text-warning' : r.requestStatus === 'PROCESSING' ? 'bg-primary text-primary' : r.requestStatus === 'APPROVED' ? 'bg-success text-success' : r.requestStatus === 'REJECTED' ? 'bg-danger text-danger' : ''}`}>{t(r.requestStatus)}</span></td><td className="small text-muted">{formatDate(r.createdAt)}</td><td className="small fw-bold text-dark">{r.resolvedByName || '-'}</td><td className="small text-muted">{r.resolvedAt ? formatDate(r.resolvedAt) : '-'}</td><td className="text-end pe-4"><button className="btn btn-sm btn-primary rounded-pill px-3 shadow-sm" onClick={() => setResolveModal(prev => ({ ...prev, show: true, request: r, adminNote: r.adminNote || '', loading: false }))}>{t('resolve')}</button>{r.accId && <button className="btn btn-sm btn-light border rounded-circle ms-1" onClick={() => handleGoToUser(r.accEmail)} title="Xem User"><i className="bi bi-person"></i></button>}</td></tr>))}</tbody></table></div></div></div>
     );
 
-    const renderDeletedGlobalTab = () => {
-        const filteredTrans = deletedGlobalTrans.filter(tr => 
-            tr.userName?.toLowerCase().includes(deletedSearchTerm.toLowerCase()) ||
-            tr.userEmail?.toLowerCase().includes(deletedSearchTerm.toLowerCase()) ||
-            tr.note?.toLowerCase().includes(deletedSearchTerm.toLowerCase()) ||
-            tr.categoryName?.toLowerCase().includes(deletedSearchTerm.toLowerCase()) ||
-            tr.transactionId?.toString().includes(deletedSearchTerm)
-        );
-
-        return (
-            <div className="container-fluid py-4"><div className="card shadow-sm border-0 rounded-4 overflow-hidden"><div className="card-header bg-white py-4 border-0 d-flex flex-wrap justify-content-between align-items-center"><div><h5 className="mb-0 fw-bold">{t('deletedGlobal')}</h5><p className="text-muted small mb-0">All transactions have been deleted across the system (View vAdminDeletedTransactions)</p></div><div className="d-flex gap-2"><input type="text" className="form-control form-control-sm bg-light border-0 px-3" placeholder={t('searchDeleted')} value={deletedSearchTerm} onChange={e => setDeletedSearchTerm(e.target.value)} style={{width: '300px'}} /><button className="btn btn-sm btn-outline-primary rounded-pill px-3" onClick={() => fetchGlobalDeletedTransactions(false)}><i className="bi bi-arrow-clockwise me-1"></i> {t('refresh')}</button></div></div><div className="table-responsive" style={{ minHeight: '400px' }}><table className="table table-hover align-middle mb-0"><thead className="table-light"><tr><th className="ps-4">ID</th><th>{t('user')}</th><th>{t('wallet')}</th><th>{t('category')}</th><th className="text-end">{t('amount')}</th><th>{t('note')}</th><th>{t('deletedAt')}</th><th className="text-end pe-4">{t('actions')}</th></tr></thead><tbody>{loading ? [1,2,3,4,5].map(i => <tr key={i}><td colSpan="8" className="p-3"><div className="skeleton-shimmer" style={{height: '35px'}}></div></td></tr>) : filteredTrans.length === 0 ? <tr><td colSpan="8" className="text-center py-5 text-muted">{t('noTrans')}</td></tr> : filteredTrans.map(tr => (<tr key={tr.transactionId} className="table-danger-subtle"><td className="ps-4 fw-bold">#{tr.transactionId}</td><td><div className="small fw-bold">{tr.userName}</div><div className="extra-small text-muted">{tr.userEmail}</div></td><td>{tr.walletName}</td><td><span className={`badge ${tr.type === 'INCOME' ? 'bg-success-subtle text-success' : 'bg-danger-subtle text-danger'}`}>{tr.categoryName}</span></td><td className={`text-end fw-bold ${tr.type === 'INCOME' ? 'text-success' : 'text-danger'}`}>{formatCurrency(tr.amount)}</td><td className="small text-muted">{tr.note || '-'}</td><td className="small">{formatDate(tr.deletedAt)}</td><td className="text-end pe-4"><button className="btn btn-sm btn-primary rounded-pill px-3 shadow-sm" onClick={() => setRestoreConfirm({ show: true, transId: tr.transactionId })} title="Restore"><i className="bi bi-arrow-counterclockwise me-1"></i> {t('confirm')}</button><button className="btn btn-sm btn-light border rounded-circle ms-1" onClick={() => handleGoToUser(tr.userEmail)} title="Xem User"><i className="bi bi-person"></i></button></td></tr>))}</tbody></table></div></div></div>
-        );
-    };
-
     return (
         <div className="d-flex min-vh-100 bg-light font-inter">
             {renderSidebar()}
@@ -693,7 +669,6 @@ const AdminDashboard = () => {
                     {activeTab === 'overview' && renderOverviewTab()}
                     {activeTab === 'users' && renderUsersTab()}
                     {activeTab === 'contacts' && renderContactsTab()}
-                    {activeTab === 'deleted-trans' && renderDeletedGlobalTab()}
                 </div>
             </div>
 
@@ -758,7 +733,7 @@ const AdminDashboard = () => {
                             <div className="modal-body text-center p-5">
                                 <i className={`bi ${confirmModal.isLocked ? 'bi-unlock-fill text-success' : 'bi-lock-fill text-danger'} display-1 mb-4`}></i>
                                 <h4 className="fw-bold mb-3">{confirmModal.isLocked ? t('confirmUnlock') : t('confirmLock')}</h4>
-                                <p className="text-muted mb-5">{confirmModal.isLocked ? t('confirmDescUnlock') : t('confirmDescLock')}</p>
+                                <p className="text-muted mb-5">{confirmModal.isLocked ? t('confirmDescUnlock') : t('confirmDescUnlock')}</p>
                                 <div className="d-flex justify-content-center gap-3">
                                     <button className="btn btn-light px-5 py-2 rounded-pill fw-bold" onClick={() => setConfirmModal(prev => ({ ...prev, show: false }))}>{t('cancel')}</button>
                                     <button className={`btn ${confirmModal.isLocked ? 'btn-success' : 'btn-danger'} px-5 py-2 rounded-pill fw-bold text-white shadow-sm`} onClick={async () => {
@@ -838,7 +813,7 @@ const AdminDashboard = () => {
                     <div className="modal-dialog modal-lg modal-dialog-centered">
                         <div className="modal-content shadow-2xl border-0 rounded-4 overflow-hidden">
                             <div className="modal-header bg-dark text-white border-0 py-3">
-                                <h5 className="modal-title fw-bold"><i className="bi bi-person-badge me-2"></i>User Details</h5>
+                                <h5 className="modal-title fw-bold"><i className="bi bi-person-badge me-2"></i>{t('userDetails')}</h5>
                                 <button type="button" className="btn-close btn-close-white" onClick={() => setDetailModal(prev => ({ ...prev, show: false }))}></button>
                             </div>
                             <div className="modal-body p-4 bg-light custom-scrollbar" style={{ maxHeight: '80vh', overflowY: 'auto' }}>
@@ -869,7 +844,7 @@ const AdminDashboard = () => {
                                                     </div>
                                                     <div className="text-end">
                                                         <span className={`badge rounded-pill px-3 py-2 ${detailModal.user?.locked ? 'bg-danger-subtle text-danger' : 'bg-success-subtle text-success'}`}>
-                                                            {detailModal.user?.locked ? 'Locked' : 'Active'}
+                                                            {detailModal.user?.locked ? t('locked') : t('active')}
                                                         </span>
                                                     </div>
                                                 </div>
@@ -877,14 +852,14 @@ const AdminDashboard = () => {
                                         </div>
                                         <div className="col-12">
                                             <div className="bg-white p-3 rounded-4 shadow-sm border-start border-4 border-primary">
-                                                <h6 className="fw-bold mb-3">Personal Financial Insights</h6>
+                                                <h6 className="fw-bold mb-3">{t('userInsights')}</h6>
                                                 <div className="row text-center">
                                                     <div className="col-6 border-end">
-                                                        <div className="text-muted small">Total Income</div>
+                                                        <div className="text-muted small">{t('income')}</div>
                                                         <div className="fw-bold text-success fs-5">{formatCurrency(detailModal.insights?.totalIncome || 0)}</div>
                                                     </div>
                                                     <div className="col-6">
-                                                        <div className="text-muted small">Total Expense</div>
+                                                        <div className="text-muted small">{t('expense')}</div>
                                                         <div className="fw-bold text-danger fs-5">{formatCurrency(detailModal.insights?.totalExpense || 0)}</div>
                                                     </div>
                                                 </div>
@@ -893,21 +868,31 @@ const AdminDashboard = () => {
                                         <div className="col-12">
                                             <div className="bg-white p-3 rounded-4 shadow-sm">
                                                 <div className="d-flex justify-content-between align-items-center mb-3">
-                                                    <h6 className="fw-bold mb-0">Detailed Transaction History</h6>
+                                                    <h6 className="fw-bold mb-0">{t('userTransHistory')}</h6>
                                                     <div className="d-flex gap-2">
+                                                        {detailModal.deletedStatus === 'DELETED' && detailModal.transactions.length > 0 && (
+                                                            <button className="btn btn-outline-primary btn-sm rounded-pill px-3 fw-bold" onClick={() => setRestoreAllConfirm({ show: true, userId: detailModal.user.id })}>
+                                                                <i className="bi bi-arrow-counterclockwise me-1"></i> {t('restoreAll')}
+                                                            </button>
+                                                        )}
                                                         <button className="btn btn-link btn-sm text-decoration-none fw-bold p-0" onClick={handleViewAllTransactions} disabled={viewingAllTrans || detailModal.transactions.length === 0}>
                                                             {viewingAllTrans ? <span className="spinner-border spinner-border-sm me-1"></span> : <i className="bi bi-list-ul me-1"></i>}
-                                                            View All
+                                                            {t('viewAll')}
                                                         </button>
                                                     </div>
+                                                </div>
+
+                                                <div className="nav nav-tabs nav-fill mb-3 border-0 bg-light p-1 rounded-3">
+                                                    <button className={`nav-link border-0 rounded-2 small fw-bold py-2 ${detailModal.deletedStatus === 'ACTIVE' ? 'bg-white shadow-sm text-primary' : 'text-muted'}`} onClick={() => handleUserTransTabChange('ACTIVE')}>{t('activeTrans')}</button>
+                                                    <button className={`nav-link border-0 rounded-2 small fw-bold py-2 ${detailModal.deletedStatus === 'DELETED' ? 'bg-white shadow-sm text-danger' : 'text-muted'}`} onClick={() => handleUserTransTabChange('DELETED')}>{t('deletedTrans')}</button>
                                                 </div>
 
                                                 <div className="d-flex flex-wrap justify-content-end mb-3 gap-3">
                                                     <div style={{ width: '150px' }}>
                                                         <select className="form-select form-select-sm border-0 bg-light px-3 rounded-3" value={detailModal.userTransFilterType} onChange={handleUserTransFilterTypeChange}>
-                                                            <option value="">All Types</option>
-                                                            <option value="INCOME">Income</option>
-                                                            <option value="EXPENSE">Expense</option>
+                                                            <option value="">{t('allTypes')}</option>
+                                                            <option value="INCOME">{t('incomeType')}</option>
+                                                            <option value="EXPENSE">{t('expenseType')}</option>
                                                         </select>
                                                     </div>
                                                 </div>
@@ -917,17 +902,18 @@ const AdminDashboard = () => {
                                                         <thead className="table-light">
                                                             <tr>
                                                                 <th className="small py-2">ID</th>
-                                                                <th className="small py-2">Date</th>
-                                                                <th className="small py-2">Wallet / Category</th>
-                                                                <th className="small py-2 text-end">Amount</th>
+                                                                <th className="small py-2">{t('day')}</th>
+                                                                <th className="small py-2">{t('wallet')} / {t('category')}</th>
+                                                                <th className="small py-2 text-end">{t('amount')}</th>
+                                                                {detailModal.deletedStatus === 'DELETED' && <th className="small py-2 text-end">{t('actions')}</th>}
                                                             </tr>
                                                         </thead>
                                                         <tbody className="small">
                                                             {detailModal.transactions.length === 0 ? (
-                                                                <tr><td colSpan="4" className="text-center py-4 text-muted">No transactions found</td></tr>
+                                                                <tr><td colSpan={detailModal.deletedStatus === 'DELETED' ? 5 : 4} className="text-center py-4 text-muted">{t('noTrans')}</td></tr>
                                                             ) : (
                                                                 detailModal.transactions.map((tr, idx) => (
-                                                                    <tr key={idx}>
+                                                                    <tr key={idx} className={tr.deleted ? 'table-danger-subtle' : ''}>
                                                                         <td className="text-muted extra-small">#{tr.id}</td>
                                                                         <td className="extra-small">{formatDate(tr.transDate)}</td>
                                                                         <td>
@@ -936,6 +922,13 @@ const AdminDashboard = () => {
                                                                             {tr.note && <div className="text-muted extra-small mt-1 fst-italic">"{tr.note}"</div>}
                                                                         </td>
                                                                         <td className={`text-end fw-bold ${tr.isIncome ? 'text-success' : 'text-danger'}`}>{formatCurrency(tr.amount)}</td>
+                                                                        {detailModal.deletedStatus === 'DELETED' && (
+                                                                            <td className="text-end">
+                                                                                <button className="btn btn-sm btn-primary rounded-pill px-2 py-0 extra-small" onClick={() => setRestoreConfirm({ show: true, transId: tr.id })}>
+                                                                                    <i className="bi bi-arrow-counterclockwise"></i> {t('restore')}
+                                                                                </button>
+                                                                            </td>
+                                                                        )}
                                                                     </tr>
                                                                 ))
                                                             )}
@@ -944,9 +937,9 @@ const AdminDashboard = () => {
                                                 </div>
                                                 {detailModal.userTransTotalPages > 1 && (
                                                     <div className="d-flex justify-content-center mt-3">
-                                                        <button className="btn btn-sm btn-outline-secondary me-2" disabled={detailModal.userTransCurrentPage === 0} onClick={() => handleUserTransPageChange(detailModal.userTransCurrentPage - 1)}>Prev</button>
+                                                        <button className="btn btn-sm btn-outline-secondary me-2" disabled={detailModal.userTransCurrentPage === 0} onClick={() => handleUserTransPageChange(detailModal.userTransCurrentPage - 1)}>{t('prevPage')}</button>
                                                         <span className="small mx-2">{detailModal.userTransCurrentPage + 1} / {detailModal.userTransTotalPages}</span>
-                                                        <button className="btn btn-sm btn-outline-secondary ms-2" disabled={detailModal.userTransCurrentPage === detailModal.userTransTotalPages - 1} onClick={() => handleUserTransPageChange(detailModal.userTransCurrentPage + 1)}>Next</button>
+                                                        <button className="btn btn-sm btn-outline-secondary ms-2" disabled={detailModal.userTransCurrentPage === detailModal.userTransTotalPages - 1} onClick={() => handleUserTransPageChange(detailModal.userTransCurrentPage + 1)}>{t('nextPage')}</button>
                                                     </div>
                                                 )}
                                             </div>

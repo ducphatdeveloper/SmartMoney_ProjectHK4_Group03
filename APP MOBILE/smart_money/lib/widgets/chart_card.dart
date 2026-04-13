@@ -17,11 +17,9 @@ class ChartCard extends StatefulWidget {
 class _ChartCardState extends State<ChartCard> {
   final PageController _pageController = PageController();
   int _currentPage = 0;
-  String _barFilter = 'MONTH'; // 'WEEK' or 'MONTH'
   final currencyFormat = NumberFormat.currency(locale: 'en_US', symbol: '\$');
 
   List<DailyTrendDTO> _currentTrend = [];
-  List<DailyTrendDTO> _avgTrend = []; 
   bool _isLoading = false;
 
   TransactionReportResponse? _currentReport;
@@ -29,6 +27,9 @@ class _ChartCardState extends State<ChartCard> {
 
   int? _lastSourceId;
   String? _lastSourceType;
+  DateTime? _lastStartDate;
+  DateTime? _lastEndDate;
+  bool _lastProviderLoading = false;
 
   @override
   void initState() {
@@ -41,70 +42,78 @@ class _ChartCardState extends State<ChartCard> {
     super.didChangeDependencies();
     final provider = context.watch<TransactionProvider>();
     final source = provider.selectedSource;
+    final range = provider.selectedDateRange;
     
-    if (_lastSourceId != source.id || _lastSourceType != source.type) {
+    DateTime? start = provider.isAllMode ? DateTime(2000, 1, 1) : range?.startDate;
+    DateTime? end = provider.isAllMode ? DateTime(2099, 12, 31) : range?.endDate;
+
+    if (_lastSourceId != source.id || 
+        _lastSourceType != source.type ||
+        _lastStartDate != start ||
+        _lastEndDate != end ||
+        (_lastProviderLoading == true && provider.isLoading == false)) {
+      
       _lastSourceId = source.id;
       _lastSourceType = source.type;
-      _fetchData();
+      _lastStartDate = start;
+      _lastEndDate = end;
+      _lastProviderLoading = provider.isLoading;
+      
+      if (!provider.isLoading) {
+        _fetchData();
+      }
     }
   }
 
   Future<void> _fetchData() async {
     if (!mounted) return;
-    setState(() => _isLoading = true);
-
+    
     final transProvider = context.read<TransactionProvider>();
     final source = transProvider.selectedSource;
-    final walletId = source.type == 'wallet' ? source.id : null;
+    final range = transProvider.selectedDateRange;
+    
+    DateTime startDate = transProvider.isAllMode ? DateTime(2000, 1, 1) : (range?.startDate ?? DateTime.now());
+    DateTime endDate = transProvider.isAllMode ? DateTime(2099, 12, 31) : (range?.endDate ?? DateTime.now());
+
+    setState(() => _isLoading = true);
 
     try {
-      DateTime now = DateTime.now();
-      DateTime currentStart = DateTime(now.year, now.month, 1);
-      // Fixed: endDate is always end of the month for trend consistency
-      DateTime currentEnd = DateTime(now.year, now.month + 1, 0); 
+      final walletId = source.type == 'wallet' ? source.id : null;
+      final goalId = source.type == 'saving_goal' ? source.id : null;
 
       final trendResponse = await TransactionService.getDailyTrend(
-        startDate: currentStart,
-        endDate: currentEnd,
+        startDate: startDate,
+        endDate: endDate,
         walletId: walletId,
+        savingGoalId: goalId,
       );
 
-      DateTime barStart;
-      DateTime barEnd;
-      DateTime prevStart;
-      DateTime prevEnd;
-
-      if (_barFilter == 'WEEK') {
-        barStart = now.subtract(Duration(days: now.weekday - 1));
-        barEnd = now;
-        prevStart = barStart.subtract(const Duration(days: 7));
-        prevEnd = barStart.subtract(const Duration(seconds: 1));
-      } else {
-        barStart = DateTime(now.year, now.month, 1);
-        barEnd = now;
-        prevStart = DateTime(now.year, now.month - 1, 1);
-        prevEnd = DateTime(now.year, now.month, 0);
-      }
+      final duration = endDate.difference(startDate);
+      final prevEndDate = startDate.subtract(const Duration(seconds: 1));
+      final prevStartDate = startDate.subtract(duration).subtract(const Duration(days: 1));
 
       final reports = await Future.wait([
-        TransactionService.getReport(startDate: barStart, endDate: barEnd, walletId: walletId),
-        TransactionService.getReport(startDate: prevStart, endDate: prevEnd, walletId: walletId),
+        TransactionService.getReport(
+          startDate: startDate, 
+          endDate: endDate, 
+          walletId: walletId,
+          savingGoalId: goalId,
+        ),
+        TransactionService.getReport(
+          startDate: prevStartDate, 
+          endDate: prevEndDate, 
+          walletId: walletId,
+          savingGoalId: goalId,
+        ),
       ]);
 
       if (mounted) {
         setState(() {
           if (trendResponse.success && trendResponse.data != null) {
             _currentTrend = trendResponse.data!;
-            _avgTrend = _currentTrend.map((e) => DailyTrendDTO(
-              date: e.date,
-              totalIncome: e.totalIncome * 0.9,
-              totalExpense: e.totalExpense * 0.85,
-            )).toList();
           }
-
           if (reports[0].success) _currentReport = reports[0].data;
           if (reports[1].success) _previousReport = reports[1].data;
-
           _isLoading = false;
         });
       }
@@ -115,16 +124,19 @@ class _ChartCardState extends State<ChartCard> {
 
   @override
   Widget build(BuildContext context) {
-    final transProvider = context.watch<TransactionProvider>();
-    
     return Container(
       height: 420,
       margin: const EdgeInsets.symmetric(vertical: 10),
       decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
-        borderRadius: BorderRadius.circular(20),
+        color: const Color(0xFF1C1C1E),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.white.withOpacity(0.05)),
         boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 10, offset: const Offset(0, 5)),
+          BoxShadow(
+            color: Colors.black.withOpacity(0.4),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
         ],
       ),
       child: Column(
@@ -133,12 +145,9 @@ class _ChartCardState extends State<ChartCard> {
           Expanded(
             child: PageView(
               controller: _pageController,
-              onPageChanged: (page) {
-                setState(() => _currentPage = page);
-                _fetchData();
-              },
+              onPageChanged: (page) => setState(() => _currentPage = page),
               children: [
-                _buildLineChartSection(transProvider),
+                _buildLineChartSection(),
                 _buildBarChartSection(),
               ],
             ),
@@ -151,25 +160,34 @@ class _ChartCardState extends State<ChartCard> {
 
   Widget _buildHeader() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 15, 10, 5),
+      padding: const EdgeInsets.fromLTRB(24, 20, 16, 10),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(
-            _currentPage == 0 ? "Trend Analysis" : "Spending Report",
-            style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                _currentPage == 0 ? "Cash Flow Trend" : "Spending Analysis",
+                style: const TextStyle(
+                  fontSize: 18, 
+                  fontWeight: FontWeight.bold, 
+                  color: Colors.white,
+                  letterSpacing: 0.5,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                _currentPage == 0 ? "Daily income vs expenses" : "Current vs previous period",
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+              ),
+            ],
           ),
           Row(
             children: [
-              if (_currentPage == 1) _buildBarToggle(),
-              IconButton(
-                icon: const Icon(Icons.arrow_back_ios, size: 14),
-                onPressed: () => _pageController.previousPage(duration: const Duration(milliseconds: 300), curve: Curves.ease),
-              ),
-              IconButton(
-                icon: const Icon(Icons.arrow_forward_ios, size: 14),
-                onPressed: () => _pageController.nextPage(duration: const Duration(milliseconds: 300), curve: Curves.ease),
-              ),
+              _buildNavButton(Icons.chevron_left, () => _pageController.previousPage(duration: const Duration(milliseconds: 300), curve: Curves.easeInOut)),
+              const SizedBox(width: 8),
+              _buildNavButton(Icons.chevron_right, () => _pageController.nextPage(duration: const Duration(milliseconds: 300), curve: Curves.easeInOut)),
             ],
           )
         ],
@@ -177,94 +195,88 @@ class _ChartCardState extends State<ChartCard> {
     );
   }
 
-  Widget _buildBarToggle() {
-    return Container(
-      height: 28,
-      padding: const EdgeInsets.all(2),
-      decoration: BoxDecoration(color: Colors.grey.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
-      child: Row(
-        children: [
-          _toggleItem("W", _barFilter == 'WEEK'),
-          _toggleItem("M", _barFilter == 'MONTH'),
-        ],
-      ),
-    );
-  }
-
-  Widget _toggleItem(String label, bool active) {
-    return GestureDetector(
-      onTap: () {
-        setState(() => _barFilter = label == "W" ? 'WEEK' : 'MONTH');
-        _fetchData();
-      },
+  Widget _buildNavButton(IconData icon, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        alignment: Alignment.center,
+        padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
-          color: active ? Colors.green : Colors.transparent,
-          borderRadius: BorderRadius.circular(6),
+          color: Colors.white.withOpacity(0.05),
+          borderRadius: BorderRadius.circular(12),
         ),
-        child: Text(label, style: TextStyle(color: active ? Colors.white : Colors.grey, fontSize: 11, fontWeight: FontWeight.bold)),
+        child: Icon(icon, size: 20, color: Colors.white70),
       ),
     );
   }
 
-  Widget _buildLineChartSection(TransactionProvider transProvider) {
-    if (_isLoading) return const Center(child: CircularProgressIndicator());
-    if (_currentTrend.isEmpty) return const Center(child: Text("No data available"));
+  Widget _buildLineChartSection() {
+    if (_isLoading) return const Center(child: CircularProgressIndicator(color: Colors.greenAccent));
+    if (_currentTrend.isEmpty) return _buildNoData();
 
     return Column(
       children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _buildSummaryItem("Total In", transProvider.totalIncome, Colors.green),
-              _buildSummaryItem("Total Out", transProvider.totalExpense, Colors.red),
-            ],
-          ),
-        ),
+        const SizedBox(height: 10),
         Expanded(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(15, 10, 25, 10),
+            padding: const EdgeInsets.fromLTRB(10, 10, 24, 0),
             child: LineChart(_lineChartData()),
           ),
         ),
         _buildLegend([
-          {"label": "Current", "color": Colors.green},
-          {"label": "Avg (3 months)", "color": Colors.grey},
+          {"label": "Income", "color": Colors.greenAccent},
+          {"label": "Expense", "color": Colors.redAccent},
         ]),
-      ],
-    );
-  }
-
-  Widget _buildSummaryItem(String label, double amount, Color color) {
-    return Column(
-      children: [
-        Text(label, style: const TextStyle(color: Colors.grey, fontSize: 12)),
-        const SizedBox(height: 4),
-        Text(
-          amount >= 1000000 ? "${(amount / 1000000).toStringAsFixed(1)}M" : currencyFormat.format(amount),
-          style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 14),
-        ),
       ],
     );
   }
 
   LineChartData _lineChartData() {
     double maxVal = 0;
-    for (var e in _currentTrend) if (e.totalExpense > maxVal) maxVal = e.totalExpense;
+    for (var e in _currentTrend) {
+      if (e.totalExpense > maxVal) maxVal = e.totalExpense;
+      if (e.totalIncome > maxVal) maxVal = e.totalIncome;
+    }
     
-    double interval = (maxVal / 5).clamp(1000000, 100000000);
+    double interval = (maxVal / 4).clamp(1000.0, 100000000.0);
+    if (maxVal == 0) maxVal = 1000;
 
     return LineChartData(
+      lineTouchData: LineTouchData(
+        handleBuiltInTouches: true,
+        touchTooltipData: LineTouchTooltipData(
+          tooltipBgColor: const Color(0xFF2C2C2E).withOpacity(0.95),
+          tooltipRoundedRadius: 12,
+          fitInsideVertically: true, // Tự động nhảy xuống dưới nếu chạm đỉnh biểu đồ
+          fitInsideHorizontally: true,
+          tooltipPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          getTooltipItems: (List<LineBarSpot> touchedSpots) {
+            final dateStr = DateFormat('MMM dd').format(_currentTrend[touchedSpots.first.x.toInt()].date);
+            return touchedSpots.map((LineBarSpot touchedSpot) {
+              final isIncome = touchedSpot.barIndex == 0;
+              return LineTooltipItem(
+                touchedSpot.barIndex == 0 ? "$dateStr\n" : "", // Chỉ hiện ngày ở dòng đầu tiên
+                const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11),
+                children: [
+                  TextSpan(
+                    text: isIncome ? "Income: " : "Expense: ",
+                    style: TextStyle(color: isIncome ? Colors.greenAccent : Colors.redAccent, fontWeight: FontWeight.normal, fontSize: 11),
+                  ),
+                  TextSpan(
+                    text: currencyFormat.format(touchedSpot.y),
+                    style: TextStyle(color: isIncome ? Colors.greenAccent : Colors.redAccent, fontWeight: FontWeight.bold, fontSize: 11),
+                  ),
+                ],
+              );
+            }).toList();
+          },
+        ),
+      ),
       gridData: FlGridData(
         show: true,
-        drawVerticalLine: true,
+        drawVerticalLine: false,
         horizontalInterval: interval,
-        getDrawingHorizontalLine: (v) => FlLine(color: Colors.white10, strokeWidth: 1),
-        getDrawingVerticalLine: (v) => FlLine(color: Colors.white10, strokeWidth: 1),
+        getDrawingHorizontalLine: (v) => FlLine(color: Colors.white.withOpacity(0.05), strokeWidth: 1),
       ),
       titlesData: FlTitlesData(
         rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
@@ -273,11 +285,14 @@ class _ChartCardState extends State<ChartCard> {
           sideTitles: SideTitles(
             showTitles: true,
             interval: interval,
-            reservedSize: 40,
+            reservedSize: 45,
             getTitlesWidget: (v, m) {
               if (v == 0) return const Text('0', style: TextStyle(color: Colors.grey, fontSize: 10));
-              String text = v >= 1000000 ? "${(v / 1000000).toInt()}M" : "${(v / 1000).toInt()}K";
-              return Text(text, style: const TextStyle(color: Colors.grey, fontSize: 10));
+              String text = v >= 1000000 ? "${(v / 1000000).toStringAsFixed(1)}M" : "${(v / 1000).toInt()}K";
+              return Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: Text(text, style: const TextStyle(color: Colors.grey, fontSize: 10), textAlign: TextAlign.right),
+              );
             },
           ),
         ),
@@ -286,76 +301,120 @@ class _ChartCardState extends State<ChartCard> {
             showTitles: true,
             getTitlesWidget: (v, m) {
               int idx = v.toInt();
-              // Mốc đầu tiên: Ngày 01
-              if (idx == 0 && _currentTrend.isNotEmpty) {
-                return _dateText(_currentTrend.first.date);
-              }
-              // Mốc cuối cùng: Ngày 30/31
-              if (idx == _currentTrend.length - 1 && _currentTrend.isNotEmpty) {
-                return _dateText(_currentTrend.last.date);
+              if (idx < 0 || idx >= _currentTrend.length) return const SizedBox();
+              
+              bool shouldShow = idx == 0 || 
+                               idx == _currentTrend.length - 1 || 
+                               (_currentTrend.length > 14 && idx == (_currentTrend.length / 2).floor());
+              
+              if (shouldShow) {
+                return SideTitleWidget(
+                  axisSide: m.axisSide,
+                  space: 10,
+                  child: Text(
+                    DateFormat('dd/MM').format(_currentTrend[idx].date), 
+                    style: TextStyle(color: Colors.grey.shade500, fontSize: 10, fontWeight: FontWeight.w500)
+                  ),
+                );
               }
               return const SizedBox();
             },
           ),
         ),
       ),
-      borderData: FlBorderData(show: true, border: Border.all(color: Colors.white10)),
+      borderData: FlBorderData(show: false),
       lineBarsData: [
-        _lineBarData(_currentTrend, Colors.green),
-        _lineBarData(_avgTrend, Colors.grey.withValues(alpha: 0.4), isDashed: true),
+        _lineBarData(true, Colors.greenAccent),
+        _lineBarData(false, Colors.redAccent),
       ],
+      minY: 0,
+      maxY: maxVal * 1.3, // Tăng thêm không gian phía trên cho Tooltip
     );
   }
 
-  LineChartBarData _lineBarData(List<DailyTrendDTO> data, Color color, {bool isDashed = false}) {
+  LineChartBarData _lineBarData(bool isIncome, Color color) {
     return LineChartBarData(
-      spots: data.asMap().entries.map((e) => FlSpot(e.key.toDouble(), e.value.totalExpense)).toList(),
+      spots: _currentTrend.asMap().entries.map((e) => FlSpot(e.key.toDouble(), isIncome ? e.value.totalIncome : e.value.totalExpense)).toList(),
       isCurved: true,
+      curveSmoothness: 0.35,
       color: color,
       barWidth: 3,
-      dotData: FlDotData(show: false),
-      dashArray: isDashed ? [5, 5] : null,
-      belowBarData: BarAreaData(show: !isDashed, color: color.withValues(alpha: 0.1)),
+      isStrokeCapRound: true,
+      dotData: FlDotData(
+        show: _currentTrend.length < 15,
+        getDotPainter: (spot, percent, barData, index) => FlDotCirclePainter(
+          radius: 3,
+          color: color,
+          strokeWidth: 1,
+          strokeColor: const Color(0xFF1C1C1E),
+        ),
+      ),
+      belowBarData: BarAreaData(
+        show: true,
+        gradient: LinearGradient(
+          colors: [color.withOpacity(0.2), color.withOpacity(0.0)],
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+        ),
+      ),
     );
   }
 
   Widget _buildBarChartSection() {
-    if (_isLoading) return const Center(child: CircularProgressIndicator());
-    if (_currentReport == null || _previousReport == null) return const Center(child: Text("No data available"));
+    if (_isLoading) return const Center(child: CircularProgressIndicator(color: Colors.deepOrangeAccent));
+    if (_currentReport == null || _previousReport == null) return _buildNoData();
 
     final currentExpense = _currentReport!.totalExpense;
     final prevExpense = _previousReport!.totalExpense;
-    final maxY = (currentExpense > prevExpense ? currentExpense : prevExpense) * 1.5;
+    final maxY = (currentExpense > prevExpense ? currentExpense : prevExpense) * 1.4;
 
     return Column(
       children: [
-        const SizedBox(height: 20),
-        Text("Comparison (${_barFilter == 'WEEK' ? 'This Week vs Last' : 'This Month vs Last'})", style: const TextStyle(color: Colors.grey, fontSize: 12)),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 15),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _buildBarSummary("PREVIOUS", prevExpense, Colors.blueGrey.shade300),
+              _buildBarSummary("CURRENT", currentExpense, Colors.deepOrangeAccent),
+            ],
+          ),
+        ),
         Expanded(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(40, 40, 40, 10),
+            padding: const EdgeInsets.fromLTRB(40, 10, 40, 10),
             child: BarChart(
               BarChartData(
                 alignment: BarChartAlignment.spaceAround,
-                maxY: maxY,
-                barTouchData: BarTouchData(
-                  enabled: true,
-                  touchTooltipData: BarTouchTooltipData(
-                    tooltipBgColor: Colors.blueGrey.withValues(alpha: 0.8),
-                    getTooltipItem: (group, groupIndex, rod, rodIndex) {
-                      return BarTooltipItem(
-                        currencyFormat.format(rod.toY),
-                        const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                      );
-                    },
-                  ),
-                ),
+                maxY: maxY > 0 ? maxY : 1000,
+                barTouchData: BarTouchData(enabled: true),
                 titlesData: FlTitlesData(
                   show: true,
-                  bottomTitles: AxisTitles(sideTitles: SideTitles(showTitles: true, getTitlesWidget: (v, m) {
-                    final style = TextStyle(color: Colors.grey, fontWeight: FontWeight.bold, fontSize: 11);
-                    return Padding(padding: const EdgeInsets.only(top: 10), child: Text(v == 0 ? 'Previous' : 'Current', style: style));
-                  })),
+                  bottomTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true, 
+                      getTitlesWidget: (v, m) {
+                        final bool isCurrent = v != 0;
+                        final color = isCurrent ? Colors.deepOrangeAccent : Colors.blueGrey.shade300;
+                        return SideTitleWidget(
+                          axisSide: m.axisSide,
+                          space: 12,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: color.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: color.withOpacity(0.2)),
+                            ),
+                            child: Text(
+                              isCurrent ? 'CURR' : 'PREV', 
+                              style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 10),
+                            ),
+                          ),
+                        );
+                      }
+                    ),
+                  ),
                   leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
                   topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
                   rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
@@ -363,12 +422,26 @@ class _ChartCardState extends State<ChartCard> {
                 gridData: FlGridData(show: false),
                 borderData: FlBorderData(show: false),
                 barGroups: [
-                  _barGroup(0, prevExpense, Colors.orange.shade300, maxY),
-                  _barGroup(1, currentExpense, Colors.deepOrange, maxY),
+                  _barGroup(0, prevExpense, Colors.blueGrey.shade400, maxY > 0 ? maxY : 1000),
+                  _barGroup(1, currentExpense, Colors.deepOrangeAccent, maxY > 0 ? maxY : 1000),
                 ],
               ),
             ),
           ),
+        ),
+        const SizedBox(height: 20),
+      ],
+    );
+  }
+
+  Widget _buildBarSummary(String label, double amount, Color color) {
+    return Column(
+      children: [
+        Text(label, style: TextStyle(color: Colors.grey.shade500, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1)),
+        const SizedBox(height: 6),
+        Text(
+          currencyFormat.format(amount),
+          style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 16),
         ),
       ],
     );
@@ -381,27 +454,35 @@ class _ChartCardState extends State<ChartCard> {
         BarChartRodData(
           toY: y,
           color: color,
-          width: 50,
-          borderRadius: BorderRadius.circular(8),
-          backDrawRodData: BackgroundBarChartRodData(show: true, toY: maxY, color: Colors.white.withValues(alpha: 0.05)),
+          width: 48,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
+          backDrawRodData: BackgroundBarChartRodData(
+            show: true, 
+            toY: maxY, 
+            color: Colors.white.withOpacity(0.03),
+          ),
         ),
       ],
-      showingTooltipIndicators: [0],
     );
   }
 
   Widget _buildLegend(List<Map<String, dynamic>> items) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.only(bottom: 15, top: 10),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
-        children: items.map((e) => Row(
-          children: [
-            Container(width: 10, height: 2, color: e['color']),
-            const SizedBox(width: 5),
-            Text(e['label'], style: const TextStyle(fontSize: 10, color: Colors.grey)),
-            const SizedBox(width: 20),
-          ],
+        children: items.map((e) => Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Row(
+            children: [
+              Container(
+                width: 12, height: 4, 
+                decoration: BoxDecoration(color: e['color'], borderRadius: BorderRadius.circular(2)),
+              ),
+              const SizedBox(width: 8),
+              Text(e['label'], style: TextStyle(fontSize: 11, color: Colors.grey.shade400, fontWeight: FontWeight.w500)),
+            ],
+          ),
         )).toList(),
       ),
     );
@@ -409,18 +490,30 @@ class _ChartCardState extends State<ChartCard> {
 
   Widget _buildIndicator() {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 15),
+      padding: const EdgeInsets.only(bottom: 20),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: List.generate(2, (i) => AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          margin: const EdgeInsets.symmetric(horizontal: 3),
-          width: _currentPage == i ? 15 : 6, height: 6,
-          decoration: BoxDecoration(borderRadius: BorderRadius.circular(3), color: _currentPage == i ? Colors.green : Colors.grey.withValues(alpha: 0.2)),
+          duration: const Duration(milliseconds: 300),
+          margin: const EdgeInsets.symmetric(horizontal: 4),
+          width: _currentPage == i ? 20 : 6, height: 6,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(3), 
+            color: _currentPage == i ? Colors.greenAccent : Colors.white.withOpacity(0.1),
+          ),
         )),
       ),
     );
   }
 
-  Widget _dateText(DateTime date) => Text(DateFormat('dd/MM').format(date), style: const TextStyle(color: Colors.grey, fontSize: 10));
+  Widget _buildNoData() {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(Icons.bar_chart, size: 48, color: Colors.white.withOpacity(0.1)),
+        const SizedBox(height: 16),
+        Text("No data available for this period", style: TextStyle(color: Colors.grey.shade600, fontSize: 14)),
+      ],
+    );
+  }
 }

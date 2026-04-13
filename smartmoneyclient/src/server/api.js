@@ -35,7 +35,6 @@ export const userApi = {
 
 export const notificationApi = {
     getNotifications: () => api.get('/notifications'),
-    getAdminSystemNotifications: () => api.get('/notifications/admin/system'),
     markAsRead: (id) => api.put(`/notifications/${id}/read`),
     markAllAsRead: () => api.put('/notifications/read-all'),
     delete: (id) => api.delete(`/notifications/${id}`),
@@ -65,16 +64,9 @@ export const adminApi = {
     restoreAllUserTransactions: (userId) => api.patch(`/admin/users/${userId}/transactions/restore-all`),
     getStats: () => api.get('/admin/stats'), 
     getOnlineUsers: () => api.get('/admin/analytics/online-users'),
-    getAllLiveOnlineUsers: () => api.get('/admin/analytics/live-online-users'),
     getSystemTransactionStats: (params) => api.get('/admin/system/transaction-stats', {
         params: cleanParams(params)
     }),
-    // notifyAbnormalTransactions: (threshold) => api.post('/admin/system/notify-abnormal', null, {
-    //     params: { threshold: threshold?.toString() }
-    // }),
-    // getAbnormalUsers: (threshold) => api.get('/admin/system/abnormal-users', {
-    //     params: { threshold: threshold?.toString() }
-    // }),
     handleAutoLogout: () => api.post('/admin/system/auto-logout'),
     getAdminNotifications: (adminId) => api.get(`/admin/notifications/${adminId}`),
     getAllContactRequests: (params) => api.get('/admin/contact-requests', { params: cleanParams(params) }),
@@ -87,6 +79,7 @@ const cleanParams = (params) => {
     if (!params) return cleaned;
     Object.keys(params).forEach(key => {
         const value = params[key];
+        // Không loại bỏ giá trị boolean false hoặc số 0
         if (value !== undefined && value !== null && value !== '') {
             cleaned[key] = value;
         }
@@ -99,6 +92,7 @@ export const transactionApi = {
     getGrouped: (params) => api.get('/transactions/grouped', { params: cleanParams(params) }),
     getSummary: (params) => api.get('/transactions/report/summary', { params: cleanParams(params) }),
     getCategoryReport: (params) => api.get('/transactions/report/category', { params: cleanParams(params) }),
+    getSummaryReport: (params) => api.get('/transactions/report/summary', { params: cleanParams(params) }),
     getFinancialReport: (params) => api.get('/transactions/report/financial', { params: cleanParams(params) }),
     getTrend: (params) => api.get('/transactions/report/trend', { params: cleanParams(params) }), 
     getById: (id) => api.get(`/transactions/${id}`),

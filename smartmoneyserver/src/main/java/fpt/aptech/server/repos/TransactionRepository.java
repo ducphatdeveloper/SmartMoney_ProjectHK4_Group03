@@ -325,34 +325,46 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
 
     List<Transaction> findAllByAmountGreaterThanAndTransDateAfter(BigDecimal amount, LocalDateTime since);
 
-    @Query("SELECT t FROM Transaction t " +
-            "LEFT JOIN FETCH t.wallet w " +
-            "LEFT JOIN FETCH t.category c " +
-            "WHERE t.account.id = :userId " +
-            "AND ((:onlyDeleted = true AND t.deleted = true) OR " +
-            "(:onlyDeleted = false AND (:includeDeleted = true OR t.deleted = false))) " +
-            "AND (:isIncome IS NULL OR c.ctgType = :isIncome) " +
-            "ORDER BY CASE WHEN :onlyDeleted = true THEN t.deletedAt ELSE t.transDate END DESC")
-    Page<Transaction> findAllUserTransactionsWithFilter(
+    /**
+     * Sử dụng Native Query để lấy danh sách giao dịch của một user cụ thể,
+     * bao gồm hoặc chỉ lấy các giao dịch đã xóa mềm (Bypass @SQLRestriction).
+     */
+    @Query(value = "SELECT t.* FROM tTransactions t " +
+            "LEFT JOIN tCategories c ON t.ctg_id = c.id " +
+            "WHERE t.acc_id = :userId " +
+            "AND ((:onlyDeleted = 1 AND t.deleted = 1) OR " +
+            "     (:onlyDeleted = 0 AND (:includeDeleted = 1 OR t.deleted = 0))) " +
+            "AND (:isIncome IS NULL OR c.ctg_type = :isIncome) " +
+            "ORDER BY CASE WHEN :onlyDeleted = 1 THEN t.deleted_at ELSE t.trans_date END DESC",
+            nativeQuery = true)
+    List<Transaction> findAllUserTransactionsNative(
             @Param("userId") Integer userId,
-            @Param("includeDeleted") boolean includeDeleted,
-            @Param("onlyDeleted") boolean onlyDeleted,
+            @Param("includeDeleted") int includeDeleted,
+            @Param("onlyDeleted") int onlyDeleted,
+            @Param("isIncome") Boolean isIncome);
+
+    /**
+     * Phiên bản phân trang sử dụng Native Query.
+     */
+    @Query(value = "SELECT t.* FROM tTransactions t " +
+            "LEFT JOIN tCategories c ON t.ctg_id = c.id " +
+            "WHERE t.acc_id = :userId " +
+            "AND ((:onlyDeleted = 1 AND t.deleted = 1) OR " +
+            "     (:onlyDeleted = 0 AND (:includeDeleted = 1 OR t.deleted = 0))) " +
+            "AND (:isIncome IS NULL OR c.ctg_type = :isIncome) " +
+            "ORDER BY CASE WHEN :onlyDeleted = 1 THEN t.deleted_at ELSE t.trans_date END DESC",
+            countQuery = "SELECT count(*) FROM tTransactions t " +
+                    "LEFT JOIN tCategories c ON t.ctg_id = c.id " +
+                    "WHERE t.acc_id = :userId " +
+                    "AND ((:onlyDeleted = 1 AND t.deleted = 1) OR " +
+                    "     (:onlyDeleted = 0 AND (:includeDeleted = 1 OR t.deleted = 0)))",
+            nativeQuery = true)
+    Page<Transaction> findAllUserTransactionsNativePage(
+            @Param("userId") Integer userId,
+            @Param("includeDeleted") int includeDeleted,
+            @Param("onlyDeleted") int onlyDeleted,
             @Param("isIncome") Boolean isIncome,
             Pageable pageable);
-
-    @Query("SELECT t FROM Transaction t " +
-            "LEFT JOIN FETCH t.wallet w " +
-            "LEFT JOIN FETCH t.category c " +
-            "WHERE t.account.id = :userId " +
-            "AND ((:onlyDeleted = true AND t.deleted = true) OR " +
-            "(:onlyDeleted = false AND (:includeDeleted = true OR t.deleted = false))) " +
-            "AND (:isIncome IS NULL OR c.ctgType = :isIncome) " +
-            "ORDER BY CASE WHEN :onlyDeleted = true THEN t.deletedAt ELSE t.transDate END DESC")
-    List<Transaction> findAllUserTransactionsWithFilter(
-            @Param("userId") Integer userId,
-            @Param("includeDeleted") boolean includeDeleted,
-            @Param("onlyDeleted") boolean onlyDeleted,
-            @Param("isIncome") Boolean isIncome);
 
     @Modifying
     @Query("UPDATE Transaction t SET t.deleted = false, t.deletedAt = null WHERE t.id = :id")
