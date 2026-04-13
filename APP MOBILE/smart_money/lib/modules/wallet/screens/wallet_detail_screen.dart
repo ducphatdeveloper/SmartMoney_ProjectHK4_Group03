@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../core/helpers/icon_helper.dart';
 import '../../../modules/transaction/providers/transaction_provider.dart';
+import '../../budget/screens/budget_screens.dart';
 import '../models/wallet_response.dart';
 import '../providers/wallet_provider.dart';
 import 'edit_wallet_screen.dart';
@@ -232,7 +233,47 @@ class _WalletDetailScreenState extends State<WalletDetailScreen> {
       builder: (_) => AlertDialog(
         backgroundColor: Colors.black,
         title: const Text("Xóa ví"),
-        content: const Text("Bạn có chắc muốn xóa ví này không?"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              "Bạn có chắc chắn muốn xóa ví này không?",
+              style: TextStyle(color: Colors.white),
+            ),
+            const SizedBox(height: 8),
+
+            const Text(
+              "Nếu xóa, toàn bộ ngân sách liên quan đến ví này có thể bị ảnh hưởng.",
+              style: TextStyle(color: Colors.redAccent),
+            ),
+
+            const SizedBox(height: 12),
+
+            // 🔗 LINK XEM BUDGET
+            GestureDetector(
+              onTap: () {
+                Navigator.pop(context);
+
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => BudgetScreen(
+                      initialWallet: widget.wallet, // truyền id qua
+                    ),
+                  ),
+                );
+              },
+              child: const Text(
+                "Xem ngân sách liên quan",
+                style: TextStyle(
+                  color: Colors.blueAccent,
+                  decoration: TextDecoration.underline,
+                ),
+              ),
+            ),
+          ],
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -245,8 +286,7 @@ class _WalletDetailScreenState extends State<WalletDetailScreen> {
 
               await provider.deleteWallet(widget.wallet.id);
 
-              // [FIX-BẪY2] Refresh TransactionProvider._sourceItems ngay lập tức
-              // để dropdown ví trong màn Transaction không còn hiện ví vừa bị soft-delete
+              // refresh transaction
               if (context.mounted) {
                 context.read<TransactionProvider>().refreshSourceItems();
               }
@@ -254,7 +294,10 @@ class _WalletDetailScreenState extends State<WalletDetailScreen> {
               Navigator.pop(context);
               Navigator.pop(context, true);
             },
-            child: const Text("Xóa", style: TextStyle(color: Colors.red)),
+            child: const Text(
+              "Xóa",
+              style: TextStyle(color: Colors.red),
+            ),
           ),
         ],
       ),

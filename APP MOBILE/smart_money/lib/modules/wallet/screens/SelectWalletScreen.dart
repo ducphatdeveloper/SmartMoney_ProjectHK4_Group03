@@ -40,6 +40,7 @@ class _SelectWalletScreenState extends State<SelectWalletScreen> {
         .toList();
 
 
+
     return Scaffold(
       backgroundColor: const Color(0xFF0E0E10),
       appBar: AppBar(
@@ -105,14 +106,29 @@ class _SelectWalletScreenState extends State<SelectWalletScreen> {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text("Tổng cộng",
-                  style: TextStyle(color: Colors.white)),
+              const Text(
+                "Tổng Tài Sản",
+                style: TextStyle(
+                  color: Colors.grey,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+
+              const SizedBox(height: 6),
+
               Text(
                 formatMoney(total),
-                style: const TextStyle(color: Colors.grey),
-              )
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 0.5,
+                ),
+              ),
             ],
           )
+
         ],
       ),
     );

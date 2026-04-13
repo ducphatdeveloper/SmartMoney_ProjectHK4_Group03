@@ -69,11 +69,18 @@ class WalletProvider with ChangeNotifier {
   Future<void> deleteWallet(int id) async {
     try {
       await _service.deleteWallet(id);
-      wallets.removeWhere((w) => w?.id == id);
+
+      wallets.removeWhere((w) => w.id == id);
+
+
+
       notifyListeners();
     } catch (e) {
       error = e.toString();
       notifyListeners();
     }
   }
+
+
+
 }

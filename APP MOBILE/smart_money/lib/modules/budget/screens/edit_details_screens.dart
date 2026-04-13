@@ -36,6 +36,7 @@ class _EditBudgetDetailScreenState extends State<EditBudgetDetailScreen> {
   String periodType = "CUSTOM";
   bool _hasShownLimitWarning = false; // cờ kiểm tra đã show snack
 
+
   @override
   void initState() {
     super.initState();
@@ -76,7 +77,7 @@ class _EditBudgetDetailScreenState extends State<EditBudgetDetailScreen> {
           );
       }
     } else {
-      _hasShownLimitWarning = false; // reset khi <= 500 triệu
+      _hasShownLimitWarning = false; // reset khi <= 1000  tỷ
     }
 
     final formatted = NumberFormat('#,###', 'vi_VN').format(number);

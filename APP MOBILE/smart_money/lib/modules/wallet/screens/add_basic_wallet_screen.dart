@@ -11,10 +11,13 @@ class AddBasicWalletScreen extends StatefulWidget {
 
   @override
   State<AddBasicWalletScreen> createState() => _AddBasicWalletScreenState();
+
 }
 
 class CurrencyInputFormatter extends TextInputFormatter {
-  final int maxValue = 500000000;
+  final int maxValue = 1000000000000;
+
+
 
   @override
   TextEditingValue formatEditUpdate(
@@ -25,8 +28,8 @@ class CurrencyInputFormatter extends TextInputFormatter {
     final number = int.tryParse(newText);
     if (number == null) return oldValue;
 
-    final cappedNumber = number > maxValue ? maxValue : number;
-    final formatted = _formatNumber(cappedNumber);
+    // final cappedNumber = number > maxValue ? maxValue : number;
+    final formatted = _formatNumber(number);
 
     return TextEditingValue(
       text: formatted,
@@ -49,7 +52,7 @@ class CurrencyInputFormatter extends TextInputFormatter {
 class _AddBasicWalletScreenState extends State<AddBasicWalletScreen> {
   final TextEditingController nameController = TextEditingController();
   final TextEditingController balanceController = TextEditingController();
-
+  bool _hasShownLimitWarning = false;
   bool excludeFromTotal = false;
   final String currency = "VND";
   bool isSaving = false;
@@ -57,6 +60,30 @@ class _AddBasicWalletScreenState extends State<AddBasicWalletScreen> {
   String? _selectedIconUrl;
   String? nameError;
   String? balanceError;
+
+  String _formatNumber(int number) {
+    final str = number.toString();
+    final buffer = StringBuffer();
+    for (int i = 0; i < str.length; i++) {
+      int position = str.length - i;
+      buffer.write(str[i]);
+      if (position > 1 && position % 3 == 1) buffer.write(',');
+    }
+    return buffer.toString();
+  }
+
+  String? _validateName(String text) {
+    if (text.isEmpty) return "Tên ví không được để trống";
+    if (text.length > 30) return "Tên ví tối đa 30 ký tự";
+
+    final regex = RegExp(r'^[a-zA-Z0-9\sÀ-ỹ]+$');
+    if (!regex.hasMatch(text)) {
+      return "Không chứa ký tự đặc biệt";
+    }
+
+    return null;
+  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -115,15 +142,22 @@ class _AddBasicWalletScreenState extends State<AddBasicWalletScreen> {
             title: TextField(
               controller: nameController,
               style: const TextStyle(color: Colors.white),
+              inputFormatters: [
+
+                LengthLimitingTextInputFormatter(31),
+
+
+              ],
               decoration: InputDecoration(
                 hintText: "Tên ví",
                 hintStyle: const TextStyle(color: Colors.grey),
                 border: InputBorder.none,
                 errorText: nameError,
               ),
-              onChanged: (_) {
+              onChanged: (value) {
                 setState(() {
-                  nameError = null; // reset lỗi khi user nhập
+                  nameError = _validateName(value);
+                  // reset lỗi khi user nhập
                 });
               },
             ),
@@ -169,8 +203,8 @@ class _AddBasicWalletScreenState extends State<AddBasicWalletScreen> {
                   keyboardType: TextInputType.number,
                   inputFormatters: [
                     FilteringTextInputFormatter.digitsOnly,
-                    CurrencyInputFormatter(),
                   ],
+
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 28,
@@ -182,11 +216,14 @@ class _AddBasicWalletScreenState extends State<AddBasicWalletScreen> {
                     border: InputBorder.none,
                     errorText: balanceError,
                   ),
-                  onChanged: (_) {
+                  onChanged: (value) {
+                    _onBalanceChanged(value); // 🔥 format + snackbar
+
                     setState(() {
-                      balanceError = null; // reset lỗi khi user nhập
+                      balanceError = _validateBalance(value); // 🔥 validate realtime
                     });
                   },
+
                 ),
               ],
             ),
@@ -195,6 +232,41 @@ class _AddBasicWalletScreenState extends State<AddBasicWalletScreen> {
       ),
     );
   }
+
+  void _onBalanceChanged(String value) {
+    final raw = value.replaceAll(',', '');
+    int number = int.tryParse(raw) ?? 0;
+
+    const MAX = 1000000000000;
+
+    if (number > MAX) {
+      // 🔥 chỉ cảnh báo 1 lần
+      if (!_hasShownLimitWarning) {
+        _hasShownLimitWarning = true;
+
+        ScaffoldMessenger.of(context)
+          ..removeCurrentSnackBar()
+          ..showSnackBar(
+            const SnackBar(
+              content: Text("Số tiền không được vượt quá 1000 tỷ"),
+              duration: Duration(seconds: 2),
+            ),
+          );
+      }
+    } else {
+      _hasShownLimitWarning = false;
+    }
+
+    final formatted = _formatNumber(number);
+
+    setState(() {
+      balanceController.value = TextEditingValue(
+        text: formatted,
+        selection: TextSelection.collapsed(offset: formatted.length),
+      );
+    });
+  }
+
 
   Widget _buildSwitchCard() {
     return Container(
@@ -224,7 +296,7 @@ class _AddBasicWalletScreenState extends State<AddBasicWalletScreen> {
     final value = double.tryParse(raw);
     if (value == null) return "Số tiền không hợp lệ";
     if (value < 0) return "Số tiền không được âm";
-    if (value > 500000000) return "Số tiền tối đa là 500,000,000 VND";
+    if (value > 1000000000000) return "Số tiền tối đa là 1000 Tỷ VND";
     return null;
   }
 
@@ -233,11 +305,22 @@ class _AddBasicWalletScreenState extends State<AddBasicWalletScreen> {
     final balanceText = balanceController.text;
 
     setState(() {
-      nameError = name.isEmpty ? "Tên ví không được để trống" : null;
+      nameError = _validateName(name);
+
       balanceError = _validateBalance(balanceText);
     });
 
-    if (nameError != null || balanceError != null) return;
+    if (nameError != null || balanceError != null) {
+      // 🔥 SHOW THÔNG BÁO
+      ScaffoldMessenger.of(context)
+        ..removeCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text(balanceError ?? nameError!),
+          ),
+        );
+      return;
+    }
 
     final rawText = balanceText.replaceAll(',', '');
     final balance = double.tryParse(rawText) ?? 0;
