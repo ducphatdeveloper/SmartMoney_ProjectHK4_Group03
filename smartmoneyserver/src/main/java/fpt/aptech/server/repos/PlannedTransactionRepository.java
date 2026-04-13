@@ -30,12 +30,14 @@ public interface PlannedTransactionRepository extends JpaRepository<PlannedTrans
     // ── SCHEDULER ───────────────────────────────────────────────────────
 
     // Chỉ lấy Recurring (plan_type=2) đến hạn → tự tạo Transaction
-    // JOIN FETCH category + wallet + account để tránh LazyInitializationException trong @Transactional(REQUIRES_NEW)
+    // JOIN FETCH category + wallet + account + debt để tránh LazyInitializationException trong @Transactional(REQUIRES_NEW)
+    // LEFT JOIN FETCH debt vì debt_id có thể NULL (không phải mọi recurring đều liên kết nợ)
     @Query("""
         SELECT p FROM PlannedTransaction p
         JOIN FETCH p.category
         JOIN FETCH p.wallet
         JOIN FETCH p.account
+        LEFT JOIN FETCH p.debt
         WHERE p.active = true
           AND p.planType = 2
           AND p.nextDueDate <= :today
@@ -44,12 +46,14 @@ public interface PlannedTransactionRepository extends JpaRepository<PlannedTrans
     List<PlannedTransaction> findRecurringDueToday(@Param("today") LocalDate today);
 
     // Chỉ lấy Bills (plan_type=1) đến hạn → gửi notification nhắc
-    // JOIN FETCH category + wallet + account để tránh LazyInitializationException trong @Transactional(REQUIRES_NEW)
+    // JOIN FETCH category + wallet + account + debt để tránh LazyInitializationException trong @Transactional(REQUIRES_NEW)
+    // LEFT JOIN FETCH debt vì debt_id có thể NULL
     @Query("""
         SELECT p FROM PlannedTransaction p
         JOIN FETCH p.category
         JOIN FETCH p.wallet
         JOIN FETCH p.account
+        LEFT JOIN FETCH p.debt
         WHERE p.active = true
           AND p.planType = 1
           AND p.nextDueDate <= :today

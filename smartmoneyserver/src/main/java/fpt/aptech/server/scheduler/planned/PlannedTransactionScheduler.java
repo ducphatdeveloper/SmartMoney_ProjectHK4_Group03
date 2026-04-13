@@ -22,6 +22,8 @@ import org.springframework.context.annotation.Lazy;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Scheduler xử lý giao dịch định kỳ và hóa đơn.
@@ -53,6 +55,9 @@ public class PlannedTransactionScheduler {
     private final PlannedTransactionServiceImpl plannedService;
     private final NotificationService notificationService;
 
+    // Anti-spam: ghi nhớ planned ID đã gửi notification thiếu tiền trong ngày (in-memory, reset mỗi ngày)
+    private final Map<Integer, LocalDate> insufficientBalanceNotifiedMap = new ConcurrentHashMap<>();
+
     // ══════════════════════════════════════════════════════════════════════
     // JOB 1 — Xử lý giao dịch định kỳ + hóa đơn (1:00 AM mỗi ngày)
     // Lý do 1h sáng: Xử lý nền khi hệ thống ít tải, tạo transaction + nhắc bill
@@ -76,6 +81,8 @@ public class PlannedTransactionScheduler {
     // [3] Logic chính: quét Recurring + Bills đến hạn hôm nay
     private void runCheck() {
         LocalDate today = LocalDate.now();
+        // Dọn notification anti-spam map (xóa entry cũ hơn hôm nay)
+        insufficientBalanceNotifiedMap.entrySet().removeIf(e -> e.getValue().isBefore(today));
         int processedRecurring = 0; // Đếm số giao dịch định kỳ đã xử lý
         int processedBills     = 0; // Đếm số hóa đơn đã nhắc
 
@@ -87,7 +94,8 @@ public class PlannedTransactionScheduler {
                 self.processRecurring(planned, today); // self-injection cho @Transactional(REQUIRES_NEW)
                 processedRecurring++;
             } catch (Exception e) {
-                log.error("[PlannedScheduler] Lỗi Giao dịch định kỳ id={}: {}", planned.getId(), e.getMessage());
+                // [FIX-LOG-STACKTRACE] Thêm `e` cuối cùng để log cả stack trace, không chỉ message
+                log.error("[PlannedScheduler] Lỗi Giao dịch định kỳ id={}: {}", planned.getId(), e.getMessage(), e);
             }
         }
 
@@ -99,7 +107,8 @@ public class PlannedTransactionScheduler {
                 self.processBill(planned, today); // self-injection cho @Transactional(REQUIRES_NEW)
                 processedBills++;
             } catch (Exception e) {
-                log.error("[PlannedScheduler] Lỗi Hóa đơn id={}: {}", planned.getId(), e.getMessage());
+                // [FIX-LOG-STACKTRACE] Thêm `e` cuối cùng để log cả stack trace
+                log.error("[PlannedScheduler] Lỗi Hóa đơn id={}: {}", planned.getId(), e.getMessage(), e);
             }
         }
 
@@ -125,6 +134,21 @@ public class PlannedTransactionScheduler {
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void processRecurring(PlannedTransaction planned, LocalDate today) {
+        // ══════════════════════════════════════════════════════════════════
+        // [FIX-DETACHED-ENTITY] Re-fetch planned trong REQUIRES_NEW transaction
+        // BUG CŨ: planned được load ở runCheck() (transaction repo tự quản),
+        //   khi processRecurring chạy REQUIRES_NEW → planned + wallet/category/account/debt
+        //   đều bị DETACHED → persist() Transaction mới tham chiếu entity detached
+        //   → Hibernate 6 ném PersistentObjectException: "detached entity passed to persist"
+        //   → Exception bị catch im lặng → KHÔNG tạo giao dịch, KHÔNG deactivate.
+        // FIX: Re-fetch planned từ DB trong transaction mới → tất cả entity đều MANAGED.
+        // ══════════════════════════════════════════════════════════════════
+        planned = plannedRepo.findById(planned.getId()).orElse(null);
+        if (planned == null) {
+            log.warn("[PlannedScheduler] Giao dịch định kỳ không tồn tại sau re-fetch, bỏ qua.");
+            return;
+        }
+
         // Bước 1: Check đã chạy hôm nay chưa (tránh duplicate nếu scheduler chạy lại)
         if (planned.getLastExecutedAt() != null && planned.getLastExecutedAt().isEqual(today)) {
             log.debug("[PlannedScheduler] Giao dịch định kỳ id={} đã xử lý hôm nay, bỏ qua.", planned.getId());
@@ -137,9 +161,15 @@ public class PlannedTransactionScheduler {
             return;
         }
 
-        // Bước 3: [LOGIC V2] Check Hết Hạn (EXPIRED) — endDate đã qua nhưng vẫn active
+        // Bước 3: [FIX-ZOMBIE-EXPIRED] Check Hết Hạn (EXPIRED) — endDate đã qua nhưng vẫn active
+        // BUG CŨ: chỉ log rồi return → planned giữ active=true mãi mãi → scheduler tìm thấy mỗi ngày
+        //   nhưng không xử lý, không deactivate → trạng thái "zombie" vĩnh viễn.
+        // FIX: set active=false + save → dọn dẹp planned hết hạn.
         if (planned.getEndDate() != null && planned.getEndDate().isBefore(today)) {
-            log.warn("[PlannedScheduler] Giao dịch định kỳ id={} đã hết hạn ngày {}, nhưng vẫn active. Bỏ qua.",
+            planned.setActive(false);
+            planned.setLastExecutedAt(today);
+            plannedRepo.save(planned);
+            log.info("[PlannedScheduler] Giao dịch định kỳ id={} đã hết hạn ngày {} → auto deactivate.",
                     planned.getId(), planned.getEndDate());
             return;
         }
@@ -149,60 +179,70 @@ public class PlannedTransactionScheduler {
         // Nhãn hiển thị: ưu tiên note, fallback về tên danh mục
         String label = planned.getNote() != null ? planned.getNote() : planned.getCategory().getCtgName();
 
-        // Bước 5: [PRE-CHECK SỐ DƯ] Chỉ áp dụng cho CHI tiêu (isIncome=false)
+        // Bước 5: [FIX-DEBT-PRECHECK] Kiểm tra khoản nợ liên kết đã hoàn thành chưa
+        // Nếu debt đã finished=true TRƯỚC khi tạo transaction → deactivate luôn, không tạo GD thừa
+        // Trường hợp: debt đã trả xong (bằng GD thủ công hoặc payBill) nhưng recurring vẫn active
+        if (planned.getDebt() != null) {
+            Debt preCheckDebt = debtRepo.findById(planned.getDebt().getId()).orElse(null);
+            if (preCheckDebt != null && Boolean.TRUE.equals(preCheckDebt.getFinished())) {
+                planned.setActive(false);
+                planned.setLastExecutedAt(today);
+                plannedRepo.save(planned);
+                log.info("[PlannedScheduler] Giao dịch định kỳ id={} liên kết debt id={} đã hoàn thành → deactivate, không tạo GD.",
+                        planned.getId(), preCheckDebt.getId());
+                return; // Debt đã xong → không cần tạo transaction nữa
+            }
+        }
+
+        // Bước 6: [PRE-CHECK SỐ DƯ] Chỉ áp dụng cho CHI tiêu (isIncome=false)
         // Kiểm tra ví đủ tiền TRƯỚC khi tạo transaction — nếu không đủ:
-        //   → Gửi thông báo cảnh báo cho user
-        //   → Tiến nextDueDate sang kỳ sau (bỏ qua kỳ này hoàn toàn)
-        //   → KHÔNG tạo transaction
-        // Lý do tiến lịch thay vì retry: nếu không tiến → scheduler retry mỗi ngày → spam notification
+        //   → Gửi thông báo cảnh báo cho user (anti-spam: 1 lần/ngày qua in-memory map)
+        //   → KHÔNG advance nextDueDate, KHÔNG set lastExecutedAt
+        //   → Scheduler sẽ RETRY kỳ này vào lần chạy tiếp khi ví đủ tiền
+        // [FIX-RETRY] BUG CŨ: advance nextDueDate khi thiếu tiền → kỳ bị bỏ qua vĩnh viễn,
+        //   user nạp tiền sau cũng không có giao dịch retro. FIX: giữ nguyên nextDueDate.
         if (!isIncome) {
             Wallet wallet = planned.getWallet(); // Lazy load trong @Transactional
             if (wallet.getBalance().compareTo(planned.getAmount()) < 0) {
 
-                // [5.1] Gửi thông báo số dư không đủ
-                // → NotificationMessages.recurringInsufficientBalance()
-                //   Title="Giao dịch định kỳ bị bỏ qua ⚠️"
-                //   Content="Giao dịch định kỳ \"Tiền nhà\" không thể thực hiện: Ví \"MoMo\" chỉ còn 50.000 ₫,
-                //            cần 5.000.000 ₫. Kỳ này đã bị bỏ qua — vui lòng nạp thêm tiền vào ví."
-                NotificationContent insufficientMsg = NotificationMessages.recurringInsufficientBalance(
-                        label, planned.getAmount(), wallet.getWalletName(), wallet.getBalance());
-                notificationService.createNotification(
-                        planned.getAccount(),              // Bảo mật: chỉ chủ giao dịch nhận
-                        insufficientMsg.title(), insufficientMsg.content(),
-                        NotificationType.REMINDER,         // type = 9 (REMINDER)
-                        Long.valueOf(planned.getId()),      // related_id = planned.id (để Flutter navigate)
-                        null                               // scheduledTime = null → gửi ngay
-                );
+                // [6.1] Anti-spam: chỉ gửi notification thiếu tiền 1 lần/ngày (in-memory map)
+                LocalDate lastNotified = insufficientBalanceNotifiedMap.get(planned.getId());
+                boolean shouldNotify = lastNotified == null || lastNotified.isBefore(today);
 
-                // [5.2] Tiến lịch: đánh dấu đã xử lý hôm nay + nhảy sang kỳ sau
-                // Lý do dùng getNextDueDate() (ngày đang hạn) làm điểm xuất phát tính kỳ tiếp
-                LocalDate skippedDue = planned.getNextDueDate(); // Lưu ngày bị bỏ qua để log
-                LocalDate nextDue = plannedService.calculateNextDueDate(planned, skippedDue);
-                planned.setLastExecutedAt(today);  // Đánh dấu đã "xử lý" hôm nay (dù bỏ qua)
-                planned.setNextDueDate(nextDue);   // Tiến sang kỳ tiếp theo
-
-                // [5.3] Kiểm tra kết thúc nếu nextDueDate vượt endDate
-                if (planned.getEndDate() != null && nextDue.isAfter(planned.getEndDate())) {
-                    planned.setActive(false);
-                    log.info("[PlannedScheduler] Giao dịch định kỳ id={} đã kết thúc (kỳ {} bị bỏ qua do số dư không đủ).",
-                            planned.getId(), skippedDue);
+                if (shouldNotify) {
+                    NotificationContent insufficientMsg = NotificationMessages.recurringInsufficientBalance(
+                            label, planned.getAmount(), wallet.getWalletName(), wallet.getBalance());
+                    notificationService.createNotification(
+                            planned.getAccount(),
+                            insufficientMsg.title(), insufficientMsg.content(),
+                            NotificationType.REMINDER,
+                            Long.valueOf(planned.getId()),
+                            null
+                    );
+                    insufficientBalanceNotifiedMap.put(planned.getId(), today);
+                } else {
+                    log.debug("[PlannedScheduler] Anti-spam: Đã gửi notification thiếu tiền cho id={} hôm nay rồi, bỏ qua gửi lại.", planned.getId());
                 }
 
-                plannedRepo.save(planned); // Lưu trạng thái tiến lịch vào DB
-
-                log.warn("[PlannedScheduler] Giao dịch định kỳ id={} '{}' BỎ QUA kỳ {}: ví '{}' còn {} < cần {}. Kỳ tiếp: {}",
-                        planned.getId(), label, skippedDue,
-                        wallet.getWalletName(), wallet.getBalance(), planned.getAmount(), nextDue);
-                return; // KHÔNG tạo transaction — kết thúc sớm
+                // [6.2] KHÔNG advance nextDueDate, KHÔNG set lastExecutedAt
+                // → Giữ nguyên nextDueDate để Scheduler retry kỳ này khi ví đủ tiền
+                // → lastExecutedAt giữ nguyên để duplicate-check (Bước 1) không chặn retry
+                log.warn("[PlannedScheduler] Giao dịch định kỳ id={} '{}' THIẾU TIỀN kỳ {}: ví '{}' còn {} < cần {}. Giữ nguyên nextDueDate, sẽ RETRY khi đủ tiền.",
+                        planned.getId(), label, planned.getNextDueDate(),
+                        wallet.getWalletName(), wallet.getBalance(), planned.getAmount());
+                return; // KHÔNG tạo transaction, KHÔNG advance — chờ retry
             }
         }
 
-        // Bước 6: Tạo Transaction từ Planned (số dư đã đảm bảo đủ ở Bước 5)
+        // Bước 7: Tạo Transaction từ Planned (số dư đã đảm bảo đủ ở Bước 6)
         // createTransactionFromPlanned() xử lý: tạo Transaction + trừ ví + recalculate debt
         plannedService.createTransactionFromPlanned(planned);
 
-        // Bước 6.5: [FIX-AUTODEACTIVATE-RECURRING] Kiểm tra nợ liên kết — nếu debt đã hoàn thành → deactivate recurring
-        // Nếu recurring liên kết debt và debt vừa được kết thúc (do recalculateDebt() ở Bước 6)
+        // Xóa anti-spam entry (nếu trước đó thiếu tiền → nay đã tạo GD thành công)
+        insufficientBalanceNotifiedMap.remove(planned.getId());
+
+        // Bước 7.5: [FIX-AUTODEACTIVATE-RECURRING] Kiểm tra nợ liên kết — nếu debt đã hoàn thành → deactivate recurring
+        // Nếu recurring liên kết debt và debt vừa được kết thúc (do recalculateDebt() ở Bước 7)
         // → tự động deactivate recurring này
         if (planned.getDebt() != null) {
             Debt updatedDebt = debtRepo.findById(planned.getDebt().getId()).orElse(null);
@@ -213,7 +253,7 @@ public class PlannedTransactionScheduler {
             }
         }
 
-        // Bước 7: Gửi thông báo xác nhận thành công
+        // Bước 8: Gửi thông báo xác nhận thành công
         // → NotificationMessages.recurringExecuted()
         //   Title="Giao dịch định kỳ đã thực hiện 🔄"
         //   Content="Giao dịch định kỳ \"Tiền nhà\" đã tự động chi 5.000.000 ₫."  (Chi)
@@ -234,12 +274,19 @@ public class PlannedTransactionScheduler {
         log.info("[PlannedScheduler] Đã tạo Transaction cho Giao dịch định kỳ id={} '{}', amount={}.",
                 planned.getId(), label, planned.getAmount());
 
-        // Bước 8: Cập nhật lịch: lastExecutedAt = today, tính nextDueDate kỳ sau
+        // Bước 9: [FIX-CATCHUP] Cập nhật lịch: lastExecutedAt = today, tính nextDueDate catch-up tới tương lai
+        // BUG CŨ: chỉ tiến 1 kỳ → nếu nextDueDate cũ xa quá khứ, nextDueDate mới vẫn ở quá khứ
+        //   VD: nextDueDate=01/03 + 1 tháng = 01/04, nhưng today=13/04 → 01/04 < 13/04 → kẹt!
+        // FIX: vòng lặp tiến cho đến khi nextDueDate > today
         planned.setLastExecutedAt(today);
         LocalDate nextDue = plannedService.calculateNextDueDate(planned, planned.getNextDueDate());
+        int safety = 0; // Giới hạn vòng lặp tránh infinite loop
+        while (!nextDue.isAfter(today) && safety++ < 1000) {
+            nextDue = plannedService.calculateNextDueDate(planned, nextDue);
+        }
         planned.setNextDueDate(nextDue);
 
-        // Bước 9: Kiểm tra kết thúc (nếu nextDueDate vượt endDate → active=false)
+        // Bước 10: Kiểm tra kết thúc (nếu nextDueDate vượt endDate → active=false)
         if (planned.getEndDate() != null && nextDue.isAfter(planned.getEndDate())) {
             planned.setActive(false); // Hết kỳ → deactivate
             log.info("[PlannedScheduler] Giao dịch định kỳ id={} đã kết thúc.", planned.getId());
@@ -271,6 +318,13 @@ public class PlannedTransactionScheduler {
      */
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void processBill(PlannedTransaction planned, LocalDate today) {
+        // [FIX-DETACHED-ENTITY] Re-fetch planned trong REQUIRES_NEW transaction (giống processRecurring)
+        planned = plannedRepo.findById(planned.getId()).orElse(null);
+        if (planned == null) {
+            log.warn("[PlannedScheduler] Hóa đơn không tồn tại sau re-fetch, bỏ qua.");
+            return;
+        }
+
         // Bước 1: Check xem đã nhắc hôm nay chưa (tránh spam nếu scheduler trigger lại trong ngày)
         if (planned.getLastExecutedAt() != null && planned.getLastExecutedAt().isEqual(today)) {
             log.debug("[PlannedScheduler] Hóa đơn id={} đã nhắc hôm nay, bỏ qua.", planned.getId());
@@ -283,9 +337,14 @@ public class PlannedTransactionScheduler {
             return;
         }
 
-        // Bước 3: [LOGIC V2] Check Hết Hạn (EXPIRED) — endDate đã qua nhưng vẫn active
+        // Bước 3: [FIX-ZOMBIE-EXPIRED] Check Hết Hạn (EXPIRED) — endDate đã qua nhưng vẫn active
+        // BUG CŨ: chỉ log rồi return → bill giữ active=true mãi mãi → trạng thái "zombie".
+        // FIX: set active=false + save → dọn dẹp bill hết hạn.
         if (planned.getEndDate() != null && planned.getEndDate().isBefore(today)) {
-            log.warn("[PlannedScheduler] Hóa đơn id={} đã hết hạn ngày {}, nhưng vẫn active. Không gửi thông báo.",
+            planned.setActive(false);
+            planned.setLastExecutedAt(today);
+            plannedRepo.save(planned);
+            log.info("[PlannedScheduler] Hóa đơn id={} đã hết hạn ngày {} → auto deactivate.",
                     planned.getId(), planned.getEndDate());
             return;
         }
