@@ -3,12 +3,14 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:smart_money/core/helpers/format_helper.dart';
+import 'package:smart_money/core/helpers/icon_helper.dart';
 import 'package:smart_money/core/models/api_response.dart';
 import 'package:smart_money/modules/transaction/models/report/transaction_report_response.dart';
 import 'package:smart_money/modules/transaction/models/report/category_report_dto.dart';
 import 'package:smart_money/modules/transaction/providers/transaction_provider.dart';
 import 'package:smart_money/modules/transaction/screens/common_transaction_list_screen.dart';
 import 'package:smart_money/modules/transaction/services/transaction_service.dart';
+import 'package:smart_money/modules/debt/screens/debt_list_screen.dart';
 
 class TransactionReportPanel extends StatelessWidget {
   final VoidCallback onClose;
@@ -98,7 +100,11 @@ class _ReportLoaderState extends State<_ReportLoader> {
   String? _errorMessage;
   TransactionReportResponse? _report;
   List<CategoryReportDTO> _categoryExpenses = [];
-  int _touchedIndex = -1;
+  List<CategoryReportDTO> _categoryIncomes = [];
+  int _touchedExpenseIndex = -1;
+  int _touchedIncomeIndex = -1;
+  final PageController _pageController = PageController();
+  int _currentChartPage = 0;
 
   final List<Color> _chartColors = [
     Colors.blue,
@@ -117,6 +123,12 @@ class _ReportLoaderState extends State<_ReportLoader> {
   void initState() {
     super.initState();
     _loadAllData();
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadAllData() async {
@@ -154,12 +166,18 @@ class _ReportLoaderState extends State<_ReportLoader> {
         }
 
         if (categoryRes.success && categoryRes.data != null) {
-          _categoryExpenses = categoryRes.data!
+          final allCategories = categoryRes.data!;
+          _categoryExpenses = allCategories
               .where((c) => c.categoryType == false && c.totalAmount > 0)
               .toList()
             ..sort((a, b) => b.totalAmount.compareTo(a.totalAmount));
+
+          _categoryIncomes = allCategories
+              .where((c) => c.categoryType == true && c.totalAmount > 0)
+              .toList()
+            ..sort((a, b) => b.totalAmount.compareTo(a.totalAmount));
         }
-        
+
         _isLoading = false;
       });
     } catch (e) {
@@ -413,7 +431,7 @@ class _ReportLoaderState extends State<_ReportLoader> {
   }
 
   Widget _buildCategoryReportCard() {
-    if (_categoryExpenses.isEmpty) {
+    if (_categoryExpenses.isEmpty && _categoryIncomes.isEmpty) {
       return _card(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -421,7 +439,7 @@ class _ReportLoaderState extends State<_ReportLoader> {
             _sectionTitle(Icons.pie_chart_outline_rounded, 'Category report'),
             const SizedBox(height: 20),
             const Center(
-              child: Text('No expense data for this period',
+              child: Text('No data for this period',
                   style: TextStyle(color: Colors.grey, fontSize: 13)),
             ),
           ],
@@ -433,89 +451,204 @@ class _ReportLoaderState extends State<_ReportLoader> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _sectionTitle(Icons.pie_chart_outline_rounded, 'Category report'),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _sectionTitle(Icons.pie_chart_outline_rounded, 'Category report'),
+              _buildChartToggle(),
+            ],
+          ),
           const SizedBox(height: 20),
           
           SizedBox(
-            height: 200,
-            child: PieChart(
-              PieChartData(
-                pieTouchData: PieTouchData(
-                  touchCallback: (FlTouchEvent event, pieTouchResponse) {
-                    setState(() {
-                      if (!event.isInterestedForInteractions ||
-                          pieTouchResponse == null ||
-                          pieTouchResponse.touchedSection == null) {
-                        _touchedIndex = -1;
-                        return;
-                      }
-                      _touchedIndex = pieTouchResponse.touchedSection!.touchedSectionIndex;
-                    });
-                  },
-                ),
-                borderData: FlBorderData(show: false),
-                sectionsSpace: 2,
-                centerSpaceRadius: 40,
-                sections: _buildPieSections(),
-              ),
+            height: 520, // Tăng thêm chiều cao để danh sách không bị cắt
+            child: PageView(
+              controller: _pageController,
+              onPageChanged: (idx) => setState(() => _currentChartPage = idx),
+              children: [
+                _buildPieChartPage('Expenses', _categoryExpenses, true),
+                _buildPieChartPage('Incomes', _categoryIncomes, false),
+              ],
             ),
           ),
           
-          const SizedBox(height: 24),
-          
-          ...List.generate(_categoryExpenses.length, (index) {
-            final item = _categoryExpenses[index];
-            final color = _chartColors[index % _chartColors.length];
-            
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: InkWell(
-                onTap: () {
-                },
-                child: Row(
-                  children: [
-                    Container(
-                      width: 12,
-                      height: 12,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: color,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(item.categoryName,
-                          style: const TextStyle(color: Colors.white, fontSize: 13)),
-                    ),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Text(FormatHelper.formatVND(item.totalAmount),
-                            style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 13,
-                                fontWeight: FontWeight.bold)),
-                        Text('${item.percentage.toStringAsFixed(1)}%',
-                            style: const TextStyle(color: Colors.grey, fontSize: 11)),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            );
-          }),
+          const SizedBox(height: 8),
+          _buildPageIndicator(),
         ],
       ),
     );
   }
 
-  List<PieChartSectionData> _buildPieSections() {
-    return List.generate(_categoryExpenses.length, (i) {
-      final isTouched = i == _touchedIndex;
-      final item = _categoryExpenses[i];
-      
+  Widget _buildChartToggle() {
+    return Container(
+      height: 28,
+      padding: const EdgeInsets.all(2),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: [
+          _toggleItem("Expense", _currentChartPage == 0),
+          _toggleItem("Income", _currentChartPage == 1),
+        ],
+      ),
+    );
+  }
+
+  Widget _toggleItem(String label, bool active) {
+    return GestureDetector(
+      onTap: () {
+        _pageController.animateToPage(
+          label == "Expense" ? 0 : 1,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+        );
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: active ? Colors.green.withValues(alpha: 0.2) : Colors.transparent,
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Text(label,
+            style: TextStyle(
+                color: active ? Colors.green : Colors.grey,
+                fontSize: 11,
+                fontWeight: FontWeight.bold)),
+      ),
+    );
+  }
+
+  Widget _buildPieChartPage(String title, List<CategoryReportDTO> data, bool isExpense) {
+    if (data.isEmpty) {
+      return Center(
+        child: Text('No $title data', style: const TextStyle(color: Colors.grey)),
+      );
+    }
+
+    return Column(
+      children: [
+        SizedBox(
+          height: 220,
+          child: PieChart(
+            PieChartData(
+              pieTouchData: PieTouchData(
+                touchCallback: (FlTouchEvent event, pieTouchResponse) {
+                  setState(() {
+                    if (!event.isInterestedForInteractions ||
+                        pieTouchResponse == null ||
+                        pieTouchResponse.touchedSection == null) {
+                      if (isExpense) _touchedExpenseIndex = -1; else _touchedIncomeIndex = -1;
+                      return;
+                    }
+                    if (isExpense) {
+                      _touchedExpenseIndex = pieTouchResponse.touchedSection!.touchedSectionIndex;
+                    } else {
+                      _touchedIncomeIndex = pieTouchResponse.touchedSection!.touchedSectionIndex;
+                    }
+                  });
+                },
+              ),
+              borderData: FlBorderData(show: false),
+              sectionsSpace: 2,
+              centerSpaceRadius: 30,
+              sections: _buildPieSections(data, isExpense),
+            ),
+          ),
+        ),
+        const SizedBox(height: 24),
+        Expanded(
+          child: ListView.builder(
+            shrinkWrap: true,
+            padding: const EdgeInsets.only(bottom: 20), // Thêm padding đáy cho list
+            physics: const BouncingScrollPhysics(),
+            itemCount: data.length,
+            itemBuilder: (context, index) {
+              final item = data[index];
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 14), // Tăng khoảng cách dòng
+                child: Row(
+                  children: [
+                    Container(
+                      width: 28,
+                      height: 28,
+                      decoration: BoxDecoration(
+                        color: _chartColors[index % _chartColors.length].withOpacity(0.15),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Center(
+                        child: IconHelper.buildCategoryIcon(
+                          iconName: item.categoryIcon,
+                          size: 16,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        item.categoryName, 
+                        style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w500),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      )
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      FormatHelper.formatVND(item.totalAmount), 
+                      style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)
+                    ),
+                    const SizedBox(width: 12),
+                    // Cột phần trăm rõ ràng, thẳng hàng
+                    SizedBox(
+                      width: 45,
+                      child: Text(
+                        '${item.percentage.toStringAsFixed(1)}%', 
+                        textAlign: TextAlign.right,
+                        style: TextStyle(color: Colors.green[400], fontSize: 11, fontWeight: FontWeight.w600)
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPageIndicator() {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        _indicatorDot(_currentChartPage == 0),
+        const SizedBox(width: 6),
+        _indicatorDot(_currentChartPage == 1),
+      ],
+    );
+  }
+
+  Widget _indicatorDot(bool active) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
+      width: active ? 12 : 6,
+      height: 6,
+      decoration: BoxDecoration(
+        color: active ? Colors.green : Colors.grey[700],
+        borderRadius: BorderRadius.circular(3),
+      ),
+    );
+  }
+
+  List<PieChartSectionData> _buildPieSections(List<CategoryReportDTO> data, bool isExpense) {
+    return List.generate(data.length, (i) {
+      final isTouched = i == (isExpense ? _touchedExpenseIndex : _touchedIncomeIndex);
+      final item = data[i];
       final double radius = isTouched ? 75.0 : 65.0;
-      final double fontSize = isTouched ? 16.0 : 10.0;
+      final double fontSize = isTouched ? 13.0 : 10.0;
+      final double iconSize = isTouched ? 22.0 : 18.0;
 
       return PieChartSectionData(
         color: _chartColors[i % _chartColors.length],
@@ -528,9 +661,36 @@ class _ReportLoaderState extends State<_ReportLoader> {
           color: Colors.white,
           shadows: const [Shadow(color: Colors.black45, blurRadius: 2)],
         ),
-        titlePositionPercentageOffset: 0.7,
+        titlePositionPercentageOffset: 0.55,
+        badgeWidget: _buildPieBadge(item.categoryIcon, iconSize),
+        badgePositionPercentageOffset: 0.95,
       );
     });
+  }
+
+  Widget _buildPieBadge(String? iconName, double size) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      width: size + 8,
+      height: size + 8,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        shape: BoxShape.circle,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.2),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Center(
+        child: IconHelper.buildCategoryIcon(
+          iconName: iconName,
+          size: size,
+        ),
+      ),
+    );
   }
 
   Widget _buildDebtCard() {
@@ -574,23 +734,33 @@ class _ReportLoaderState extends State<_ReportLoader> {
   }
 
   Widget _debtRow(IconData icon, String label, double amount, Color color) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Row(
-        children: [
-          Icon(icon, color: color, size: 22),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(label,
-                style: const TextStyle(color: Colors.white, fontSize: 14)),
+    return InkWell(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const DebtListScreen()),
+          );
+        },
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Row(
+            children: [
+              Icon(icon, color: color, size: 22),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(label,
+                    style: const TextStyle(color: Colors.white, fontSize: 14)),
+              ),
+              Text(
+                FormatHelper.formatVND(amount),
+                style: TextStyle(
+                    color: color, fontSize: 14, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(width: 8),
+              Icon(Icons.chevron_right, color: color.withValues(alpha: 0.5), size: 18),
+            ],
           ),
-          Text(
-            FormatHelper.formatVND(amount),
-            style: TextStyle(
-                color: color, fontSize: 14, fontWeight: FontWeight.bold),
-          ),
-        ],
-      ),
+        ),
     );
   }
 

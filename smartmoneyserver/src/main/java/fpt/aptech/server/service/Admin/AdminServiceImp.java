@@ -188,21 +188,32 @@ public class AdminServiceImp implements AdminService {
     @Override
     @Transactional(readOnly = true)
     public PageResponse<TransactionDto> getUserTransactions(Integer userId, Pageable pageable, String deletedStatus, String type) {
-        boolean includeDeleted = "ALL".equalsIgnoreCase(deletedStatus) || "DELETED".equalsIgnoreCase(deletedStatus);
-        boolean onlyDeleted = "DELETED".equalsIgnoreCase(deletedStatus);
+        int includeDeleted = ("ALL".equalsIgnoreCase(deletedStatus) || "DELETED".equalsIgnoreCase(deletedStatus)) ? 1 : 0;
+        int onlyDeleted = "DELETED".equalsIgnoreCase(deletedStatus) ? 1 : 0;
         Boolean isIncome = parseType(type);
-        Page<Transaction> transactions = transactionRepository.findAllUserTransactionsWithFilter(userId, includeDeleted, onlyDeleted, isIncome, pageable);
-        List<TransactionDto> dtoList = transactions.getContent().stream().map(TransactionDto::new).collect(Collectors.toList());
+        
+        // Sử dụng Native Query để lấy được cả dữ liệu đã xóa
+        Page<Transaction> transactions = transactionRepository.findAllUserTransactionsNativePage(
+                userId, includeDeleted, onlyDeleted, isIncome, pageable);
+                
+        List<TransactionDto> dtoList = transactions.getContent().stream()
+                .map(TransactionDto::new)
+                .collect(Collectors.toList());
+                
         return new PageResponse<>(new PageImpl<>(dtoList, pageable, transactions.getTotalElements()));
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<TransactionDto> getAllUserTransactions(Integer userId, String deletedStatus, String type) {
-        boolean includeDeleted = "ALL".equalsIgnoreCase(deletedStatus) || "DELETED".equalsIgnoreCase(deletedStatus);
-        boolean onlyDeleted = "DELETED".equalsIgnoreCase(deletedStatus);
+        int includeDeleted = ("ALL".equalsIgnoreCase(deletedStatus) || "DELETED".equalsIgnoreCase(deletedStatus)) ? 1 : 0;
+        int onlyDeleted = "DELETED".equalsIgnoreCase(deletedStatus) ? 1 : 0;
         Boolean isIncome = parseType(type);
-        return transactionRepository.findAllUserTransactionsWithFilter(userId, includeDeleted, onlyDeleted, isIncome).stream().map(TransactionDto::new).collect(Collectors.toList());
+        
+        return transactionRepository.findAllUserTransactionsNative(userId, includeDeleted, onlyDeleted, isIncome)
+                .stream()
+                .map(TransactionDto::new)
+                .collect(Collectors.toList());
     }
 
     private Boolean parseType(String type) {

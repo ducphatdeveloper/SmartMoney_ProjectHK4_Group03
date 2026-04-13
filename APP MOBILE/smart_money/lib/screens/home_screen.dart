@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:smart_money/widgets/chart_card.dart';
 import 'package:smart_money/widgets/summary_card.dart';
+import 'package:smart_money/modules/transaction/widgets/transaction_date_slider.dart';
+import 'package:smart_money/modules/transaction/dialogs/date_range_mode_dialog.dart';
 import '../modules/notification/providers/notification_provider.dart';
 import '../modules/wallet/providers/wallet_provider.dart';
 import '../modules/transaction/providers/transaction_provider.dart';
@@ -22,22 +24,45 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   bool isBalanceHidden = false;
   final NumberFormat currencyFormat = NumberFormat.currency(locale: 'en_US', symbol: '\$');
+  final ScrollController _dateScrollController = ScrollController();
   
   List<CategoryReportDTO> _categoryReports = [];
   bool _isCategoryLoading = false;
 
+  int? _lastSourceId;
+  String? _lastSourceType;
+  DateTime? _lastStartDate;
+  DateTime? _lastEndDate;
+
   @override
   void initState() {
     super.initState();
-    Future.microtask(() {
-      if (mounted) {
-        context.read<NotificationProvider>().fetchNotifications();
-        context.read<WalletProvider>().loadAll();
-        context.read<TransactionProvider>().initialize();
-        context.read<CategoryProvider>().loadByGroup('expense');
-        _fetchTopCategories();
-      }
+    _initializeData();
+  }
+
+  void _initializeData() {
+    Future.microtask(() async {
+      if (!mounted) return;
+
+      final auth = context.read<AuthProvider>();
+      if (!auth.isLoggedIn) return;
+
+      // Gọi các thông tin nền tảng song song
+      await Future.wait([
+        context.read<NotificationProvider>().fetchNotifications(),
+        context.read<WalletProvider>().loadAll(),
+        context.read<CategoryProvider>().loadByGroup('expense'),
+        context.read<TransactionProvider>().initialize(),
+      ]);
+
+      if (mounted) _fetchTopCategories();
     });
+  }
+
+  @override
+  void dispose() {
+    _dateScrollController.dispose();
+    super.dispose();
   }
 
   Future<void> _onRefresh() async {
@@ -53,7 +78,6 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _fetchTopCategories() async {
     if (!mounted) return;
     
-    // Nếu chưa đăng nhập thì không gọi API
     final auth = context.read<AuthProvider>();
     if (!auth.isLoggedIn) {
       setState(() {
@@ -63,20 +87,32 @@ class _HomeScreenState extends State<HomeScreen> {
       return;
     }
 
+    final transProvider = context.read<TransactionProvider>();
+    final source = transProvider.selectedSource;
+    final walletId = source.type == 'wallet' ? source.id : null;
+    final goalId = source.type == 'saving_goal' ? source.id : null;
+    
+    DateTime startDate;
+    DateTime endDate;
+
+    if (transProvider.isAllMode) {
+      startDate = DateTime(2000, 1, 1);
+      endDate = DateTime(2099, 12, 31);
+    } else if (transProvider.selectedDateRange != null) {
+      startDate = transProvider.selectedDateRange!.startDate;
+      endDate = transProvider.selectedDateRange!.endDate;
+    } else {
+      return;
+    }
+
     setState(() => _isCategoryLoading = true);
     
     try {
-      final transProvider = context.read<TransactionProvider>();
-      final source = transProvider.selectedSource;
-      final walletId = source.type == 'wallet' ? source.id : null;
-      
-      final now = DateTime.now();
-      final startOfMonth = DateTime(now.year, now.month, 1);
-
       final response = await TransactionService.getCategoryReport(
-        startDate: startOfMonth,
-        endDate: now,
+        startDate: startDate,
+        endDate: endDate,
         walletId: walletId,
+        savingGoalId: goalId,
       );
 
       if (response.success && response.data != null && mounted) {
@@ -97,6 +133,33 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     final transProvider = context.watch<TransactionProvider>();
     final authProvider = context.watch<AuthProvider>();
+
+    // Check if we need to refetch top categories based on provider changes
+    final source = transProvider.selectedSource;
+    final range = transProvider.selectedDateRange;
+    DateTime? start;
+    DateTime? end;
+
+    if (transProvider.isAllMode) {
+      start = DateTime(2000, 1, 1);
+      end = DateTime(2099, 12, 31);
+    } else if (range != null) {
+      start = range.startDate;
+      end = range.endDate;
+    }
+
+    if (_lastSourceId != source.id ||
+        _lastSourceType != source.type ||
+        _lastStartDate != start ||
+        _lastEndDate != end) {
+
+      _lastSourceId = source.id;
+      _lastSourceType = source.type;
+      _lastStartDate = start;
+      _lastEndDate = end;
+
+      Future.microtask(() => _fetchTopCategories());
+    }
 
     return Scaffold(
       body: SafeArea(
@@ -125,7 +188,18 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: _buildWalletSelector(transProvider),
                 ),
 
-                const SizedBox(height: 24),
+                const SizedBox(height: 16),
+                
+                // Filter section giống trang sổ giao dịch
+                if (!transProvider.isAllMode && !transProvider.isCustomMode)
+                  TransactionDateSlider(scrollController: _dateScrollController),
+
+                if (transProvider.isAllMode)
+                  const TransactionSpecialModeLabel(label: 'All the time'),
+                if (transProvider.isCustomMode && transProvider.selectedDateRange != null)
+                  TransactionSpecialModeLabel(label: transProvider.selectedDateRange!.label),
+
+                const SizedBox(height: 16),
 
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16.0),
@@ -197,39 +271,52 @@ class _HomeScreenState extends State<HomeScreen> {
             fontWeight: FontWeight.bold,
           ),
         ),
-        Consumer<NotificationProvider>(
-          builder: (context, provider, child) {
-            final unreadCount = provider.unreadCount;
-            return Stack(
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.notifications_none),
-                  onPressed: () {
-                    context.push('/notifications');
-                  },
-                ),
-                if (unreadCount > 0)
-                  Positioned(
-                    right: 8,
-                    top: 5,
-                    child: Container(
-                      padding: const EdgeInsets.all(4),
-                      decoration: BoxDecoration(
-                        color: Colors.red,
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Theme.of(context).scaffoldBackgroundColor, width: 1.5),
-                      ),
-                      constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
-                      child: Text(
-                        unreadCount > 9 ? "9+" : unreadCount.toString(),
-                        style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold),
-                        textAlign: TextAlign.center,
-                      ),
+        Row(
+          children: [
+            IconButton(
+              icon: const Icon(Icons.calendar_today_outlined, size: 20),
+              onPressed: () {
+                showDialog(
+                  context: context,
+                  builder: (_) => const DateRangeModeDialog(),
+                );
+              },
+            ),
+            Consumer<NotificationProvider>(
+              builder: (context, provider, child) {
+                final unreadCount = provider.unreadCount;
+                return Stack(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.notifications_none),
+                      onPressed: () {
+                        context.push('/notifications');
+                      },
                     ),
-                  )
-              ],
-            );
-          },
+                    if (unreadCount > 0)
+                      Positioned(
+                        right: 8,
+                        top: 5,
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color: Colors.red,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Theme.of(context).scaffoldBackgroundColor, width: 1.5),
+                          ),
+                          constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                          child: Text(
+                            unreadCount > 9 ? "9+" : unreadCount.toString(),
+                            style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                      )
+                  ],
+                );
+              },
+            ),
+          ],
         )
       ],
     );
@@ -305,7 +392,6 @@ class _HomeScreenState extends State<HomeScreen> {
     return InkWell(
       onTap: () async {
         await _showWalletSelectionDialog(context, provider);
-        _fetchTopCategories(); 
       },
       borderRadius: BorderRadius.circular(16),
       child: Container(
@@ -432,7 +518,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _showWalletSelectionDialog(BuildContext context, TransactionProvider provider) async {
-    final filteredSources = provider.sourceItems.where((s) => s.type == 'wallet' || s.type == 'all').toList();
+    final filteredSources = provider.sourceItems.where((s) => s.type == 'wallet' || s.type == 'all' || s.type == 'saving_goal').toList();
 
     await showModalBottomSheet(
       context: context,
@@ -451,13 +537,16 @@ class _HomeScreenState extends State<HomeScreen> {
                   itemBuilder: (context, index) {
                     final source = filteredSources[index];
                     final bool isTotal = source.type == 'all';
+                    final bool isGoal = source.type == 'saving_goal';
                     
                     return ListTile(
                       leading: isTotal 
                         ? const CircleAvatar(backgroundColor: Colors.blueAccent, child: Icon(Icons.account_balance, color: Colors.white, size: 20))
-                        : (source.iconUrl != null 
-                            ? Image.network(source.iconUrl!, width: 30, height: 30)
-                            : const Icon(Icons.account_balance_wallet)),
+                        : (isGoal 
+                            ? const CircleAvatar(backgroundColor: Colors.orange, child: Icon(Icons.savings, color: Colors.white, size: 20))
+                            : (source.iconUrl != null 
+                                ? Image.network(source.iconUrl!, width: 30, height: 30)
+                                : const Icon(Icons.account_balance_wallet))),
                       title: Text(isTotal ? "Total Balance" : source.name),
                       trailing: Text(currencyFormat.format(source.balance ?? 0.0)),
                       selected: provider.selectedSource.id == source.id && provider.selectedSource.type == source.type,

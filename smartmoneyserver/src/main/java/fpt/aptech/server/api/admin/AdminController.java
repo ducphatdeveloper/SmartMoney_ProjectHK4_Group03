@@ -63,6 +63,12 @@ public class AdminController {
         return ResponseEntity.ok(ApiResponse.success(adminService.getUserFinancialInsights(id)));
     }
 
+    /**
+     * Lấy danh sách giao dịch của một người dùng cụ thể.
+     * @param id ID của người dùng.
+     * @param deletedStatus Trạng thái xóa: "ACTIVE" (mặc định), "DELETED" (chỉ lấy đã xóa), "ALL" (lấy tất cả).
+     * @param type Loại giao dịch: "INCOME" hoặc "EXPENSE".
+     */
     @GetMapping("/users/{id}/transactions")
     @PreAuthorize("hasRole('ROLE_ADMIN') or hasAuthority('ADMIN_SYSTEM_ALL')")
     public ResponseEntity<ApiResponse<PageResponse<TransactionDto>>> getUserTransactions(
@@ -73,6 +79,9 @@ public class AdminController {
         return ResponseEntity.ok(ApiResponse.success(adminService.getUserTransactions(id, pageable, deletedStatus, type)));
     }
 
+    /**
+     * Lấy toàn bộ danh sách giao dịch của một người dùng (không phân trang).
+     */
     @GetMapping("/users/{id}/transactions/all")
     @PreAuthorize("hasRole('ROLE_ADMIN') or hasAuthority('ADMIN_SYSTEM_ALL')")
     public ResponseEntity<ApiResponse<List<TransactionDto>>> getAllUserTransactions(
@@ -92,18 +101,25 @@ public class AdminController {
         return ResponseEntity.ok(ApiResponse.success(adminService.getGlobalDeletedTransactions()));
     }
 
+    /**
+     * Khôi phục một giao dịch đã bị xóa mềm. 
+     * Sau khi khôi phục (deleted = 0), giao dịch sẽ xuất hiện lại trong lịch sử của User như cũ.
+     */
     @PatchMapping("/transactions/{id}/restore")
     @PreAuthorize("hasRole('ROLE_ADMIN') or hasAuthority('ADMIN_SYSTEM_ALL')")
     public ResponseEntity<ApiResponse<String>> restoreTransaction(@PathVariable("id") Long id) {
         adminService.restoreTransaction(id);
-        return ResponseEntity.ok(ApiResponse.success("Giao dịch đã được khôi phục thành công."));
+        return ResponseEntity.ok(ApiResponse.success("Giao dịch đã được khôi phục thành công. Người dùng hiện đã có thể thấy lại giao dịch này."));
     }
 
+    /**
+     * Khôi phục tất cả giao dịch đã bị xóa mềm của một người dùng cụ thể.
+     */
     @PatchMapping("/users/{userId}/transactions/restore-all")
     @PreAuthorize("hasRole('ROLE_ADMIN') or hasAuthority('ADMIN_SYSTEM_ALL')")
     public ResponseEntity<ApiResponse<String>> restoreAllUserTransactions(@PathVariable("userId") Integer userId) {
         adminService.restoreAllUserTransactions(userId);
-        return ResponseEntity.ok(ApiResponse.success("Tất cả giao dịch của người dùng đã được khôi phục."));
+        return ResponseEntity.ok(ApiResponse.success("Tất cả giao dịch của người dùng đã được khôi phục về trạng thái ban đầu."));
     }
 
     @GetMapping("/stats")
