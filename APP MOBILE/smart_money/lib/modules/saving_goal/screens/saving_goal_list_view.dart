@@ -120,6 +120,9 @@ class _SavingGoalListViewState extends State<SavingGoalListView> {
               final progressValue = (goal.progressPercent ?? 0) / 100;
               final iconUrl = _fixUrl(goal.imageUrl);
               final bool isGoalFinished = goal.finished ?? false;
+              final int goalStatus = goal.goalStatus ?? 1; // 1=ACTIVE, 2=COMPLETED, 3=CANCELLED, 4=OVERDUE
+              final bool isCompletedStyle = goalStatus == 2; // xanh cho COMPLETED
+              final bool isCancelledStyle = goalStatus == 3; // xam cho CANCELLED
               final String currencyStr = goal.currencyCode ?? "VND";
 
               return Padding(
@@ -149,9 +152,9 @@ class _SavingGoalListViewState extends State<SavingGoalListView> {
                       ),
                       borderRadius: BorderRadius.circular(24),
                       border: Border.all(
-                          color: isGoalFinished
+                          color: isCompletedStyle
                               ? Colors.greenAccent.withOpacity(0.2)
-                              : Colors.white.withOpacity(0.05),
+                              : isCancelledStyle ? Colors.grey.withOpacity(0.2) : Colors.white.withOpacity(0.05),
                           width: 1
                       ),
                       boxShadow: [
@@ -169,7 +172,7 @@ class _SavingGoalListViewState extends State<SavingGoalListView> {
                           child: Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              _buildGoalIcon(iconUrl, isGoalFinished),
+                              _buildGoalIcon(iconUrl, isCompletedStyle, isCancelledStyle),
                               const SizedBox(width: 16),
                               Expanded(
                                 child: Column(
@@ -221,16 +224,16 @@ class _SavingGoalListViewState extends State<SavingGoalListView> {
                                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
                                   Text(
-                                    isGoalFinished ? "Goal Completed 🎉" : "Progress",
+                                    _getProgressLabel(goalStatus, isGoalFinished),
                                     style: TextStyle(
-                                        color: isGoalFinished ? Colors.greenAccent : Colors.grey,
+                                        color: isCompletedStyle ? Colors.greenAccent : isCancelledStyle ? Colors.grey.shade500 : Colors.grey,
                                         fontSize: 12,
                                         fontWeight: FontWeight.bold),
                                   ),
                                   Text(
                                     "${(goal.progressPercent ?? 0).toStringAsFixed(1)}%",
                                     style: TextStyle(
-                                      color: isGoalFinished ? Colors.greenAccent : Colors.white,
+                                      color: isCompletedStyle ? Colors.greenAccent : Colors.white,
                                       fontWeight: FontWeight.w800,
                                       fontSize: 14,
                                     ),
@@ -238,7 +241,7 @@ class _SavingGoalListViewState extends State<SavingGoalListView> {
                                 ],
                               ),
                               const SizedBox(height: 8),
-                              _buildProgressBar(context, progressValue, isGoalFinished),
+                              _buildProgressBar(context, progressValue, isCompletedStyle),
                             ],
                           ),
                         ),
@@ -256,7 +259,18 @@ class _SavingGoalListViewState extends State<SavingGoalListView> {
 
   // --- WIDGETS CON ---
 
-  Widget _buildGoalIcon(String iconUrl, bool isCompleted) {
+  // Lay nhan progress dua tren goalStatus tu backend
+  // goalStatus: 1=ACTIVE, 2=COMPLETED, 3=CANCELLED, 4=OVERDUE
+  String _getProgressLabel(int goalStatus, bool isFinished) {
+    switch (goalStatus) {
+      case 2: return isFinished ? "Finalized 🎉" : "Goal Completed 🎉";
+      case 3: return "Goal Cancelled";
+      case 4: return "Overdue";
+      default: return "Progress";
+    }
+  }
+
+  Widget _buildGoalIcon(String iconUrl, bool isCompleted, bool isCancelled) {
     return Container(
       width: 52,
       height: 52,
@@ -264,7 +278,7 @@ class _SavingGoalListViewState extends State<SavingGoalListView> {
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         gradient: LinearGradient(
-          colors: isCompleted ? [Colors.greenAccent, Colors.blueAccent] : [Colors.orangeAccent, Colors.redAccent],
+          colors: isCompleted ? [Colors.greenAccent, Colors.blueAccent] : isCancelled ? [Colors.grey.shade600, Colors.grey.shade400] : [Colors.orangeAccent, Colors.redAccent],
         ),
       ),
       child: Container(

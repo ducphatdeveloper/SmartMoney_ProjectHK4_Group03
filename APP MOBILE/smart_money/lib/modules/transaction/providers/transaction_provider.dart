@@ -529,7 +529,7 @@ class TransactionProvider extends ChangeNotifier {
       // Gọi 3 API song song
       final responses = await Future.wait([
         UtilService.getAllWallets(),
-        UtilService.getAllSavingGoals(),
+        UtilService.getAllSavingGoals(forDropdown: true), // <--- MODIFIED HERE
         UtilService.getTotalBalance(),
       ]);
 
@@ -564,8 +564,10 @@ class TransactionProvider extends ChangeNotifier {
       }
 
       // Bước 4: Thêm mục tiêu tiết kiệm vào list
+      // Backend đã lọc isFinished=false server-side — chỉ trả về goal còn active
       if ((goalsResponse.success ?? false) && goalsResponse.data != null) {
         for (var goal in goalsResponse.data!) {
+
           // Convert filename.png → Cloudinary URL
           final goalIcon = IconHelper.buildCloudinaryUrl(goal.imageUrl);
 

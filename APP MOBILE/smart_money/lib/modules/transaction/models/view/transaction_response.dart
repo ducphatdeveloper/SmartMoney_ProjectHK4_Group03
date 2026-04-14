@@ -31,6 +31,7 @@ class TransactionResponse {
   final String? savingGoalIconUrl;
 
   final int? aiChatId;
+  final bool? savingGoalFinished; // null=no goal, false=active goal, true=finished goal (block edit/delete)
 
   const TransactionResponse({
     required this.id,
@@ -54,6 +55,7 @@ class TransactionResponse {
     this.savingGoalName,
     this.savingGoalIconUrl,
     this.aiChatId,
+    this.savingGoalFinished,
   });
 
   /// Parse từ JSON server trả về
@@ -80,6 +82,7 @@ class TransactionResponse {
       savingGoalName: json['savingGoalName'] as String?,
       savingGoalIconUrl: json['savingGoalIconUrl'] as String?,
       aiChatId: json['aiChatId'] as int?,
+      savingGoalFinished: json['savingGoalFinished'] as bool?,
     );
   }
 
@@ -107,6 +110,7 @@ class TransactionResponse {
       'savingGoalName': savingGoalName,
       'savingGoalIconUrl': savingGoalIconUrl,
       'aiChatId': aiChatId,
+      'savingGoalFinished': savingGoalFinished,
     };
   }
 }

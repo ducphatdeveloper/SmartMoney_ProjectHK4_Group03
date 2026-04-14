@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:smart_money/modules/transaction/providers/transaction_provider.dart';
+import 'package:smart_money/modules/wallet/providers/wallet_provider.dart';
 import '../models/saving_goal_response.dart';
 import '../models/saving_goal_request.dart';
 import '../services/saving_goal_service.dart';
@@ -16,20 +19,17 @@ class SavingGoalProvider extends ChangeNotifier {
   String? _errorMessage;
   String? get errorMessage => _errorMessage;
 
-  // Trạng thái tab hiện tại: false = Đang thực hiện, true = Hoàn thành
   bool _currentFilter = false;
   bool get currentFilter => _currentFilter;
 
-  // Bộ nhớ đệm để chuyển tab mượt mà
   final Map<bool, List<SavingGoalResponse>> _cache = {};
 
   // =============================================
-  // [1.1] LOAD GOALS - Cập nhật logic theo Tab
+  // [1.1] LOAD GOALS
   // =============================================
   Future<void> loadGoals(bool isFinished, {bool forceRefresh = false, String? search}) async {
     _currentFilter = isFinished;
 
-    // Dùng cache nếu không bắt buộc load mới và không có từ khóa tìm kiếm
     if (!forceRefresh && _cache.containsKey(isFinished) && (search == null || search.isEmpty)) {
       _goals = _cache[isFinished]!;
       notifyListeners();
@@ -41,17 +41,13 @@ class SavingGoalProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // Gọi service getByStatus (hàm mới viết lại dựa trên EventService)
-      final response = await SavingGoalService.getByStatus(
-          isFinished: isFinished,
-          search: search
-      );
-
+      final response = await SavingGoalService.getByStatus(isFinished: isFinished, search: search);
       if (response.success && response.data != null) {
+        // Backend da loc theo isFinished server-side — khong can loc client-side nua
+        
         _goals = response.data!;
-        // Lưu vào cache nếu không phải search
         if (search == null || search.isEmpty) {
-          _cache[isFinished] = response.data!;
+          _cache[isFinished] = _goals;
         }
       } else {
         _goals = [];
@@ -67,7 +63,7 @@ class SavingGoalProvider extends ChangeNotifier {
   }
 
   // =============================================
-  // [1.2] CREATE - Giữ nguyên
+  // [1.2] CREATE
   // =============================================
   Future<bool> createGoal(SavingGoalRequest request) async {
     _isLoading = true;
@@ -91,7 +87,7 @@ class SavingGoalProvider extends ChangeNotifier {
   }
 
   // =============================================
-  // [1.3] UPDATE - Giữ nguyên
+  // [1.3] UPDATE
   // =============================================
   Future<bool> updateGoal(int id, SavingGoalRequest request) async {
     _isLoading = true;
@@ -114,46 +110,15 @@ class SavingGoalProvider extends ChangeNotifier {
   }
 
   // =============================================
-  // [1.4] TOGGLE STATUS - Cập nhật logic chuyển Tab
+  // [1.4] DELETE
   // =============================================
-  Future<bool> toggleStatus(int id) async {
-    _isLoading = true;
-    notifyListeners();
-    try {
-      final response = await SavingGoalService.toggleStatus(id);
-      if (response.success) {
-        // Xóa item khỏi danh sách hiện tại ngay lập tức để thấy hiệu ứng chuyển tab
-        _goals.removeWhere((g) => g.id == id);
-
-        // Xóa cache vì dữ liệu giữa 2 tab đã thay đổi
-        _cache.clear();
-
-        notifyListeners();
-        return true;
-      }
-      _errorMessage = response.message;
-      return false;
-    } catch (e) {
-      _errorMessage = "Lỗi khi thay đổi trạng thái";
-      return false;
-    } finally {
-      _isLoading = false;
-      notifyListeners();
-    }
-  }
-
-  // =============================================
-  // [1.5] DELETE - Giữ nguyên
-  // =============================================
-  Future<bool> deleteGoal(int id) async {
+  Future<bool> deleteGoal(BuildContext context, int id) async {
     _isLoading = true;
     notifyListeners();
     try {
       final response = await SavingGoalService.delete(id);
       if (response.success) {
-        _goals.removeWhere((g) => g.id == id);
-        _cache[_currentFilter]?.removeWhere((g) => g.id == id);
-        notifyListeners();
+        _handleStateChange(context, id);
         return true;
       }
       _errorMessage = response.message;
@@ -168,7 +133,7 @@ class SavingGoalProvider extends ChangeNotifier {
   }
 
   // =============================================
-  // [1.6] DEPOSIT - Giữ nguyên
+  // [1.5] DEPOSIT
   // =============================================
   Future<bool> depositMoney(int id, double amount) async {
     _isLoading = true;
@@ -176,7 +141,6 @@ class SavingGoalProvider extends ChangeNotifier {
     try {
       final response = await SavingGoalService.deposit(id, amount);
       if (response.success) {
-        // Load lại tab hiện tại để cập nhật số dư/tiến độ
         await loadGoals(_currentFilter, forceRefresh: true);
         return true;
       }
@@ -191,6 +155,78 @@ class SavingGoalProvider extends ChangeNotifier {
     }
   }
 
+  // =============================================
+  // [1.6] COMPLETE GOAL
+  // =============================================
+  Future<bool> completeGoal(BuildContext context, int id, {int? walletId}) async {
+    _isLoading = true;
+    notifyListeners();
+    try {
+      final response = await SavingGoalService.completeSavingGoal(id, walletId: walletId);
+      if (response.success) {
+        _handleStateChange(context, id);
+        return true;
+      }
+      _errorMessage = response.message;
+      return false;
+    } catch (e) {
+      _errorMessage = "Lỗi hệ thống khi chốt sổ";
+      return false;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  // =============================================
+  // [1.7] CANCEL GOAL
+  // =============================================
+  Future<bool> cancelGoal(BuildContext context, int id, {int? walletId}) async {
+    _isLoading = true;
+    notifyListeners();
+    try {
+      final response = await SavingGoalService.cancelSavingGoal(id, walletId: walletId);
+      if (response.success) {
+        _handleStateChange(context, id);
+        return true;
+      }
+      _errorMessage = response.message;
+      return false;
+    } catch (e) {
+      _errorMessage = "Lỗi hệ thống khi hủy mục tiêu";
+      return false;
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  // =============================================
+  // [1.8] PRIVATE HELPER: Xử lý đồng bộ state
+  // =============================================
+  void _handleStateChange(BuildContext context, int id) {
+    // 1. Xóa mục tiêu khỏi danh sách hiện tại (của tab Active)
+    _goals.removeWhere((g) => g.id == id);
+    
+    // 2. Thông báo ngay cho UI của tab Active cập nhật (mục tiêu biến mất)
+    notifyListeners();
+    
+    // 3. Xóa cache để lần sau chuyển tab sẽ tải lại dữ liệu mới
+    _cache.clear();
+    
+    // 4. "Thông báo" cho các provider khác để chúng tự làm mới
+    // Sử dụng try-catch để tránh lỗi nếu provider không được tìm thấy
+    try {
+      Provider.of<TransactionProvider>(context, listen: false).refreshSourceItems();
+      Provider.of<WalletProvider>(context, listen: false).loadAll();
+    } catch (e) {
+      debugPrint("Could not find a provider to notify: $e");
+    }
+  }
+
+  // =============================================
+  // [1.9] CLEAR CACHE
+  // =============================================
   void clearCache() {
     _cache.clear();
     _goals = [];

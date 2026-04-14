@@ -209,6 +209,34 @@ public final class NotificationMessages {
         return new NotificationContent(title, content);
     }
 
+    /**
+     * Chốt sổ mục tiêu (đã hoàn thành 100%).
+     * Dùng khi: SavingGoalService.completeSavingGoal() → finished=true + chuyển tiền về ví.
+     */
+    public static NotificationContent savingFinalized(String goalName,
+                                                      BigDecimal amount,
+                                                      String walletName) {
+        String title = "Chốt sổ mục tiêu 🎯";
+        String content = String.format(
+                "Mục tiêu \"%s\" đã được chốt sổ. %s đã được chuyển về ví \"%s\".",
+                goalName, CurrencyUtils.formatVND(amount), walletName);
+        return new NotificationContent(title, content);
+    }
+
+    /**
+     * Hủy mục tiêu (kết thúc sớm).
+     * Dùng khi: SavingGoalService.cancelSavingGoal() → CANCELLED + hoàn trả tiền về ví.
+     */
+    public static NotificationContent savingCancelled(String goalName,
+                                                      BigDecimal amount,
+                                                      String walletName) {
+        String title = "Hủy mục tiêu ❌";
+        String content = String.format(
+                "Mục tiêu \"%s\" đã bị hủy. %s đã được hoàn trả về ví \"%s\".",
+                goalName, CurrencyUtils.formatVND(amount), walletName);
+        return new NotificationContent(title, content);
+    }
+
     // ════════════════════════════════════════════════════════════════════════
     // TYPE 3 — BUDGET
     // ════════════════════════════════════════════════════════════════════════

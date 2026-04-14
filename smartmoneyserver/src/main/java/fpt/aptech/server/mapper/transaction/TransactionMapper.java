@@ -33,6 +33,7 @@ public interface TransactionMapper {
         @Mapping(source = "savingGoal.id", target = "savingGoalId"),
         @Mapping(source = "savingGoal.goalName", target = "savingGoalName"),
         @Mapping(source = "savingGoal.goalImageUrl", target = "savingGoalIconUrl"), // Icon SavingGoal
+        @Mapping(source = "savingGoal.finished", target = "savingGoalFinished"),
         
         @Mapping(source = "aiConversation.id", target = "aiChatId"), // Map aiChatId cho AI transaction
         @Mapping(source = "sourceType", target = "sourceType") // Map sourceType (1=manual|2=chat|3=voice|4=receipt|5=planned)

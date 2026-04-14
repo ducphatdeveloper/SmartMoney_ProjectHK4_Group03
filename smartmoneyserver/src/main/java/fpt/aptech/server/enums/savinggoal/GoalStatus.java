@@ -10,7 +10,7 @@ import lombok.Getter;
 public enum GoalStatus {
     ACTIVE(1),          // Đang hoạt động, trong thời gian tiết kiệm
     COMPLETED(2),       // Đã hoàn thành (đủ tiền) — finished=true, KHÔNG thể kích hoạt lại
-    CANCELLED(3),       // Tạm dừng / kết thúc sớm — finished=true, CÓ THỂ kích hoạt lại (nếu deleted=false)
+    CANCELLED(3),       // Huy muc tieu / ket thuc som — finished=true, KHONG the kich hoat lai
     OVERDUE(4);         // Đã quá hạn nhưng chưa đủ tiền — CÓ THỂ kích hoạt lại
 
     private final int value;

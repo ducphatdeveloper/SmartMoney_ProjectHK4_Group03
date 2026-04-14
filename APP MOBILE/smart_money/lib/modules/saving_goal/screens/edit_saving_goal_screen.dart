@@ -121,7 +121,8 @@ class _EditSavingGoalScreenState extends State<EditSavingGoalScreen> {
     setState(() => _isSaving = false);
 
     if (success) {
-      await provider.loadGoals(false, forceRefresh: true);
+      // Use the provider's current filter to refresh the correct tab
+      await provider.loadGoals(provider.currentFilter, forceRefresh: true);
       _showSnackBar("Cập nhật thành công!", isError: false);
       Navigator.of(context).pop(true);
     } else {

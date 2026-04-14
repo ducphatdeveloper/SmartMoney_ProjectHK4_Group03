@@ -75,21 +75,36 @@ class UtilService {
     );
   }
 
-  // ===== 3. GET ALL SAVING GOALS =====
-  static Future<ApiResponse<List<SavingGoalResponse>>> getAllSavingGoals() async {
+// ===== 3. GET SAVING GOALS CHO DROPDOWN TRANSACTION =====
+  // Chỉ lấy goal hợp lệ để hiển thị trong Dropdown chọn nguồn tiền:
+  //   • deleted=false AND finished=false
+  //   • Trạng thái hợp lệ: ACTIVE(1), COMPLETED(2-chưa chốt), OVERDUE(4)
+  //   • Loại bỏ: CANCELLED+finished=true, COMPLETED+finished=true
+  //
+  // [forDropdown] true → chỉ lấy goal chưa chốt sổ (dùng cho Transaction dropdown)
+  //               false → lấy tất cả goal chưa xóa (dùng cho màn hình danh sách)
+  static Future<ApiResponse<List<SavingGoalResponse>>> getAllSavingGoals({
+    bool forDropdown = false,
+  }) async {
+    // Nếu forDropdown=true → thêm param finished=false để backend lọc đúng
+    // Backend sẽ dùng query findAvailableForTransaction thay vì findByAccount_Id
+    final String url = forDropdown
+        ? '$_baseUrl/saving-goals/getAll?isFinished=false'
+        : '$_baseUrl/saving-goals/getAll';
+
     return ApiHandler.get<List<SavingGoalResponse>>(
-      '$_baseUrl/saving-goals/getAll',
+      url,
       fromJson: (json) {
         print('📡 [UtilService.getAllSavingGoals] Received JSON: $json');
+
         if (json is List) {
           print('📡 [UtilService.getAllSavingGoals] Parsing ${json.length} items...');
           try {
-            final result = json
-                .map((e) {
-                  print('   - Parsing goal: ${(e as Map<String, dynamic>)['goalName']}');
-                  return SavingGoalResponse.fromJson(e as Map<String, dynamic>);
-                })
-                .toList();
+            final result = json.map((e) {
+              print('   - Parsing goal: ${(e as Map<String, dynamic>)['goalName']}');
+              return SavingGoalResponse.fromJson(e as Map<String, dynamic>);
+            }).toList();
+
             print('✅ [UtilService.getAllSavingGoals] Successfully parsed ${result.length} goals');
             return result;
           } catch (e) {
@@ -97,6 +112,7 @@ class UtilService {
             return [];
           }
         }
+
         print('❌ [UtilService.getAllSavingGoals] JSON is not a List, got: ${json.runtimeType}');
         return [];
       },

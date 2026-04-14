@@ -30,9 +30,10 @@ public class SavingGoalServiceImpl implements SavingGoalService {
     private final CurrencyRepository   currencyRepository;
     private final TransactionRepository transactionRepository;
     private final CategoryRepository   categoryRepository;
-    private final DebtRepository       debtRepository;   // Cascade soft delete
-    private final EventRepository      eventRepository;  // Cascade soft delete
-    private final NotificationService  notificationService; // Inject để gửi thông báo milestone
+    private final WalletRepository     walletRepository;      // Để đổ tiền về ví khi chốt sổ / hủy
+    private final DebtRepository       debtRepository;        // Cascade soft delete
+    private final EventRepository      eventRepository;       // Cascade soft delete
+    private final NotificationService  notificationService;   // Inject để gửi thông báo milestone
 
     // Các mốc % cần gửi thông báo khi nạp tiền
     private static final int[] MILESTONE_PERCENTS = {25, 50, 75};
@@ -50,17 +51,19 @@ public class SavingGoalServiceImpl implements SavingGoalService {
     @Override
     @Transactional
     public SavingGoalResponse createSavingGoal(SavingGoalRequest request, Integer userId) {
-        // Bước 1: Validate
+        // Bước 1: Validate tài khoản và tiền tệ
         Account account = accountRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("Tài khoản không tồn tại"));
 
         Currency currency = currencyRepository.findById(request.getCurrencyCode())
                 .orElseThrow(() -> new IllegalArgumentException("Loại tiền tệ không tồn tại"));
 
+        // Validate ngày kết thúc không được là ngày quá khứ
         if (request.getEndDate() != null && request.getEndDate().isBefore(LocalDate.now())) {
             throw new IllegalArgumentException("Ngày kết thúc không hợp lệ");
         }
 
+        // Lấy số tiền ban đầu — mặc định 0 nếu không truyền
         BigDecimal initialAmount = request.getInitialAmount() != null
                 ? request.getInitialAmount()
                 : BigDecimal.ZERO;
@@ -70,7 +73,7 @@ public class SavingGoalServiceImpl implements SavingGoalService {
             throw new IllegalArgumentException("Số tiền ban đầu không được âm");
         }
 
-        // Bước 2: Tạo SavingGoal
+        // Bước 2: Tạo SavingGoal — trạng thái mặc định ACTIVE, finished=false
         SavingGoal goal = SavingGoal.builder()
                 .goalName(request.getGoalName())
                 .targetAmount(request.getTargetAmount())
@@ -122,7 +125,7 @@ public class SavingGoalServiceImpl implements SavingGoalService {
      * Bước 1 — Validate trạng thái và dữ liệu đầu vào.
      * Bước 2 — Xử lý điều chỉnh currentAmount (nếu có) bằng cách tạo giao dịch ghi nhận chênh lệch.
      * Bước 3 — Cập nhật thông tin mục tiêu.
-     * Bước 4 — Kiểm tra tự động hoàn thành nếu đạt mục tiêu.
+     * Bước 4 — Tính lại trạng thái sau khi cập nhật.
      */
     @Override
     @Transactional
@@ -142,8 +145,8 @@ public class SavingGoalServiceImpl implements SavingGoalService {
         // Bước 2: Xử lý điều chỉnh currentAmount (nếu request có truyền lên)
         // Tham khảo logic WalletServiceImpl.updateWallet() — tạo giao dịch ghi nhận chênh lệch
         if (request.getInitialAmount() != null) {
-            BigDecimal oldAmount = goal.getCurrentAmount();
-            BigDecimal newAmount = request.getInitialAmount();
+            BigDecimal oldAmount = goal.getCurrentAmount(); // Số tiền cũ
+            BigDecimal newAmount = request.getInitialAmount(); // Số tiền mới muốn điều chỉnh
 
             // 2.1: Validate số tiền không được âm
             if (newAmount.compareTo(BigDecimal.ZERO) < 0) {
@@ -153,8 +156,8 @@ public class SavingGoalServiceImpl implements SavingGoalService {
             // 2.2: Nếu có thay đổi → tạo giao dịch ghi nhận chênh lệch
             int comparison = newAmount.compareTo(oldAmount);
             if (comparison != 0) {
-                BigDecimal diff = newAmount.subtract(oldAmount).abs();
-                boolean isIncrease = comparison > 0;
+                BigDecimal diff = newAmount.subtract(oldAmount).abs(); // Chênh lệch tuyệt đối
+                boolean isIncrease = comparison > 0; // true = tăng tiền, false = giảm tiền
 
                 // Tăng số tiền → Thu nhập khác | Giảm số tiền → Các chi phí khác
                 SystemCategory systemCategory = isIncrease
@@ -164,6 +167,7 @@ public class SavingGoalServiceImpl implements SavingGoalService {
                         .orElseThrow(() -> new IllegalStateException(
                                 "Không tìm thấy danh mục hệ thống: " + systemCategory.name()));
 
+                // Tạo giao dịch điều chỉnh — reportable=false để không lẫn vào báo cáo
                 Transaction adjustTransaction = Transaction.builder()
                         .account(goal.getAccount())
                         .savingGoal(goal)
@@ -176,7 +180,7 @@ public class SavingGoalServiceImpl implements SavingGoalService {
                         .build();
 
                 transactionRepository.save(adjustTransaction);
-                goal.setCurrentAmount(newAmount);
+                goal.setCurrentAmount(newAmount); // Cập nhật số tiền mới
             }
         }
 
@@ -186,19 +190,16 @@ public class SavingGoalServiceImpl implements SavingGoalService {
                     "Số tiền mục tiêu không được nhỏ hơn số tiền hiện tại");
         }
 
-        // Bước 4: Cập nhật các trường thông tin (chỉ update nếu client có gửi — tránh ghi null vào DB)
-        if (request.getGoalName() != null) goal.setGoalName(request.getGoalName());
+        // Cập nhật các trường thông tin (chỉ update nếu client có gửi — tránh ghi null vào DB)
+        if (request.getGoalName() != null)    goal.setGoalName(request.getGoalName());
         goal.setTargetAmount(request.getTargetAmount());
-        if (request.getEndDate() != null) goal.setEndDate(request.getEndDate());
+        if (request.getEndDate() != null)     goal.setEndDate(request.getEndDate());
         if (request.getGoalImageUrl() != null) goal.setGoalImageUrl(request.getGoalImageUrl());
-        if (request.getNotified() != null)   goal.setNotified(request.getNotified());
-        if (request.getReportable() != null) goal.setReportable(request.getReportable());
+        if (request.getNotified() != null)    goal.setNotified(request.getNotified());
+        if (request.getReportable() != null)  goal.setReportable(request.getReportable());
 
-        // Bước 5: Kiểm tra tự động hoàn thành nếu số tiền hiện tại đạt hoặc vượt mục tiêu
-        if (goal.getCurrentAmount().compareTo(goal.getTargetAmount()) >= 0) {
-            goal.setGoalStatus(GoalStatus.COMPLETED.getValue());
-            goal.setFinished(true);
-        }
+        // Bước 4: Tính lại trạng thái sau khi cập nhật
+        recalculateSavingGoalStatus(goal);
 
         savingGoalRepository.save(goal);
         return mapToResponse(goal);
@@ -211,53 +212,50 @@ public class SavingGoalServiceImpl implements SavingGoalService {
     /**
      * [3.1] Nạp tiền vào mục tiêu tiết kiệm.
      * Bước 1 — Validate số tiền và trạng thái mục tiêu.
-     * Bước 2 — Cộng tiền, kiểm tra đạt mục tiêu chưa.
+     * Bước 2 — Cộng tiền, tính lại trạng thái.
      * Bước 3 — Tạo giao dịch ghi nhận dòng tiền.
      * Bước 4 — Gửi thông báo milestone (25%, 50%, 75%) hoặc hoàn thành (100%).
      */
     @Override
     @Transactional
     public SavingGoalResponse depositToSavingGoal(Integer id, BigDecimal amount, Integer userId) {
-        // Bước 1: Validate
+        // Bước 1: Validate số tiền
         if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
             throw new IllegalArgumentException("Số tiền nạp phải lớn hơn 0");
         }
 
+        // Lấy goal — dùng getOwnedGoal (chặn CANCELLED và finished=true bên trong)
         SavingGoal goal = getOwnedGoal(id, userId);
 
-        if (!goal.getGoalStatus().equals(GoalStatus.ACTIVE.getValue())) {
-            throw new IllegalStateException(
-                    "Không thể nạp tiền vào mục tiêu đã hoàn thành hoặc bị hủy.");
-        }
-
-        // Bước 2: Tính % trước và sau khi nạp (để detect milestone vừa vượt qua)
-        double percentBefore = calcPercent(goal.getCurrentAmount(), goal.getTargetAmount());
-
-        BigDecimal newAmount = goal.getCurrentAmount().add(amount);
-
-        // Guard: không cho nạp vượt quá số tiền mục tiêu
-        if (newAmount.compareTo(goal.getTargetAmount()) > 0) {
-            BigDecimal remaining = goal.getTargetAmount().subtract(goal.getCurrentAmount());
+        // Guard: không cho nạp quá target (theo DB constraint current_amount <= target_amount)
+        BigDecimal remaining = goal.getTargetAmount().subtract(goal.getCurrentAmount());
+        if (amount.compareTo(remaining) > 0) {
             throw new IllegalArgumentException(
                     String.format("Số tiền nạp vào vượt quá mục tiêu '%s'. Số tiền còn có thể nạp: %s đ.",
                             goal.getGoalName(), remaining.toPlainString()));
         }
 
-        goal.setCurrentAmount(newAmount);
+        // Bước 2: Tính % trước khi nạp (để detect milestone vừa vượt qua)
+        double percentBefore = calcPercent(goal.getCurrentAmount(), goal.getTargetAmount());
 
-        double percentAfter = calcPercent(newAmount, goal.getTargetAmount());
+        // Cộng tiền vào goal
+        goal.setCurrentAmount(goal.getCurrentAmount().add(amount));
 
-        // Kiểm tra đạt mục tiêu 100%
-        boolean justCompleted = false;
-        if (newAmount.compareTo(goal.getTargetAmount()) >= 0) {
-            goal.setGoalStatus(GoalStatus.COMPLETED.getValue());
-            goal.setFinished(true);
-            justCompleted = true;
-        }
+        // Tính % sau khi nạp
+        double percentAfter = calcPercent(goal.getCurrentAmount(), goal.getTargetAmount());
+
+        // Flag: vừa đạt 100%? (để gửi đúng loại notification)
+        boolean wasCompleted = goal.getGoalStatus().equals(GoalStatus.COMPLETED.getValue());
+
+        // Tính lại trạng thái — dùng hàm chuẩn (không tự set CANCELLED)
+        recalculateSavingGoalStatus(goal);
+
+        boolean isNowCompleted = goal.getGoalStatus().equals(GoalStatus.COMPLETED.getValue());
+        boolean justCompleted = !wasCompleted && isNowCompleted; // vừa mới đạt 100%
 
         savingGoalRepository.save(goal);
 
-        // Bước 3: Tạo giao dịch ghi nhận dòng tiền
+        // Bước 3: Tạo giao dịch ghi nhận dòng tiền nạp vào
         Category category = categoryRepository.findById(SystemCategory.INCOME_TRANSFER.getId())
                 .orElseThrow(() -> new IllegalArgumentException(
                         "Không tìm thấy danh mục hệ thống 'Tiền chuyển đến'"));
@@ -284,98 +282,302 @@ public class SavingGoalServiceImpl implements SavingGoalService {
     }
 
     // =================================================================================
-    // 4. XÓA MỤC TIÊU (SOFT DELETE)
+    // 4. RÚT TIỀN (WITHDRAW)
     // =================================================================================
 
     /**
-     * [4.1] Xóa mục tiêu vĩnh viễn (Soft delete — deleted=true + CANCELLED).
+     * [4.1] Rút tiền từ mục tiêu tiết kiệm (giảm currentAmount).
      *
-     * Phân biệt với "tạm dừng" (toggleActive):
-     *   • Xóa: CANCELLED + deleted=true  → @SQLRestriction ẩn hẳn, KHÔNG phục hồi được
-     *   • Tạm dừng: CANCELLED + deleted=false → vẫn hiển thị, CÓ THỂ kích hoạt lại
+     * Cho phép rút kể cả khi COMPLETED → tự về ACTIVE (chưa chốt sổ).
+     * Không cho phép rút nếu finished=true (đã chốt sổ).
      *
-     * Mục tiêu tiết kiệm là NGUỒN TIỀN → cascade xóa mềm toàn bộ dữ liệu liên kết:
-     *   • Transactions thuộc goal_id
-     *   • Debts có giao dịch trong mục tiêu này (qua subquery tTransactions)
-     *   • Events có giao dịch trong mục tiêu này (qua subquery tTransactions)
+     * Bước 1 — Validate số tiền và trạng thái.
+     * Bước 2 — Trừ tiền + tính lại trạng thái.
+     * Bước 3 — Tạo giao dịch ghi nhận dòng tiền rút ra.
      */
     @Override
     @Transactional
-    public void deleteSavingGoal(Integer id, Integer userId) {
+    public SavingGoalResponse withdrawFromSavingGoal(Integer id, BigDecimal amount, Integer userId) {
+        // Bước 1: Validate số tiền
+        if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException("Số tiền rút phải lớn hơn 0");
+        }
+
+        // Lấy goal — dùng getOwnedGoal (chặn finished=true và CANCELLED bên trong)
         SavingGoal goal = getOwnedGoal(id, userId);
 
-        goal.setGoalStatus(GoalStatus.CANCELLED.getValue());
-        goal.setFinished(true);
-
-        // Soft delete cascade — ẩn vĩnh viễn khỏi mọi query (@SQLRestriction "deleted=0")
-        goal.setDeleted(true);
-        goal.setDeletedAt(LocalDateTime.now());
-        transactionRepository.softDeleteAllBySavingGoalId(id);   // Giao dịch thuộc mục tiêu
-        debtRepository.softDeleteAllBySavingGoalId(id);          // Khoản nợ có giao dịch thuộc mục tiêu
-        eventRepository.softDeleteAllBySavingGoalId(id);         // Sự kiện có giao dịch thuộc mục tiêu
-
-        savingGoalRepository.save(goal);
-    }
-
-    // =================================================================================
-    // 5. BẬT / TẮT MỤC TIÊU (TOGGLE ACTIVE)
-    // =================================================================================
-
-    /**
-     * [5.1] Toggle trạng thái ACTIVE ↔ CANCELLED (tạm dừng/kích hoạt lại).
-     *
-     * Quy tắc:
-     *   • ACTIVE   → CANCELLED (finished=true)  : tạm dừng / kết thúc sớm
-     *   • CANCELLED→ ACTIVE   (finished=false)  : kích hoạt lại mục tiêu đã tạm dừng
-     *   • OVERDUE  → ACTIVE   (finished=false)  : kích hoạt lại mục tiêu quá hạn
-     *   • COMPLETED → ném lỗi (đã hoàn thành đầy đủ, KHÔNG kích hoạt lại)
-     *
-     * Lưu ý: CANCELLED ở đây là deleted=false (tạm dừng).
-     *        CANCELLED + deleted=true là xóa vĩnh viễn — không bao giờ vào được hàm này
-     *        vì @SQLRestriction("deleted=0") lọc ra trước rồi.
-     */
-    @Override
-    @Transactional
-    public SavingGoalResponse togglePauseSavingGoal(Integer id, Integer userId) {
-        // Dùng helper riêng — cho phép tìm cả goal đang CANCELLED (tạm dừng)
-        SavingGoal goal = getOwnedGoalForToggle(id, userId);
-
-        Integer currentStatus = goal.getGoalStatus();
-
-        if (currentStatus.equals(GoalStatus.COMPLETED.getValue())) {
-            throw new IllegalStateException(
-                    "Mục tiêu đã hoàn thành (đủ tiền), không thể thay đổi trạng thái.");
+        // Không cho rút nhiều hơn số dư hiện có
+        if (amount.compareTo(goal.getCurrentAmount()) > 0) {
+            throw new IllegalArgumentException(
+                    "Số tiền rút vượt quá số dư hiện có của mục tiêu");
         }
 
-        if (currentStatus.equals(GoalStatus.ACTIVE.getValue())) {
-            // ACTIVE → CANCELLED (tạm dừng)
-            goal.setGoalStatus(GoalStatus.CANCELLED.getValue());
-            goal.setFinished(true);
-        } else if (currentStatus.equals(GoalStatus.CANCELLED.getValue())
-                || currentStatus.equals(GoalStatus.OVERDUE.getValue())) {
-            // CANCELLED hoặc OVERDUE → ACTIVE (kích hoạt lại)
-            goal.setGoalStatus(GoalStatus.ACTIVE.getValue());
-            goal.setFinished(false);
-        } else {
-            throw new IllegalStateException("Không thể thay đổi trạng thái mục tiêu này.");
-        }
-
+        // Bước 2: Trừ tiền và tính lại trạng thái
+        // VD: COMPLETED (100%) → rút xuống < 100% → recalculate → ACTIVE lại
+        goal.setCurrentAmount(goal.getCurrentAmount().subtract(amount));
+        recalculateSavingGoalStatus(goal); // Có thể từ COMPLETED về ACTIVE hoặc OVERDUE
         savingGoalRepository.save(goal);
+
+        // Bước 3: Tạo giao dịch ghi nhận dòng tiền rút ra
+        Category category = categoryRepository.findById(SystemCategory.OTHER_EXPENSE.getId())
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Không tìm thấy danh mục hệ thống 'Chi phí khác'"));
+
+        Transaction withdrawTransaction = Transaction.builder()
+                .account(goal.getAccount())
+                .savingGoal(goal)
+                .category(category)
+                .amount(amount)
+                .note("Rút tiền từ mục tiêu: " + goal.getGoalName())
+                .reportable(true) // Rút tiền tính vào báo cáo
+                .sourceType(TransactionSourceType.MANUAL.getValue())
+                .transDate(LocalDateTime.now())
+                .build();
+
+        transactionRepository.save(withdrawTransaction);
+
         return mapToResponse(goal);
     }
 
     // =================================================================================
-    // 6. LẤY DANH SÁCH & CHI TIẾT (READ)
+    // 5. CHỐT SỔ (COMPLETE — GIẢI NGÂN VỀ VÍ)
     // =================================================================================
 
     /**
-     * [6.1] Lấy tất cả mục tiêu của user (kể cả CANCELLED=tạm dừng), hỗ trợ tìm kiếm theo tên.
+     * [5.1] Chốt sổ mục tiêu: finished=true + đổ toàn bộ tiền về wallet được chọn.
+     *
+     * Điều kiện:
+     *   • Goal phải đang COMPLETED (đủ 100%) mới cho chốt sổ.
+     *   • finished phải đang là false (chưa chốt).
+     *
+     * Luồng Atomic (tất cả hoặc không có gì):
+     *   B1 — Cộng currentAmount vào balance của wallet đích.
+     *   B2 — Tạo transaction ghi nhận dòng tiền từ goal → wallet.
+     *   B3 — Set goal: currentAmount=0, finished=true.
+     *
+     * @param id       ID của saving goal cần chốt sổ
+     * @param walletId ID của wallet nhận tiền (null = không đổ về đâu, chỉ đóng goal)
+     * @param userId   ID người dùng hiện tại (kiểm tra quyền sở hữu)
+     */
+    @Override
+    @Transactional
+    public SavingGoalResponse completeSavingGoal(Integer id, Integer walletId, Integer userId) {
+        // Lấy goal — getOwnedGoalForAction cho phép cả COMPLETED (không bị chặn bởi getOwnedGoal)
+        SavingGoal goal = getOwnedGoalForAction(id, userId);
+
+        // Validate: chỉ chốt sổ được khi đủ 100%
+        if (!goal.getGoalStatus().equals(GoalStatus.COMPLETED.getValue())) {
+            throw new IllegalStateException(
+                    "Chỉ có thể chốt sổ khi mục tiêu đã đạt 100%. " +
+                            "Hiện tại: " + goal.getCurrentAmount() + "/" + goal.getTargetAmount());
+        }
+
+        // Validate: chưa chốt sổ trước đó
+        if (Boolean.TRUE.equals(goal.getFinished())) {
+            throw new IllegalStateException("Mục tiêu đã được chốt sổ trước đó, không thể thực hiện lại.");
+        }
+
+        BigDecimal amountToTransfer = goal.getCurrentAmount(); // Số tiền sẽ chuyển về wallet
+
+        // Bước 1: Đổ tiền về wallet nếu có chọn ví và có tiền
+        if (walletId != null && amountToTransfer.compareTo(BigDecimal.ZERO) > 0) {
+            Wallet wallet = walletRepository.findById(walletId)
+                    .orElseThrow(() -> new IllegalArgumentException(
+                            "Không tìm thấy ví với ID: " + walletId));
+
+            // Kiểm tra quyền sở hữu ví
+            if (!wallet.getAccount().getId().equals(userId)) {
+                throw new SecurityException("Bạn không có quyền sử dụng ví này.");
+            }
+
+            // Cộng tiền vào ví đích
+            wallet.setBalance(wallet.getBalance().add(amountToTransfer));
+            walletRepository.save(wallet);
+
+            // Bước 2: Tạo transaction ghi nhận dòng tiền goal → wallet
+            Category category = categoryRepository.findById(SystemCategory.INCOME_TRANSFER.getId())
+                    .orElseThrow(() -> new IllegalArgumentException(
+                            "Không tìm thấy danh mục hệ thống 'Tiền chuyển đến'"));
+
+            Transaction disbursementTx = Transaction.builder()
+                    .account(goal.getAccount())
+                    .wallet(wallet) // Đích đến là wallet được chọn
+                    .category(category)
+                    .amount(amountToTransfer)
+                    .note("Chốt sổ mục tiêu: " + goal.getGoalName() + " → nhận về ví " + wallet.getWalletName())
+                    .reportable(false) // Chuyển nội bộ — không tính vào báo cáo thu/chi
+                    .sourceType(TransactionSourceType.MANUAL.getValue())
+                    .transDate(LocalDateTime.now())
+                    .build();
+
+            transactionRepository.save(disbursementTx);
+
+            // Bước 2a: Gửi thông báo chốt sổ
+            NotificationContent msg = NotificationMessages.savingFinalized(
+                    goal.getGoalName(), amountToTransfer, wallet.getWalletName());
+            notificationService.createNotification(
+                    goal.getAccount(),
+                    msg.title(), msg.content(),
+                    NotificationType.SAVING,
+                    goal.getId().longValue(),
+                    null // gửi ngay
+            );
+        }
+
+        // Bước 3: Chốt sổ goal — đóng hoàn toàn
+        goal.setCurrentAmount(BigDecimal.ZERO); // Tiền đã chuyển đi hết
+        goal.setFinished(true);                 // Đánh dấu đã chốt sổ — KHÔNG thể hoàn tác
+        goal.setGoalStatus(GoalStatus.COMPLETED.getValue()); // Giữ nguyên COMPLETED
+        savingGoalRepository.save(goal);
+
+        return mapToResponse(goal);
+    }
+
+    // =================================================================================
+    // 6. HỦY MỤC TIÊU (CANCEL — GIẢI NGÂN VỀ VÍ)
+    // =================================================================================
+
+    /**
+     * [6.1] Hủy mục tiêu: CANCELLED + finished=true + đổ tiền còn lại về wallet.
+     *
+     * Khác với Soft Delete (deleteSavingGoal):
+     *   • Hủy (cancel): Đổi trạng thái + giải ngân → record vẫn còn trong DB (deleted=false).
+     *   • Xóa (delete): Soft delete (deleted=true) → ẩn khỏi toàn bộ query.
+     *
+     * Luồng Atomic:
+     *   B1 — Cộng currentAmount vào balance của wallet đích (nếu có chọn ví).
+     *   B2 — Tạo transaction ghi nhận dòng tiền hoàn trả.
+     *   B3 — Set goal: currentAmount=0, goalStatus=CANCELLED, finished=true.
+     *
+     * @param id       ID của saving goal cần hủy
+     * @param walletId ID của wallet nhận tiền hoàn trả (null = không đổ về đâu)
+     * @param userId   ID người dùng hiện tại (kiểm tra quyền sở hữu)
+     */
+    @Override
+    @Transactional
+    public SavingGoalResponse cancelSavingGoal(Integer id, Integer walletId, Integer userId) {
+        // Lấy goal — cho phép hủy ở mọi trạng thái trừ finished=true
+        SavingGoal goal = getOwnedGoalForAction(id, userId);
+
+        // Validate: đã chốt/hủy rồi thì không làm gì nữa
+        if (Boolean.TRUE.equals(goal.getFinished())) {
+            throw new IllegalStateException("Mục tiêu đã được đóng, không thể hủy.");
+        }
+
+        BigDecimal amountToReturn = goal.getCurrentAmount(); // Số tiền sẽ hoàn trả về wallet
+
+        // Bước 1: Đổ tiền về wallet nếu có chọn ví và còn tiền
+        if (walletId != null && amountToReturn.compareTo(BigDecimal.ZERO) > 0) {
+            Wallet wallet = walletRepository.findById(walletId)
+                    .orElseThrow(() -> new IllegalArgumentException(
+                            "Không tìm thấy ví với ID: " + walletId));
+
+            // Kiểm tra quyền sở hữu ví
+            if (!wallet.getAccount().getId().equals(userId)) {
+                throw new SecurityException("Bạn không có quyền sử dụng ví này.");
+            }
+
+            // Cộng tiền hoàn trả vào ví đích
+            wallet.setBalance(wallet.getBalance().add(amountToReturn));
+            walletRepository.save(wallet);
+
+            // Bước 2: Tạo transaction ghi nhận dòng tiền hoàn trả
+            Category category = categoryRepository.findById(SystemCategory.INCOME_TRANSFER.getId())
+                    .orElseThrow(() -> new IllegalArgumentException(
+                            "Không tìm thấy danh mục hệ thống 'Tiền chuyển đến'"));
+
+            Transaction refundTx = Transaction.builder()
+                    .account(goal.getAccount())
+                    .wallet(wallet)
+                    .category(category)
+                    .amount(amountToReturn)
+                    .note("Hủy mục tiêu: " + goal.getGoalName() + " → hoàn trả về ví " + wallet.getWalletName())
+                    .reportable(false) // Chuyển nội bộ — không tính vào báo cáo thu/chi
+                    .sourceType(TransactionSourceType.MANUAL.getValue())
+                    .transDate(LocalDateTime.now())
+                    .build();
+
+            transactionRepository.save(refundTx);
+
+            // Bước 2a: Gửi thông báo hủy mục tiêu
+            NotificationContent msg = NotificationMessages.savingCancelled(
+                    goal.getGoalName(), amountToReturn, wallet.getWalletName());
+            notificationService.createNotification(
+                    goal.getAccount(),
+                    msg.title(), msg.content(),
+                    NotificationType.SAVING,
+                    goal.getId().longValue(),
+                    null // gửi ngay
+            );
+        }
+
+        // Bước 3: Đóng goal hoàn toàn
+        goal.setCurrentAmount(BigDecimal.ZERO);              // Tiền đã hoàn trả
+        goal.setGoalStatus(GoalStatus.CANCELLED.getValue()); // Trạng thái CANCELLED
+        goal.setFinished(true);                              // KHÔNG thể hoàn tác
+        savingGoalRepository.save(goal);
+
+        return mapToResponse(goal);
+    }
+
+    // =================================================================================
+    // 7. XÓA MỤC TIÊU (SOFT DELETE)
+    // =================================================================================
+
+    /**
+     * [7.1] Xóa mục tiêu (Soft delete — deleted=true).
+     *
+     * Phân biệt với "Hủy" (cancelSavingGoal):
+     *   • Hủy (cancel): Đổi trạng thái CANCELLED + giải ngân → vẫn còn trong DB.
+     *   • Xóa (delete): Soft delete (deleted=true) → @SQLRestriction ẩn hẳn khỏi mọi query.
+     *
+     * KHÔNG set CANCELLED hay finished ở đây — chỉ đánh dấu deleted.
+     * Mục tiêu đã finished=true vẫn có thể xóa (ẩn khỏi UI).
+     *
+     * Cascade xóa mềm toàn bộ dữ liệu liên kết:
+     *   • Transactions thuộc goal_id
+     *   • Debts có giao dịch trong mục tiêu này
+     *   • Events có giao dịch trong mục tiêu này
+     */
+    @Override
+    @Transactional
+    public void deleteSavingGoal(Integer id, Integer userId) {
+        // Dùng getOwnedGoalForAction vì cho phép xóa mọi trạng thái (kể cả CANCELLED, COMPLETED)
+        SavingGoal goal = getOwnedGoalForAction(id, userId);
+
+        // Soft delete cascade — ẩn vĩnh viễn khỏi mọi query (@SQLRestriction "deleted=0")
+        goal.setDeleted(true);
+        goal.setDeletedAt(LocalDateTime.now());
+        // LƯU Ý: KHÔNG set CANCELLED hay finished ở đây
+        //   → CANCELLED chỉ từ cancelSavingGoal()
+        //   → finished=true chỉ từ completeSavingGoal() hoặc cancelSavingGoal()
+
+        // Cascade xóa mềm các bảng liên quan
+        transactionRepository.softDeleteAllBySavingGoalId(id);  // Giao dịch thuộc mục tiêu
+        debtRepository.softDeleteAllBySavingGoalId(id);         // Khoản nợ liên quan
+        eventRepository.softDeleteAllBySavingGoalId(id);        // Sự kiện liên quan
+
+        savingGoalRepository.save(goal);
+    }
+
+    // =================================================================================
+    // 8. LẤY DANH SÁCH & CHI TIẾT (READ)
+    // =================================================================================
+
+    /**
+     * [8.1] Lấy tất cả mục tiêu của user, hỗ trợ tìm kiếm theo tên.
      * Mục tiêu đã xóa (deleted=true) tự động bị ẩn bởi @SQLRestriction("deleted=0").
      */
     @Override
-    public List<SavingGoalResponse> getSavingGoalsByAccount(Integer userId, String search) {
-        // Lấy tất cả goal chưa bị xóa (bao gồm CANCELLED=tạm dừng)
-        List<SavingGoal> goals = savingGoalRepository.findByAccount_Id(userId);
+    public List<SavingGoalResponse> getSavingGoalsByAccount(Integer userId, String search, Boolean isFinished) {
+        // Lấy tất cả goal chưa bị xóa (kể cả CANCELLED, COMPLETED, OVERDUE)
+        List<SavingGoal> goals;
+
+        if (isFinished != null) {
+            goals = savingGoalRepository.findByAccount_IdAndFinished(userId, isFinished);
+        } else {
+            goals = savingGoalRepository.findByAccount_Id(userId);
+        }
 
         // Lọc theo tên nếu có từ khóa tìm kiếm
         if (search != null && !search.isBlank()) {
@@ -389,26 +591,64 @@ public class SavingGoalServiceImpl implements SavingGoalService {
     }
 
     /**
-     * [6.2] Lấy chi tiết một mục tiêu theo ID + kiểm tra quyền sở hữu.
+     * [8.2] Lấy chi tiết một mục tiêu theo ID + kiểm tra quyền sở hữu.
      */
     @Override
     public SavingGoalResponse getSavingGoalDetail(Integer id, Integer userId) {
-        return mapToResponse(getOwnedGoalForToggle(id, userId));
+        return mapToResponse(getOwnedGoalForAction(id, userId));
     }
 
     // =================================================================================
-    // 7. PRIVATE HELPERS
+    // 9. PRIVATE HELPERS
     // =================================================================================
 
     /**
-     * [7.1] Tìm mục tiêu và kiểm tra quyền sở hữu.
-     * Dùng cho: create, deposit, update, delete.
-     * Chỉ cho phép thao tác khi mục tiêu ACTIVE (hoặc OVERDUE cho delete).
-     * Mục tiêu CANCELLED (tạm dừng) → KHÔNG thao tác (chỉ dùng toggleActive).
-     * Mục tiêu deleted=true → @SQLRestriction tự lọc, findById trả về empty.
+     * [9.1] Tính lại trạng thái goal sau mỗi biến động số tiền.
+     *
+     * Quy tắc:
+     *   • CANCELLED + finished=true  → Trạng thái cuối, KHÔNG đụng vào.
+     *   • finished=true              → Đã chốt sổ, KHÔNG đụng vào.
+     *   • current >= target          → COMPLETED (finished vẫn false — chưa chốt sổ).
+     *   • current < target + quá hạn → OVERDUE.
+     *   • current < target + còn hạn → ACTIVE (kể cả khi đang COMPLETED bị rút xuống).
+     *
+     * QUAN TRỌNG: KHÔNG bao giờ tự set CANCELLED ở đây.
+     * CANCELLED chỉ được set từ cancelSavingGoal() hoặc deleteSavingGoal().
+     *
+     * Gọi ở: depositToSavingGoal(), withdrawFromSavingGoal(), updateSavingGoalInfo().
+     */
+    private void recalculateSavingGoalStatus(SavingGoal goal) {
+        // Trường hợp 1: Trạng thái cuối — không đụng vào
+        if (goal.getGoalStatus().equals(GoalStatus.CANCELLED.getValue())
+                || Boolean.TRUE.equals(goal.getFinished())) {
+            return;
+        }
+
+        BigDecimal current = goal.getCurrentAmount(); // Số tiền hiện có
+        BigDecimal target  = goal.getTargetAmount();  // Số tiền mục tiêu
+        LocalDate  today   = LocalDate.now();          // Ngày hôm nay
+
+        if (current.compareTo(target) >= 0) {
+            // Đủ hoặc vượt target → COMPLETED (finished vẫn false — user chưa chốt sổ)
+            goal.setGoalStatus(GoalStatus.COMPLETED.getValue());
+        } else if (goal.getEndDate() != null && goal.getEndDate().isBefore(today)) {
+            // Chưa đủ tiền + đã quá hạn → OVERDUE
+            goal.setGoalStatus(GoalStatus.OVERDUE.getValue());
+        } else {
+            // Chưa đủ tiền + còn hạn → ACTIVE
+            // (kể cả khi trước đó là COMPLETED mà bị rút tiền xuống < 100%)
+            goal.setGoalStatus(GoalStatus.ACTIVE.getValue());
+        }
+    }
+
+    /**
+     * [9.2] Tìm mục tiêu và kiểm tra quyền sở hữu.
+     *
+     * Dùng cho: depositToSavingGoal(), withdrawFromSavingGoal(), updateSavingGoalInfo().
+     * Chặn thêm: finished=true và CANCELLED — không cho thao tác trên goal đã đóng.
      */
     private SavingGoal getOwnedGoal(Integer id, Integer userId) {
-        // @SQLRestriction("deleted=0") → goal deleted=true sẽ không tìm thấy → orElseThrow luôn đúng
+        // @SQLRestriction("deleted=0") → goal deleted=true sẽ không tìm thấy → orElseThrow đúng
         SavingGoal goal = savingGoalRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException(
                         "Không tìm thấy mục tiêu với ID: " + id));
@@ -418,24 +658,36 @@ public class SavingGoalServiceImpl implements SavingGoalService {
             throw new SecurityException("Bạn không có quyền thao tác trên mục tiêu này.");
         }
 
-        // CANCELLED (tạm dừng) → không cho deposit/update, chỉ cho toggle hoặc delete
+        // Chặn nếu đã chốt sổ hoàn toàn (finished=true)
+        if (Boolean.TRUE.equals(goal.getFinished())) {
+            throw new IllegalStateException(
+                    "Mục tiêu đã được chốt sổ hoàn toàn. Không thể thực hiện thao tác.");
+        }
+
+        // Chặn nếu đã CANCELLED (hủy giữa chừng mà chưa xóa)
         if (goal.getGoalStatus().equals(GoalStatus.CANCELLED.getValue())) {
             throw new IllegalStateException(
-                    "Mục tiêu đang tạm dừng. Hãy kích hoạt lại trước khi thực hiện thao tác.");
+                    "Mục tiêu đã bị hủy. Không thể nạp/rút/sửa mục tiêu này.");
         }
 
         return goal;
     }
 
     /**
-     * [7.2] Tìm mục tiêu cho toggle active (cho phép cả CANCELLED=tạm dừng).
-     * Dùng riêng cho: togglePauseSavingGoal(), getSavingGoalDetail().
+     * [9.3] Tìm mục tiêu cho các thao tác KHÔNG bị chặn bởi trạng thái.
+     *
+     * Dùng cho: completeSavingGoal(), cancelSavingGoal(), deleteSavingGoal(),
+     *           getSavingGoalDetail() — cần xem được mọi trạng thái.
+     *
+     * Khác getOwnedGoal(): KHÔNG chặn CANCELLED hay finished=true.
+     * Hàm gọi tự xử lý logic validate trạng thái riêng.
      */
-    private SavingGoal getOwnedGoalForToggle(Integer id, Integer userId) {
+    private SavingGoal getOwnedGoalForAction(Integer id, Integer userId) {
         SavingGoal goal = savingGoalRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException(
                         "Không tìm thấy mục tiêu với ID: " + id));
 
+        // Kiểm tra quyền sở hữu
         if (goal.getAccount() == null || !goal.getAccount().getId().equals(userId)) {
             throw new SecurityException("Bạn không có quyền thao tác trên mục tiêu này.");
         }
@@ -444,7 +696,7 @@ public class SavingGoalServiceImpl implements SavingGoalService {
     }
 
     /**
-     * [6.2] Chuyển đổi SavingGoal → SavingGoalResponse.
+     * [9.4] Chuyển đổi SavingGoal → SavingGoalResponse.
      * Tính thêm remainingAmount và progressPercent.
      */
     private SavingGoalResponse mapToResponse(SavingGoal goal) {
@@ -452,7 +704,7 @@ public class SavingGoalServiceImpl implements SavingGoalService {
         BigDecimal remaining = goal.getTargetAmount().subtract(goal.getCurrentAmount());
         if (remaining.compareTo(BigDecimal.ZERO) < 0) remaining = BigDecimal.ZERO;
 
-        // Tính phần trăm hoàn thành (không vượt 100%)
+        // Tính phần trăm hoàn thành (giới hạn tối đa 100%)
         double percent = calcPercent(goal.getCurrentAmount(), goal.getTargetAmount());
         percent = Math.min(percent, 100.0);
 
@@ -475,9 +727,10 @@ public class SavingGoalServiceImpl implements SavingGoalService {
     }
 
     /**
-     * [6.3] Tính phần trăm hoàn thành. Tránh chia cho 0.
+     * [9.5] Tính phần trăm hoàn thành. Tránh chia cho 0.
      */
     private double calcPercent(BigDecimal current, BigDecimal target) {
+        // Tránh NullPointerException và chia cho 0
         if (target == null || target.compareTo(BigDecimal.ZERO) == 0) return 0.0;
         return current
                 .divide(target, 4, RoundingMode.HALF_UP)
@@ -486,10 +739,10 @@ public class SavingGoalServiceImpl implements SavingGoalService {
     }
 
     /**
-     * [6.4] Gửi thông báo milestone khi nạp tiền.
-     * - Kiểm tra xem có vừa vượt mốc 25%, 50%, 75% không.
-     * - Nếu hoàn thành 100% → gửi thông báo hoàn thành.
-     * - Chỉ gửi 1 thông báo cho mốc cao nhất vừa đạt được.
+     * [9.6] Gửi thông báo milestone khi nạp tiền.
+     *   • Vừa đạt 100% → thông báo hoàn thành (savingCompleted).
+     *   • Vừa vượt qua mốc 25/50/75% → thông báo tiến độ (savingMilestone).
+     *   • Chỉ gửi 1 thông báo cho mốc cao nhất vừa đạt được.
      */
     private void sendMilestoneNotification(SavingGoal goal,
                                            double percentBefore,
@@ -506,15 +759,17 @@ public class SavingGoalServiceImpl implements SavingGoalService {
                     goal.getId().longValue(),
                     null
             );
-            return; // Chỉ gửi 1 thông báo
+            return; // Chỉ gửi 1 thông báo — không gửi thêm milestone
         }
 
-        // Trường hợp 2: Kiểm tra từng mốc từ cao xuống thấp
+        // Trường hợp 2: Kiểm tra từng mốc từ cao xuống thấp (75 → 50 → 25)
         // Gửi thông báo cho mốc cao nhất vừa vượt qua
         for (int i = MILESTONE_PERCENTS.length - 1; i >= 0; i--) {
-            int milestone = MILESTONE_PERCENTS[i];
+            int milestone = MILESTONE_PERCENTS[i]; // Mốc đang xét: 75, 50, hoặc 25
+
+            // Kiểm tra: trước khi nạp chưa đạt mốc, sau khi nạp đã đạt hoặc vượt
             if (percentBefore < milestone && percentAfter >= milestone) {
-                // Tính số tiền còn lại tại thời điểm đạt mốc
+                // Tính số tiền còn lại sau khi đạt mốc
                 BigDecimal remaining = goal.getTargetAmount().subtract(goal.getCurrentAmount());
                 if (remaining.compareTo(BigDecimal.ZERO) < 0) remaining = BigDecimal.ZERO;
 
