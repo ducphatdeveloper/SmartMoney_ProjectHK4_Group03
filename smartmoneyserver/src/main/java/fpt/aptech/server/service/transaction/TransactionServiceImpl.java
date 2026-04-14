@@ -894,7 +894,9 @@ public class TransactionServiceImpl implements TransactionService {
         }
 
         // Bước 6: Apply số dư mới
+        Integer savingGoalId = null;
         if (request.goalId() != null) {
+            savingGoalId = request.goalId();
             processSavingGoalTransaction(transaction, request.goalId(), accountId,
                     targetCategory.getCtgType(), request.amount());
         } else if (request.walletId() != null) {
@@ -906,6 +908,12 @@ public class TransactionServiceImpl implements TransactionService {
         }
 
         Transaction updated = transactionRepository.save(transaction);
+
+        // Bước 6.5: Tính lại status của SavingGoal sau khi update (nếu có)
+        if (savingGoalId != null) {
+            recalcSavingGoalStatusDirectly(savingGoalId);
+        }
+
         if (updated.getDebt() != null) {
             Account account = accountRepository.findById(accountId).orElse(null);
             debtCalculationService.recalculateDebt(updated.getDebt().getId(), account);
@@ -984,12 +992,18 @@ public class TransactionServiceImpl implements TransactionService {
                     "Nếu muốn điều chỉnh số dư ví, hãy dùng tính năng 'Điều chỉnh số dư' trong màn hình ví.");
         }
 
-        // Lưu debtId và categoryId TRƯỚC khi xóa mềm
+        // Lưu debtId, categoryId, savingGoalId TRƯỚC khi xóa mềm
         Integer debtId     = transaction.getDebt()     != null ? transaction.getDebt().getId()     : null;
         Integer categoryId = transaction.getCategory() != null ? transaction.getCategory().getId() : null;
+        Integer savingGoalId = transaction.getSavingGoal() != null ? transaction.getSavingGoal().getId() : null;
 
         // Bước 2: Hoàn tiền
         revertTransactionBalance(transaction);
+
+        // Bước 2.5: Tính lại status của SavingGoal sau khi revert (nếu có)
+        if (savingGoalId != null) {
+            recalcSavingGoalStatusDirectly(savingGoalId);
+        }
 
         // Bước 3: Soft delete (thay vì xóa cứng)
         transaction.setDeleted(true);
@@ -1081,7 +1095,32 @@ public class TransactionServiceImpl implements TransactionService {
     }
 
     /**
-     * [5.2] Xử lý giao dịch liên quan đến Ví.
+     * [5.2] Tính lại status của SavingGoal trực tiếp bằng cách gọi SavingGoalRepository.
+     * Tránh circular dependency với SavingGoalService.
+     */
+    private void recalcSavingGoalStatusDirectly(Integer savingGoalId) {
+        fpt.aptech.server.entity.SavingGoal goal = savingGoalRepository.findById(savingGoalId).orElse(null);
+        if (goal == null) {
+            return; // Goal đã bị xóa, không cần làm gì
+        }
+
+        // Chỉ recalc nếu goal chưa finished
+        if (Boolean.TRUE.equals(goal.getFinished())) {
+            return;
+        }
+
+        // Tính lại status dựa trên actual percentage
+        if (goal.getCurrentAmount().compareTo(goal.getTargetAmount()) >= 0) {
+            goal.setGoalStatus(fpt.aptech.server.enums.savinggoal.GoalStatus.COMPLETED.getValue());
+        } else {
+            goal.setGoalStatus(fpt.aptech.server.enums.savinggoal.GoalStatus.ACTIVE.getValue());
+        }
+
+        savingGoalRepository.save(goal);
+    }
+
+    /**
+     * [5.3] Xử lý giao dịch liên quan đến Ví.
      * Bước 1 — Tìm ví và kiểm tra quyền sở hữu.
      * Bước 2 — Gán ví vào transaction.
      * Bước 3 — Cộng/trừ số dư.
