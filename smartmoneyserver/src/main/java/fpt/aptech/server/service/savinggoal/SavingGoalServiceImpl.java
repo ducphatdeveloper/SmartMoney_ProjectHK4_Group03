@@ -365,8 +365,9 @@ public class SavingGoalServiceImpl implements SavingGoalService {
         // Lấy goal — getOwnedGoalForAction cho phép cả COMPLETED (không bị chặn bởi getOwnedGoal)
         SavingGoal goal = getOwnedGoalForAction(id, userId);
 
-        // Validate: chỉ chốt sổ được khi đủ 100%
-        if (!goal.getGoalStatus().equals(GoalStatus.COMPLETED.getValue())) {
+        // Validate: chỉ chốt sổ được khi đủ 100% (check actual percentage thay vì chỉ check status)
+        // Status có thể COMPLETED nhưng sau khi xóa giao dịch, currentAmount có thể giảm xuống dưới 100%
+        if (goal.getCurrentAmount().compareTo(goal.getTargetAmount()) < 0) {
             throw new IllegalStateException(
                     "Chỉ có thể chốt sổ khi mục tiêu đã đạt 100%. " +
                             "Hiện tại: " + goal.getCurrentAmount() + "/" + goal.getTargetAmount());
