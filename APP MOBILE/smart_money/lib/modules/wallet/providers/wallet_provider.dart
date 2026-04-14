@@ -37,12 +37,9 @@ class WalletProvider with ChangeNotifier {
   // ================= CREATE =================
   Future<bool> createWallet(WalletRequest request) async {
     try {
-      final newWallet = await _service.createWallet(request);
-
-      wallets.add(newWallet);
-      totalBalance += newWallet.balance;
-
-      notifyListeners();
+      await _service.createWallet(request);
+      // Reload all data to get the correct total balance from the server
+      await loadAll();
       return true;
 
     } catch (e) {
@@ -69,18 +66,11 @@ class WalletProvider with ChangeNotifier {
   Future<void> deleteWallet(int id) async {
     try {
       await _service.deleteWallet(id);
-
-      wallets.removeWhere((w) => w.id == id);
-
-
-
-      notifyListeners();
+      // Reload all data to get the correct total balance from the server
+      await loadAll();
     } catch (e) {
       error = e.toString();
       notifyListeners();
     }
   }
-
-
-
 }

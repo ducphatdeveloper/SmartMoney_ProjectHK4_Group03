@@ -38,6 +38,7 @@ public record TransactionResponse(
     Integer savingGoalId, // ID Mục tiêu tiết kiệm (Flutter cần để pre-fill form sửa)
     String savingGoalName,
     String savingGoalIconUrl, // Icon của Mục tiêu tiết kiệm (nếu dùng thay ví)
+    Boolean savingGoalFinished, // true nếu goal đã chốt sổ/hủy — Flutter dùng để ẩn nút Sửa/Xóa
 
     Integer aiChatId // ID Chat AI (nếu giao dịch được tạo bởi AI)
 ) {}

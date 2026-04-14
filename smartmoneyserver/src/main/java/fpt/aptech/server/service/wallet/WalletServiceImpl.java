@@ -340,7 +340,7 @@ public class WalletServiceImpl implements WalletService {
             walletsTotal = BigDecimal.ZERO;
 
         // Tổng tiền trong các Mục tiêu tiết kiệm (reportable=true, không CANCELLED)
-        BigDecimal savingsTotal = savingGoalRepository.sumCurrentAmountByAccountId(accountId);
+        BigDecimal savingsTotal = savingGoalRepository.sumActiveCurrentAmountByAccountId(accountId);
         if (savingsTotal == null)
             savingsTotal = BigDecimal.ZERO;
 

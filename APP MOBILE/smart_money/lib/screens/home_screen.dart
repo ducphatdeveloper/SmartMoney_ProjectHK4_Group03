@@ -25,7 +25,7 @@ class _HomeScreenState extends State<HomeScreen> {
   bool isBalanceHidden = false;
   final NumberFormat currencyFormat = NumberFormat.currency(locale: 'en_US', symbol: '\$');
   final ScrollController _dateScrollController = ScrollController();
-  
+
   List<CategoryReportDTO> _categoryReports = [];
   bool _isCategoryLoading = false;
 
@@ -77,7 +77,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _fetchTopCategories() async {
     if (!mounted) return;
-    
+
     final auth = context.read<AuthProvider>();
     if (!auth.isLoggedIn) {
       setState(() {
@@ -91,7 +91,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final source = transProvider.selectedSource;
     final walletId = source.type == 'wallet' ? source.id : null;
     final goalId = source.type == 'saving_goal' ? source.id : null;
-    
+
     DateTime startDate;
     DateTime endDate;
 
@@ -106,7 +106,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     setState(() => _isCategoryLoading = true);
-    
+
     try {
       final response = await TransactionService.getCategoryReport(
         startDate: startDate,
@@ -189,7 +189,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
 
                 const SizedBox(height: 16),
-                
+
                 // Filter section giống trang sổ giao dịch
                 if (!transProvider.isAllMode && !transProvider.isCustomMode)
                   TransactionDateSlider(scrollController: _dateScrollController),
@@ -429,7 +429,7 @@ class _HomeScreenState extends State<HomeScreen> {
       return const SizedBox(height: 100, child: Center(child: CircularProgressIndicator(strokeWidth: 2)));
     }
 
-    final displayItems = isLoggedIn && _categoryReports.isNotEmpty 
+    final displayItems = isLoggedIn && _categoryReports.isNotEmpty
         ? _categoryReports.take(5).toList()
         : _getDefaultCategories();
 
@@ -538,15 +538,15 @@ class _HomeScreenState extends State<HomeScreen> {
                     final source = filteredSources[index];
                     final bool isTotal = source.type == 'all';
                     final bool isGoal = source.type == 'saving_goal';
-                    
+
                     return ListTile(
-                      leading: isTotal 
-                        ? const CircleAvatar(backgroundColor: Colors.blueAccent, child: Icon(Icons.account_balance, color: Colors.white, size: 20))
-                        : (isGoal 
-                            ? const CircleAvatar(backgroundColor: Colors.orange, child: Icon(Icons.savings, color: Colors.white, size: 20))
-                            : (source.iconUrl != null 
-                                ? Image.network(source.iconUrl!, width: 30, height: 30)
-                                : const Icon(Icons.account_balance_wallet))),
+                      leading: isTotal
+                          ? const CircleAvatar(backgroundColor: Colors.blueAccent, child: Icon(Icons.account_balance, color: Colors.white, size: 20))
+                          : (isGoal
+                          ? const CircleAvatar(backgroundColor: Colors.orange, child: Icon(Icons.savings, color: Colors.white, size: 20))
+                          : (source.iconUrl != null
+                          ? Image.network(source.iconUrl!, width: 30, height: 30)
+                          : const Icon(Icons.account_balance_wallet))),
                       title: Text(isTotal ? "Total Balance" : source.name),
                       trailing: Text(currencyFormat.format(source.balance ?? 0.0)),
                       selected: provider.selectedSource.id == source.id && provider.selectedSource.type == source.type,
@@ -564,7 +564,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 title: const Text("Manage Wallets"),
                 onTap: () {
                   Navigator.pop(context);
-                  context.push('/wallets'); 
+                  context.push('/wallets');
                 },
               )
             ],

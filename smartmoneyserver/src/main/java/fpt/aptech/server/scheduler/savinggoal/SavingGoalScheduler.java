@@ -39,8 +39,8 @@ import java.util.List;
  * ─── STATUS MATRIX ────────────────────────────────────────────────────────
  * ACTIVE(1)    → Đang chạy, scheduler xử lý bình thường
  * COMPLETED(2) → Đã hoàn thành (đủ tiền), scheduler bỏ qua
- * CANCELLED(3) → Tạm dừng (deleted=false) HOẶC đã xóa (deleted=true).
- *                Scheduler bỏ qua cả hai — chỉ xử lý ACTIVE.
+ * CANCELLED(3) → Da ket thuc som (finished=true) — KHONG the kich hoat lai.
+ *                Scheduler bo qua — chi xu ly ACTIVE.
  * OVERDUE(4)   → Quá hạn, scheduler bỏ qua (đã chuyển status xong rồi)
  * ─────────────────────────────────────────────────────────────────────────
  * Lưu ý: @SQLRestriction("deleted=0") trên entity SavingGoal đảm bảo

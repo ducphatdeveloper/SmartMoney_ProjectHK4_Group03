@@ -88,4 +88,3 @@ class WalletService {
     return response.data?.totalBalance ?? 0.0;
   }
 }
-

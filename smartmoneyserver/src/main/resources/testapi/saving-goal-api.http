@@ -2,8 +2,10 @@
 ### MODULE: SAVING GOAL (Mục tiêu tiết kiệm)
 ### Controller: /api/saving-goals
 ### Endpoints: create, update(/{id}), deposit(/{id}/deposit),
-###            delete(/{id}), getAll, getDetail(/{id}),
-###            toggle-pause(/{id}/toggle-pause), check-now
+###            withdraw(/{id}/withdraw), complete(/{id}/complete),
+###            cancel(/{id}/cancel), delete(/{id}),
+###            getAll(?isFinished=&search=), getDetail(/{id}),
+###            check-now
 ### ============================================================
 
 ### 1. Đăng nhập (Lấy Token & UserID)
@@ -25,18 +27,35 @@ Content-Type: application/json
 %}
 
 ### ============================================================
-### 2. Lấy danh sách Mục tiêu tiết kiệm (GET ALL)
-### GET /api/saving-goals/getAll?search=
+### 2. Lấy TẤT CẢ Mục tiêu (GET ALL — không lọc)
+### GET /api/saving-goals/getAll
 ### ============================================================
 GET http://localhost:9999/api/saving-goals/getAll
 Authorization: Bearer {{auth_token}}
 
-### 3. Tìm kiếm Mục tiêu theo tên
-GET http://localhost:9999/api/saving-goals/getAll?search=iPhone
+### ============================================================
+### 3. Lấy danh sách tab Active (isFinished=false)
+### Kỳ vọng: chỉ goals có finished=false (ACTIVE, OVERDUE, COMPLETED chưa chốt)
+### ============================================================
+GET http://localhost:9999/api/saving-goals/getAll?isFinished=false
 Authorization: Bearer {{auth_token}}
 
 ### ============================================================
-### 4. Tạo Mục tiêu tiết kiệm mới (CREATE)
+### 4. Lấy danh sách tab Finished (isFinished=true)
+### Kỳ vọng: chỉ goals có finished=true (COMPLETED đã chốt, CANCELLED)
+### ============================================================
+GET http://localhost:9999/api/saving-goals/getAll?isFinished=true
+Authorization: Bearer {{auth_token}}
+
+### ============================================================
+### 5. Tìm kiếm trong tab Active theo tên
+### Kỳ vọng: active goals có tên chứa "iPhone"
+### ============================================================
+GET http://localhost:9999/api/saving-goals/getAll?isFinished=false&search=iPhone
+Authorization: Bearer {{auth_token}}
+
+### ============================================================
+### 6. Tạo Mục tiêu tiết kiệm mới (CREATE)
 ### POST /api/saving-goals/create
 ### Body: goalName, targetAmount, initialAmount, currencyCode,
 ###        endDate, goalImageUrl, notified, reportable
@@ -57,14 +76,14 @@ Content-Type: application/json
 }
 
 ### ============================================================
-### 5. Kiểm tra Tổng Tài Sản sau khi tạo Saving Goal
+### 7. Kiểm tra Tổng Tài Sản sau khi tạo Saving Goal
 ### Kỳ vọng: Total Balance tăng thêm initialAmount (1,000,000)
 ### ============================================================
 GET http://localhost:9999/api/user/wallets/total-balance
 Authorization: Bearer {{auth_token}}
 
 ### ============================================================
-### 6. Xem chi tiết Mục tiêu (DETAIL)
+### 8. Xem chi tiết Mục tiêu (DETAIL)
 ### GET /api/saving-goals/getDetail/{id}
 ### Thay {id} bằng ID mục tiêu thực tế
 ### ============================================================
@@ -72,16 +91,16 @@ GET http://localhost:9999/api/saving-goals/getDetail/9
 Authorization: Bearer {{auth_token}}
 
 ### ============================================================
-### 7. Cập nhật thông tin Mục tiêu (UPDATE)
+### 9. Cập nhật thông tin Mục tiêu (UPDATE)
 ### PUT /api/saving-goals/{id}
-### Thay {id} bằng ID mục tiêu thực tế
+### Chỉ cho phép khi goal đang ACTIVE
 ### ============================================================
 PUT http://localhost:9999/api/saving-goals/9
 Authorization: Bearer {{auth_token}}
 Content-Type: application/json
 
 {
-  "goalName": "Mua iPhone 18 Pro Max - Đã sửa",
+  "goalName": "Mua iPhone 18 Pro Max - Da sua",
   "targetAmount": 55000000,
   "currencyCode": "VND",
   "endDate": "2027-10-31",
@@ -91,51 +110,66 @@ Content-Type: application/json
 }
 
 ### ============================================================
-### 8. Nạp tiền vào Mục tiêu (DEPOSIT)
+### 10. Nạp tiền vào Mục tiêu (DEPOSIT)
 ### POST /api/saving-goals/{id}/deposit?amount=
-### Thay {id} bằng ID mục tiêu thực tế
+### Bị chặn nếu finished=true hoặc CANCELLED
 ### ============================================================
 POST http://localhost:9999/api/saving-goals/9/deposit?amount=5000000
 Authorization: Bearer {{auth_token}}
 
 ### ============================================================
-### 9. Kiểm tra Tổng Tài Sản sau khi Deposit
+### 11. Kiểm tra Tổng Tài Sản sau khi Deposit
 ### Kỳ vọng: Total Balance tăng thêm 5,000,000
 ### ============================================================
 GET http://localhost:9999/api/user/wallets/total-balance
 Authorization: Bearer {{auth_token}}
 
 ### ============================================================
-### 11. Toggle Bật / Tắt Mục Tiêu (ACTIVE ↔ CANCELLED)
-### PATCH /api/saving-goals/{id}/toggle-pause
-###
-### Lần 1 gọi: ACTIVE    → CANCELLED (finished=true)   Tạm dừng / kết thúc sớm
-### Lần 2 gọi: CANCELLED → ACTIVE   (finished=false)  Kích hoạt lại
-###             OVERDUE   → ACTIVE   (finished=false)  Kích hoạt lại mục tiêu quá hạn
-###
-### ⚠️ COMPLETED → 400 Bad Request (đã hoàn thành đầy đủ, không thể đổi)
-###
-### Phân biệt với DELETE:
-###   • Toggle: CANCELLED + deleted=false → vẫn hiện trong danh sách, có thể kích hoạt lại
-###   • Delete: CANCELLED + deleted=true  → ẩn hẳn, KHÔNG phục hồi được
-###
-### Kỳ vọng: 200 OK — goalStatus đổi tương ứng
+### 12. Rút tiền từ Mục tiêu (WITHDRAW)
+### POST /api/saving-goals/{id}/withdraw?amount=
+### Cho phép rút kể cả khi COMPLETED (chưa chốt sổ)
+### Bị chặn nếu finished=true hoặc CANCELLED
 ### ============================================================
-PATCH http://localhost:9999/api/saving-goals/9/toggle-pause
+POST http://localhost:9999/api/saving-goals/9/withdraw?amount=500000
 Authorization: Bearer {{auth_token}}
 
 ### ============================================================
-### 12. Hủy / Xóa Mục tiêu (DELETE)
+### 13. Chốt sổ Mục tiêu (COMPLETE — giải ngân về ví)
+### POST /api/saving-goals/{id}/complete?walletId=
+### Chỉ chốt được khi goalStatus = COMPLETED (đủ 100%)
+### Sau khi chốt: finished=true, currentAmount=0, tiền vào ví
+### ⚠️ walletId có thể bỏ qua nếu không muốn đổ tiền về ví
+### ============================================================
+POST http://localhost:9999/api/saving-goals/9/complete?walletId=1
+Authorization: Bearer {{auth_token}}
+
+### ============================================================
+### 14. Hủy Mục tiêu (CANCEL — giải ngân và đóng)
+### POST /api/saving-goals/{id}/cancel?walletId=
+### Áp dụng cho mọi trạng thái trừ finished=true
+### Sau khi hủy: goalStatus=CANCELLED, finished=true, tiền hoàn về ví
+### Phân biệt với DELETE: record vẫn còn trong DB (deleted=false)
+### ⚠️ walletId có thể bỏ qua nếu không muốn hoàn tiền
+### ============================================================
+POST http://localhost:9999/api/saving-goals/9/cancel?walletId=1
+Authorization: Bearer {{auth_token}}
+
+### ============================================================
+### 15. Xóa mềm Mục tiêu (SOFT DELETE)
 ### DELETE /api/saving-goals/{id}
-### Thay {id} bằng ID mục tiêu muốn hủy
-### Lưu ý: Hủy = chuyển trạng thái CANCELLED, không xóa vật lý
+### Đánh dấu deleted=true — ẩn hẳn khỏi toàn bộ query
+### Khác CANCEL: không giải ngân, chỉ ẩn khỏi UI
+### Áp dụng cho mọi trạng thái (kể cả CANCELLED, COMPLETED, OVERDUE)
 ### ============================================================
 DELETE http://localhost:9999/api/saving-goals/9
 Authorization: Bearer {{auth_token}}
 
 ### ============================================================
-### 13. Chạy scheduler thủ công (Test kiểm tra mục tiêu quá hạn)
+### 16. Chạy scheduler thủ công (Test OVERDUE + Near Deadline)
 ### POST /api/saving-goals/check-now
+### Trigger 2 scheduler:
+###   • checkOverdueGoals()       — ACTIVE + quá endDate → OVERDUE + thông báo
+###   • remindNearDeadlineGoals() — ACTIVE + còn <= 7 ngày → thông báo nhắc
 ### ============================================================
 POST http://localhost:9999/api/saving-goals/check-now
 Authorization: Bearer {{auth_token}}

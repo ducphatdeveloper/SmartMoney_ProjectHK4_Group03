@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
-import '../../../modules/transaction/providers/transaction_provider.dart';
+import 'package:smart_money/modules/wallet/models/wallet_response.dart';
+import 'package:smart_money/modules/wallet/providers/wallet_provider.dart';
 import '../../../core/helpers/icon_helper.dart';
 import '../models/saving_goal_response.dart';
 import '../providers/saving_goal_provider.dart';
@@ -20,20 +21,21 @@ class _DetailSavingGoalScreenState extends State<DetailSavingGoalScreen> {
   final dateFmt = DateFormat('MMMM dd, yyyy');
 
   Map<String, dynamic> _getGoalStatusInfo(SavingGoalResponse goal) {
-    final now = DateTime.now();
-    final isFinished = goal.finished ?? false;
-    final progress = goal.progressPercent ?? 0;
+    // Sử dụng goalStatus từ backend (đã được tính đúng ở server)
+    // thay vì tính lại từ progressPercent (sai khi currentAmount=0 sau chốt sổ)
+    // goalStatus: 1=ACTIVE, 2=COMPLETED, 3=CANCELLED, 4=OVERDUE
+    final int status = goal.goalStatus ?? 1;
 
-    if (progress >= 100) {
-      return {"label": "COMPLETED", "color": Colors.greenAccent};
+    switch (status) {
+      case 2: // COMPLETED (kể cả đã chốt sổ finished=true)
+        return {"label": "COMPLETED", "color": Colors.greenAccent};
+      case 3: // CANCELLED (đã hủy + finished=true)
+        return {"label": "CANCELLED", "color": Colors.grey};
+      case 4: // OVERDUE (quá hạn, chưa đủ tiền)
+        return {"label": "OVERDUE", "color": Colors.redAccent};
+      default: // 1 = ACTIVE
+        return {"label": "ACTIVE", "color": Colors.blueAccent};
     }
-    if (!isFinished && goal.endDate.isBefore(now) && progress < 100) {
-      return {"label": "OVERDUE", "color": Colors.redAccent};
-    }
-    if (isFinished && progress < 100) {
-      return {"label": "CANCELLED", "color": Colors.grey};
-    }
-    return {"label": "ACTIVE", "color": Colors.blueAccent};
   }
 
   @override
@@ -58,19 +60,20 @@ class _DetailSavingGoalScreenState extends State<DetailSavingGoalScreen> {
           onPressed: () => Navigator.pop(context),
         ),
         actions: [
-          TextButton(
-            onPressed: () async {
-              final result = await Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => EditSavingGoalScreen(goal: goal)),
-              );
-              if (result == true && mounted) {
-                Navigator.pop(context, true);
-              }
-            },
-            child: const Text("Edit",
-                style: TextStyle(color: Colors.blueAccent, fontSize: 16, fontWeight: FontWeight.w600)),
-          ),
+          if (!isFinished)
+            TextButton(
+              onPressed: () async {
+                final result = await Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => EditSavingGoalScreen(goal: goal)),
+                );
+                if (result == true && mounted) {
+                  Navigator.pop(context, true);
+                }
+              },
+              child: const Text("Edit",
+                  style: TextStyle(color: Colors.blueAccent, fontSize: 16, fontWeight: FontWeight.w600)),
+            ),
         ],
       ),
       body: SingleChildScrollView(
@@ -152,62 +155,20 @@ class _DetailSavingGoalScreenState extends State<DetailSavingGoalScreen> {
 
             const SizedBox(height: 30),
 
-            /// 🔥 NEW: ACTION GROUP (Giống bên Event)
-            _buildActionGroup([
-              _buildActionItem(
-                // Hiển thị text động dựa trên trạng thái hiện tại
-                isFinished ? "Re-open Goal" : "Mark as Finished",
-                isFinished ? Icons.history : Icons.check_circle_outline,
-                isFinished ? Colors.blueAccent : Colors.greenAccent,
-                    () async {
-                  // 1. Hiển thị loading nhẹ (tùy chọn) hoặc gọi trực tiếp provider
-                  final success = await context.read<SavingGoalProvider>().toggleStatus(goal.id);
-
-                  if (success && mounted) {
-                    // 2. Thông báo cho người dùng (tùy chọn)
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(isFinished ? "Goal re-opened!" : "Goal marked as finished!"),
-                        backgroundColor: Colors.green,
-                        duration: const Duration(seconds: 1),
-                      ),
-                    );
-
-                    // 3. QUAN TRỌNG: Navigator.pop(context, true)
-                    // Trả về 'true' để màn hình danh sách (ListScreen) biết và gọi loadGoals() cập nhật lại các tab
-                    Navigator.pop(context, true);
-                  } else if (mounted) {
-                    // Xử lý khi lỗi
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(context.read<SavingGoalProvider>().errorMessage ?? "Action failed"),
-                        backgroundColor: Colors.redAccent,
-                      ),
-                    );
-                  }
-                },
-              ),
-              _buildDivider(indent: 56),
-              _buildActionItem(
-                "Transaction History",
-                Icons.receipt_long_rounded,
-                Colors.white,
-                    () {
-                  // Điều hướng đến danh sách giao dịch của goal này
-                },
-              ),
-            ]),
+            /// 🔥 NEW: ACTION BUTTONS
+            if (!isFinished)
+              _buildActionButtons(),
 
             const SizedBox(height: 20),
 
-            /// 🗑 DELETE BUTTON
+            /// 🗑 DELETE BUTTON — hiện cho mọi trạng thái (backend cho phép soft-delete)
             _buildActionItem(
-                "Delete Goal",
-                Icons.delete_outline_rounded,
-                Colors.redAccent,
-                _confirmDelete,
-                isSingle: true
-            ),
+                  "Delete Goal",
+                  Icons.delete_outline_rounded,
+                  Colors.redAccent,
+                  () => _confirmDelete(context),
+                  isSingle: true
+              ),
 
             const SizedBox(height: 40),
           ],
@@ -216,7 +177,157 @@ class _DetailSavingGoalScreenState extends State<DetailSavingGoalScreen> {
     );
   }
 
-  // --- HELPER WIDGETS ---
+  // --- NEW ACTION BUTTONS WIDGET ---
+  Widget _buildActionButtons() {
+    return _buildActionGroup([
+      _buildActionItem(
+        "Finalize Goal (Chốt sổ)",
+        Icons.check_circle_outline,
+        Colors.greenAccent,
+        () => _handleFinalize(context, widget.goal.id),
+      ),
+      _buildDivider(indent: 56),
+      _buildActionItem(
+        "Cancel Goal (Hủy)",
+        Icons.cancel_outlined,
+        Colors.orangeAccent,
+        () => _handleCancel(context, widget.goal.id),
+      ),
+    ]);
+  }
+
+  // --- DIALOG AND HANDLERS ---
+
+  Future<void> _handleFinalize(BuildContext context, int goalId) async {
+    final selectedWalletId = await _showWalletSelectionDialog(context, "Select a wallet to transfer funds to upon completion.");
+    if (selectedWalletId == null || !mounted) return;
+
+    final provider = context.read<SavingGoalProvider>();
+    final success = await provider.completeGoal(context, goalId, walletId: selectedWalletId);
+
+    if (mounted) {
+      if (success) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Goal finalized successfully!"), backgroundColor: Colors.green));
+        Navigator.pop(context, true); // Pop to refresh list
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(provider.errorMessage ?? "Failed to finalize goal"), backgroundColor: Colors.red));
+      }
+    }
+  }
+
+  Future<void> _handleCancel(BuildContext context, int goalId) async {
+    final selectedWalletId = await _showWalletSelectionDialog(context, "Select a wallet to disburse the funds to.");
+    if (selectedWalletId == null || !mounted) return;
+
+    final provider = context.read<SavingGoalProvider>();
+    final success = await provider.cancelGoal(context, goalId, walletId: selectedWalletId);
+
+    if (mounted) {
+      if (success) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Goal cancelled successfully."), backgroundColor: Colors.green));
+        Navigator.pop(context, true); // Pop to refresh list
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(provider.errorMessage ?? "Failed to cancel goal"), backgroundColor: Colors.red));
+      }
+    }
+  }
+
+  void _confirmDelete(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1C1C1E),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text("Xóa mục tiêu tiết kiệm?", style: TextStyle(color: Colors.white)),
+        content: Text(
+          'Hành động này sẽ xóa TOÀN BỘ lịch sử giao dịch của mục tiêu '
+          '"${widget.goal.goalName}" khỏi báo cáo.\n\n'
+          'Tiền trong mục tiêu sẽ KHÔNG được hoàn về ví.\n\n'
+          'Bạn có chắc chắn muốn xóa?',
+          style: const TextStyle(color: Colors.grey),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text("Hủy"),
+          ),
+          ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+              onPressed: () async {
+                Navigator.pop(ctx);
+                final provider = context.read<SavingGoalProvider>();
+                final success = await provider.deleteGoal(context, widget.goal.id);
+                if (mounted && success) {
+                  Navigator.pop(context, true);
+                }
+              },
+              child: const Text("Xóa vĩnh viễn", style: TextStyle(color: Colors.white))),
+        ],
+      ),
+    );
+  }
+
+  Future<int?> _showWalletSelectionDialog(BuildContext context, String title) async {
+    final walletProvider = context.read<WalletProvider>();
+    if (walletProvider.wallets.isEmpty) {
+      await walletProvider.loadAll();
+    }
+
+    return showDialog<int>(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF1C1C1E),
+          title: Text("Select Wallet", style: TextStyle(color: Colors.white)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: TextStyle(color: Colors.grey[400])),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.maxFinite,
+                height: 200,
+                child: Consumer<WalletProvider>(
+                  builder: (context, provider, child) {
+                    if (provider.isLoading) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+                    if (provider.wallets.isEmpty) {
+                      return const Center(child: Text("No wallets found.", style: TextStyle(color: Colors.grey)));
+                    }
+                    return ListView.builder(
+                      shrinkWrap: true,
+                      itemCount: provider.wallets.length,
+                      itemBuilder: (context, index) {
+                        final wallet = provider.wallets[index];
+                        return ListTile(
+                          leading: IconHelper.buildCircleAvatar(iconUrl: wallet.goalImageUrl, radius: 20),
+                          title: Text(wallet.walletName, style: TextStyle(color: Colors.white)),
+                          onTap: () {
+                            Navigator.of(ctx).pop(wallet.id);
+                          },
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text("Cancel", style: TextStyle(color: Colors.redAccent)),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+
+  // --- HELPER WIDGETS (Unchanged) ---
 
   Widget _buildActionGroup(List<Widget> children) {
     return Container(
@@ -361,7 +472,7 @@ class _DetailSavingGoalScreenState extends State<DetailSavingGoalScreen> {
     return IgnorePointer(
       child: SwitchListTile(
         secondary: Icon(icon, color: color),
-        title: Text(title, style: const TextStyle(color: Colors.white, fontSize: 14)),
+        title: Text(title, style: const TextStyle(color: Colors.white, fontSize: 15)),
         subtitle: Text(subtitle, style: const TextStyle(color: Colors.grey, fontSize: 11)),
         value: value,
         onChanged: (_) {},
@@ -384,28 +495,4 @@ class _DetailSavingGoalScreenState extends State<DetailSavingGoalScreen> {
   }
 
   Widget _buildDivider({double indent = 55}) => Divider(height: 1, indent: indent, color: const Color(0xFF2C2C2E));
-
-  void _confirmDelete() {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1C1C1E),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text("Delete Goal?", style: TextStyle(color: Colors.white)),
-        content: const Text("All data related to this saving goal will be permanently removed.",
-            style: TextStyle(color: Colors.grey)),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text("Cancel")),
-          TextButton(
-              onPressed: () async {
-                await context.read<SavingGoalProvider>().deleteGoal(widget.goal.id);
-                if (context.mounted) {
-                  context.read<TransactionProvider>().refreshSourceItems();
-                }
-                if (mounted) { Navigator.pop(ctx); Navigator.pop(context, true); }
-              }, child: const Text("Delete", style: TextStyle(color: Colors.red))),
-        ],
-      ),
-    );
-  }
 }

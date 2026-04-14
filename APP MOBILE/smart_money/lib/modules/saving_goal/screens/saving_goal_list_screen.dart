@@ -28,19 +28,21 @@ class SavingGoalListScreenState extends State<SavingGoalListScreen> {
     final token = await TokenHelper.getAccessToken();
     if (mounted) {
       setState(() => _accessToken = token);
-      _refreshData();
+      // Load tab ban đầu (Active)
+      context.read<SavingGoalProvider>().loadGoals(_isFinished, forceRefresh: true);
     }
   }
 
   void _refreshData() {
-    // Gọi loadGoals (có thể truyền _isFinished nếu API backend hỗ trợ lọc)
-    context.read<SavingGoalProvider>().loadGoals(false, forceRefresh: true);
+    // Gọi loadGoals với trạng thái tab hiện tại
+    context.read<SavingGoalProvider>().loadGoals(_isFinished, forceRefresh: true);
   }
 
   void _changeTab(bool value) {
     if (_isFinished == value) return;
     setState(() => _isFinished = value);
-    _refreshData();
+    // Load lại data cho tab mới
+    context.read<SavingGoalProvider>().loadGoals(_isFinished, forceRefresh: true);
   }
 
   @override
@@ -61,7 +63,10 @@ class SavingGoalListScreenState extends State<SavingGoalListScreen> {
                 context,
                 MaterialPageRoute(builder: (_) => const AddWalletTypeScreen()),
               );
-              if (result == true) _refreshData();
+              if (result == true) {
+                // Sau khi thêm mới, luôn refresh lại tab Active
+                _changeTab(false);
+              }
             },
           ),
           const SizedBox(width: 8),
@@ -134,12 +139,9 @@ class SavingGoalListScreenState extends State<SavingGoalListScreen> {
   Widget _totalBalanceCard() {
     return Consumer<SavingGoalProvider>(
       builder: (context, provider, child) {
-        final filteredGoals = provider.goals.where((g) {
-          bool complete = g.currentAmount >= g.targetAmount;
-          return _isFinished ? complete : !complete;
-        }).toList();
-
-        double total = filteredGoals.fold(0, (sum, item) => sum + item.currentAmount);
+        // Dữ liệu đã được lọc sẵn bởi provider.loadGoals(_isFinished)
+        final goalsForCurrentTab = provider.goals;
+        double total = goalsForCurrentTab.fold(0, (sum, item) => sum + item.currentAmount);
 
         return Container(
           width: double.infinity,
