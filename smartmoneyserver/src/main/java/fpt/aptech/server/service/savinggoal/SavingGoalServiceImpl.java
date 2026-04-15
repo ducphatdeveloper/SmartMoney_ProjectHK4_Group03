@@ -73,6 +73,11 @@ public class SavingGoalServiceImpl implements SavingGoalService {
             throw new IllegalArgumentException("Số tiền ban đầu không được âm");
         }
 
+        // Validate: initialAmount không được lớn hơn targetAmount
+        if (initialAmount.compareTo(request.getTargetAmount()) > 0) {
+            throw new IllegalArgumentException("Số tiền ban đầu không được lớn hơn mục tiêu");
+        }
+
         // Bước 2: Tạo SavingGoal — trạng thái mặc định ACTIVE, finished=false
         SavingGoal goal = SavingGoal.builder()
                 .goalName(request.getGoalName())
@@ -89,6 +94,10 @@ public class SavingGoalServiceImpl implements SavingGoalService {
                 .build();
 
         SavingGoal savedGoal = savingGoalRepository.save(goal);
+
+        // Bước 2.5: Tính lại status sau khi tạo (nếu initialAmount >= targetAmount thì COMPLETED)
+        recalculateSavingGoalStatus(savedGoal);
+        savingGoalRepository.save(savedGoal);
 
         // Bước 3: Tạo giao dịch khởi tạo (không tính vào báo cáo thu/chi)
         if (initialAmount.compareTo(BigDecimal.ZERO) > 0) {
@@ -132,9 +141,10 @@ public class SavingGoalServiceImpl implements SavingGoalService {
     public SavingGoalResponse updateSavingGoalInfo(Integer id, SavingGoalRequest request, Integer userId) {
         SavingGoal goal = getOwnedGoal(id, userId);
 
-        // Bước 1: Chỉ sửa được khi đang ACTIVE
-        if (!goal.getGoalStatus().equals(GoalStatus.ACTIVE.getValue())) {
-            throw new IllegalStateException("Chỉ có thể sửa mục tiêu đang hoạt động.");
+        // Bước 1: getOwnedGoal đã chặn finished=true và CANCELLED
+        // Nên ở đây chỉ cần chặn lại nếu finished=true (đã chốt sổ)
+        if (Boolean.TRUE.equals(goal.getFinished())) {
+            throw new IllegalStateException("Mục tiêu đã chốt sổ, không thể sửa.");
         }
 
         // Validate targetAmount trước khi sử dụng
@@ -153,7 +163,12 @@ public class SavingGoalServiceImpl implements SavingGoalService {
                 throw new IllegalArgumentException("Số tiền hiện tại không được âm");
             }
 
-            // 2.2: Nếu có thay đổi → tạo giao dịch ghi nhận chênh lệch
+            // 2.2: Validate newAmount không được lớn hơn targetAmount
+            if (newAmount.compareTo(request.getTargetAmount()) > 0) {
+                throw new IllegalArgumentException("Số tiền hiện tại không được lớn hơn mục tiêu");
+            }
+
+            // 2.3: Nếu có thay đổi → tạo giao dịch ghi nhận chênh lệch
             int comparison = newAmount.compareTo(oldAmount);
             if (comparison != 0) {
                 BigDecimal diff = newAmount.subtract(oldAmount).abs(); // Chênh lệch tuyệt đối
@@ -608,7 +623,7 @@ public class SavingGoalServiceImpl implements SavingGoalService {
      * Quy tắc:
      *   • CANCELLED + finished=true  → Trạng thái cuối, KHÔNG đụng vào.
      *   • finished=true              → Đã chốt sổ, KHÔNG đụng vào.
-     *   • current >= target          → COMPLETED (finished vẫn false — chưa chốt sổ).
+     *   • current == target          → COMPLETED (finished vẫn false — chưa chốt sổ).
      *   • current < target + quá hạn → OVERDUE.
      *   • current < target + còn hạn → ACTIVE (kể cả khi đang COMPLETED bị rút xuống).
      *
@@ -628,8 +643,8 @@ public class SavingGoalServiceImpl implements SavingGoalService {
         BigDecimal target  = goal.getTargetAmount();  // Số tiền mục tiêu
         LocalDate  today   = LocalDate.now();          // Ngày hôm nay
 
-        if (current.compareTo(target) >= 0) {
-            // Đủ hoặc vượt target → COMPLETED (finished vẫn false — user chưa chốt sổ)
+        if (current.compareTo(target) == 0) {
+            // Đúng bằng target → COMPLETED (finished vẫn false — user chưa chốt sổ)
             goal.setGoalStatus(GoalStatus.COMPLETED.getValue());
         } else if (goal.getEndDate() != null && goal.getEndDate().isBefore(today)) {
             // Chưa đủ tiền + đã quá hạn → OVERDUE
