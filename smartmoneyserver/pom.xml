@@ -144,22 +144,18 @@
             <artifactId>firebase-admin</artifactId>
             <version>${firebase-admin.version}</version>
         </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-webflux</artifactId>
-        </dependency>
-        <!-- Resilience4j: Thư viện hỗ trợ Retry, Circuit Breaker, Rate Limiting, Timeout -->
-        <dependency>
-            <groupId>io.github.resilience4j</groupId>
-            <artifactId>resilience4j-spring-boot3</artifactId>
-            <version>2.1.0</version>
-        </dependency>
-        <!-- Resilience4j Retry: Tính năng retry với exponential backoff -->
-        <dependency>
-            <groupId>io.github.resilience4j</groupId>
-            <artifactId>resilience4j-retry</artifactId>
-            <version>2.1.0</version>
-        </dependency>
+<!--        &lt;!&ndash; Resilience4j: Thư viện hỗ trợ Retry, Circuit Breaker, Rate Limiting, Timeout &ndash;&gt;-->
+<!--        <dependency>-->
+<!--            <groupId>io.github.resilience4j</groupId>-->
+<!--            <artifactId>resilience4j-spring-boot3</artifactId>-->
+<!--            <version>2.1.0</version>-->
+<!--        </dependency>-->
+<!--        &lt;!&ndash; Resilience4j Retry: Tính năng retry với exponential backoff &ndash;&gt;-->
+<!--        <dependency>-->
+<!--            <groupId>io.github.resilience4j</groupId>-->
+<!--            <artifactId>resilience4j-retry</artifactId>-->
+<!--            <version>2.1.0</version>-->
+<!--        </dependency>-->
         <!-- Cloudinary: Upload & quản lý hình ảnh trên cloud (icons, avatars, receipts) -->
         <dependency>
             <groupId>com.cloudinary</groupId>
