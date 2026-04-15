@@ -152,6 +152,25 @@ public final class NotificationMessages {
                 null, null, null, null);
     }
 
+    /**
+     * Giao dịch được khôi phục bởi Admin.
+     */
+    public static NotificationContent transactionRestored(BigDecimal amount) {
+        String title = "Giao dịch được khôi phục ♻️";
+        String content = String.format("Giao dịch trị giá %s đã được Admin khôi phục thành công. Vui lòng kiểm tra lại số dư ví.",
+                CurrencyUtils.formatVND(amount));
+        return new NotificationContent(title, content);
+    }
+
+    /**
+     * Tất cả giao dịch đã xóa được khôi phục bởi Admin.
+     */
+    public static NotificationContent allTransactionsRestored() {
+        String title = "Khôi phục dữ liệu thành công ♻️";
+        String content = "Tất cả giao dịch đã bị xóa của bạn đã được Admin khôi phục lại trạng thái ban đầu.";
+        return new NotificationContent(title, content);
+    }
+
     // ════════════════════════════════════════════════════════════════════════
     // TYPE 2 — SAVING GOAL
     // ════════════════════════════════════════════════════════════════════════

@@ -19,8 +19,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
-
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -142,6 +140,12 @@ public class AdminController {
         return ResponseEntity.ok(ApiResponse.success(adminService.countOnlineUsers()));
     }
 
+    @GetMapping("/users/online-live")
+    @PreAuthorize("hasRole('ROLE_ADMIN') or hasAuthority('ADMIN_SYSTEM_ALL')")
+    public ResponseEntity<ApiResponse<List<AccountDto>>> getAllLiveOnlineUsers() {
+        return ResponseEntity.ok(ApiResponse.success(adminService.getAllLiveOnlineUsers()));
+    }
+
     @PostMapping("/system/auto-logout")
     @PreAuthorize("hasRole('ROLE_ADMIN') or hasAuthority('ADMIN_SYSTEM_ALL')")
     public ResponseEntity<ApiResponse<String>> handleAutoLogout() {
@@ -149,10 +153,10 @@ public class AdminController {
         return ResponseEntity.ok(ApiResponse.success("Đã thu hồi phiên quá hạn."));
     }
 
-    @GetMapping("/notifications/{adminId}")
+    @GetMapping("/notifications") // Changed endpoint path
     @PreAuthorize("hasRole('ROLE_ADMIN') or hasAuthority('ADMIN_SYSTEM_ALL')")
-    public ResponseEntity<ApiResponse<List<Notification>>> getAdminNotifications(@PathVariable("adminId") Integer adminId) {
-        return ResponseEntity.ok(ApiResponse.success(adminService.getAdminNotifications(adminId)));
+    public ResponseEntity<ApiResponse<List<Notification>>> getAdminNotifications(@AuthenticationPrincipal Account currentAdmin) { // Changed parameter
+        return ResponseEntity.ok(ApiResponse.success(adminService.getAdminNotifications(currentAdmin.getId()))); // Changed method call
     }
 
     @GetMapping("/contact-requests")

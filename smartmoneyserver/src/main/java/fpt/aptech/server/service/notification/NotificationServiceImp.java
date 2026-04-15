@@ -6,6 +6,7 @@ import fpt.aptech.server.enums.notification.NotificationType;
 import fpt.aptech.server.repos.NotificationRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.scheduling.annotation.Async; // Import Async
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -60,11 +61,12 @@ public class NotificationServiceImp implements NotificationService {
     }
 
     /**
-     * Tạo một thông báo mới.
-     * ✅ SỬA LỖI Rollback: Sử dụng REQUIRES_NEW để việc tạo thông báo và gửi Push chạy trong 1 Transaction riêng biệt.
-     * Nếu gửi Push lỗi, nó sẽ chỉ rollback transaction của chính nó, không ảnh hưởng đến transaction chính (Khôi phục giao dịch).
+     * Tạo một thông báo mới (Bất đồng bộ).
+     * ✅ TỐI ƯU HIỆU SUẤT: Sử dụng @Async để việc tạo và gửi Push Notification không chặn luồng chính.
+     * Admin sẽ nhận được phản hồi ngay lập tức khi xử lý Support Request.
      */
     @Override
+    @Async // Chạy bất đồng bộ
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void createNotification(Account account, String title, String content, NotificationType type, Long relatedId, LocalDateTime scheduledTime) {
         LocalDateTime now = LocalDateTime.now();
@@ -85,12 +87,12 @@ public class NotificationServiceImp implements NotificationService {
 
         if (!effectiveScheduledTime.isAfter(now)) {
             try {
+                // Gửi Push Notification (Thao tác tốn thời gian nhất)
                 pushNotificationService.sendToUser(account.getId(), title, content);
                 notification.setNotifySent(true);
                 notificationRepository.save(notification);
             } catch (Exception e) {
                 log.error("Gửi Push Notification thất bại cho user {}: {}", account.getId(), e.getMessage());
-                // Không ném ngoại lệ ra ngoài để tránh làm hỏng transaction gọi nó
             }
         }
     }

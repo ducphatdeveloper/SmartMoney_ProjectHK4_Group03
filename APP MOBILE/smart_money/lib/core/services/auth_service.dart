@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:http/http.dart';
+import 'package:http_parser/http_parser.dart';
 
 import '../../modules/auth/models/update_profile_request.dart';
 import '../constants/app_constants.dart';
@@ -21,11 +22,18 @@ class AuthService {
       if (token != null) "Authorization": "Bearer $token",
     };
   }
+
+  /// Hàm helper để kiểm tra response và xử lý lỗi 401
+  Future<void> _handleUnauthorized(http.Response response) async {
+    if (response.statusCode == 401) {
+      // Token hết hạn hoặc không hợp lệ -> Xóa sạch token local
+      await TokenHelper.clearTokens();
+    }
+  }
+
   // =============================================
   // LOGIN
   // =============================================
-  // Gọi POST /api/auth/login
-  // Nhận LoginRequest → trả về ApiResponse<AuthResponse>
   Future<ApiResponse<AuthResponse>> login(LoginRequest request) async {
     try {
       final response = await http.post(
@@ -40,7 +48,6 @@ class AuthService {
             (data) => AuthResponse.fromJson(data),
       );
 
-      // Đăng nhập thành công → tự lưu token vào flutter_secure_storage
       if (apiResponse.success && apiResponse.data != null) {
         await TokenHelper.saveTokens(
           apiResponse.data!.accessToken,
@@ -49,7 +56,6 @@ class AuthService {
       }
 
       return apiResponse;
-
     } catch (e) {
       return ApiResponse<AuthResponse>(
         success: false,
@@ -61,10 +67,7 @@ class AuthService {
   // =============================================
   // REGISTER
   // =============================================
-  // Gọi POST /api/auth/register
-  // Nhận RegisterRequest → trả về ApiResponse<dynamic>
   Future<ApiResponse<dynamic>> register(RegisterRequest request) async {
-    // Validate phía client trước khi gọi API
     final error = request.validate();
     if (error != null) {
       return ApiResponse<dynamic>(success: false, message: error);
@@ -79,7 +82,6 @@ class AuthService {
 
       final json = jsonDecode(utf8.decode(response.bodyBytes));
       return ApiResponse<dynamic>.fromJson(json, null);
-
     } catch (e) {
       return ApiResponse<dynamic>(
         success: false,
@@ -91,21 +93,18 @@ class AuthService {
   // =============================================
   // LOGOUT
   // =============================================
-  // ⚠️ Spring Boot dùng @RequestParam
-  // → Gọi POST /api/auth/logout?deviceToken=xxx
   Future<void> logout({required String deviceToken}) async {
     try {
+      final token = await TokenHelper.getAccessToken();
       await http.post(
         Uri.parse("${AppConstants.authLogout}?deviceToken=$deviceToken"),
         headers: {
           "Content-Type":  "application/json",
-          "Authorization": "Bearer ${await TokenHelper.getAccessToken() ?? ''}",
+          "Authorization": "Bearer ${token ?? ''}",
         },
       );
     } catch (_) {
-      // Dù server lỗi vẫn xóa token local
     } finally {
-      // Luôn xóa token dù server có lỗi hay không
       await TokenHelper.clearTokens();
     }
   }
@@ -117,6 +116,7 @@ class AuthService {
   Future<ApiResponse<AuthResponse>> getProfile() async {
     try {
       final response = await http.get(Uri.parse(AppConstants.userProfile), headers: await _getHeaders());
+      await _handleUnauthorized(response);
       return ApiResponse<AuthResponse>.fromJson(jsonDecode(utf8.decode(response.bodyBytes)), (data) => AuthResponse.fromJson(data));
     } catch (e) {
       return ApiResponse<AuthResponse>(success: false, message: "Lỗi lấy thông tin.");
@@ -126,6 +126,7 @@ class AuthService {
   Future<ApiResponse<AuthResponse>> updateProfile(UpdateProfileRequest request) async {
     try {
       final response = await http.patch(Uri.parse(AppConstants.userProfile), headers: await _getHeaders(), body: jsonEncode(request.toJson()));
+      await _handleUnauthorized(response);
       return ApiResponse<AuthResponse>.fromJson(jsonDecode(utf8.decode(response.bodyBytes)), (data) => AuthResponse.fromJson(data));
     } catch (e) {
       return ApiResponse<AuthResponse>(success: false, message: "Lỗi cập nhật.");
@@ -140,6 +141,7 @@ class AuthService {
       if (token != null) request.headers['Authorization'] = 'Bearer $token';
       request.files.add(await http.MultipartFile.fromPath('file', filePath, contentType: MediaType('image', 'jpeg')));
       final response = await http.Response.fromStream(await request.send());
+      await _handleUnauthorized(response);
       return ApiResponse<String>.fromJson(jsonDecode(utf8.decode(response.bodyBytes)), (data) => data.toString());
     } catch (e) {
       return ApiResponse<String>(success: false, message: "Lỗi avatar.");
@@ -156,6 +158,7 @@ class AuthService {
         Uri.parse("${AppConstants.userSendLockOtp}?identityCard=$identityCard"),
         headers: await _getHeaders(),
       );
+      await _handleUnauthorized(response);
       return ApiResponse<dynamic>.fromJson(jsonDecode(utf8.decode(response.bodyBytes)), null);
     } catch (e) {
       return ApiResponse<dynamic>(success: false, message: "Lỗi gửi mã OTP.");
@@ -164,16 +167,17 @@ class AuthService {
 
   Future<ApiResponse<dynamic>> verifyAndLockAccount(String otpCode) async {
     try {
-      // Gửi OTP qua @RequestParam như thiết kế của bạn
       final response = await http.post(
         Uri.parse("${AppConstants.userVerifyAndLock}?otpCode=$otpCode"),
         headers: await _getHeaders(),
       );
+      await _handleUnauthorized(response);
       return ApiResponse<dynamic>.fromJson(jsonDecode(utf8.decode(response.bodyBytes)), null);
     } catch (e) {
       return ApiResponse<dynamic>(success: false, message: "Lỗi xác nhận.");
     }
   }
+
   // =============================================
   // FORGOT / RESET PASSWORD
   // =============================================

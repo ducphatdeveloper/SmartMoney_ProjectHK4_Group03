@@ -2,9 +2,11 @@ package fpt.aptech.server.repos;
 
 import fpt.aptech.server.entity.UserDevice;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -50,5 +52,12 @@ public interface UserDeviceRepository extends JpaRepository<UserDevice, Integer>
     // Khắc phục lỗi: Đếm số lượng thiết bị có trạng thái loggedIn là true
     long countByLoggedInTrue();
 
-
+    /**
+     * TỐI ƯU HIỆU SUẤT: Thu hồi toàn bộ phiên đăng nhập của người dùng bằng 1 câu lệnh Update duy nhất.
+     * Tránh việc lặp qua danh sách Entity trong Service gây chậm trễ.
+     */
+    @Modifying
+    @Transactional
+    @Query("UPDATE UserDevice d SET d.refreshToken = null, d.loggedIn = false WHERE d.account.id = :accountId")
+    void revokeAllSessionsByAccountId(@Param("accountId") Integer accountId);
 }

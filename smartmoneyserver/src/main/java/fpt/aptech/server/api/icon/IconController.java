@@ -27,7 +27,7 @@ public class IconController {
      * @return Danh sách các đối tượng IconDto (chứa tên file và URL).
      */
     @GetMapping
-    @PreAuthorize("hasAuthority('USER_STANDARD_MANAGE')")
+    @PreAuthorize("hasAnyAuthority('USER_STANDARD_MANAGE', 'ROLE_ADMIN', 'ADMIN_SYSTEM_ALL')") // Cập nhật để cho phép admin truy cập
     public ResponseEntity<ApiResponse<List<IconDto>>> getAllIcons() {
         List<IconDto> iconDtos = iconService.getAllIconsFromCloudinary();
         return ResponseEntity.ok(ApiResponse.success(iconDtos));

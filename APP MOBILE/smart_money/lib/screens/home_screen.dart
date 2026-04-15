@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:smart_money/core/helpers/icon_helper.dart';
 import 'package:smart_money/widgets/chart_card.dart';
 import 'package:smart_money/widgets/summary_card.dart';
 import 'package:smart_money/modules/transaction/widgets/transaction_date_slider.dart';
@@ -474,20 +476,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 final cat = displayItems[index];
                 return Row(
                   children: [
-                    Container(
-                      width: 32,
-                      height: 32,
-                      decoration: BoxDecoration(
-                        color: Colors.redAccent.withValues(alpha: 0.1),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Center(
-                        child: Text(
-                          (index + 1).toString(),
-                          style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold, fontSize: 12),
-                        ),
-                      ),
-                    ),
+                    _buildCategoryIcon(cat.categoryIcon, false),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
@@ -601,13 +590,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
         return ListTile(
           contentPadding: EdgeInsets.zero,
-          leading: CircleAvatar(
-            backgroundColor: (isIncome ? Colors.green : Colors.red).withValues(alpha: 0.1),
-            child: Icon(
-              isIncome ? Icons.arrow_downward : Icons.arrow_upward,
-              color: isIncome ? Colors.green : Colors.red,
-            ),
-          ),
+          leading: _buildCategoryIcon(tx.categoryIconUrl, isIncome),
           title: Text(tx.categoryName ?? "Unnamed", style: const TextStyle(fontWeight: FontWeight.w600)),
           subtitle: Text(DateFormat('MMM dd, yyyy').format(tx.transDate)),
           trailing: Text(
@@ -619,6 +602,51 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         );
       },
+    );
+  }
+
+  Widget _buildCategoryIcon(String? iconUrl, bool isIncome) {
+    final cloudinaryUrl = IconHelper.buildCloudinaryUrl(iconUrl);
+    
+    if (cloudinaryUrl != null && cloudinaryUrl.isNotEmpty) {
+      return CachedNetworkImage(
+        imageUrl: cloudinaryUrl,
+        width: 40,
+        height: 40,
+        imageBuilder: (context, imageProvider) {
+          return Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(8),
+              image: DecorationImage(image: imageProvider, fit: BoxFit.cover),
+            ),
+          );
+        },
+        placeholder: (_, __) => _buildFallbackIcon(isIncome),
+        errorWidget: (_, __, ___) => _buildFallbackIcon(isIncome),
+      );
+    }
+    return _buildFallbackIcon(isIncome);
+  }
+
+  Widget _buildFallbackIcon(bool isIncome) {
+    return Container(
+      width: 40,
+      height: 40,
+      decoration: BoxDecoration(
+        color: isIncome
+            ? Colors.green.withValues(alpha: 0.1)
+            : Colors.red.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Center(
+        child: Icon(
+          isIncome ? Icons.arrow_downward : Icons.arrow_upward,
+          color: isIncome ? Colors.green : Colors.red,
+          size: 18,
+        ),
+      ),
     );
   }
 }

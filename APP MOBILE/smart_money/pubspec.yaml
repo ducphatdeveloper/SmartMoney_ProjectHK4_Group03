@@ -63,6 +63,8 @@ dependencies:
   jwt_decoder: ^2.0.1
   # Lấy thông tin thiết bị (tên máy, hệ điều hành) để gửi kèm khi đăng nhập
   device_info_plus: ^10.1.0
+  # ✅ [ADD] Xin quyền thông báo và các quyền khác của hệ thống
+  permission_handler: ^11.3.1
 
   # --- Firebase ---
   # Bắt buộc phải có: khởi tạo Firebase trước khi dùng bất kỳ dịch vụ Firebase nào
@@ -96,11 +98,11 @@ dev_dependencies:
 # ==========================================
 # 4. APP ICON CONFIG
 # ==========================================
-flutter_icons:
-  android: true
+flutter_launcher_icons:
+  android: "launcher_icon"
   ios: true
   image_path: "assets/images/logo.png"
-
+  min_sdk_android: 21
 # ==========================================
 # 5. FLUTTER CONFIG
 # ==========================================

@@ -33,12 +33,46 @@ const AndroidNotificationChannel channel = AndroidNotificationChannel(
   importance: Importance.max,
   playSound: true,
   enableVibration: true,
+  showBadge: true,
 );
+
+/// Hàm hiển thị thông báo cục bộ dùng chung
+void _showLocalNotification(RemoteMessage message) {
+  RemoteNotification? notification = message.notification;
+  String? title = notification?.title ?? message.data['title'];
+  String? body = notification?.body ?? message.data['body'];
+
+  if (title != null || body != null) {
+    flutterLocalNotificationsPlugin.show(
+      message.hashCode,
+      title,
+      body,
+      NotificationDetails(
+        android: AndroidNotificationDetails(
+          channel.id,
+          channel.name,
+          channelDescription: channel.description,
+          icon: '@mipmap/launcher_icon',
+          importance: Importance.max,
+          priority: Priority.high,
+          ticker: 'ticker',
+          visibility: NotificationVisibility.public, // Hiển thị trên màn hình khóa
+          playSound: true,
+          enableVibration: true,
+        ),
+      ),
+      payload: '/notifications', // Gửi route để điều hướng khi bấm vào
+    );
+  }
+}
 
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   debugPrint("Handling a background message: ${message.messageId}");
+  
+  // Hiển thị thông báo khi app đang ở chế độ Background/Terminated
+  _showLocalNotification(message);
 }
 
 void main() async {
@@ -51,16 +85,31 @@ void main() async {
   FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
 
   const AndroidInitializationSettings initializationSettingsAndroid =
-      AndroidInitializationSettings('@mipmap/ic_launcher');
+      AndroidInitializationSettings('@mipmap/launcher_icon');
+      
   const InitializationSettings initializationSettings =
       InitializationSettings(android: initializationSettingsAndroid);
   
-  await flutterLocalNotificationsPlugin.initialize(initializationSettings);
+  // Khởi tạo và xử lý khi người dùng BẤM vào thông báo (lúc app đang mở hoặc chạy ngầm)
+  await flutterLocalNotificationsPlugin.initialize(
+    initializationSettings,
+    onDidReceiveNotificationResponse: (NotificationResponse response) {
+      if (response.payload != null) {
+        AppRouter.router.push(response.payload!);
+      }
+    },
+  );
 
   await flutterLocalNotificationsPlugin
       .resolvePlatformSpecificImplementation<
           AndroidFlutterLocalNotificationsPlugin>()
       ?.createNotificationChannel(channel);
+
+  await FirebaseMessaging.instance.setForegroundNotificationPresentationOptions(
+    alert: true,
+    badge: true,
+    sound: true,
+  );
 
   await initializeDateFormatting('vi_VN', null);
   setupDependencies();
@@ -105,70 +154,13 @@ class _SmartMoneyAppState extends State<SmartMoneyApp> {
   @override
   void initState() {
     super.initState();
-    // Thực hiện xin quyền ngay khi khởi tạo app
-    _requestNotificationPermissions();
     _setupFCM();
   }
 
-  // Hàm chuyên biệt để xin quyền thông báo trên mọi nền tảng
-  Future<void> _requestNotificationPermissions() async {
-    // 1. Xin quyền từ Firebase Messaging (iOS + Android 13+)
-    FirebaseMessaging messaging = FirebaseMessaging.instance;
-    NotificationSettings settings = await messaging.requestPermission(
-      alert: true,
-      announcement: false,
-      badge: true,
-      carPlay: false,
-      criticalAlert: false,
-      provisional: false,
-      sound: true,
-    );
-    debugPrint('Firebase Permission: ${settings.authorizationStatus}');
-
-    // 2. Xin quyền cụ thể cho Android 13+ để hiển thị Local Notifications (HUD)
-    final AndroidFlutterLocalNotificationsPlugin? androidImplementation =
-        flutterLocalNotificationsPlugin.resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>();
-    
-    // Yêu cầu quyền POST_NOTIFICATIONS trên Android 13 trở lên
-    final bool? grantedAndroid = await androidImplementation?.requestNotificationsPermission();
-    debugPrint('Android Local Notification Permission: $grantedAndroid');
-    
-    // 3. Xin quyền cụ thể cho iOS (Local Notifications)
-    final IOSFlutterLocalNotificationsPlugin? iosImplementation =
-        flutterLocalNotificationsPlugin.resolvePlatformSpecificImplementation<
-            IOSFlutterLocalNotificationsPlugin>();
-    
-    final bool? grantedIOS = await iosImplementation?.requestPermissions(
-      alert: true,
-      badge: true,
-      sound: true,
-    );
-    debugPrint('iOS Local Notification Permission: $grantedIOS');
-  }
-
   void _setupFCM() async {
+    // 1. Khi đang mở app (Foreground)
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-      RemoteNotification? notification = message.notification;
-      AndroidNotification? android = message.notification?.android;
-
-      if (notification != null && android != null) {
-        flutterLocalNotificationsPlugin.show(
-          notification.hashCode,
-          notification.title,
-          notification.body,
-          NotificationDetails(
-            android: AndroidNotificationDetails(
-              channel.id,
-              channel.name,
-              channelDescription: channel.description,
-              icon: android.smallIcon,
-              importance: Importance.max,
-              priority: Priority.high,
-            ),
-          ),
-        );
-      }
+      _showLocalNotification(message);
 
       final notifyIdStr = message.data['id'];
       if (notifyIdStr != null && mounted) {
@@ -180,6 +172,20 @@ class _SmartMoneyAppState extends State<SmartMoneyApp> {
         }
       }
     });
+
+    // 2. Khi app đang ở Background và người dùng BẤM vào thông báo của Firebase
+    FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
+      AppRouter.router.push('/notifications');
+    });
+
+    // 3. Khi app đã bị TẮT hẳn (Terminated) và người dùng mở app từ thông báo
+    RemoteMessage? initialMessage = await FirebaseMessaging.instance.getInitialMessage();
+    if (initialMessage != null) {
+      // Đợi một chút để app khởi tạo router xong
+      Future.delayed(const Duration(milliseconds: 500), () {
+        AppRouter.router.push('/notifications');
+      });
+    }
   }
 
   @override

@@ -3,6 +3,7 @@ import 'package:device_info_plus/device_info_plus.dart';
 import 'package:jwt_decoder/jwt_decoder.dart';
 import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/di/setup_dependencies.dart';
 import '../../../core/models/user_model.dart';
@@ -194,6 +195,7 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  /// Xử lý đăng xuất và điều hướng về login
   Future<void> logout(BuildContext context) async {
     _setLoading(true);
 
@@ -208,8 +210,18 @@ class AuthProvider extends ChangeNotifier {
     } catch (e) {
       debugPrint("Logout Error: $e");
     } finally {
+      // 1. Xóa dữ liệu người dùng cục bộ
       _currentUser = null;
+      
+      // 2. Xóa các token đã lưu
+      await TokenHelper.clearTokens();
+      
       _setLoading(false);
+      
+      // 3. Điều hướng về màn hình đăng nhập và xóa toàn bộ stack cũ
+      if (context.mounted) {
+        context.go("/login");
+      }
     }
   }
 

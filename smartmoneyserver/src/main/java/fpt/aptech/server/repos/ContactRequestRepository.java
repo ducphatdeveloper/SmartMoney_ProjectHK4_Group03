@@ -29,4 +29,7 @@ public interface ContactRequestRepository extends JpaRepository<ContactRequest, 
 
     Optional<ContactRequest> findFirstByAccountIdAndRequestTypeAndRequestStatusOrderByCreatedAtDesc(
             Integer accountId, ContactRequestType requestType, ContactRequestStatus requestStatus);
+
+    Optional<ContactRequest> findFirstByAccountIdAndRequestTypeInOrderByCreatedAtDesc(
+            Integer accountId, List<ContactRequestType> types);
 }

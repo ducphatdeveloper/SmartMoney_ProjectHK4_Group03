@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { adminApi, authApi, notificationApi, utilApi } from '../server/api';
+import { adminApi, authApi, notificationApi, utilApi, getIconUrl } from '../server/api';
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Tooltip, Legend, ArcElement } from 'chart.js';
 import { Bar, Doughnut } from 'react-chartjs-2';
 
@@ -63,6 +63,38 @@ const translations = {
     }
 };
 
+/**
+ * Component hiển thị icon danh mục giống phong cách Flutter.
+ */
+const CategoryIcon = ({ iconName, categoryName, size = 40 }) => {
+    const [error, setError] = useState(false);
+
+    // Logic: Ưu tiên iconName, nếu không có thì dùng categoryName để slugify
+    const identifier = iconName || categoryName;
+    const url = useMemo(() => getIconUrl(identifier), [identifier]);
+
+    if (!url || error) {
+        return (
+            <div
+                style={{ width: size, height: size }}
+                className="d-flex align-items-center justify-content-center bg-light rounded-circle"
+            >
+                <i className="bi bi-tag text-secondary"></i>
+            </div>
+        );
+    }
+
+    return (
+        <img
+            src={url}
+            alt={categoryName}
+            width={size}
+            height={size}
+            className="rounded-circle object-fit-cover"
+            onError={() => setError(true)}
+        />
+    );
+};
 const AdminDashboard = () => {
     const navigate = useNavigate();
     const location = useLocation();
@@ -99,6 +131,9 @@ const AdminDashboard = () => {
     const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
     const [restoreConfirm, setRestoreConfirm] = useState({ show: false, transId: null });
     const [restoreAllConfirm, setRestoreAllConfirm] = useState({ show: false, userId: null });
+    
+    // Icon cache
+    const [loadedIcons, setLoadedIcons] = useState({});
 
     const showToast = useCallback((message, type = 'success') => {
         setToast({ show: true, message, type });
@@ -137,15 +172,16 @@ const AdminDashboard = () => {
 
     const wrapLabel = useCallback((label, maxLength = 18) => {
         if (!label) return '';
-        return label.length <= maxLength ? label : label.substring(0, maxLength) + '...';
+        const cleanedLabel = label.replace(/[↑↓]/g, '').trim();
+        return cleanedLabel.length <= maxLength ? cleanedLabel : cleanedLabel.substring(0, maxLength) + '...';
     }, []);
 
-    const scrollRanges = (direction) => {
+    const scrollRanges = useCallback((direction) => {
         if (rangeScrollRef.current) {
             const scrollAmount = 300;
             rangeScrollRef.current.scrollBy({ left: direction === 'left' ? -scrollAmount : scrollAmount, behavior: 'smooth' });
         }
-    };
+    }, []);
 
     // --- API CALLS ---
     const handleLogout = useCallback(async (reason = '') => {
@@ -270,10 +306,17 @@ const AdminDashboard = () => {
             const params = { page: pageNum, size: 5, deletedStatus, type: transactionType || '' };
             const transRes = await adminApi.getUserTransactions(userId, params);
             if (transRes.data.success) {
+                const data = transRes.data.data;
+                const totalPages = data.totalPages || 0;
+                // Nếu trang hiện tại lớn hơn 0 và không có dữ liệu, quay lại trang trước
+                if (pageNum > 0 && data.content.length === 0 && pageNum < totalPages) {
+                    await fetchUserTransactions(userId, pageNum - 1, deletedStatus, transactionType);
+                    return;
+                }
                 setDetailModal(prev => ({
-                    ...prev, transactions: transRes.data.data.content || [],
-                    userTransCurrentPage: transRes.data.data.pageNumber || transRes.data.data.number || 0,
-                    userTransTotalPages: transRes.data.data.totalPages || 0,
+                    ...prev, transactions: data.content || [],
+                    userTransCurrentPage: data.pageNumber || data.number || 0,
+                    userTransTotalPages: totalPages,
                 }));
             }
         } catch (err) {
@@ -291,8 +334,8 @@ const AdminDashboard = () => {
         try {
             const insightsRes = await adminApi.getUserFinancialInsights(userId);
             const insightsData = insightsRes.data.success ? insightsRes.data.data : null;
-            setDetailModal(prev => ({ 
-                ...prev, 
+            setDetailModal(prev => ({
+                ...prev,
                 insights: insightsData,
                 user: insightsData?.userInfo || user
             }));
@@ -360,16 +403,26 @@ const AdminDashboard = () => {
         } catch (err) { console.error("Error fetching all transactions:", err); } finally { setViewingAllTrans(false); }
     };
 
+    const refreshUserDetailData = async (userId) => {
+        try {
+            const insightsRes = await adminApi.getUserFinancialInsights(userId);
+            if (insightsRes.data.success) {
+                setDetailModal(prev => ({ ...prev, insights: insightsRes.data.data }));
+            }
+            await fetchUserTransactions(userId, detailModal.userTransCurrentPage, detailModal.deletedStatus, detailModal.userTransFilterType);
+        } catch (err) { console.error("Error refreshing detail data:", err); }
+    };
+
     const handleRestoreTransaction = async (transId) => {
-        setRestoreConfirm(prev => ({ ...prev, show: false, transId: null }));
+        const userId = detailModal.user?.id;
+        setRestoreConfirm({ show: false, transId: null });
         try {
             const res = await adminApi.restoreTransaction(transId);
             if (res.data.success) {
                 showToast(t('notifySuccess'), 'success');
-                if (detailModal.user) {
-                    await fetchUserTransactions(detailModal.user.id, detailModal.userTransCurrentPage, detailModal.deletedStatus, detailModal.userTransFilterType);
-                }
+                if (userId) await refreshUserDetailData(userId);
                 await fetchStats();
+                if (selectedRange) await fetchTransactionStats(selectedRange);
             } else {
                 showToast(res.data.message || t('notifyError'), 'error');
             }
@@ -380,15 +433,16 @@ const AdminDashboard = () => {
     };
 
     const handleRestoreAllUserTransactions = async (userId) => {
-        setRestoreAllConfirm(prev => ({ ...prev, show: false, userId: null }));
+        setRestoreAllConfirm({ show: false, userId: null });
         try {
             const res = await adminApi.restoreAllUserTransactions(userId);
             if (res.data.success) {
                 showToast(t('notifySuccess'), 'success');
-                if (detailModal.user) {
-                    await fetchUserTransactions(detailModal.user.id, detailModal.userTransCurrentPage, detailModal.deletedStatus, detailModal.userTransFilterType);
-                }
+                // Tự động chuyển về tab ACTIVE để xem kết quả
+                setDetailModal(prev => ({ ...prev, deletedStatus: 'ACTIVE', userTransCurrentPage: 0 }));
+                await refreshUserDetailData(userId);
                 await fetchStats();
+                if (selectedRange) await fetchTransactionStats(selectedRange);
             } else {
                 showToast(res.data.message || t('notifyError'), 'error');
             }
@@ -425,36 +479,46 @@ const AdminDashboard = () => {
     const chartStats = useMemo(() => {
         if (!transactionStats) return { totalVolume: 0, incomePerc: 0, expensePerc: 0, netFlowPerc: 0, sortedBreakdown: [] };
         const breakdown = transactionStats.breakdown || [];
-        const totalVolume = Number(transactionStats.totalSystemVolume) || breakdown.reduce((acc, item) => acc + Number(item.amount), 0);
-        const totalIncome = breakdown.filter(i => i.type === 'INCOME').reduce((acc, i) => acc + Number(i.amount), 0);
-        const totalExpense = breakdown.filter(i => i.type === 'EXPENSE').reduce((acc, i) => acc + Number(i.amount), 0);
+        const totalVolume = Number(transactionStats.totalSystemVolume) || breakdown.reduce((acc, item) => acc + (Number(item.amount) || 0), 0);
+        const totalIncome = breakdown.filter(i => i.type === 'INCOME').reduce((acc, i) => acc + (Number(i.amount) || 0), 0);
+        const totalExpense = breakdown.filter(i => i.type === 'EXPENSE').reduce((acc, i) => acc + (Number(i.amount) || 0), 0);
         const netFlow = totalIncome - totalExpense;
         const incomePerc = totalVolume > 0 ? ((totalIncome / totalVolume) * 100).toFixed(1) : 0;
         const expensePerc = totalVolume > 0 ? ((totalExpense / totalVolume) * 100).toFixed(1) : 0;
         const netFlowPerc = totalVolume > 0 ? ((netFlow / totalVolume) * 100).toFixed(1) : 0;
         const sortedBreakdown = [...breakdown].sort((a, b) => {
             if (a.type !== b.type) return a.type === 'INCOME' ? -1 : 1;
-            return (Number(b.percentage) || 0) - (Number(a.percentage) || 0);
+            return ((Number(b.percentage) || 0) - (Number(a.percentage) || 0));
         });
         return { totalVolume, incomePerc, expensePerc, netFlowPerc, totalIncome, totalExpense, netFlow, sortedBreakdown };
     }, [transactionStats]);
 
-    const dynamicChartHeight = useMemo(() => Math.max(400, chartStats.sortedBreakdown.length * 55), [chartStats]);
+    const dynamicChartHeight = useMemo(() => Math.max(400, (chartStats?.sortedBreakdown?.length || 0) * 55), [chartStats]);
 
-    const barChartData = useMemo(() => ({
-        labels: chartStats.sortedBreakdown.map(item => wrapLabel(`${item.type === 'INCOME' ? '↑' : '↓'} ${item.categoryName}`)),
-        datasets: [{
-            label: t('weight'),
-            data: chartStats.sortedBreakdown.map(item => Number(item.percentage)),
-            backgroundColor: chartStats.sortedBreakdown.map(item => item.type === 'INCOME' ? 'rgba(16, 185, 129, 0.8)' : 'rgba(244, 63, 94, 0.8)'),
-            borderRadius: 6, barPercentage: 0.7
-        }]
-    }), [chartStats, wrapLabel, t]);
+    const barChartData = useMemo(() => {
+        if (!chartStats || !chartStats.sortedBreakdown) {
+            return { labels: [], datasets: [] };
+        }
+        return {
+            labels: chartStats.sortedBreakdown.map(item => wrapLabel(item.categoryName)),
+            datasets: [{
+                label: t('weight'),
+                data: chartStats.sortedBreakdown.map(item => Number(item.percentage)),
+                backgroundColor: chartStats.sortedBreakdown.map(item => item.type === 'INCOME' ? 'rgba(16, 185, 129, 0.8)' : 'rgba(244, 63, 94, 0.8)'),
+                borderRadius: 6, barPercentage: 0.7
+            }]
+        };
+    }, [chartStats, wrapLabel, t]);
 
-    const doughnutData = useMemo(() => ({
-        labels: [`${t('income')} (%)`, `${t('expense')} (%)`],
-        datasets: [{ data: [Number(chartStats.incomePerc), Number(chartStats.expensePerc)], backgroundColor: ['#10b981', '#f43f5e'], cutout: '60%', borderRadius: 5 }]
-    }), [chartStats, t]);
+    const doughnutData = useMemo(() => {
+        if (!chartStats) {
+            return { labels: [], datasets: [] };
+        }
+        return {
+            labels: [`${t('income')} (%)`, `${t('expense')} (%)`],
+            datasets: [{ data: [Number(chartStats.incomePerc), Number(chartStats.expensePerc)], backgroundColor: ['#10b981', '#f43f5e'], cutout: '60%', borderRadius: 5 }]
+        };
+    }, [chartStats, t]);
 
     const doughnutLabelsPlugin = useMemo(() => ({
         id: 'doughnutLabels',
@@ -482,6 +546,53 @@ const AdminDashboard = () => {
             }); ctx.restore();
         }
     }), []);
+
+    const categoryIconLabelPlugin = useMemo(() => ({
+        id: 'categoryIconLabelPlugin',
+        afterDraw: (chart) => {
+            const { ctx, scales: { y } } = chart;
+            if (!y || !y.ticks || !chartStats?.sortedBreakdown) return;
+            ctx.save();
+
+            y.ticks.forEach((tick, index) => {
+                const item = chartStats.sortedBreakdown[index];
+                if (!item) return;
+
+                const yPos = y.getPixelForTick(index);
+                const iconSize = 20;
+                const textMargin = 10;
+                const labelAreaWidth = 135; 
+                
+                // Use categoryIcon, then icon, then iconName, then categoryName
+                const effectiveIconIdentifier = item.categoryIcon || item.icon || item.iconName || item.categoryName;
+                const iconUrl = effectiveIconIdentifier ? getIconUrl(effectiveIconIdentifier) : null;
+                const iconImg = iconUrl ? loadedIcons[iconUrl] : null;
+                const categoryName = wrapLabel(item.categoryName);
+
+                ctx.font = 'bold 11px Inter, sans-serif';
+                ctx.textBaseline = 'middle';
+
+                const textWidth = ctx.measureText(categoryName).width;
+                const textX = labelAreaWidth - textWidth;
+                
+                ctx.fillStyle = '#64748b';
+                ctx.textAlign = 'left';
+                ctx.fillText(categoryName, textX, yPos);
+
+                const iconX = textX - textMargin - iconSize;
+                if (iconImg && iconImg.complete) {
+                    ctx.drawImage(iconImg, iconX, yPos - iconSize / 2, iconSize, iconSize);
+                } else {
+                    ctx.font = 'bold 12px Bootstrap-icons';
+                    ctx.fillStyle = item.type === 'INCOME' ? '#10b981' : '#f43f5e';
+                    ctx.textAlign = 'center';
+                    // Fallback arrow characters
+                    ctx.fillText(item.type === 'INCOME' ? '↑' : '↓', iconX + iconSize / 2, yPos);
+                }
+            });
+            ctx.restore();
+        }
+    }), [chartStats.sortedBreakdown, loadedIcons, wrapLabel]);
 
     // --- EFFECTS ---
     useEffect(() => {
@@ -538,6 +649,52 @@ const AdminDashboard = () => {
             }, 300); return () => clearTimeout(timer);
         }
     }, [highlightRequestId, activeTab, contactRequests]);
+
+    // Preload icons for chart
+    useEffect(() => {
+        if (!chartStats?.sortedBreakdown?.length) return;
+
+        const loadIcons = async () => {
+            const urlsToLoad = new Set();
+            chartStats.sortedBreakdown.forEach(item => {
+                // Prioritize categoryIcon, then icon, then iconName, then categoryName
+                const effectiveIconIdentifier = item.categoryIcon || item.icon || item.iconName || item.categoryName;
+                if (effectiveIconIdentifier) {
+                    const url = getIconUrl(effectiveIconIdentifier);
+                    if (url && !loadedIcons[url]) {
+                        urlsToLoad.add(url);
+                    }
+                }
+            });
+
+            if (urlsToLoad.size === 0) return;
+
+            const newLoaded = { ...loadedIcons };
+            let updated = false;
+
+            await Promise.all(Array.from(urlsToLoad).map(url => {
+                return new Promise((resolve) => {
+                    const img = new Image();
+                    img.crossOrigin = "anonymous";
+                    img.src = url;
+                    img.onload = () => {
+                        newLoaded[url] = img;
+                        updated = true;
+                        resolve();
+                    };
+                    img.onerror = () => {
+                        resolve();
+                    };
+                });
+            }));
+
+            if (updated) {
+                setLoadedIcons(newLoaded);
+            }
+        };
+
+        loadIcons();
+    }, [chartStats.sortedBreakdown, loadedIcons]);
 
     // --- RENDER HELPERS ---
     const renderSidebar = () => (
@@ -639,12 +796,37 @@ const AdminDashboard = () => {
                     {transactionStats ? (
                         <div className="row g-4">
                             <div className="col-12"><div className="row g-3">
-                                <div className="col-md-4"><div className="p-3 rounded-4 bg-light border-start border-4 border-success"><div className="text-muted small mb-1 fw-bold">{t('income')}</div><div className="fw-bold text-success fs-4">{chartStats.incomePerc}% </div></div></div>
-                                <div className="col-md-4"><div className="p-3 rounded-4 bg-light border-start border-4 border-danger"><div className="text-muted small mb-1 fw-bold">{t('expense')}</div><div className="fw-bold text-danger fs-4">{chartStats.expensePerc}%</div></div></div>
+                                <div className="col-md-4"><div className="p-3 rounded-4 bg-light border-start border-4 border-success"><div className="text-muted small mb-1 fw-bold">{t('income')}</div><div className="fw-bold text-success fs-5">{chartStats.incomePerc}% </div></div></div>
+                                <div className="col-md-4"><div className="p-3 rounded-4 bg-light border-start border-4 border-danger"><div className="text-muted small mb-1 fw-bold">{t('expense')}</div><div className="fw-bold text-danger fs-5">{chartStats.expensePerc}%</div></div></div>
                                 <div className="col-md-4"><div className={`p-3 rounded-4 border-start border-4 ${chartStats.netFlow >= 0 ? 'bg-success-subtle border-success' : 'bg-danger-subtle border-danger'}`}><div className="text-muted small mb-1 fw-bold">{t('netFlow')}</div><div className={`fw-bold fs-4 ${chartStats.netFlow >= 0 ? 'text-success' : 'text-danger'}`}>{chartStats.netFlowPerc}%</div></div></div>
                             </div></div>
                             <div className="col-xl-4 d-flex flex-column align-items-center justify-content-center py-4"><div style={{ height: '280px', width: '100%', position: 'relative' }}><Doughnut data={doughnutData} options={{ maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { enabled: true } } }} plugins={[doughnutLabelsPlugin]} /><div className="position-absolute top-50 start-50 translate-middle text-center"><div className="text-muted extra-small text-uppercase fw-extrabold" style={{ letterSpacing: '0.05em' }}>{t('totalVolume')}</div></div></div></div>
-                            <div className="col-xl-8 border-start border-light ps-lg-5"><h6 className="fw-bold mb-4 d-flex align-items-center gap-2"><i className="bi bi-layers-half text-primary"></i> {t('categoryDetail')}</h6><div className="custom-scrollbar overflow-auto pe-2" style={{ maxHeight: '450px' }}><div style={{ height: `${dynamicChartHeight}px` }}><Bar data={barChartData} options={{ indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: (ctx) => ` ${t('weight')}: ${ctx.raw}%` } } }, scales: { x: { min: 0, max: 100, grid: { display: true, color: '#f1f5f9' }, ticks: { display: true, callback: (val) => val + '%', color: '#94a3b8', font: { size: 10 } } }, y: { grid: { display: false } } } }} plugins={[barLabelsPlugin]} /></div></div></div>
+                            <div className="col-xl-8 border-start border-light ps-lg-5">
+                                <h6 className="fw-bold mb-4 d-flex align-items-center gap-2"><i className="bi bi-layers-half text-primary"></i> {t('categoryDetail')}</h6>
+                                <div className="custom-scrollbar overflow-auto pe-2" style={{ maxHeight: '450px' }}>
+                                    <div style={{ height: `${dynamicChartHeight}px` }}>
+                                        <Bar 
+                                            key={`bar-chart-${Object.keys(loadedIcons).length}`}
+                                            data={barChartData} 
+                                            options={{ 
+                                                indexAxis: 'y', 
+                                                responsive: true, 
+                                                maintainAspectRatio: false, 
+                                                layout: { padding: { left: 145 } },
+                                                plugins: { 
+                                                    legend: { display: false }, 
+                                                    tooltip: { callbacks: { label: (ctx) => ` ${t('weight')}: ${ctx.raw}%` } } 
+                                                }, 
+                                                scales: { 
+                                                    x: { min: 0, max: 100, grid: { display: true, color: '#f1f5f9' }, ticks: { display: true, callback: (val) => val + '%', color: '#94a3b8', font: { size: 10 } } }, 
+                                                    y: { grid: { display: false }, ticks: { display: false } } 
+                                                } 
+                                            }} 
+                                            plugins={[barLabelsPlugin, categoryIconLabelPlugin]} 
+                                        />
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     ) : (<div className="d-flex flex-column align-items-center justify-content-center py-5" style={{ minHeight: '400px' }}><div className="spinner-border text-primary mb-3"></div><p className="text-muted animate-pulse">{t('loading')}</p></div>)}
                 </div>
@@ -673,7 +855,7 @@ const AdminDashboard = () => {
             </div>
 
             {resolveModal.show && (
-                <div className="modal fade show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}>
+                <div className="modal fade show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', zIndex: 1050 }}>
                     <div className="modal-dialog modal-dialog-centered">
                         <div className="modal-content border-0 rounded-4 shadow-lg">
                             <div className="modal-header border-0 pb-0">
@@ -727,13 +909,13 @@ const AdminDashboard = () => {
             )}
 
             {confirmModal.show && (
-                <div className="modal fade show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+                <div className="modal fade show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1100 }}>
                     <div className="modal-dialog modal-dialog-centered">
                         <div className="modal-content shadow border-0 rounded-4">
                             <div className="modal-body text-center p-5">
                                 <i className={`bi ${confirmModal.isLocked ? 'bi-unlock-fill text-success' : 'bi-lock-fill text-danger'} display-1 mb-4`}></i>
                                 <h4 className="fw-bold mb-3">{confirmModal.isLocked ? t('confirmUnlock') : t('confirmLock')}</h4>
-                                <p className="text-muted mb-5">{confirmModal.isLocked ? t('confirmDescUnlock') : t('confirmDescUnlock')}</p>
+                                <p className="text-muted mb-5">{confirmModal.isLocked ? t('confirmDescUnlock') : t('confirmDescLock')}</p>
                                 <div className="d-flex justify-content-center gap-3">
                                     <button className="btn btn-light px-5 py-2 rounded-pill fw-bold" onClick={() => setConfirmModal(prev => ({ ...prev, show: false }))}>{t('cancel')}</button>
                                     <button className={`btn ${confirmModal.isLocked ? 'btn-success' : 'btn-danger'} px-5 py-2 rounded-pill fw-bold text-white shadow-sm`} onClick={async () => {
@@ -759,57 +941,8 @@ const AdminDashboard = () => {
                 </div>
             )}
 
-            {restoreConfirm.show && (
-                <div className="modal fade show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
-                    <div className="modal-dialog modal-sm modal-dialog-centered">
-                        <div className="modal-content shadow border-0 rounded-4">
-                            <div className="modal-body text-center p-4">
-                                <i className="bi bi-arrow-counterclockwise text-primary display-5 mb-3"></i>
-                                <h5 className="fw-bold">{t('confirmRestore')}</h5>
-                                <div className="d-flex justify-content-center gap-2 mt-4">
-                                    <button className="btn btn-sm btn-light px-3 rounded-pill" onClick={() => setRestoreConfirm(prev => ({ ...prev, show: false, transId: null }))}>{t('cancel')}</button>
-                                    <button className="btn btn-sm btn-primary px-3 rounded-pill shadow-sm" onClick={() => handleRestoreTransaction(restoreConfirm.transId)}>{t('confirm')}</button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {restoreAllConfirm.show && (
-                <div className="modal fade show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
-                    <div className="modal-dialog modal-sm modal-dialog-centered">
-                        <div className="modal-content shadow border-0 rounded-4">
-                            <div className="modal-body text-center p-4">
-                                <i className="bi bi-arrow-counterclockwise text-primary display-5 mb-3"></i>
-                                <h5 className="fw-bold">{t('confirmRestoreAll')}</h5>
-                                <p className="text-muted small">{t('confirmRestoreAllDesc')}</p>
-                                <div className="d-flex justify-content-center gap-2 mt-4">
-                                    <button className="btn btn-sm btn-light px-3 rounded-pill" onClick={() => setRestoreAllConfirm(prev => ({ ...prev, show: false, userId: null }))}>{t('cancel')}</button>
-                                    <button className="btn btn-sm btn-primary px-3 rounded-pill shadow-sm" onClick={() => handleRestoreAllUserTransactions(restoreAllConfirm.userId)}>{t('confirm')}</button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {toast.show && (
-                <div className="position-fixed bottom-0 end-0 p-3" style={{ zIndex: 3000 }}>
-                    <div className={`toast show align-items-center text-white bg-${toast.type === 'success' ? 'success' : 'danger'} border-0 shadow-lg`} role="alert">
-                        <div className="d-flex">
-                            <div className="toast-body fw-bold">
-                                <i className={`bi ${toast.type === 'success' ? 'bi-check-circle-fill' : 'bi-exclamation-triangle-fill'} me-2`}></i>
-                                {toast.message}
-                            </div>
-                            <button type="button" className="btn-close btn-close-white me-2 m-auto" onClick={() => setToast(prev => ({ ...prev, show: false }))}></button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
             {detailModal.show && (
-                <div className="modal fade show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}>
+                <div className="modal fade show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', zIndex: 1050 }}>
                     <div className="modal-dialog modal-lg modal-dialog-centered">
                         <div className="modal-content shadow-2xl border-0 rounded-4 overflow-hidden">
                             <div className="modal-header bg-dark text-white border-0 py-3">
@@ -900,38 +1033,47 @@ const AdminDashboard = () => {
                                                 <div className="table-responsive">
                                                     <table className="table table-sm table-hover align-middle">
                                                         <thead className="table-light">
-                                                            <tr>
-                                                                <th className="small py-2">ID</th>
-                                                                <th className="small py-2">{t('day')}</th>
-                                                                <th className="small py-2">{t('wallet')} / {t('category')}</th>
-                                                                <th className="small py-2 text-end">{t('amount')}</th>
-                                                                {detailModal.deletedStatus === 'DELETED' && <th className="small py-2 text-end">{t('actions')}</th>}
-                                                            </tr>
+                                                        <tr>
+                                                            <th className="small py-2">ID</th>
+                                                            <th className="small py-2">{t('day')}</th>
+                                                            <th className="small py-2">{t('wallet')} / {t('category')}</th>
+                                                            <th className="small py-2 text-end">{t('amount')}</th>
+                                                            {detailModal.deletedStatus === 'DELETED' && <th className="small py-2 text-end">{t('actions')}</th>}
+                                                        </tr>
                                                         </thead>
                                                         <tbody className="small">
-                                                            {detailModal.transactions.length === 0 ? (
-                                                                <tr><td colSpan={detailModal.deletedStatus === 'DELETED' ? 5 : 4} className="text-center py-4 text-muted">{t('noTrans')}</td></tr>
-                                                            ) : (
-                                                                detailModal.transactions.map((tr, idx) => (
-                                                                    <tr key={idx} className={tr.deleted ? 'table-danger-subtle' : ''}>
-                                                                        <td className="text-muted extra-small">#{tr.id}</td>
-                                                                        <td className="extra-small">{formatDate(tr.transDate)}</td>
-                                                                        <td>
-                                                                            <div className="fw-bold extra-small text-dark">{tr.walletName}</div>
+                                                        {detailModal.transactions.length === 0 ? (
+                                                            <tr><td colSpan={detailModal.deletedStatus === 'DELETED' ? 5 : 4} className="text-center py-4 text-muted">{t('noTrans')}</td></tr>
+                                                        ) : (
+                                                            detailModal.transactions.map((tr, idx) => (
+                                                                <tr key={idx} className={tr.deleted ? 'table-danger-subtle' : ''}>
+                                                                    <td className="text-muted extra-small">#{tr.id}</td>
+                                                                    <td className="extra-small">{formatDate(tr.transDate)}</td>
+                                                                    <td>
+                                                                        <div className="fw-bold extra-small text-dark">{tr.walletName}</div>
+                                                                        <div className="d-flex align-items-center gap-2 mt-1">
+                                                                            <CategoryIcon 
+                                                                                iconName={tr.categoryIcon || tr.icon || tr.iconName} 
+                                                                                categoryName={tr.categoryName} // Pass categoryName as fallback
+                                                                                isIncome={tr.isIncome} 
+                                                                                size={20}
+                                                                                rounded="4px"
+                                                                            />
                                                                             <span className={`badge ${tr.isIncome ? 'bg-success-subtle text-success' : 'bg-danger-subtle text-danger'} extra-small`}>{tr.categoryName}</span>
-                                                                            {tr.note && <div className="text-muted extra-small mt-1 fst-italic">"{tr.note}"</div>}
+                                                                        </div>
+                                                                        {tr.note && <div className="text-muted extra-small mt-1 fst-italic">"{tr.note}"</div>}
+                                                                    </td>
+                                                                    <td className={`text-end fw-bold ${tr.isIncome ? 'text-success' : 'text-danger'}`}>{formatCurrency(tr.amount)}</td>
+                                                                    {detailModal.deletedStatus === 'DELETED' && (
+                                                                        <td className="text-end">
+                                                                            <button className="btn btn-sm btn-primary rounded-pill px-2 py-0 extra-small" onClick={() => setRestoreConfirm({ show: true, transId: tr.id })}>
+                                                                                <i className="bi bi-arrow-counterclockwise"></i> {t('restore')}
+                                                                            </button>
                                                                         </td>
-                                                                        <td className={`text-end fw-bold ${tr.isIncome ? 'text-success' : 'text-danger'}`}>{formatCurrency(tr.amount)}</td>
-                                                                        {detailModal.deletedStatus === 'DELETED' && (
-                                                                            <td className="text-end">
-                                                                                <button className="btn btn-sm btn-primary rounded-pill px-2 py-0 extra-small" onClick={() => setRestoreConfirm({ show: true, transId: tr.id })}>
-                                                                                    <i className="bi bi-arrow-counterclockwise"></i> {t('restore')}
-                                                                                </button>
-                                                                            </td>
-                                                                        )}
-                                                                    </tr>
-                                                                ))
-                                                            )}
+                                                                    )}
+                                                                </tr>
+                                                            ))
+                                                        )}
                                                         </tbody>
                                                     </table>
                                                 </div>
@@ -947,6 +1089,55 @@ const AdminDashboard = () => {
                                     </div>
                                 )}
                             </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {restoreConfirm.show && (
+                <div className="modal fade show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1100 }}>
+                    <div className="modal-dialog modal-sm modal-dialog-centered">
+                        <div className="modal-content shadow border-0 rounded-4">
+                            <div className="modal-body text-center p-4">
+                                <i className="bi bi-arrow-counterclockwise text-primary display-5 mb-3"></i>
+                                <h5 className="fw-bold">{t('confirmRestore')}</h5>
+                                <div className="d-flex justify-content-center gap-2 mt-4">
+                                    <button className="btn btn-sm btn-light px-3 rounded-pill" onClick={() => setRestoreConfirm({ show: false, transId: null })}>{t('cancel')}</button>
+                                    <button className="btn btn-sm btn-primary px-3 rounded-pill shadow-sm" onClick={() => handleRestoreTransaction(restoreConfirm.transId)}>{t('confirm')}</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {restoreAllConfirm.show && (
+                <div className="modal fade show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1100 }}>
+                    <div className="modal-dialog modal-sm modal-dialog-centered">
+                        <div className="modal-content shadow border-0 rounded-4">
+                            <div className="modal-body text-center p-4">
+                                <i className="bi bi-arrow-counterclockwise text-primary display-5 mb-3"></i>
+                                <h5 className="fw-bold">{t('confirmRestoreAll')}</h5>
+                                <p className="text-muted small">{t('confirmRestoreAllDesc')}</p>
+                                <div className="d-flex justify-content-center gap-2 mt-4">
+                                    <button className="btn btn-sm btn-light px-3 rounded-pill" onClick={() => setRestoreAllConfirm({ show: false, userId: null })}>{t('cancel')}</button>
+                                    <button className="btn btn-sm btn-primary px-3 rounded-pill shadow-sm" onClick={() => handleRestoreAllUserTransactions(restoreAllConfirm.userId)}>{t('confirm')}</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {toast.show && (
+                <div className="position-fixed bottom-0 end-0 p-3" style={{ zIndex: 3000 }}>
+                    <div className={`toast show align-items-center text-white bg-${toast.type === 'success' ? 'success' : 'danger'} border-0 shadow-lg`} role="alert">
+                        <div className="d-flex">
+                            <div className="toast-body fw-bold">
+                                <i className={`bi ${toast.type === 'success' ? 'bi-check-circle-fill' : 'bi-exclamation-triangle-fill'} me-2`}></i>
+                                {toast.message}
+                            </div>
+                            <button type="button" className="btn-close btn-close-white me-2 m-auto" onClick={() => setToast(prev => ({ ...prev, show: false }))}></button>
                         </div>
                     </div>
                 </div>
