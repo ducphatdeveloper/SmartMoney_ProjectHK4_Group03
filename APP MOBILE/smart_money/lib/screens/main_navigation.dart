@@ -131,11 +131,11 @@ class _MainNavigationState extends State<MainNavigation> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
-                  buildItem(Icons.home, "Tổng quan", 0),
-                  buildItem(Icons.list, "Sổ giao dịch", 1),
+                  buildItem(Icons.home, "Home", 0),
+                  buildItem(Icons.list, "Transaction Books", 1),
                   const SizedBox(width: 40),
-                  buildItem(Icons.account_balance_wallet, "Ngân sách", 3),
-                  buildItem(Icons.person, "Tài khoản", 4),
+                  buildItem(Icons.account_balance_wallet, "Budget", 3),
+                  buildItem(Icons.person, "Account", 4),
                 ],
               ),
             ),
