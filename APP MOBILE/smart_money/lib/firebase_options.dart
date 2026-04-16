@@ -30,28 +30,28 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'YOUR-WEB-API-KEY',
-    appId: 'YOUR-WEB-APP-ID',
-    messagingSenderId: 'YOUR-SENDER-ID',
-    projectId: 'smartmoney-78185',
-    authDomain: 'smartmoney-78185.firebaseapp.com',
-    storageBucket: 'smartmoney-78185.appspot.com',
+    apiKey: 'AIzaSyCSYT99vIa4hkgVXR8Np5TWGAenoOQrPuE',
+    appId: '1:315182273926:android:f5b42eae167dbfc6ed4807',
+    messagingSenderId: '315182273926',
+    projectId: 'smartmoney-78185-f5bab',
+    authDomain: 'smartmoney-78185-f5bab.firebaseapp.com',
+    storageBucket: 'smartmoney-78185-f5bab.firebasestorage.app',
   );
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'YOUR-ANDROID-API-KEY',
-    appId: 'YOUR-ANDROID-APP-ID',
-    messagingSenderId: 'YOUR-SENDER-ID',
-    projectId: 'smartmoney-78185',
-    storageBucket: 'smartmoney-78185.appspot.com',
+    apiKey: 'AIzaSyCSYT99vIa4hkgVXR8Np5TWGAenoOQrPuE',
+    appId: '1:315182273926:android:f5b42eae167dbfc6ed4807',
+    messagingSenderId: '315182273926',
+    projectId: 'smartmoney-78185-f5bab',
+    storageBucket: 'smartmoney-78185-f5bab.firebasestorage.app',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'YOUR-IOS-API-KEY',
-    appId: 'YOUR-IOS-APP-ID',
-    messagingSenderId: 'YOUR-SENDER-ID',
-    projectId: 'smartmoney-78185',
-    storageBucket: 'smartmoney-78185.appspot.com',
-    iosBundleId: 'com.example.smartMoney',
+    apiKey: 'AIzaSyCSYT99vIa4hkgVXR8Np5TWGAenoOQrPuE',
+    appId: '1:315182273926:android:f5b42eae167dbfc6ed4807',
+    messagingSenderId: '315182273926',
+    projectId: 'smartmoney-78185-f5bab',
+    storageBucket: 'smartmoney-78185-f5bab.firebasestorage.app',
+    iosBundleId: 'com.example.smart_money',
   );
 }
