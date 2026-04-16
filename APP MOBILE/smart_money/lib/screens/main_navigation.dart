@@ -99,7 +99,14 @@ class _MainNavigationState extends State<MainNavigation> {
           );
 
           if (result == true && mounted) {
-            // Provider sẽ tự reload khi tạo giao dịch thành công
+            // 👉 Chỉ reload BudgetProvider nếu user đang ở tab Budget
+            // Tránh reload liên tục khi user đang ở tab khác
+            if (index == 3) {
+              final budgetProvider = context.read<BudgetProvider>();
+              if (budgetProvider.selectedWalletId != null) {
+                await budgetProvider.refreshAllData();
+              }
+            }
           }
         },
         child: const Icon(Icons.add, size: 28),
@@ -152,6 +159,17 @@ class _MainNavigationState extends State<MainNavigation> {
         setState(() {
           index = itemIndex;
         });
+
+        // 👉 Reload BudgetProvider khi switch về tab Budget
+        // Giải quyết vấn đề Budget không load lại khi quay lại từ màn hình khác
+        if (itemIndex == 3) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            final budgetProvider = context.read<BudgetProvider>();
+            if (budgetProvider.selectedWalletId != null) {
+              budgetProvider.refreshAllData();
+            }
+          });
+        }
       },
       child: Column(
         mainAxisSize: MainAxisSize.min,

@@ -141,12 +141,11 @@ class _BudgetScreenState extends State<BudgetScreen>
       // 🔥 CASE 1: đi từ xoá ví → preview
       if (widget.initialWallet != null) {
         isPreviewBeforeDelete = true;
-
-        provider.setWallet(widget.initialWallet!); // ✅ chỉ 1 API
+        provider.setWallet(widget.initialWallet!); // chỉ 1 API
       }
       // 🔥 CASE 2: vào bình thường
       else {
-        provider.refreshAllData(); // ✅ chỉ 1 API
+        provider.refreshAllData(); // chỉ 1 API
       }
     });
   }
@@ -297,20 +296,14 @@ class _BudgetScreenState extends State<BudgetScreen>
         ? _selected
         : (availableTypes.isNotEmpty ? availableTypes.first : BudgetType.monthly);
 
-
-    // 🔥 CHỈ chạy 1 lần khi availableTypes thay đổi
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      if (!availableTypes.contains(_selected)) {
-        setState(() {
-          _selected = availableTypes.isNotEmpty
-              ? availableTypes.first
-              : BudgetType.monthly;
-        });
-      }
-    });
-
-
+    // 🔥 Chỉ update _selected khi cần thiết
+    if (!availableTypes.contains(_selected) && mounted) {
+      setState(() {
+        _selected = availableTypes.isNotEmpty
+            ? availableTypes.first
+            : BudgetType.monthly;
+      });
+    }
 
     final filteredBudgets = budgets
         .where((b) => b.budgetType == safeSelected)
@@ -325,12 +318,6 @@ class _BudgetScreenState extends State<BudgetScreen>
       0,
           (sum, b) => sum + b.spentAmount,
     );
-
-    if (!isLoading && hasSelectedWallet) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _controller?.forward(from: 0); // <- safe
-      });
-    }
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -528,6 +515,28 @@ class _BudgetScreenState extends State<BudgetScreen>
     final p = (b.spentAmount / (b.amount == 0 ? 1 : b.amount)).clamp(0.0, 1.0);
     final left = b.amount - b.spentAmount;
 
+    // 👉 Xác định icon và tên hiển thị
+    String? iconUrl;
+    String displayName;
+
+    if (b.isOther == true) {
+      // Ngân sách "Other" - hiển thị icon mặc định
+      iconUrl = null;
+      displayName = "Khác";
+    } else if (b.allCategories == true) {
+      // Ngân sách all categories
+      iconUrl = b.primaryCategoryIconUrl;
+      displayName = "Tất cả";
+    } else if (b.categories?.isNotEmpty ?? false) {
+      // Ngân sách theo category cụ thể
+      iconUrl = b.categories!.first.ctgIconUrl;
+      displayName = b.categories!.first.ctgName;
+    } else {
+      // Fallback
+      iconUrl = b.primaryCategoryIconUrl;
+      displayName = "Tất cả";
+    }
+
     return OpenContainer<BudgetResponse>(
       closedColor: Colors.transparent,
       openColor: Colors.black,
@@ -555,7 +564,7 @@ class _BudgetScreenState extends State<BudgetScreen>
                 Row(
                   children: [
                     IconHelper.buildCircleAvatar(
-                      iconUrl: b.primaryCategoryIconUrl,
+                      iconUrl: iconUrl,
                       radius: 22,
                     ),
                     const SizedBox(width: 10),
@@ -564,9 +573,7 @@ class _BudgetScreenState extends State<BudgetScreen>
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            (b.categories?.isNotEmpty ?? false)
-                                ? b.categories!.first.ctgName
-                                : "Tất cả",
+                            displayName,
                             style: const TextStyle(
                                 color: Colors.white, fontWeight: FontWeight.bold),
                           ),
