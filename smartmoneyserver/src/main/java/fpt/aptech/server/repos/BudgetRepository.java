@@ -10,6 +10,7 @@ import org.springframework.stereotype.Repository;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 @Repository
 public interface BudgetRepository extends JpaRepository<Budget, Integer> {
@@ -51,6 +52,14 @@ public interface BudgetRepository extends JpaRepository<Budget, Integer> {
     /// Tìm budgets cần renew: repeating=true và đã hết hạn (endDate < today)
     @Query("SELECT b FROM Budget b WHERE b.repeating = true AND b.endDate < :today")
     List<Budget> findExpiredRepeatingBudgets(@Param("today") LocalDate today);
+
+    /// Tìm categoryIds của một budget (dùng cho scheduler để tránh LazyInitializationException)
+    @Query(value = "SELECT ctg_id FROM tBudgetCategories WHERE budget_id = :budgetId", nativeQuery = true)
+    Set<Integer> findCategoryIdsByBudgetId(@Param("budgetId") Integer budgetId);
+
+    /// Tìm categoryNames của một budget (dùng cho scheduler để tránh LazyInitializationException)
+    @Query(value = "SELECT c.ctg_name FROM tCategories c JOIN tBudgetCategories bc ON c.id = bc.ctg_id WHERE bc.budget_id = :budgetId", nativeQuery = true)
+    List<String> findCategoryNamesByBudgetId(@Param("budgetId") Integer budgetId);
     // ADMIN: Tìm tất cả budget có hiệu lực trong khoảng thời gian (để check quá hạn mức)
     @Query("SELECT b FROM Budget b WHERE b.beginDate <= :endDate AND b.endDate >= :startDate")
     List<Budget> findAllActiveBudgetsInRange(@Param("startDate") LocalDate startDate,
@@ -96,5 +105,4 @@ AND b.endDate >= :beginDate
     // Lấy danh sách ngân sách hết hạn, fetch wallet luôn để tránh LazyInitializationException
     @Query("SELECT b FROM Budget b LEFT JOIN FETCH b.wallet w LEFT JOIN FETCH b.categories WHERE b.endDate < CURRENT_DATE AND b.deleted = false")
     List<Budget> findExpiredBudgets();
-
 }

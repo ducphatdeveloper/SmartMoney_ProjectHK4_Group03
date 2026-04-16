@@ -2772,5 +2772,28 @@ GO
 --SELECT * FROM tPlannedTransactions ORDER BY deleted_at DESC;
 --SELECT * FROM tEvents ORDER BY deleted_at DESC;
 
+-- =================================================================================================
+-- LOGIC HỖ TRỢ ADMIN THEO DÕI VÀ KHÔI PHỤC GIAO DỊCH XÓA MỀM
+-- =================================================================================================
 
-
+GO
+-- 1. View dành cho Admin theo dõi các giao dịch đã xóa
+CREATE OR ALTER VIEW vAdminDeletedTransactions AS
+SELECT
+    t.id AS trans_id,
+    a.fullname AS user_name,
+    a.acc_email,
+    w.wallet_name,
+    c.ctg_name,
+    CASE WHEN c.ctg_type = 1 THEN N'Thu nhập' ELSE N'Chi tiêu' END AS trans_type_desc,
+    t.amount,
+    t.note,
+    t.trans_date,
+    t.deleted_at,
+    t.source_type
+FROM tTransactions t
+         JOIN tAccounts a ON t.acc_id = a.id
+         JOIN tWallets w ON t.wallet_id = w.id
+         LEFT JOIN tCategories c ON t.ctg_id = c.id
+WHERE t.deleted = 1;
+GO
