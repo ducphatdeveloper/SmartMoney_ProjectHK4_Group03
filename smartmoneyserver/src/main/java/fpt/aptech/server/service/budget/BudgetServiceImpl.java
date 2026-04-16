@@ -597,6 +597,7 @@ public class BudgetServiceImpl implements BudgetService {
                 ? List.of()
                 : budget.getCategories().stream()
                         .map(categoryMapper::toDto)
+                        .sorted((c1, c2) -> Integer.compare(c1.id(), c2.id()))  // 👉 Sắp xếp theo ID để đảm bảo thứ tự ổn định
                         .collect(Collectors.toList());
 
         // =========================
