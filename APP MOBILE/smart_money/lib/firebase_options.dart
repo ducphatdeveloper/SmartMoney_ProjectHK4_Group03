@@ -30,28 +30,28 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyCSYT99vIa4hkgVXR8Np5TWGAenoOQrPuE',
-    appId: '1:315182273926:android:f5b42eae167dbfc6ed4807',
-    messagingSenderId: '315182273926',
-    projectId: 'smartmoney-78185-f5bab',
-    authDomain: 'smartmoney-78185-f5bab.firebaseapp.com',
-    storageBucket: 'smartmoney-78185-f5bab.firebasestorage.app',
+    apiKey: 'AIzaSyATR6NvI7k91f3FPyuYsWBDCVQMO5Ev8fA',
+    appId: '1:1051851661309:android:ab9fdc0e30943d96884394',
+    messagingSenderId: '1051851661309',
+    projectId: 'smartmoney-78185',
+    authDomain: 'smartmoney-78185.firebaseapp.com',
+    storageBucket: 'smartmoney-78185.firebasestorage.app',
   );
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyCSYT99vIa4hkgVXR8Np5TWGAenoOQrPuE',
-    appId: '1:315182273926:android:f5b42eae167dbfc6ed4807',
-    messagingSenderId: '315182273926',
-    projectId: 'smartmoney-78185-f5bab',
-    storageBucket: 'smartmoney-78185-f5bab.firebasestorage.app',
+    apiKey: 'AIzaSyATR6NvI7k91f3FPyuYsWBDCVQMO5Ev8fA',
+    appId: '1:1051851661309:android:ab9fdc0e30943d96884394',
+    messagingSenderId: '1051851661309',
+    projectId: 'smartmoney-78185',
+    storageBucket: 'smartmoney-78185.firebasestorage.app',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyCSYT99vIa4hkgVXR8Np5TWGAenoOQrPuE',
-    appId: '1:315182273926:android:f5b42eae167dbfc6ed4807',
-    messagingSenderId: '315182273926',
-    projectId: 'smartmoney-78185-f5bab',
-    storageBucket: 'smartmoney-78185-f5bab.firebasestorage.app',
+    apiKey: 'AIzaSyATR6NvI7k91f3FPyuYsWBDCVQMO5Ev8fA',
+    appId: '1:1051851661309:android:ab9fdc0e30943d96884394',
+    messagingSenderId: '1051851661309',
+    projectId: 'smartmoney-78185',
+    storageBucket: 'smartmoney-78185.firebasestorage.app',
     iosBundleId: 'com.example.smart_money',
   );
 }

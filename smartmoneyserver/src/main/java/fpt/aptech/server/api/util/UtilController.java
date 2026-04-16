@@ -32,16 +32,16 @@ public class UtilController {
      *
      * <p><b>Ví dụ kết quả theo từng mode:</b></p>
      * <ul>
-     *   <li>DAILY:     [..., "02/03", "03/03", "Hôm qua", "Hôm nay", "Tương lai"]</li>
-     *   <li>WEEKLY:    [..., "17/02/2026 - 23/02/2026", "Tuần trước", "Tuần này", "Tương lai"]</li>
-     *   <li>MONTHLY:   [..., "Tháng 1/2026", "Tháng 2/2026", "Tháng trước", "Tháng này", "Tương lai"]</li>
-     *   <li>QUARTERLY: [..., "Quý 3/2025", "Quý 4/2025", "Quý 1/2026", "Quý 2/2026", "Tương lai"]</li>
-     *   <li>YEARLY:    [..., "2023", "2024", "Năm trước", "Năm nay", "Tương lai"]</li>
+     *   <li>DAILY:     [..., "02/03", "03/03", "Yesterday", "Today", "Future"]</li>
+     *   <li>WEEKLY:    [..., "17/02/2026 - 23/02/2026", "Last week", "This week", "Future"]</li>
+     *   <li>MONTHLY:   [..., "Tháng 1/2026", "Tháng 2/2026", "Last month", "This month", "Future"]</li>
+     *   <li>QUARTERLY: [..., "Quý 3/2025", "Quý 4/2025", "Quý 1/2026", "Quý 2/2026", "Future"]</li>
+     *   <li>YEARLY:    [..., "2023", "2024", "Last year", "This year", "Future"]</li>
      * </ul>
      *
      * @param mode      Chế độ xem: DAILY, WEEKLY, MONTHLY, QUARTERLY, YEARLY
      * @param pastUnits Số đơn vị quá khứ cần tạo (mặc định 24)
-     * @param futureUnits Số đơn vị tương lai (mặc định 1, luôn gộp thành 1 tab "Tương lai")
+     * @param futureUnits Số đơn vị tương lai (mặc định 1, luôn gộp thành 1 tab "Future")
      */
     @GetMapping("/date-ranges")
     public ResponseEntity<ApiResponse<List<DateRangeDTO>>> getDateRanges(
@@ -63,7 +63,7 @@ public class UtilController {
         // 2. Tạo khoảng thời gian hiện tại (Hôm nay / Tuần này / Tháng này...)
         ranges.add(createDateRangeDTO(today, mode, DateRangeType.CURRENT));
 
-        // 3. Tạo đúng 1 tab "Tương lai" ở cuối thanh trượt.
+        // 3. Tạo đúng 1 tab "Future" ở cuối thanh trượt.
         //    Không phân biệt ngày/tuần/tháng cụ thể — Frontend chỉ cần 1 điểm neo tương lai.
         if (futureUnits > 0) {
             LocalDate futureDate = getFutureDate(today, mode, 1);
@@ -84,7 +84,7 @@ public class UtilController {
             case MONTHLY:   return today.minusMonths(units);
             case QUARTERLY: return today.minusMonths(units * 3L); // 1 quý = 3 tháng
             case YEARLY:    return today.minusYears(units);
-            default:        throw new IllegalArgumentException("Chế độ không hợp lệ: " + mode);
+            default:        throw new IllegalArgumentException("Invalid mode: " + mode);
         }
     }
 
@@ -98,7 +98,7 @@ public class UtilController {
             case MONTHLY:   return today.plusMonths(units);
             case QUARTERLY: return today.plusMonths(units * 3L);
             case YEARLY:    return today.plusYears(units);
-            default:        throw new IllegalArgumentException("Chế độ không hợp lệ: " + mode);
+            default:        throw new IllegalArgumentException("Invalid mode: " + mode);
         }
     }
 
@@ -107,13 +107,13 @@ public class UtilController {
      *
      * <p><b>Quy tắc tạo label:</b></p>
      * <ul>
-     *   <li>FUTURE     → luôn là "Tương lai" (gộp mọi ngày tương lai thành 1 tab)</li>
-     *   <li>DAILY      → "Hôm nay", "Hôm qua", hoặc "dd/MM"</li>
-     *   <li>WEEKLY     → "Tuần này", "Tuần trước", hoặc "dd/MM/yyyy - dd/MM/yyyy"</li>
-     *   <li>MONTHLY    → "Tháng này", "Tháng trước", hoặc "Tháng M/YYYY"</li>
+     *   <li>FUTURE     → luôn là "Future" (gộp mọi ngày tương lai thành 1 tab)</li>
+     *   <li>DAILY      → "Today", "Yesterday", hoặc "dd/MM"</li>
+     *   <li>WEEKLY     → "This week", "Last week", hoặc "dd/MM/yyyy - dd/MM/yyyy"</li>
+     *   <li>MONTHLY    → "This month", "Last month", hoặc "Tháng M/YYYY"</li>
      *   <li>QUARTERLY  → luôn dạng "Quý x/YYYY" (không có label đặc biệt "Quý này/trước"
      *                    vì 1 năm có 4 quý, người dùng cần thấy số quý cụ thể để không nhầm)</li>
-     *   <li>YEARLY     → "Năm nay", "Năm trước", hoặc "YYYY"</li>
+     *   <li>YEARLY     → "This year", "Last year", hoặc "YYYY"</li>
      * </ul>
      */
     private DateRangeDTO createDateRangeDTO(LocalDate date, DateRangeMode mode, DateRangeType type) {
@@ -122,7 +122,7 @@ public class UtilController {
 
         if (type == DateRangeType.FUTURE) {
             // Tab tương lai luôn gộp thành 1 — không cần label cụ thể
-            label = "Tương lai";
+            label = "Future";
             // Logic đặc biệt cho FUTURE: endDate là vô tận (2099-12-31)
             dates = new LocalDateTime[]{
                 DateUtils.getStartOfDay(date), // Bắt đầu từ ngày mai (hoặc ngày tương lai được truyền vào)
@@ -132,15 +132,15 @@ public class UtilController {
         } else {
             switch (mode) {
                 case DAILY:
-                    if (type == DateRangeType.CURRENT)                          label = "Hôm nay";
-                    else if (date.equals(LocalDate.now().minusDays(1)))         label = "Hôm qua";
+                    if (type == DateRangeType.CURRENT)                          label = "Today";
+                    else if (date.equals(LocalDate.now().minusDays(1)))         label = "Yesterday";
                     else                                                         label = date.format(DateTimeFormatter.ofPattern("dd/MM"));
                     break;
 
                 case WEEKLY:
-                    if (type == DateRangeType.CURRENT)                          label = "Tuần này";
+                    if (type == DateRangeType.CURRENT)                          label = "This week";
                     else if (DateUtils.getStartOfWeek(date).equals(
-                             DateUtils.getStartOfWeek(LocalDate.now().minusWeeks(1)))) label = "Tuần trước";
+                             DateUtils.getStartOfWeek(LocalDate.now().minusWeeks(1)))) label = "Last week";
                     else {
                         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
                         String start = DateUtils.getStartOfWeek(date).format(formatter);
@@ -150,9 +150,9 @@ public class UtilController {
                     break;
 
                 case MONTHLY:
-                    if (type == DateRangeType.CURRENT)                          label = "Tháng này";
+                    if (type == DateRangeType.CURRENT)                          label = "This month";
                     else if (date.withDayOfMonth(1).equals(
-                             LocalDate.now().withDayOfMonth(1).minusMonths(1))) label = "Tháng trước";
+                             LocalDate.now().withDayOfMonth(1).minusMonths(1))) label = "Last month";
                     else                                                         label = DateUtils.formatMonthYear(date);
                     break;
 
@@ -163,13 +163,13 @@ public class UtilController {
                     break;
 
                 case YEARLY:
-                    if (type == DateRangeType.CURRENT)                          label = "Năm nay";
-                    else if (date.getYear() == LocalDate.now().getYear() - 1)   label = "Năm trước";
+                    if (type == DateRangeType.CURRENT)                          label = "This year";
+                    else if (date.getYear() == LocalDate.now().getYear() - 1)   label = "Last year";
                     else                                                         label = String.valueOf(date.getYear());
                     break;
 
                 default:
-                    throw new IllegalArgumentException("Chế độ không hợp lệ: " + mode);
+                    throw new IllegalArgumentException("Invalid mode: " + mode);
             }
         }
 
@@ -180,7 +180,7 @@ public class UtilController {
             case MONTHLY:   dates = DateUtils.getSpecificMonth(date.getMonthValue(), date.getYear()); break;
             case QUARTERLY: dates = DateUtils.getSpecificQuarter((date.getMonthValue() - 1) / 3 + 1, date.getYear()); break;
             case YEARLY:    dates = DateUtils.getSpecificYear(date.getYear()); break;
-            default:        throw new IllegalArgumentException("Chế độ không hợp lệ: " + mode);
+            default:        throw new IllegalArgumentException("Invalid mode: " + mode);
         }
 
         return new DateRangeDTO(label, dates[0], dates[1], type);

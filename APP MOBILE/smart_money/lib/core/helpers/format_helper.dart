@@ -79,8 +79,8 @@ class FormatHelper {
     final targetDate   = DateTime(date.year, date.month, date.day);
     final yesterday    = todayDate.subtract(const Duration(days: 1));
 
-    if (targetDate == todayDate)   return "Hôm nay";
-    if (targetDate == yesterday)   return "Hôm qua";
+    if (targetDate == todayDate)   return "Today";
+    if (targetDate == yesterday)   return "Yesterday";
 
     // Thứ Sáu, 14/03 — dùng intl cho tiếng Việt
     return DateFormat('EEEE, dd/MM', 'vi_VN').format(date);
@@ -90,7 +90,7 @@ class FormatHelper {
   // VD: "Tháng 2/2026"
   // Mirror: DateUtils.formatMonthYear()
   static String formatMonthYear(DateTime date) {
-    return "Tháng ${date.month}/${date.year}";
+    return "Month ${date.month}/${date.year}";
   }
 
   // Format quý/năm cho label báo cáo
@@ -98,7 +98,7 @@ class FormatHelper {
   // Mirror: DateUtils.formatQuarterYear()
   static String formatQuarterYear(DateTime date) {
     final quarter = ((date.month - 1) ~/ 3) + 1;
-    return "Quý $quarter/${date.year}";
+    return "Quarter $quarter/${date.year}";
   }
 
   // Format tuần/năm cho label báo cáo
@@ -107,7 +107,7 @@ class FormatHelper {
   static String formatWeekYear(DateTime date) {
     // Tính số tuần theo chuẩn ISO (tuần bắt đầu từ Thứ Hai)
     final week = _isoWeekNumber(date);
-    return "Tuần $week/${date.year}";
+    return "Week $week/${date.year}";
   }
 
   // Format ngày đơn giản dạng dd/MM/yyyy
@@ -163,13 +163,13 @@ class FormatHelper {
   // VD: 34 (MONDAY + FRIDAY) → ["Thứ Hai", "Thứ Sáu"]
   static List<String> getDayNames(int bitmask) {
     final days = <String>[];
-    if (hasDay(bitmask, monday))    days.add("Thứ Hai");
-    if (hasDay(bitmask, tuesday))   days.add("Thứ Ba");
-    if (hasDay(bitmask, wednesday)) days.add("Thứ Tư");
-    if (hasDay(bitmask, thursday))  days.add("Thứ Năm");
-    if (hasDay(bitmask, friday))    days.add("Thứ Sáu");
-    if (hasDay(bitmask, saturday))  days.add("Thứ Bảy");
-    if (hasDay(bitmask, sunday))    days.add("Chủ Nhật");
+    if (hasDay(bitmask, monday))    days.add("Monday");
+    if (hasDay(bitmask, tuesday))   days.add("Tuesday");
+    if (hasDay(bitmask, wednesday)) days.add("Wednesday");
+    if (hasDay(bitmask, thursday))  days.add("Thursday");
+    if (hasDay(bitmask, friday))    days.add("Friday");
+    if (hasDay(bitmask, saturday))  days.add("Saturday");
+    if (hasDay(bitmask, sunday))    days.add("Sunday");
     return days;
   }
 
