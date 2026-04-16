@@ -104,4 +104,7 @@ public interface CategoryRepository extends JpaRepository<Category, Integer> {
            "  AND (c.account IS NULL OR c.account.id = :accountId)")
     List<Category> findByParent_IdAndAccount_Id(@Param("parentId") Integer parentId, @Param("accountId") Integer accountId);
 
+    /// [SCHEDULER] Lấy danh sách categories theo IDs (dùng cho budget renewal để tránh LazyInitializationException)
+    List<Category> findAllByIdIn(Set<Integer> ids);
+
 }
