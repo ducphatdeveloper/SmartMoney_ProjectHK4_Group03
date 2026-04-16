@@ -13,6 +13,7 @@ import fpt.aptech.server.dto.transaction.view.TransactionResponse;
 import fpt.aptech.server.entity.*;
 import fpt.aptech.server.enums.category.SystemCategory;
 import fpt.aptech.server.enums.notification.NotificationType;
+import fpt.aptech.server.enums.savinggoal.GoalStatus;
 import fpt.aptech.server.enums.transaction.TransactionSourceType;
 import fpt.aptech.server.mapper.transaction.TransactionMapper;
 import fpt.aptech.server.repos.*;
@@ -775,6 +776,27 @@ public class TransactionServiceImpl implements TransactionService {
         }
         // isPastPeriod = false → tiếp tục flow sửa bình thường bên dưới
 
+        // Bước 1.2: Chặn sửa giao dịch của mục tiêu đã kết thúc (finished=true)
+        // Mục tiêu đã chốt sổ (COMPLETED) hoặc hủy (CANCELLED) — khóa lịch sử dòng tiền
+        if (transaction.getSavingGoal() != null
+                && Boolean.TRUE.equals(transaction.getSavingGoal().getFinished())) {
+            throw new IllegalArgumentException(
+                    "Không thể chỉnh sửa giao dịch của mục tiêu đã hoàn tất. "
+                    + "Lịch sử giao dịch của mục tiêu đã chốt được bảo vệ.");
+        }
+
+        // Bước 1.2b: Chặn sửa giao dịch giải ngân/hoàn trả từ mục tiêu đã đóng
+        // Giao dịch được tạo khi completeSavingGoal() hoặc cancelSavingGoal()
+        // → note chứa "Chốt sổ mục tiêu:" hoặc "Hủy mục tiêu:"
+        if (transaction.getNote() != null) {
+            String note = transaction.getNote();
+            if (note.startsWith("Chốt sổ mục tiêu:") || note.startsWith("Hủy mục tiêu:")) {
+                throw new IllegalArgumentException(
+                        "Không thể chỉnh sửa giao dịch giải ngân/hoàn trả từ mục tiêu đã đóng. "
+                        + "Lịch sử chốt sổ/hủy được bảo vệ.");
+            }
+        }
+
         // Bước 1.3: Chặn sửa giao dịch khởi tạo ví/mục tiêu
         // Giao dịch khởi tạo (reportable=false, note chứa "Số dư ban đầu") không được phép
         // sửa amount/category/wallet vì sẽ phá vỡ số dư. Chỉ cho phép đặt reminder.
@@ -872,7 +894,9 @@ public class TransactionServiceImpl implements TransactionService {
         }
 
         // Bước 6: Apply số dư mới
+        Integer savingGoalId = null;
         if (request.goalId() != null) {
+            savingGoalId = request.goalId();
             processSavingGoalTransaction(transaction, request.goalId(), accountId,
                     targetCategory.getCtgType(), request.amount());
         } else if (request.walletId() != null) {
@@ -884,6 +908,12 @@ public class TransactionServiceImpl implements TransactionService {
         }
 
         Transaction updated = transactionRepository.save(transaction);
+
+        // Bước 6.5: Tính lại status của SavingGoal sau khi update (nếu có)
+        if (savingGoalId != null) {
+            recalcSavingGoalStatusDirectly(savingGoalId);
+        }
+
         if (updated.getDebt() != null) {
             Account account = accountRepository.findById(accountId).orElse(null);
             debtCalculationService.recalculateDebt(updated.getDebt().getId(), account);
@@ -927,6 +957,28 @@ public class TransactionServiceImpl implements TransactionService {
         }
         // isPastPeriod = false → tiếp tục flow xóa bình thường bên dưới
 
+        // Bước 1.5a: Chặn xóa giao dịch của mục tiêu đã kết thúc (finished=true)
+        // Mục tiêu đã chốt sổ (COMPLETED) hoặc hủy (CANCELLED) — bảo vệ tính toàn vẹn tài chính
+        // Thực tế: revertTransactionBalance sẽ fail vì currentAmount=0 khi finished=true
+        if (transaction.getSavingGoal() != null
+                && Boolean.TRUE.equals(transaction.getSavingGoal().getFinished())) {
+            throw new IllegalArgumentException(
+                    "Không thể xóa giao dịch của mục tiêu đã hoàn tất. "
+                    + "Lịch sử giao dịch của mục tiêu đã chốt được bảo vệ.");
+        }
+
+        // Bước 1.5b: Chặn xóa giao dịch giải ngân/hoàn trả từ mục tiêu đã đóng
+        // Giao dịch được tạo khi completeSavingGoal() hoặc cancelSavingGoal()
+        // → note chứa "Chốt sổ mục tiêu:" hoặc "Hủy mục tiêu:"
+        if (transaction.getNote() != null) {
+            String note = transaction.getNote();
+            if (note.startsWith("Chốt sổ mục tiêu:") || note.startsWith("Hủy mục tiêu:")) {
+                throw new IllegalArgumentException(
+                        "Không thể xóa giao dịch giải ngân/hoàn trả từ mục tiêu đã đóng. "
+                        + "Lịch sử chốt sổ/hủy được bảo vệ.");
+            }
+        }
+
         // Bước 1.6: Chặn xóa giao dịch khởi tạo số dư ví/mục tiêu
         // Xóa giao dịch khởi tạo sẽ phá vỡ số dư (revert income → ví âm nếu đã chi tiêu).
         // Không cho phép dù ví mới tạo tháng này.
@@ -940,12 +992,18 @@ public class TransactionServiceImpl implements TransactionService {
                     "Nếu muốn điều chỉnh số dư ví, hãy dùng tính năng 'Điều chỉnh số dư' trong màn hình ví.");
         }
 
-        // Lưu debtId và categoryId TRƯỚC khi xóa mềm
+        // Lưu debtId, categoryId, savingGoalId TRƯỚC khi xóa mềm
         Integer debtId     = transaction.getDebt()     != null ? transaction.getDebt().getId()     : null;
         Integer categoryId = transaction.getCategory() != null ? transaction.getCategory().getId() : null;
+        Integer savingGoalId = transaction.getSavingGoal() != null ? transaction.getSavingGoal().getId() : null;
 
         // Bước 2: Hoàn tiền
         revertTransactionBalance(transaction);
+
+        // Bước 2.5: Tính lại status của SavingGoal sau khi revert (nếu có)
+        if (savingGoalId != null) {
+            recalcSavingGoalStatusDirectly(savingGoalId);
+        }
 
         // Bước 3: Soft delete (thay vì xóa cứng)
         transaction.setDeleted(true);
@@ -1037,7 +1095,32 @@ public class TransactionServiceImpl implements TransactionService {
     }
 
     /**
-     * [5.2] Xử lý giao dịch liên quan đến Ví.
+     * [5.2] Tính lại status của SavingGoal trực tiếp bằng cách gọi SavingGoalRepository.
+     * Tránh circular dependency với SavingGoalService.
+     */
+    private void recalcSavingGoalStatusDirectly(Integer savingGoalId) {
+        fpt.aptech.server.entity.SavingGoal goal = savingGoalRepository.findById(savingGoalId).orElse(null);
+        if (goal == null) {
+            return; // Goal đã bị xóa, không cần làm gì
+        }
+
+        // Chỉ recalc nếu goal chưa finished
+        if (Boolean.TRUE.equals(goal.getFinished())) {
+            return;
+        }
+
+        // Tính lại status dựa trên actual percentage
+        if (goal.getCurrentAmount().compareTo(goal.getTargetAmount()) >= 0) {
+            goal.setGoalStatus(fpt.aptech.server.enums.savinggoal.GoalStatus.COMPLETED.getValue());
+        } else {
+            goal.setGoalStatus(fpt.aptech.server.enums.savinggoal.GoalStatus.ACTIVE.getValue());
+        }
+
+        savingGoalRepository.save(goal);
+    }
+
+    /**
+     * [5.3] Xử lý giao dịch liên quan đến Ví.
      * Bước 1 — Tìm ví và kiểm tra quyền sở hữu.
      * Bước 2 — Gán ví vào transaction.
      * Bước 3 — Cộng/trừ số dư.
@@ -1099,6 +1182,16 @@ public class TransactionServiceImpl implements TransactionService {
             throw new SecurityException("Bạn không có quyền sử dụng mục tiêu này.");
         }
 
+        // Guard: chặn goal đã chốt sổ hoặc đã hủy
+        if (Boolean.TRUE.equals(goal.getFinished())) {
+            throw new IllegalStateException(
+                    "Mục tiêu đã được chốt sổ, không thể ghi giao dịch vào.");
+        }
+        if (goal.getGoalStatus().equals(GoalStatus.CANCELLED.getValue())) {
+            throw new IllegalStateException(
+                    "Mục tiêu đã bị hủy, không thể ghi giao dịch vào.");
+        }
+
         // Bước 2: Gán mục tiêu
         transaction.setSavingGoal(goal);
         transaction.setWallet(null); // Đảm bảo không link với Wallet
@@ -1120,6 +1213,18 @@ public class TransactionServiceImpl implements TransactionService {
             }
             goal.setCurrentAmount(goal.getCurrentAmount().subtract(amount)); // Rút → Trừ
         }
+
+        // Bước 4: Tính lại trạng thái goal sau khi thay đổi currentAmount
+        BigDecimal current = goal.getCurrentAmount();
+        BigDecimal target  = goal.getTargetAmount();
+        if (current.compareTo(target) >= 0) {
+            goal.setGoalStatus(GoalStatus.COMPLETED.getValue());
+        } else if (goal.getEndDate() != null && goal.getEndDate().isBefore(java.time.LocalDate.now())) {
+            goal.setGoalStatus(GoalStatus.OVERDUE.getValue());
+        } else {
+            goal.setGoalStatus(GoalStatus.ACTIVE.getValue());
+        }
+
         savingGoalRepository.save(goal);
     }
 
@@ -1186,6 +1291,18 @@ public class TransactionServiceImpl implements TransactionService {
                 if (isRepayment && Boolean.TRUE.equals(debt.getDebtType())) {
                     throw new SecurityException("Khoản nợ này là 'Cần thu' nên không thể thực hiện 'Trả nợ'.");
                 }
+
+                // Chặn trả/thu vượt quá số nợ còn lại
+                BigDecimal remaining = debt.getRemainAmount();
+                if (remaining != null && request.amount().compareTo(remaining) > 0) {
+                    String action = isRepayment ? "trả" : "thu";
+                    throw new IllegalArgumentException(
+                            String.format("Số tiền %s (%s) vượt quá số nợ còn lại (%s).",
+                                    action,
+                                    request.amount(),
+                                    remaining));
+                }
+
                 transaction.setDebt(debt);
             }
         }

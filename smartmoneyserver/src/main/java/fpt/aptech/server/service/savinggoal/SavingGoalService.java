@@ -19,14 +19,10 @@ public interface SavingGoalService {
     void deleteSavingGoal(Integer id, Integer userId);
 
     // ── READ ──────────────────────────────────────────────────────────────────
-    List<SavingGoalResponse> getSavingGoalsByAccount(Integer userId, String search);
+    List<SavingGoalResponse> getSavingGoalsByAccount(Integer userId, String search, Boolean isFinished);
 
     SavingGoalResponse getSavingGoalDetail(Integer id, Integer userId);
-
-    // ── TOGGLE ACTIVE / CANCELLED ─────────────────────────────────────────────
-    // ACTIVE → CANCELLED (finished=true)  : tạm dừng / kết thúc sớm
-    // CANCELLED → ACTIVE (finished=false) : kích hoạt lại
-    // OVERDUE   → ACTIVE (finished=false) : kích hoạt lại mục tiêu quá hạn
-    SavingGoalResponse togglePauseSavingGoal(Integer id, Integer userId);
-
+    SavingGoalResponse withdrawFromSavingGoal(Integer id, BigDecimal amount, Integer userId); //[4.1] Rút tiền từ mục tiêu tiết kiệm (giảm currentAmount).
+    SavingGoalResponse completeSavingGoal(Integer id, Integer walletId, Integer userId); //[5.1] Chốt sổ mục tiêu: finished=true + đổ toàn bộ tiền về wallet được chọn.
+    SavingGoalResponse cancelSavingGoal(Integer id, Integer walletId, Integer userId); //[6.1] Hủy mục tiêu: CANCELLED + finished=true + đổ tiền còn lại về wallet.
 }

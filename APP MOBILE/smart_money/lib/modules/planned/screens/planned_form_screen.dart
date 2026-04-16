@@ -100,7 +100,12 @@ class _PlannedFormScreenState extends State<PlannedFormScreen> {
 
   // ── DEBT CATEGORY IDS ──
   // 19: Cho vay, 20: Đi vay, 21: Thu nợ, 22: Trả nợ
-  static const _debtCategoryIds = {19, 20, 21, 22};
+  // [FIX-BLOCK-DEBT-ORIGIN] Chỉ Thu nợ (21) / Trả nợ (22) mới cần chọn khoản nợ liên kết
+  // Cho vay (19) / Đi vay (20) bị chặn hoàn toàn — backend sẽ reject nếu cố gửi
+  static const _debtCategoryIds = {21, 22};
+  // Danh mục bị chặn — không được dùng trong PlannedTransaction
+  // Cho vay (19) / Đi vay (20) chỉ dùng để KHỞI TẠO khoản nợ trong module Debt
+  static const _blockedCategoryIds = {19, 20};
 
   /// true khi category hiện tại yêu cầu chọn khoản nợ liên kết
   bool get _requiresDebtSelection => _debtCategoryIds.contains(_categoryId);
@@ -108,7 +113,8 @@ class _PlannedFormScreenState extends State<PlannedFormScreen> {
   /// debtType truyền vào DebtPicker:
   ///   Cho vay (19) / Thu nợ (21) → CẦN THU (debtType=true)
   ///   Đi vay (20) / Trả nợ (22) → CẦN TRẢ (debtType=false)
-  bool get _debtTypeForPicker => _categoryId == 19 || _categoryId == 21;
+  /// 21 (Thu nợ) → debt Cần Thu (debtType=true), 22 (Trả nợ) → debt Cần Trả (debtType=false)
+  bool get _debtTypeForPicker => _categoryId == 21;
 
   // =============================================
   // [6.2] initState — Pre-fill nếu đang sửa + load wallets
@@ -719,13 +725,25 @@ class _PlannedFormScreenState extends State<PlannedFormScreen> {
     // [IMPORTANT] Kiểm tra mounted sau await
     if (!mounted || result == null) return;
 
+    // [FIX-BLOCK-DEBT-ORIGIN] Chặn category Cho vay (19) / Đi vay (20) trong PlannedTransaction
+    // 2 category này chỉ dùng để KHỞI TẠO khoản nợ trong module Debt,
+    // planned chỉ được dùng Thu nợ (21) / Trả nợ (22)
+    if (_blockedCategoryIds.contains(result.id)) {
+      _showSnackBar(
+        'Không thể sử dụng danh mục "${result.ctgName}" cho giao dịch định kỳ/hóa đơn. '
+        'Vui lòng chọn Thu nợ hoặc Trả nợ.',
+        isError: true,
+      );
+      return;
+    }
+
     setState(() {
       _categoryId = result.id;
       _categoryName = result.ctgName;
       _categoryIcon = result.ctgIconUrl;
       _categoryType = result.ctgType;
 
-      // [FIX] Reset debt khi đổi sang category không thuộc nhóm Nợ (19/20/21/22)
+      // [FIX] Reset debt khi đổi sang category không thuộc nhóm Nợ (21/22)
       // Tránh gửi debtId cũ lên server khi category mới không liên quan đến nợ
       if (!_debtCategoryIds.contains(result.id)) {
         _debtId = null;

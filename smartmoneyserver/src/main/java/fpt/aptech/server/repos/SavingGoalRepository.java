@@ -47,6 +47,33 @@ public interface SavingGoalRepository extends JpaRepository<SavingGoal, Integer>
             Integer status
     );
 
+    /**
+     * [2.4] Lấy danh sách saving goal hợp lệ để hiển thị trong Dropdown chọn nguồn tiền
+     *       của module Transaction (Create / Edit).
+     *
+     * Điều kiện lọc:
+     *   • deleted = false   — chưa bị xóa mềm
+     *   • finished = false  — chưa chốt sổ / chưa hủy hoàn toàn
+     *   → Trả về các goal ở trạng thái: ACTIVE(1), COMPLETED(2-chưa chốt), OVERDUE(4)
+     *   → Loại bỏ: CANCELLED+finished=true, COMPLETED+finished=true, deleted=true
+     *
+     * Dùng ở: TransactionServiceImpl khi load dropdown nguồn tiền.
+     */
+    @Query("SELECT sg FROM SavingGoal sg " +
+            "WHERE sg.account.id = :accountId " +
+            "  AND sg.deleted = false " +
+            "  AND sg.finished = false " +
+            "ORDER BY sg.goalName ASC")
+    List<SavingGoal> findAvailableForTransaction(@Param("accountId") Integer accountId);
+
+    /**
+     * [2.5] Lay danh sach muc tieu theo trang thai finished (phuc vu API getAll?isFinished=...).
+     *   isFinished = false -> Tab Active: ACTIVE(1), COMPLETED(2-chua chot), OVERDUE(4)
+     *   isFinished = true  -> Tab Finished: COMPLETED+chot so, CANCELLED
+     * Spring Data JPA tu sinh query: WHERE account_id = ? AND finished = ? AND deleted = 0
+     */
+    List<SavingGoal> findByAccount_IdAndFinished(Integer accId, Boolean finished);
+
     // =================================================================================
     // 3. CÁC HÀM LẤY CHI TIẾT (READ / DETAIL)
     // =================================================================================
@@ -88,16 +115,26 @@ public interface SavingGoalRepository extends JpaRepository<SavingGoal, Integer>
 
     /**
      * [5.1] Tính tổng số tiền hiện có trong tất cả mục tiêu đang hoạt động.
-     * - Loại trừ goalStatus = 3 (CANCELLED).
-     * - Chỉ tính các goal có reportable = true.
-     * Dùng cho Dashboard tổng quan tài sản.
+     *       Dùng cho Dashboard tổng quan tài sản — chỉ tính các goal ĐANG CÓ TIỀN thực sự.
+     *
+     * Điều kiện lọc:
+     *   • deleted = false       — chưa bị xóa mềm
+     *   • finished = false      — chưa chốt sổ (tiền đã đổ về wallet rồi thì không tính nữa)
+     *   • goalStatus != 3       — loại trừ CANCELLED (đã hủy giữa chừng)
+     *   • reportable = true     — chỉ tính mục tiêu được báo cáo
+     *
+     * Lý do loại finished=true: khi chốt sổ/hủy, tiền đã được chuyển về Wallet rồi.
+     * Nếu vẫn tính thì sẽ bị đếm 2 lần (cả trong wallet lẫn saving goal).
+     *
+     * Dùng ở: WalletServiceImpl.getTotalBalance() để cộng vào tổng tài sản toàn bộ ứng dụng.
      */
-    @Query("SELECT SUM(sg.currentAmount) FROM SavingGoal sg " +
-           "WHERE sg.account.id = :accountId " +
-           "  AND sg.goalStatus != 3 " +      // Loại trừ CANCELLED
-           "  AND sg.reportable = true " +     // Chỉ tính mục tiêu được báo cáo
-           "  AND sg.deleted = false")         // Chỉ tính mục tiêu chưa bị xóa mềm
-    BigDecimal sumCurrentAmountByAccountId(@Param("accountId") Integer accountId);
+    @Query("SELECT COALESCE(SUM(sg.currentAmount), 0) FROM SavingGoal sg " +
+            "WHERE sg.account.id = :accountId " +
+            "  AND sg.deleted = false " +
+            "  AND sg.finished = false " +
+            "  AND sg.goalStatus != 3 " +      // Loại trừ CANCELLED
+            "  AND sg.reportable = true")       // Chỉ tính mục tiêu được báo cáo
+    BigDecimal sumActiveCurrentAmountByAccountId(@Param("accountId") Integer accountId);
 
     // =================================================================================
     // 6. CÁC HÀM CHO SCHEDULER

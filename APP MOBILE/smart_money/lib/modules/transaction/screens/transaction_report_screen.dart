@@ -10,7 +10,6 @@ import 'package:smart_money/modules/transaction/models/report/category_report_dt
 import 'package:smart_money/modules/transaction/providers/transaction_provider.dart';
 import 'package:smart_money/modules/transaction/screens/common_transaction_list_screen.dart';
 import 'package:smart_money/modules/transaction/services/transaction_service.dart';
-import 'package:smart_money/modules/debt/screens/debt_list_screen.dart';
 
 class TransactionReportPanel extends StatelessWidget {
   final VoidCallback onClose;
@@ -693,6 +692,10 @@ class _ReportLoaderState extends State<_ReportLoader> {
     );
   }
 
+  // ─── Card: Nợ & Vay ─────────────────────────────────────────
+  // debtAmount  : DEBT_BORROWING (20)  — Đi vay
+  // loanAmount  : DEBT_LENDING   (19)  — Cho vay
+  // otherAmount : DEBT_COLLECTION(21) − DEBT_REPAYMENT(22) — Khác (có thể âm)
   Widget _buildDebtCard() {
     final debtAmount  = _report!.debtAmount;
     final loanAmount  = _report!.loanAmount;
@@ -706,9 +709,21 @@ class _ReportLoaderState extends State<_ReportLoader> {
         children: [
           _sectionTitle(Icons.handshake_outlined, 'Debt and Loans'),
           const SizedBox(height: 14),
-          _debtRow(Icons.arrow_circle_down_rounded, 'Amount of Debt', debtAmount, Colors.orange),
-          _debtRow(Icons.arrow_circle_up_rounded, 'Loan amount', loanAmount, Colors.amber),
-          _debtRow(otherIcon, 'Paid / Received', otherAmount, otherColor),
+          // Dòng 1 — Nợ (Đi vay) → categoryIds=20
+          _debtRow(
+            Icons.arrow_circle_down_rounded, 'Amount of Debt', debtAmount, Colors.orange,
+            onTap: () => _navigateToTransactionList('Borrow money', {'categoryIds': '20'}),
+          ),
+          // Dòng 2 — Cho vay → categoryIds=19
+          _debtRow(
+            Icons.arrow_circle_up_rounded, 'Loan amount', loanAmount, Colors.amber,
+            onTap: () => _navigateToTransactionList('Loan', {'categoryIds': '19'}),
+          ),
+          // Dòng 3 — Khác (Thu nợ − Trả nợ) → categoryIds=21,22
+          _debtRow(
+            otherIcon, 'Paid / Received', otherAmount, otherColor,
+            onTap: () => _navigateToTransactionList('Debt Collection/Repayment', {'categoryIds': '21,22'}),
+          ),
         ],
       ),
     );
@@ -733,34 +748,32 @@ class _ReportLoaderState extends State<_ReportLoader> {
     );
   }
 
-  Widget _debtRow(IconData icon, String label, double amount, Color color) {
-    return InkWell(
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const DebtListScreen()),
-          );
-        },
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          child: Row(
-            children: [
-              Icon(icon, color: color, size: 22),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(label,
-                    style: const TextStyle(color: Colors.white, fontSize: 14)),
-              ),
-              Text(
-                FormatHelper.formatVND(amount),
-                style: TextStyle(
-                    color: color, fontSize: 14, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(width: 8),
-              Icon(Icons.chevron_right, color: color.withValues(alpha: 0.5), size: 18),
-            ],
+  Widget _debtRow(IconData icon, String label, double amount, Color color,
+      {VoidCallback? onTap}) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        children: [
+          Icon(icon, color: color, size: 22),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(label,
+                style: const TextStyle(color: Colors.white, fontSize: 14)),
           ),
-        ),
+          Text(
+            FormatHelper.formatVND(amount),
+            style: TextStyle(
+                color: color, fontSize: 14, fontWeight: FontWeight.bold),
+          ),
+          if (onTap != null) ...[
+            const SizedBox(width: 4),
+            GestureDetector(
+              onTap: onTap,
+              child: const Icon(Icons.chevron_right, color: Colors.grey, size: 20),
+            ),
+          ],
+        ],
+      ),
     );
   }
 

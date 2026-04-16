@@ -228,6 +228,34 @@ public final class NotificationMessages {
         return new NotificationContent(title, content);
     }
 
+    /**
+     * Chốt sổ mục tiêu (đã hoàn thành 100%).
+     * Dùng khi: SavingGoalService.completeSavingGoal() → finished=true + chuyển tiền về ví.
+     */
+    public static NotificationContent savingFinalized(String goalName,
+                                                      BigDecimal amount,
+                                                      String walletName) {
+        String title = "Chốt sổ mục tiêu 🎯";
+        String content = String.format(
+                "Mục tiêu \"%s\" đã được chốt sổ. %s đã được chuyển về ví \"%s\".",
+                goalName, CurrencyUtils.formatVND(amount), walletName);
+        return new NotificationContent(title, content);
+    }
+
+    /**
+     * Hủy mục tiêu (kết thúc sớm).
+     * Dùng khi: SavingGoalService.cancelSavingGoal() → CANCELLED + hoàn trả tiền về ví.
+     */
+    public static NotificationContent savingCancelled(String goalName,
+                                                      BigDecimal amount,
+                                                      String walletName) {
+        String title = "Hủy mục tiêu ❌";
+        String content = String.format(
+                "Mục tiêu \"%s\" đã bị hủy. %s đã được hoàn trả về ví \"%s\".",
+                goalName, CurrencyUtils.formatVND(amount), walletName);
+        return new NotificationContent(title, content);
+    }
+
     // ════════════════════════════════════════════════════════════════════════
     // TYPE 3 — BUDGET
     // ════════════════════════════════════════════════════════════════════════
@@ -699,24 +727,41 @@ public final class NotificationMessages {
     }
 
     /**
-     * Giao dịch định kỳ bị bỏ qua do số dư ví không đủ.
+     * Giao dịch định kỳ bị hoãn do số dư ví không đủ.
      * Dùng khi: PlannedTransactionScheduler.processRecurring() — ví không đủ tiền tự động chi.
-     * Scheduler sẽ tiến lịch sang kỳ sau (không retry kỳ này).
+     * Scheduler GIỮ NGUYÊN nextDueDate → sẽ tự động retry kỳ này khi ví đủ tiền (không bỏ qua vĩnh viễn).
      *
-     * Thông báo tạo ra: Title="Giao dịch định kỳ bị bỏ qua ⚠️"
-     * Content="Giao dịch định kỳ \"Tiền nhà\" không thể thực hiện: Ví \"MoMo\" chỉ còn 50.000 ₫,
-     *          cần 5.000.000 ₫. Kỳ này đã bị bỏ qua — vui lòng nạp thêm tiền vào ví."
+     * Thông báo tạo ra: Title="Số dư không đủ — giao dịch bị hoãn ⚠️"
+     * Content="Giao dịch định kỳ \"Tiền nhà\" chưa thể thực hiện: Ví \"MoMo\" chỉ còn 50.000 ₫.
+     *          Giao dịch sẽ tự động thực hiện khi ví có đủ số dư."
      */
     public static NotificationContent recurringInsufficientBalance(String label,
                                                                     BigDecimal amount,
                                                                     String walletName,
                                                                     BigDecimal walletBalance) {
-        String title = "Giao dịch định kỳ bị bỏ qua ⚠️";
-        // Chỉ báo số dư hiện tại (theo yêu cầu: không hiển thị số tiền cần thêm)
+        String title = "Số dư không đủ — giao dịch bị hoãn ⚠️";
         String content = String.format(
-                "Giao dịch định kỳ \"%s\" không thể thực hiện: Ví \"%s\" chỉ còn %s (không đủ để thực hiện giao dịch). " +
-                "Kỳ này đã bị bỏ qua — vui lòng nạp thêm tiền vào ví.",
-                label, walletName, CurrencyUtils.formatVND(walletBalance));
+                "Giao dịch định kỳ \"%s\" chưa thể thực hiện: Ví \"%s\" chỉ còn %s (cần thêm %s). " +
+                "Giao dịch sẽ tự động thực hiện khi ví có đủ số dư.",
+                label, walletName, CurrencyUtils.formatVND(walletBalance), CurrencyUtils.formatVND(amount));
+        return new NotificationContent(title, content);
+    }
+
+    /**
+     * User bấm "Trả tiền" thành công cho Hóa đơn.
+     * Dùng khi: PlannedTransactionServiceImpl.payBill() hoàn thành.
+     *
+     * Thông báo tạo ra:
+     *   - Còn kỳ tiếp: Title="Hóa đơn đã thanh toán ✅" Content="... Kỳ tiếp: dd/MM/yyyy."
+     *   - Hết hạn/Kết thúc: Title="Hóa đơn đã thanh toán ✅" Content="... Hóa đơn đã kết thúc."
+     */
+    public static NotificationContent billPaid(String billName, BigDecimal amount, LocalDate nextDueDate) {
+        String title = "Hóa đơn đã thanh toán ✅";
+        String content = nextDueDate != null
+                ? String.format("Hóa đơn \"%s\" %s đã thanh toán thành công. Kỳ tiếp theo: %s.",
+                        billName, CurrencyUtils.formatVND(amount), nextDueDate.format(VN_DATE))
+                : String.format("Hóa đơn \"%s\" %s đã thanh toán thành công. Hóa đơn đã kết thúc.",
+                        billName, CurrencyUtils.formatVND(amount));
         return new NotificationContent(title, content);
     }
 
