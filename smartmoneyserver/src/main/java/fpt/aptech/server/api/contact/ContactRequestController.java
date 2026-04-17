@@ -27,20 +27,21 @@ public class ContactRequestController {
     private final ContactRequestService contactRequestService;
 
     // =================================================================================
-    // [1] USER/ADMIN — Gửi yêu cầu hỗ trợ mới
+    // [1] USER/ADMIN/GUEST — Gửi yêu cầu hỗ trợ mới
     // POST /api/contact-requests
     // =================================================================================
     @PostMapping
-    //    @PreAuthorize("hasAuthority('USER_STANDARD_MANAGE') or hasAuthority('ADMIN_SYSTEM_ALL')")
     public ResponseEntity<ApiResponse<ContactRequestResponse>> createRequest(
             @Valid @RequestBody ContactRequestCreateRequest request,
             @AuthenticationPrincipal Account currentUser) {
 
-        ContactRequestResponse response = contactRequestService.createRequest(
-                currentUser.getId(), request);
+        // Nếu currentUser null (do permitAll), truyền 0 để Service tự tìm Account theo Email/Phone
+        int accId = (currentUser != null) ? currentUser.getId() : 0;
+        
+        ContactRequestResponse response = contactRequestService.createRequest(accId, request);
 
         return ResponseEntity.ok(
-                ApiResponse.success(response, "Gửi yêu cầu hỗ trợ thành công."));
+                ApiResponse.success(response, "Support request submitted successfully."));
     }
 
     // =================================================================================
@@ -89,6 +90,6 @@ public class ContactRequestController {
                 currentUser.getId(), id, request);
 
         return ResponseEntity.ok(
-                ApiResponse.success(response, "Cập nhật yêu cầu hỗ trợ thành công."));
+                ApiResponse.success(response, "Contact request updated successfully."));
     }
 }

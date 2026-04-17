@@ -255,18 +255,21 @@ const AdminDashboard = () => {
 
     const fetchNotifications = useCallback(async () => {
         try {
-            const storedUser = JSON.parse(localStorage.getItem('user'));
-            if (!storedUser || !storedUser.id) return;
-            const res = await adminApi.getAdminNotifications(storedUser.id);
+            const res = await adminApi.getAdminNotifications();
             const data = res.data.success ? res.data.data : res.data;
             setNotifications(data || []);
-        } catch (err) { console.error(err); }
+        } catch (err) { console.error("Error fetching admin notifications:", err); }
     }, []);
 
     const handleNotificationClick = async (n) => {
         try {
-            await notificationApi.markAsRead(n.id);
-            await fetchNotifications();
+            // Đánh dấu là đã đọc
+            if (!(n.notifyRead || n.read)) {
+                await adminApi.markAdminAsRead(n.id);
+                await fetchNotifications();
+            }
+            
+            // Điều hướng nếu là thông báo liên quan đến Contact Request
             if (n.notifyType === 4 || n.type === 4) {
                 setHighlightRequestId(n.relatedId);
                 setActiveTab('contacts');
@@ -277,7 +280,7 @@ const AdminDashboard = () => {
 
     const handleMarkAllAsRead = async () => {
         try {
-            await notificationApi.markAllAsRead();
+            await adminApi.markAllAdminAsRead();
             await fetchNotifications();
         } catch (err) { console.error("Error marking all read:", err); }
     };
@@ -710,7 +713,7 @@ const AdminDashboard = () => {
     );
 
     const renderTopbar = () => {
-        const unreadCount = notifications.filter(n => !(n.notifyRead)).length;
+        const unreadCount = notifications.filter(n => !(n.notifyRead || n.read)).length;
         return (
             <nav className="navbar navbar-expand-lg navbar-light bg-white border-bottom shadow-sm px-4 py-2 sticky-top" style={{zIndex: 1000}}>
                 <div className="d-flex w-100 justify-content-between align-items-center">
@@ -731,7 +734,7 @@ const AdminDashboard = () => {
                                     <div className="custom-scrollbar" style={{ maxHeight: '400px', overflowY: 'auto' }}>
                                         {notifications.length === 0 ? <p className="text-center text-muted m-4 small">{t('noNotify')}</p> :
                                             notifications.map((n, i) => (
-                                                <div key={i} onClick={() => handleNotificationClick(n)} className={`p-3 border-bottom small hover-bg-light cursor-pointer transition-all ${!(n.notifyRead) ? 'bg-primary-subtle border-start border-4 border-primary' : ''}`}>
+                                                <div key={i} onClick={() => handleNotificationClick(n)} className={`p-3 border-bottom small hover-bg-light cursor-pointer transition-all ${!(n.notifyRead || n.read) ? 'bg-primary-subtle border-start border-4 border-primary' : ''}`}>
                                                     <div className="d-flex justify-content-between mb-1"><span className={`fw-bold ${n.title?.includes('URGENT') ? 'text-danger' : 'text-primary'}`}>{n.title}</span><span className="extra-small text-muted">{formatDate(n.createdAt)}</span></div><div className="text-dark opacity-75">{n.content || n.message}</div>
                                                 </div>
                                             ))

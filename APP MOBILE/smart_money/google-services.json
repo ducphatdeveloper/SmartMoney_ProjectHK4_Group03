@@ -1,26 +1,52 @@
 {
   "project_info": {
-    "project_number": "315182273926",
-    "project_id": "smartmoney-78185-f5bab",
-    "storage_bucket": "smartmoney-78185-f5bab.firebasestorage.app"
+    "project_number": "1051851661309",
+    "project_id": "smartmoney-78185",
+    "storage_bucket": "smartmoney-78185.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:315182273926:android:f5b42eae167dbfc6ed4807",
+        "mobilesdk_app_id": "1:1051851661309:android:ab9fdc0e30943d96884394",
         "android_client_info": {
-          "package_name": "com.example.smartmoney"
+          "package_name": "com.example.smart_money"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "1051851661309-2k3qoih9bok8904h36eruijfolsqvjfc.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.smart_money",
+            "certificate_hash": "7569a8fe0e849ae4c99fc2de185f38af55302b07"
+          }
+        },
+        {
+          "client_id": "1051851661309-vh1j50nmc9bb4vic1qtvrtl7d1r0o3i0.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.smart_money",
+            "certificate_hash": "66ca3a7f1842687477dd8503ca6fe8416b040e60"
+          }
+        },
+        {
+          "client_id": "1051851661309-32haarhig9r42v6hhitg9cdo6g1grack.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
-          "current_key": "AIzaSyCSYT99vIa4hkgVXR8Np5TWGAenoOQrPuE"
+          "current_key": "AIzaSyATR6NvI7k91f3FPyuYsWBDCVQMO5Ev8fA"
         }
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1051851661309-32haarhig9r42v6hhitg9cdo6g1grack.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

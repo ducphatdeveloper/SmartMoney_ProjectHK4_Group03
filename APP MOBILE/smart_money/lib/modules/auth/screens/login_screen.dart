@@ -249,6 +249,38 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                           ),
                         ),
+                        const SizedBox(height: 15),
+                        // --- Nút Đăng nhập bằng Google ---
+                        SizedBox(
+                          width: double.infinity,
+                          height: 50,
+                          child: OutlinedButton.icon(
+                            icon: Image.asset(
+                              'assets/icons/google_logo.png', // Thay đổi từ NetworkImage sang Image.asset
+                              height: 24,
+                            ),
+                            label: const Text(
+                              "Sign in with Google",
+                              style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold),
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              side: const BorderSide(color: Colors.grey),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                            ),
+                            onPressed: authProvider.isLoading ? null : () async {
+                              final success = await authProvider.loginWithGoogle(context);
+                              if (!mounted) return;
+                              if (success) {
+                                _showSnackBar(authProvider.successMessage ?? 'Đăng nhập Google thành công!', isError: false);
+                                context.go("/main");
+                              } else if (authProvider.errorMessage != null) {
+                                _showSnackBar(authProvider.errorMessage!);
+                              }
+                            },
+                          ),
+                        ),
                         const SizedBox(height: 20),
                         TextButton(
                           onPressed: () {

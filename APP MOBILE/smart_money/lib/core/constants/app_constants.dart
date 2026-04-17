@@ -50,7 +50,7 @@ class AppConstants {
       // 192.168.x.x (IP máy tính) là dành cho máy thật.
 
       // Gán ip máy tính thật để test
-      String computerIp = "172.16.2.104"; // <--- THAY BẰNG IP MÁY TÍNH (Gõ ipconfig để lấy)
+      String computerIp = "192.168.100.74"; // <--- THAY BẰNG IP MÁY TÍNH (Gõ ipconfig để lấy)
 
       return "http://$computerIp:9999/api";
     }
@@ -71,6 +71,7 @@ class AppConstants {
 
   // --- Auth ---
   static String get authLogin         => "$baseUrl/auth/login";
+  static String get authGoogleLogin   => "$baseUrl/auth/google-login";
   static String get authRegister      => "$baseUrl/auth/register";
   static String get authLogout        => "$baseUrl/auth/logout";
   static String get authForgotPassword => "$baseUrl/auth/forgot-password";
