@@ -22,6 +22,14 @@
           }
         },
         {
+          "client_id": "1051851661309-tdi07t2hh20h5qr6hgpfph9t4td8e8p4.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.smart_money",
+            "certificate_hash": "a51033bb41995c5c64bc27b2941cca72bde9a606"
+          }
+        },
+        {
           "client_id": "1051851661309-vh1j50nmc9bb4vic1qtvrtl7d1r0o3i0.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
