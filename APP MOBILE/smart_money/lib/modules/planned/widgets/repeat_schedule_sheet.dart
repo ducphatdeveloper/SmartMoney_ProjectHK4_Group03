@@ -229,10 +229,10 @@ class _RepeatScheduleSheetState extends State<RepeatScheduleSheet> {
               style: const TextStyle(color: Colors.white, fontSize: 14),
               items: [
                 // [TODO i18n] Repeat type labels
-                DropdownMenuItem(value: RepeatType.daily.value, child: const Text('Lặp hàng ngày')),
-                DropdownMenuItem(value: RepeatType.weekly.value, child: const Text('Lặp hàng tuần')),
-                DropdownMenuItem(value: RepeatType.monthly.value, child: const Text('Lặp hàng tháng')),
-                DropdownMenuItem(value: RepeatType.yearly.value, child: const Text('Lặp hàng năm')),
+                DropdownMenuItem(value: RepeatType.daily.value, child: const Text('Daily')),
+                DropdownMenuItem(value: RepeatType.weekly.value, child: const Text('Weekly')),
+                DropdownMenuItem(value: RepeatType.monthly.value, child: const Text('Monthly')),
+                DropdownMenuItem(value: RepeatType.yearly.value, child: const Text('Yearly')),
               ],
               onChanged: (val) {
                 if (val != null) setState(() => _repeatType = val);
@@ -462,9 +462,9 @@ class _RepeatScheduleSheetState extends State<RepeatScheduleSheet> {
               isExpanded: true,
               items: const [
                 // [TODO i18n] End date options
-                DropdownMenuItem(value: 'FOREVER', child: Text('Mãi mãi')),
-                DropdownMenuItem(value: 'UNTIL_DATE', child: Text('Cho đến ngày')),
-                DropdownMenuItem(value: 'COUNT', child: Text('Xảy ra ... lần')),
+                DropdownMenuItem(value: 'FOREVER', child: Text('Forever')),
+                DropdownMenuItem(value: 'UNTIL_DATE', child: Text('Until date')),
+                DropdownMenuItem(value: 'COUNT', child: Text('Occurs ... times')),
               ],
               onChanged: (val) {
                 if (val != null) {

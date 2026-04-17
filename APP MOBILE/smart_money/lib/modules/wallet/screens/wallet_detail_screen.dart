@@ -240,19 +240,19 @@ class _WalletDetailScreenState extends State<WalletDetailScreen> {
       context: context,
       builder: (_) => AlertDialog(
         backgroundColor: Colors.black,
-        title: const Text("Xóa ví"),
+        title: const Text("Delete Wallet"),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              "Bạn có chắc chắn muốn xóa ví này không?",
+              "Are you sure you want to delete this wallet?",
               style: TextStyle(color: Colors.white),
             ),
             const SizedBox(height: 8),
 
             const Text(
-              "Nếu xóa, toàn bộ ngân sách liên quan đến ví này có thể bị ảnh hưởng.",
+              "If deleted, all budgets related to this wallet may be affected.",
               style: TextStyle(color: Colors.redAccent),
             ),
 
@@ -285,7 +285,7 @@ class _WalletDetailScreenState extends State<WalletDetailScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text("Hủy"),
+            child: const Text("Cancel"),
           ),
           TextButton(
             onPressed: () async {

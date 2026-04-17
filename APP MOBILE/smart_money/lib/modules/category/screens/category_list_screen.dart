@@ -209,7 +209,7 @@ class _CategoryListScreenState extends State<CategoryListScreen>
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
-        title: Text(widget.isSelectMode ? "Chọn nhóm" : "Nhóm"),
+        title: Text(widget.isSelectMode ? "Select category" : "Categories"),
         backgroundColor: Colors.black,
         centerTitle: true,
         leading: const BackButton(),
@@ -244,9 +244,9 @@ class _CategoryListScreenState extends State<CategoryListScreen>
             ),
           ),
           tabs: const [
-            Tab(text: "Khoản chi"),
-            Tab(text: "Khoản thu"),
-            Tab(text: "Vay/Nợ"),
+            Tab(text: "Expense"),
+            Tab(text: "Income"),
+            Tab(text: "Debt"),
           ],
         ),
       ),

@@ -130,17 +130,32 @@ class _MainNavigationState extends State<MainNavigation> {
           child: BottomAppBar(
             color: Colors.black.withOpacity(0.85),
             shape: const CircularNotchedRectangle(),
-            notchMargin: 8,
+            notchMargin: 6,
             child: SizedBox(
-              height: 65,
+              height: 64,
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
-                  buildItem(Icons.home, "Home", 0),
-                  buildItem(Icons.list, "Transaction Books", 1),
+                  Expanded(
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        buildItem(Icons.home, "Home", 0),
+                        buildItem(Icons.list, "Transactions", 1),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
                   _buildAddButton(),
-                  buildItem(Icons.account_balance_wallet, "Budget", 3),
-                  buildItem(Icons.person, "Account", 4),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        buildItem(Icons.account_balance_wallet, "Budget", 3),
+                        buildItem(Icons.person, "Account", 4),
+                      ],
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -172,17 +187,10 @@ class _MainNavigationState extends State<MainNavigation> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          SizedBox(
-            height: 28,
-            child: AnimatedScale(
-              scale: selected ? 1.25 : 1,
-              duration: const Duration(milliseconds: 200),
-              child: Icon(
-                icon,
-                color: selected ? Colors.green : Colors.grey,
-                size: 24,
-              ),
-            ),
+          Icon(
+            icon,
+            color: selected ? Colors.green : Colors.grey,
+            size: 24,
           ),
           const SizedBox(height: 4),
           Text(
@@ -208,37 +216,40 @@ class _MainNavigationState extends State<MainNavigation> {
   }
 
   Widget _buildAddButton() {
-    return GestureDetector(
-      onTap: () async {
-        final txProvider = context.read<TransactionProvider>();
-        final currentSource = txProvider.selectedSource;
+    return Transform.translate(
+      offset: const Offset(0, -8),
+      child: GestureDetector(
+        onTap: () async {
+          final txProvider = context.read<TransactionProvider>();
+          final currentSource = txProvider.selectedSource;
 
-        final result = await Navigator.push<bool>(
-          context,
-          MaterialPageRoute(
-            builder: (_) => TransactionCreateScreen(
-              initialSourceItem: currentSource,
+          final result = await Navigator.push<bool>(
+            context,
+            MaterialPageRoute(
+              builder: (_) => TransactionCreateScreen(
+                initialSourceItem: currentSource,
+              ),
             ),
-          ),
-        );
+          );
 
-        if (result == true && mounted) {
-          if (index == 3) {
-            final budgetProvider = context.read<BudgetProvider>();
-            if (budgetProvider.selectedWalletId != null) {
-              await budgetProvider.refreshAllData();
+          if (result == true && mounted) {
+            if (index == 3) {
+              final budgetProvider = context.read<BudgetProvider>();
+              if (budgetProvider.selectedWalletId != null) {
+                await budgetProvider.refreshAllData();
+              }
             }
           }
-        }
-      },
-      child: Material(
-        color: Colors.green, // ✅ giữ nguyên màu
-        shape: const CircleBorder(),
-        elevation: 8, // ✅ giữ elevation như FAB
-        child: const SizedBox(
-          height: 56,
-          width: 56,
-          child: Icon(Icons.add, size: 28, color: Colors.white),
+        },
+        child: Material(
+          color: Colors.green,
+          shape: const CircleBorder(),
+          elevation: 8,
+          child: const SizedBox(
+            height: 52,
+            width: 52,
+            child: Icon(Icons.add, size: 26, color: Colors.white),
+          ),
         ),
       ),
     );

@@ -45,7 +45,7 @@ class _SelectWalletScreenState extends State<SelectWalletScreen> {
       backgroundColor: const Color(0xFF0E0E10),
       appBar: AppBar(
         backgroundColor: Colors.transparent,
-        title: const Text("Chọn Ví"),
+        title: const Text("Select Wallet"),
         centerTitle: true,
 
         // 🔥 NÚT DONE

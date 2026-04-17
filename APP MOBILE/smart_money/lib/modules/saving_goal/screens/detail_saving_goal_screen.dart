@@ -238,18 +238,18 @@ class _DetailSavingGoalScreenState extends State<DetailSavingGoalScreen> {
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF1C1C1E),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text("Xóa mục tiêu tiết kiệm?", style: TextStyle(color: Colors.white)),
+        title: const Text("Delete savings goal?", style: TextStyle(color: Colors.white)),
         content: Text(
-          'Hành động này sẽ xóa TOÀN BỘ lịch sử giao dịch của mục tiêu '
-          '"${widget.goal.goalName}" khỏi báo cáo.\n\n'
-          'Tiền trong mục tiêu sẽ KHÔNG được hoàn về ví.\n\n'
-          'Bạn có chắc chắn muốn xóa?',
+          'This action will delete ALL transaction history of the goal '
+          '"${widget.goal.goalName}" from reports.\n\n'
+          'Money in the goal will NOT be returned to the wallet.\n\n'
+          'Are you sure you want to delete?',
           style: const TextStyle(color: Colors.grey),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text("Hủy"),
+            child: const Text("Cancel"),
           ),
           ElevatedButton(
               style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
@@ -261,7 +261,7 @@ class _DetailSavingGoalScreenState extends State<DetailSavingGoalScreen> {
                   Navigator.pop(context, true);
                 }
               },
-              child: const Text("Xóa vĩnh viễn", style: TextStyle(color: Colors.white))),
+              child: const Text("Delete permanently", style: TextStyle(color: Colors.white))),
         ],
       ),
     );

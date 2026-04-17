@@ -15,7 +15,7 @@ class TotalBalanceCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: const [
-          Text("Tổng cộng", style: TextStyle(color: Colors.grey)),
+          Text("Total", style: TextStyle(color: Colors.grey)),
           SizedBox(height: 8),
           Text("25.000.000 đ",
               style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),

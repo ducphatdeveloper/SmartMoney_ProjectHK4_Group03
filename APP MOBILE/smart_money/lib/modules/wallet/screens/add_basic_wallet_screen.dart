@@ -128,7 +128,7 @@ class _AddBasicWalletScreenState extends State<AddBasicWalletScreen> {
               color: Colors.white,
             ),
           )
-              : const Text("Lưu"),
+              : const Text("Save"),
         ),
       ),
       body: ListView(
@@ -264,7 +264,7 @@ class _AddBasicWalletScreenState extends State<AddBasicWalletScreen> {
           ..removeCurrentSnackBar()
           ..showSnackBar(
             const SnackBar(
-              content: Text("Số tiền không được vượt quá 1000 tỷ"),
+              content: Text("Amount must not exceed 1000 billion"),
               duration: Duration(seconds: 2),
             ),
           );
