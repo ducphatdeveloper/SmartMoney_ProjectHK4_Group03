@@ -597,6 +597,7 @@ public class BudgetServiceImpl implements BudgetService {
                 ? List.of()
                 : budget.getCategories().stream()
                         .map(categoryMapper::toDto)
+                        .sorted((c1, c2) -> Integer.compare(c1.id(), c2.id()))  // 👉 Sắp xếp theo ID để đảm bảo thứ tự ổn định
                         .collect(Collectors.toList());
 
         // =========================
@@ -658,6 +659,11 @@ public class BudgetServiceImpl implements BudgetService {
     private void validateDates(LocalDate beginDate, LocalDate endDate) {
         if (!beginDate.isBefore(endDate)) {
             throw new IllegalArgumentException("Ngày bắt đầu phải trước ngày kết thúc.");
+        }
+        // Kiểm tra ngày không được âm (trước ngày hiện tại)
+        LocalDate today = LocalDate.now();
+        if (beginDate.isBefore(today)) {
+            throw new IllegalArgumentException("Ngày bắt đầu phải từ ngày hiện tại trở đi.");
         }
     }
 }

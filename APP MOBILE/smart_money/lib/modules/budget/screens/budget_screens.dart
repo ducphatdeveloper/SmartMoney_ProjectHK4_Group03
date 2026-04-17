@@ -154,7 +154,8 @@ class _BudgetScreenState extends State<BudgetScreen>
 
   // Hàm này dùng chung cho cả việc tạo mới và đóng chi tiết
   Future<void> _handleDataChange() async {
-    await context.read<BudgetProvider>().refreshAllData();
+    final provider = context.read<BudgetProvider>();
+    await provider.refreshAllData(); // refreshAllData đã tự loadExpiredBudgets
     _controller.forward(from: 0);
   }
 
@@ -194,6 +195,9 @@ class _BudgetScreenState extends State<BudgetScreen>
 
     await provider.setWallet(result); // 🔥 load xong mới update UI
 
+    // 🔥 Load lại ngân sách hết hạn sau khi chọn ví mới
+    await provider.loadExpiredBudgets(walletId: provider.selectedWalletId);
+
     if (!mounted) return;
     _controller.forward(from: 0);
   }
@@ -226,6 +230,9 @@ class _BudgetScreenState extends State<BudgetScreen>
         walletId: provider.selectedWalletId,
         forceRefresh: true,
       );
+
+      /// 🔥 Load lại ngân sách hết hạn để cập nhật badge
+      await provider.loadExpiredBudgets(walletId: provider.selectedWalletId);
 
       /// 🔥 SET FILTER THEO TYPE MỚI
       setState(() {
@@ -369,17 +376,65 @@ class _BudgetScreenState extends State<BudgetScreen>
               },
             ),
             const Spacer(),
-            GestureDetector(
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const ExpiredBudgetScreen(),
+            Builder(
+              builder: (context) {
+                final budgetProvider = context.watch<BudgetProvider>();
+                final expiredCount = budgetProvider.expiredBudgets.length;
+
+                // 🔥 Chỉ hiển thị badge khi đã chọn ví
+                if (budgetProvider.selectedWalletId == null) {
+                  return const SizedBox();
+                }
+
+                return GestureDetector(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const ExpiredBudgetScreen(),
+                      ),
+                    );
+                  },
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Stack(
+                        children: [
+                          const Icon(Icons.archive_outlined, color: Colors.grey),
+                          if (expiredCount > 0)
+                            Positioned(
+                              right: 0,
+                              top: 0,
+                              child: Container(
+                                padding: const EdgeInsets.all(3),
+                                decoration: BoxDecoration(
+                                  color: Colors.red,
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Text(
+                                  "$expiredCount",
+                                  style: const TextStyle(color: Colors.white, fontSize: 9),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(width: 6),
+                      const Text(
+                        "Hết hạn",
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.grey,
+                        ),
+                      ),
+                    ],
                   ),
                 );
               },
-              child: const Icon(Icons.more_horiz),
-            ),
+            )
+
+
           ],
         ),
       ),
@@ -414,9 +469,7 @@ class _BudgetScreenState extends State<BudgetScreen>
           // ❗ CASE 4: bình thường
           return RefreshIndicator(
             onRefresh: () async {
-              await context.read<BudgetProvider>().loadBudgets(
-                walletId: budgetProvider.selectedWalletId,
-              );
+              await context.read<BudgetProvider>().refreshAllData(); // refreshAllData đã tự loadExpiredBudgets
             },
             child: ListView(
               padding: const EdgeInsets.all(16),
@@ -457,8 +510,9 @@ class _BudgetScreenState extends State<BudgetScreen>
                       availableTypes: availableTypes,
                       onChanged: _onFilterChanged,
                     ),
+                  const SizedBox(height: 30),
                   _overview(totalBudget, totalSpent),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 30),
                   _budgetSection(filteredBudgets),
                 ],
               ],
@@ -481,32 +535,7 @@ class _BudgetScreenState extends State<BudgetScreen>
       children: budgets.map((b) => _budgetItem(b)).toList(),
     );
   }
-
-  // Future<void> _reloadBudgets() async {
-  //   final provider = context.read<BudgetProvider>();
-  //   if (provider.selectedWalletId != null) {
-  //     await provider.loadBudgets(walletId: provider.selectedWalletId);
-  //     await _reloadTransactions(provider.selectedWalletId!);
-  //   }
-  // }
-
-  // Future<void> _reloadTransactions(int walletId) async {
-  //   final provider = context.read<BudgetProvider>();
-  //   await provider.loadAllBudgetTransactions(walletId: walletId); // 🔥 cần method trong provider
-  //   if (!mounted) return;
-  //   _controller.forward(from: 0);
-  // }
-  // void _onBudgetClosed() async {
-  //   final provider = context.read<BudgetProvider>();
-  //   if (provider.selectedWalletId != null) {
-  //     // Reload budgets và transactions sau khi đóng detail
-  //     await provider.loadBudgets(
-  //         walletId: provider.selectedWalletId, forceRefresh: true);
-  //     await _reloadTransactions(provider.selectedWalletId!);
-  //     if (!mounted) return;
-  //     _controller.forward(from: 0);
-  //   }
-  // }
+  
 
 
   // ================= ITEM =================

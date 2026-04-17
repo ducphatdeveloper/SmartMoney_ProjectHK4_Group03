@@ -40,7 +40,8 @@ class _WalletDetailScreenState extends State<WalletDetailScreen> {
           onPressed: () => Navigator.pop(context),
         ),
         actions: [
-          TextButton(
+          IconButton(
+            icon: const Icon(Icons.edit, color: Colors.blue),
             onPressed: () async {
               final result = await Navigator.push(
                 context,
@@ -50,14 +51,13 @@ class _WalletDetailScreenState extends State<WalletDetailScreen> {
               );
 
               if (result == true) {
-                Provider.of<WalletProvider>(context, listen: false)
-                    .loadAll();
+                Provider.of<WalletProvider>(context, listen: false).loadAll();
                 Navigator.pop(context);
               }
             },
-            child: const Text("Sửa"),
           ),
         ],
+
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
@@ -213,12 +213,20 @@ class _WalletDetailScreenState extends State<WalletDetailScreen> {
         ),
       ),
       onPressed: () => _confirmDelete(context),
-      child: const Text(
-        "Delete Wallet",
-        style: TextStyle(color: Colors.red, fontSize: 16),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: const [
+          Icon(Icons.delete, color: Colors.red),
+          SizedBox(width: 8),
+          Text(
+            "Delete Wallet",
+            style: TextStyle(color: Colors.red, fontSize: 16),
+          ),
+        ],
       ),
     );
   }
+
 
   BoxDecoration _card() => BoxDecoration(
     color: const Color(0xFF1C1C1E),

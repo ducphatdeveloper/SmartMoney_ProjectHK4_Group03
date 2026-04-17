@@ -248,13 +248,33 @@ class _EditBudgetDetailScreenState extends State<EditBudgetDetailScreen> {
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
-        title: const Text("Sửa ngân sách"),
+        centerTitle: true,
         backgroundColor: Colors.black,
-        leading: TextButton(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () => Navigator.pop(context),
-          child: const Text("Huỷ", style: TextStyle(color: Colors.white)),
+        ),
+
+        actions: const [
+          SizedBox(width: 48), // 👈 FIX: cân với leading
+        ],
+
+        title: const Text(
+          "Sửa ngân sách",
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.2,
+          ),
         ),
       ),
+
+
+
+
+
+
       bottomNavigationBar: Padding(
         padding: const EdgeInsets.all(16),
         child: ElevatedButton(

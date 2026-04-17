@@ -82,35 +82,33 @@ class _MainNavigationState extends State<MainNavigation> {
           child: _buildScreen(),
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        backgroundColor: Colors.green,
-        elevation: 8,
-        onPressed: () async {
-          final txProvider = context.read<TransactionProvider>();
-          final currentSource = txProvider.selectedSource;
-
-          final result = await Navigator.push<bool>(
-            context,
-            MaterialPageRoute(
-              builder: (_) => TransactionCreateScreen(
-                initialSourceItem: currentSource,
-              ),
-            ),
-          );
-
-          if (result == true && mounted) {
-            // 👉 Chỉ reload BudgetProvider nếu user đang ở tab Budget
-            // Tránh reload liên tục khi user đang ở tab khác
-            if (index == 3) {
-              final budgetProvider = context.read<BudgetProvider>();
-              if (budgetProvider.selectedWalletId != null) {
-                await budgetProvider.refreshAllData();
-              }
-            }
-          }
-        },
-        child: const Icon(Icons.add, size: 28),
-      ),
+      // floatingActionButton: FloatingActionButton(
+      //   backgroundColor: Colors.green,
+      //   elevation: 8,
+      //   onPressed: () async {
+      //     final txProvider = context.read<TransactionProvider>();
+      //     final currentSource = txProvider.selectedSource;
+      //
+      //     final result = await Navigator.push<bool>(
+      //       context,
+      //       MaterialPageRoute(builder: (_) => TransactionCreateScreen(
+      //         initialSourceItem: currentSource,
+      //       )),
+      //     );
+      //
+      //     if (result == true && mounted) {
+      //       // 👉 Chỉ reload BudgetProvider nếu user đang ở tab Budget
+      //       // Tránh reload liên tục khi user đang ở tab khác
+      //       if (index == 3) {
+      //         final budgetProvider = context.read<BudgetProvider>();
+      //         if (budgetProvider.selectedWalletId != null) {
+      //           await budgetProvider.refreshAllData();
+      //         }
+      //       }
+      //     }
+      //   },
+      //   child: const Icon(Icons.add, size: 28),
+      // ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       bottomNavigationBar: _buildBottomNavBar(),
     );
@@ -140,7 +138,7 @@ class _MainNavigationState extends State<MainNavigation> {
                 children: [
                   buildItem(Icons.home, "Home", 0),
                   buildItem(Icons.list, "Transaction Books", 1),
-                  const SizedBox(width: 40),
+                  _buildAddButton(),
                   buildItem(Icons.account_balance_wallet, "Budget", 3),
                   buildItem(Icons.person, "Account", 4),
                 ],
@@ -174,13 +172,16 @@ class _MainNavigationState extends State<MainNavigation> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          AnimatedScale(
-            scale: selected ? 1.25 : 1,
-            duration: const Duration(milliseconds: 200),
-            child: Icon(
-              icon,
-              color: selected ? Colors.green : Colors.grey,
-              size: 24,
+          SizedBox(
+            height: 28,
+            child: AnimatedScale(
+              scale: selected ? 1.25 : 1,
+              duration: const Duration(milliseconds: 200),
+              child: Icon(
+                icon,
+                color: selected ? Colors.green : Colors.grey,
+                size: 24,
+              ),
             ),
           ),
           const SizedBox(height: 4),
@@ -205,4 +206,42 @@ class _MainNavigationState extends State<MainNavigation> {
       ),
     );
   }
+
+  Widget _buildAddButton() {
+    return GestureDetector(
+      onTap: () async {
+        final txProvider = context.read<TransactionProvider>();
+        final currentSource = txProvider.selectedSource;
+
+        final result = await Navigator.push<bool>(
+          context,
+          MaterialPageRoute(
+            builder: (_) => TransactionCreateScreen(
+              initialSourceItem: currentSource,
+            ),
+          ),
+        );
+
+        if (result == true && mounted) {
+          if (index == 3) {
+            final budgetProvider = context.read<BudgetProvider>();
+            if (budgetProvider.selectedWalletId != null) {
+              await budgetProvider.refreshAllData();
+            }
+          }
+        }
+      },
+      child: Material(
+        color: Colors.green, // ✅ giữ nguyên màu
+        shape: const CircleBorder(),
+        elevation: 8, // ✅ giữ elevation như FAB
+        child: const SizedBox(
+          height: 56,
+          width: 56,
+          child: Icon(Icons.add, size: 28, color: Colors.white),
+        ),
+      ),
+    );
+  }
+
 }

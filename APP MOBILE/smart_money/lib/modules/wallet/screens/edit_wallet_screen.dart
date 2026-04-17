@@ -41,43 +41,62 @@ class _EditWalletScreenState extends State<EditWalletScreen> {
   @override
   void initState() {
     super.initState();
-    _lastValidText = balanceController.text;
-
 
     notification = widget.wallet.notified ?? true;
     nameController = TextEditingController(text: widget.wallet.walletName);
     balanceController =
         TextEditingController(text: _formatNumber(widget.wallet.balance));
+    // ✅ PHẢI đặt SAU khi init controller
+    _lastValidText = balanceController.text;
     excludeFromTotal = !(widget.wallet.reportable ?? true);
     _selectedIconUrl = widget.wallet.goalImageUrl;
   }
 
   @override
   Widget build(BuildContext context) {
+    final isValid = nameError == null && balanceError == null;
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
         backgroundColor: Colors.black,
         elevation: 0,
-        title: const Text("Chỉnh sửa ví"),
-        actions: [
-          TextButton(
-            onPressed: (nameError == null && balanceError == null)
-                ? _save
-                : null,
-            // nút luôn hiển thị
-            child: isSaving
-                ? const SizedBox(
-              width: 18,
-              height: 18,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            )
-                : const Text(
-              "Lưu",
-              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
+        ),
+        centerTitle: true,
+        title: const Text(
+          "Chỉnh sửa ví",
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.2,
+          ),
+        ),
+      ),
+      bottomNavigationBar: Padding(
+        padding: const EdgeInsets.all(16),
+        child: ElevatedButton(
+          onPressed: (nameError == null && balanceError == null && !isSaving)
+              ? _save
+              : null,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: (nameError == null && balanceError == null && !isSaving)
+                ? Colors.green
+                : Colors.grey.shade800,
+          ),
+          child: isSaving
+              ? const SizedBox(
+            width: 20,
+            height: 20,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: Colors.white,
             ),
           )
-        ],
+              : const Text("Lưu"),
+        ),
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
@@ -155,7 +174,6 @@ class _EditWalletScreenState extends State<EditWalletScreen> {
               children: [
                 Text(currency, style: const TextStyle(color: Colors.white)),
                 const SizedBox(width: 4),
-                const Icon(Icons.chevron_right, color: Colors.grey),
               ],
             ),
           ),

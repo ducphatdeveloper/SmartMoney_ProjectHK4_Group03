@@ -38,6 +38,9 @@ class BudgetProvider extends ChangeNotifier {
       walletId: wallet.id,
       forceRefresh: true,
     );
+
+    // 🔥 Load ngân sách hết hạn để cập nhật badge
+    await loadExpiredBudgets(walletId: wallet.id);
   }
 
 
@@ -178,6 +181,9 @@ class BudgetProvider extends ChangeNotifier {
       _isLoading = false;
       notifyListeners(); // Cập nhật lại UI cho toàn bộ App
     }
+
+    // 🔥 Load ngân sách hết hạn để cập nhật badge
+    await loadExpiredBudgets(walletId: _selectedWalletId);
   }
 
   /// Lấy danh sách ngân sách đã hết hạn, có thể filter theo walletId
