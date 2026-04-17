@@ -9,7 +9,7 @@ class CreateSavingGoalPage extends StatelessWidget {
     final targetController = TextEditingController();
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Tạo ví tiết kiệm')),
+      appBar: AppBar(title: const Text('Create Savings Wallet')),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -17,7 +17,7 @@ class CreateSavingGoalPage extends StatelessWidget {
             TextField(
               controller: nameController,
               decoration: const InputDecoration(
-                labelText: 'Mục tiêu tiết kiệm',
+                labelText: 'Savings Goal',
                 prefixIcon: Icon(Icons.savings),
               ),
             ),
@@ -26,7 +26,7 @@ class CreateSavingGoalPage extends StatelessWidget {
               controller: targetController,
               keyboardType: TextInputType.number,
               decoration: const InputDecoration(
-                labelText: 'Số tiền mục tiêu',
+                labelText: 'Target Amount',
                 prefixIcon: Icon(Icons.flag),
               ),
             ),
@@ -38,7 +38,7 @@ class CreateSavingGoalPage extends StatelessWidget {
               onPressed: () {
                 Navigator.pop(context);
               },
-              child: const Text('TẠO MỤC TIÊU'),
+              child: const Text('CREATE GOAL'),
             ),
           ],
         ),

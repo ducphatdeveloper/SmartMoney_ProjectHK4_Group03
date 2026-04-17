@@ -30,9 +30,9 @@ class TransactionTypeSelector extends StatelessWidget {
   Widget build(BuildContext context) {
     // Danh sách các tab — ẩn Vay/Nợ nếu showDebtTab = false
     final tabs = <Map<String, String>>[
-      {'label': 'Khoản chi', 'value': 'expense'},
-      {'label': 'Khoản thu', 'value': 'income'},
-      if (showDebtTab) {'label': 'Vay/Nợ', 'value': 'debt'},
+      {'label': 'Expense', 'value': 'expense'},
+      {'label': 'Income', 'value': 'income'},
+      if (showDebtTab) {'label': 'Debt', 'value': 'debt'},
     ];
 
     return Container(

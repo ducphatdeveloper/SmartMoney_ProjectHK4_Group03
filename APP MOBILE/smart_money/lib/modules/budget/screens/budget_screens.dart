@@ -333,7 +333,7 @@ class _BudgetScreenState extends State<BudgetScreen>
         title: Row(
           children: [
             const Text(
-              "Ngân sách",
+              "Budget",
               style: TextStyle(fontWeight: FontWeight.bold),
             ),
             const Spacer(),
@@ -354,21 +354,34 @@ class _BudgetScreenState extends State<BudgetScreen>
                 return GestureDetector(
                   onTap: _pickWallet,
                   child: Container(
-                    padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF2C2C2E),
-                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: Colors.white24),
+                      borderRadius: BorderRadius.circular(8),
                     ),
+                    constraints: const BoxConstraints(maxWidth: 200),
                     child: Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
                         IconHelper.buildCircleAvatar(
                           iconUrl: selectedWallet.goalImageUrl ?? "",
                           radius: 10,
                         ),
-                        const SizedBox(width: 6),
-                        Text(selectedWallet.walletName),
-                        const Icon(Icons.arrow_drop_down),
+                        const SizedBox(width: 8),
+                        Flexible(
+                          child: Text(
+                            selectedWallet.walletName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        const Icon(Icons.unfold_more, color: Colors.white70, size: 18),
                       ],
                     ),
                   ),
@@ -419,11 +432,11 @@ class _BudgetScreenState extends State<BudgetScreen>
                             ),
                         ],
                       ),
-                      const SizedBox(width: 6),
+                      const SizedBox(width: 4),
                       const Text(
                         "Hết hạn",
                         style: TextStyle(
-                          fontSize: 16,
+                          fontSize: 14,
                           fontWeight: FontWeight.w500,
                           color: Colors.grey,
                         ),
@@ -472,7 +485,7 @@ class _BudgetScreenState extends State<BudgetScreen>
               await context.read<BudgetProvider>().refreshAllData(); // refreshAllData đã tự loadExpiredBudgets
             },
             child: ListView(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 16),
               children: [
 
                 // 🔥 CHÈN NGAY ĐÂY (TRÊN CÙNG)
@@ -730,7 +743,7 @@ class _BudgetScreenState extends State<BudgetScreen>
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(20),
                   ),
-                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  padding: const EdgeInsets.symmetric(vertical: 10),
                 ),
                 onPressed: addBudget,
                 child: const Text("Tạo ngân sách"),

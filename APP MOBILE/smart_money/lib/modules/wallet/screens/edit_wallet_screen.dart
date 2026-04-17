@@ -95,7 +95,7 @@ class _EditWalletScreenState extends State<EditWalletScreen> {
               color: Colors.white,
             ),
           )
-              : const Text("Lưu"),
+              : const Text("Save"),
         ),
       ),
       body: ListView(
@@ -309,7 +309,7 @@ class _EditWalletScreenState extends State<EditWalletScreen> {
           ..removeCurrentSnackBar()
           ..showSnackBar(
             const SnackBar(
-              content: Text("Số tiền không được vượt quá 1000 tỷ"),
+              content: Text("Amount must not exceed 1000 billion"),
             ),
           );
       }

@@ -138,19 +138,19 @@ class _DebtEditScreenState extends State<DebtEditScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: Colors.grey[900],
-        title: const Text('Xác nhận sửa', style: TextStyle(color: Colors.white)),
+        title: const Text('Confirm edit', style: TextStyle(color: Colors.white)),
         content: const Text(
-          'Bạn có chắc muốn cập nhật khoản nợ này?',
+          'Are you sure you want to update this debt?',
           style: TextStyle(color: Colors.grey),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Hủy', style: TextStyle(color: Colors.grey)),
+            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Xác nhận', style: TextStyle(color: Colors.blue)),
+            child: const Text('Confirm', style: TextStyle(color: Colors.blue)),
           ),
         ],
       ),

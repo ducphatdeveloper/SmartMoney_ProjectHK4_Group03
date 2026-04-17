@@ -216,21 +216,21 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
     // Bước 1: Validate client-side
     final amount = double.tryParse(_amountStr) ?? 0;
     if (amount <= 0) {
-      _showSnackBar('Vui lòng nhập số tiền lớn hơn 0', isError: true);
+      _showSnackBar('Please enter an amount greater than 0', isError: true);
       return;
     }
     if (_selectedCategory == null) {
-      _showSnackBar('Vui lòng chọn nhóm danh mục', isError: true);
+      _showSnackBar('Please select a category group', isError: true);
       return;
     }
     if (_selectedSourceItem == null) {
-      _showSnackBar('Vui lòng chọn ví', isError: true);
+      _showSnackBar('Please select a wallet', isError: true);
       return;
     }
 
     // Bước 2: Validate nhắc nhở nếu có
     if (_reminderTime != null && _reminderTime!.isBefore(DateTime.now())) {
-      _showSnackBar('Nhắc nhở phải là thời gian tương lai', isError: true);
+      _showSnackBar('The reminder must be in the future', isError: true);
       return;
     }
 
@@ -239,19 +239,19 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: Colors.grey[900],
-        title: const Text('Xác nhận sửa', style: TextStyle(color: Colors.white)),
+        title: const Text('Confirm edit', style: TextStyle(color: Colors.white)),
         content: const Text(
-          'Bạn có chắc muốn cập nhật giao dịch này?',
+          'Are you sure you want to update this transaction?',
           style: TextStyle(color: Colors.grey),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Hủy', style: TextStyle(color: Colors.grey)),
+            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Xác nhận', style: TextStyle(color: Colors.blue)),
+            child: const Text('Confirm', style: TextStyle(color: Colors.blue)),
           ),
         ],
       ),
@@ -286,10 +286,10 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
 
     // Bước 6: Hiện kết quả
     if (success) {
-      _showSnackBar(provider.successMessage ?? 'Cập nhật giao dịch thành công');
+      _showSnackBar(provider.successMessage ?? 'Transaction updated successfully');
       Navigator.pop(context, true);
     } else {
-      _showSnackBar(provider.errorMessage ?? 'Có lỗi xảy ra', isError: true);
+      _showSnackBar(provider.errorMessage ?? 'An error occurred', isError: true);
     }
   }
 
@@ -302,24 +302,24 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
       builder: (ctx) => AlertDialog(
         backgroundColor: Colors.grey[900],
         title: const Text(
-          'Xóa giao dịch',
+          'Delete transaction',
           style: TextStyle(color: Colors.white),
         ),
         content: const Text(
-          'Bạn có chắc muốn xóa giao dịch này? Thao tác không thể hoàn tác.',
+          'Are you sure you want to delete this transaction? This action cannot be undone.',
           style: TextStyle(color: Colors.grey),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx), // đóng dialog
-            child: const Text('Hủy', style: TextStyle(color: Colors.grey)),
+            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
           ),
           TextButton(
             onPressed: () {
               Navigator.pop(ctx); // đóng dialog trước
               _delete(); // thực hiện xóa
             },
-            child: const Text('Xóa', style: TextStyle(color: Colors.red)),
+            child: const Text('Delete', style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
@@ -338,10 +338,10 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
     if (!mounted) return;
 
     if (success) {
-      _showSnackBar(provider.successMessage ?? 'Đã xóa giao dịch');
+      _showSnackBar(provider.successMessage ?? 'Transaction deleted');
       Navigator.pop(context, true);
     } else {
-      _showSnackBar(provider.errorMessage ?? 'Có lỗi xảy ra', isError: true);
+      _showSnackBar(provider.errorMessage ?? 'An error occurred', isError: true);
     }
   }
 
@@ -401,7 +401,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
     if (selectableSources.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Không tìm thấy ví nào. Vui lòng tạo ví trước.'),
+          content: Text('No wallet found. Please create a wallet first.'),
           backgroundColor: Colors.red,
         ),
       );
@@ -517,7 +517,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
                           });
                           Navigator.pop(ctx);
                         },
-                        child: const Text('Bỏ chọn', style: TextStyle(color: Colors.red, fontSize: 13)),
+                        child: const Text('Deselect', style: TextStyle(color: Colors.red, fontSize: 13)),
                       ),
                   ],
                 ),
@@ -671,7 +671,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
                           });
                           Navigator.pop(ctx);
                         },
-                        child: const Text('Bỏ chọn', style: TextStyle(color: Colors.red, fontSize: 13)),
+                        child: const Text('Deselect', style: TextStyle(color: Colors.red, fontSize: 13)),
                       ),
                   ],
                 ),

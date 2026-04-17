@@ -151,7 +151,7 @@ class TransactionAppBar extends StatelessWidget implements PreferredSizeWidget {
             children: [
               Icon(Icons.view_list, color: Colors.white70, size: 20),
               SizedBox(width: 12),
-              Text('Xem theo nhật ký', style: TextStyle(color: Colors.white)),
+              Text('View by journal', style: TextStyle(color: Colors.white)),
             ],
           ),
         ),
@@ -161,7 +161,7 @@ class TransactionAppBar extends StatelessWidget implements PreferredSizeWidget {
             children: [
               Icon(Icons.category, color: Colors.white70, size: 20),
               SizedBox(width: 12),
-              Text('Xem theo nhóm', style: TextStyle(color: Colors.white)),
+              Text('View by group', style: TextStyle(color: Colors.white)),
             ],
           ),
         ),
@@ -172,7 +172,7 @@ class TransactionAppBar extends StatelessWidget implements PreferredSizeWidget {
             children: [
               Icon(Icons.date_range, color: Colors.white70, size: 20),
               SizedBox(width: 12),
-              Text('Khoảng thời gian', style: TextStyle(color: Colors.white)),
+              Text('Time period', style: TextStyle(color: Colors.white)),
             ],
           ),
         ),
@@ -183,7 +183,7 @@ class TransactionAppBar extends StatelessWidget implements PreferredSizeWidget {
             children: [
               Icon(Icons.tune, color: Colors.white70, size: 20),
               SizedBox(width: 12),
-              Text('Điều chỉnh số dư', style: TextStyle(color: Colors.white)),
+              Text('Adjust balance', style: TextStyle(color: Colors.white)),
             ],
           ),
         ),
@@ -193,7 +193,7 @@ class TransactionAppBar extends StatelessWidget implements PreferredSizeWidget {
             children: [
               Icon(Icons.swap_horiz, color: Colors.white70, size: 20),
               SizedBox(width: 12),
-              Text('Chuyển tiền đến ví khác', style: TextStyle(color: Colors.white)),
+              Text('Transfer to another wallet', style: TextStyle(color: Colors.white)),
             ],
           ),
         ),

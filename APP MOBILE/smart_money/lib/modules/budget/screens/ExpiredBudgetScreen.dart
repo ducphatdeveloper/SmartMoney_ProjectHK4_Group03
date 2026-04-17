@@ -112,7 +112,7 @@ class _ExpiredBudgetScreenState extends State<ExpiredBudgetScreen>
               walletId: provider.selectedWalletId);
         },
         child: ListView(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 16),
           children: [
             if (availableTypes.isNotEmpty)
               Padding(

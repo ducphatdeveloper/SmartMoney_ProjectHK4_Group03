@@ -988,19 +988,19 @@ class _PlannedFormScreenState extends State<PlannedFormScreen> {
         context: context,
         builder: (ctx) => AlertDialog(
           backgroundColor: const Color(0xFF2C2C2E),
-          title: const Text('Xác nhận sửa', style: TextStyle(color: Colors.white)),
+          title: const Text('Confirm edit', style: TextStyle(color: Colors.white)),
           content: Text(
-            'Bạn có chắc muốn cập nhật ${widget.planType == PlanType.recurring ? "giao dịch định kỳ" : "hóa đơn"} này?',
+            'Are you sure you want to update this ${widget.planType == PlanType.recurring ? "recurring transaction" : "bill"}?',
             style: const TextStyle(color: Colors.grey),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Hủy', style: TextStyle(color: Colors.grey)),
+              child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
             ),
             TextButton(
               onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Xác nhận', style: TextStyle(color: Colors.blue)),
+              child: const Text('Confirm', style: TextStyle(color: Colors.blue)),
             ),
           ],
         ),

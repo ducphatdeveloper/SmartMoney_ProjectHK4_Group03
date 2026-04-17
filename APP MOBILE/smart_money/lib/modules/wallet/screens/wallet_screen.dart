@@ -275,7 +275,7 @@ class _WalletListViewState extends State<WalletListView> {
                   ),
                 );
               },
-              child: const Text("Tạo ví"),
+              child: const Text("Create Wallet"),
             )
           ],
         ),
