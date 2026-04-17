@@ -205,7 +205,7 @@ class _AddBudgetScreenState extends State<AddBudgetScreen> {
 
                   final result = await showDateRangePicker(
                     context: context,
-                    firstDate: DateTime(2023),
+                    firstDate: DateTime.now(),
                     lastDate: DateTime(2030),
                   );
 
@@ -336,12 +336,28 @@ class _AddBudgetScreenState extends State<AddBudgetScreen> {
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
-        title: const Text("Thêm ngân sách"),
+        centerTitle: true,
         backgroundColor: Colors.black,
-        leading: TextButton(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () => Navigator.pop(context),
-          child: const Text("Huỷ"),
         ),
+
+        title: const Text(
+          "Sửa ngân sách",
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.2,
+          ),
+        ),
+        // backgroundColor: Colors.black,
+        // leading: IconButton(
+        //   icon: const Icon(Icons.arrow_back, color: Colors.white),
+        //   onPressed: () => Navigator.pop(context),
+        // ),
+
       ),
       bottomNavigationBar: Padding(
         padding: const EdgeInsets.all(16),
@@ -402,14 +418,17 @@ class _AddBudgetScreenState extends State<AddBudgetScreen> {
                 ListTile(
                   leading: IconHelper.buildCircleAvatar(
                     iconUrl: wallet?.goalImageUrl,
-                    radius: 20,
+                    radius: 22,
                   ),
                   title: Text(
-                    wallet?.walletName ?? "Chọn ví",
-                    style: const TextStyle(color: Colors.white),
+                    wallet?.walletName ?? "Không có ví",
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
                   ),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: widget.wallet != null ? null : pickWallet,
+                  subtitle: Text(
+                    wallet?.currencyCode ?? "VND",
+                    style: const TextStyle(color: Colors.grey, fontSize: 12),
+                  ),
+                  trailing: const Icon(Icons.lock, color: Colors.grey),
                 ),
               ],
             ),

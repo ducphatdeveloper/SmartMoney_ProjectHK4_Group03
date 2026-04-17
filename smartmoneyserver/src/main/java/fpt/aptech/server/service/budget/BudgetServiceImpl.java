@@ -660,5 +660,10 @@ public class BudgetServiceImpl implements BudgetService {
         if (!beginDate.isBefore(endDate)) {
             throw new IllegalArgumentException("Ngày bắt đầu phải trước ngày kết thúc.");
         }
+        // Kiểm tra ngày không được âm (trước ngày hiện tại)
+        LocalDate today = LocalDate.now();
+        if (beginDate.isBefore(today)) {
+            throw new IllegalArgumentException("Ngày bắt đầu phải từ ngày hiện tại trở đi.");
+        }
     }
 }

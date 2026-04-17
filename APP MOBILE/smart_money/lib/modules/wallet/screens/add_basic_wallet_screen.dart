@@ -87,32 +87,49 @@ class _AddBasicWalletScreenState extends State<AddBasicWalletScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isValid = nameError == null && balanceError == null;
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
         backgroundColor: Colors.black,
         elevation: 0,
-        leading: TextButton(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () => Navigator.pop(context),
-          child: const Text("Hủy", style: TextStyle(color: Colors.grey)),
         ),
         centerTitle: true,
-        title: const Text("Thêm Ví"),
-        actions: [
-          TextButton(
-            onPressed: _saveWallet, // nút luôn luôn hiển thị
-            child: isSaving
-                ? const SizedBox(
-              width: 18,
-              height: 18,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            )
-                : const Text(
-              "Lưu",
-              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        title: const Text(
+          "Thêm Ví",
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.2,
+          ),
+        ),
+      ),
+      bottomNavigationBar: Padding(
+        padding: const EdgeInsets.all(16),
+        child: ElevatedButton(
+          onPressed: (nameError == null && balanceError == null && !isSaving)
+              ? _saveWallet
+              : null,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: (nameError == null && balanceError == null && !isSaving)
+                ? Colors.green
+                : Colors.grey.shade800,
+          ),
+          child: isSaving
+              ? const SizedBox(
+            width: 20,
+            height: 20,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: Colors.white,
             ),
           )
-        ],
+              : const Text("Lưu"),
+        ),
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
@@ -182,7 +199,6 @@ class _AddBasicWalletScreenState extends State<AddBasicWalletScreen> {
               children: const [
                 Text("VND", style: TextStyle(color: Colors.white)),
                 SizedBox(width: 4),
-                Icon(Icons.chevron_right, color: Colors.grey),
               ],
             ),
             onTap: null,
