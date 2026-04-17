@@ -41,7 +41,7 @@ class DefaultFirebaseOptions {
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyATR6NvI7k91f3FPyuYsWBDCVQMO5Ev8fA',
     appId: '1:1051851661309:android:ab9fdc0e30943d96884394',
-    messagingSenderId: '315182273926',
+    messagingSenderId: '1051851661309',
     projectId: 'smartmoney-78185',
     storageBucket: 'smartmoney-78185.firebasestorage.app',
   );
@@ -49,7 +49,7 @@ class DefaultFirebaseOptions {
   static const FirebaseOptions ios = FirebaseOptions(
     apiKey: 'AIzaSyATR6NvI7k91f3FPyuYsWBDCVQMO5Ev8fA',
     appId: '1:1051851661309:android:ab9fdc0e30943d96884394',
-    messagingSenderId: '315182273926',
+    messagingSenderId: '1051851661309',
     projectId: 'smartmoney-78185',
     storageBucket: 'smartmoney-78185.firebasestorage.app',
     iosBundleId: 'com.example.smart_money',
