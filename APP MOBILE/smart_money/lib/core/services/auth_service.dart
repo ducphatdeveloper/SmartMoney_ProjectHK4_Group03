@@ -64,6 +64,46 @@ class AuthService {
     }
   }
 
+  Future<ApiResponse<AuthResponse>> loginWithGoogle({
+    required String idToken,
+    String? deviceToken,
+    String? deviceType,
+    String? deviceName,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse(AppConstants.authGoogleLogin),
+        headers: {"Content-Type": "application/json"},
+        body: jsonEncode({
+          "idToken": idToken,
+          "deviceToken": deviceToken ?? "",
+          "deviceType": deviceType ?? "ANDROID",
+          "deviceName": deviceName ?? "Google Device",
+        }),
+      );
+
+      final json = jsonDecode(utf8.decode(response.bodyBytes));
+      final apiResponse = ApiResponse<AuthResponse>.fromJson(
+        json,
+            (data) => AuthResponse.fromJson(data),
+      );
+
+      if (apiResponse.success && apiResponse.data != null) {
+        await TokenHelper.saveTokens(
+          apiResponse.data!.accessToken,
+          apiResponse.data!.refreshToken,
+        );
+      }
+
+      return apiResponse;
+    } catch (e) {
+      return ApiResponse<AuthResponse>(
+        success: false,
+        message: "Không thể kết nối đến server khi đăng nhập Google.",
+      );
+    }
+  }
+
   // =============================================
   // REGISTER
   // =============================================

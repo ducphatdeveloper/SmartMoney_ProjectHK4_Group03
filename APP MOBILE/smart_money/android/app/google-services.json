@@ -12,7 +12,28 @@
           "package_name": "com.example.smart_money"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "1051851661309-2k3qoih9bok8904h36eruijfolsqvjfc.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.smart_money",
+            "certificate_hash": "7569a8fe0e849ae4c99fc2de185f38af55302b07"
+          }
+        },
+        {
+          "client_id": "1051851661309-vh1j50nmc9bb4vic1qtvrtl7d1r0o3i0.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.smart_money",
+            "certificate_hash": "66ca3a7f1842687477dd8503ca6fe8416b040e60"
+          }
+        },
+        {
+          "client_id": "1051851661309-32haarhig9r42v6hhitg9cdo6g1grack.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyATR6NvI7k91f3FPyuYsWBDCVQMO5Ev8fA"
@@ -20,7 +41,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1051851661309-32haarhig9r42v6hhitg9cdo6g1grack.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

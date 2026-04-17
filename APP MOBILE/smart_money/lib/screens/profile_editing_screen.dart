@@ -16,7 +16,6 @@ class _ProfileEditingScreenState extends State<ProfileEditingScreen> {
   final _formKey = GlobalKey<FormState>();
   final _fullnameController = TextEditingController();
   final _phoneController = TextEditingController();
-  final _idCardController = TextEditingController();
   final _addressController = TextEditingController();
   
   String? _selectedGender;
@@ -26,7 +25,6 @@ class _ProfileEditingScreenState extends State<ProfileEditingScreen> {
   @override
   void initState() {
     super.initState();
-    // Call API to get latest data from DB when opening page
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await context.read<AuthProvider>().getProfile();
       _fillData();
@@ -39,12 +37,8 @@ class _ProfileEditingScreenState extends State<ProfileEditingScreen> {
       setState(() {
         _fullnameController.text = user.fullname ?? "";
         _phoneController.text = user.accPhone ?? "";
-        _idCardController.text = user.identityCard ?? "";
         _addressController.text = user.address ?? "";
         
-        // Map Vietnamese genders from DB to English for the UI list if needed,
-        // but assuming the app should use one language consistently.
-        // If DB stores "Nam", map it to "Male".
         String? genderFromDb = user.gender;
         if (genderFromDb == "Nam") _selectedGender = "Male";
         else if (genderFromDb == "Nữ") _selectedGender = "Female";
@@ -62,7 +56,6 @@ class _ProfileEditingScreenState extends State<ProfileEditingScreen> {
   void dispose() {
     _fullnameController.dispose();
     _phoneController.dispose();
-    _idCardController.dispose();
     _addressController.dispose();
     super.dispose();
   }
@@ -83,7 +76,6 @@ class _ProfileEditingScreenState extends State<ProfileEditingScreen> {
 
   void _saveProfile() async {
     if (_formKey.currentState!.validate()) {
-      // Map back to DB values if necessary, or just use the English ones if backend supports it.
       String? genderToSave = _selectedGender;
       if (_selectedGender == "Male") genderToSave = "Nam";
       else if (_selectedGender == "Female") genderToSave = "Nữ";
@@ -91,7 +83,7 @@ class _ProfileEditingScreenState extends State<ProfileEditingScreen> {
 
       final request = UpdateProfileRequest(
         fullname: _fullnameController.text,
-        identityCard: _idCardController.text,
+        // Đã loại bỏ identityCard
         address: _addressController.text,
         gender: genderToSave,
         dateofbirth: _selectedDate != null 
@@ -137,17 +129,10 @@ class _ProfileEditingScreenState extends State<ProfileEditingScreen> {
                 },
               ),
               _buildTextField(_phoneController, "Phone Number", Icons.phone, enabled: false), 
-              _buildTextField(
-                _idCardController, 
-                "Identity Card / SSN", 
-                Icons.badge,
-                validator: (value) => (value == null || value.isEmpty) ? "Please enter ID number" : null,
-              ),
               _buildTextField(_addressController, "Address", Icons.location_on, validator: null),
               
               const SizedBox(height: 16),
               
-              // Gender Dropdown
               DropdownButtonFormField<String>(
                 value: _selectedGender,
                 dropdownColor: const Color(0xFF1C1C1E),
@@ -159,7 +144,6 @@ class _ProfileEditingScreenState extends State<ProfileEditingScreen> {
 
               const SizedBox(height: 16),
 
-              // Date of Birth Picker
               InkWell(
                 onTap: () => _selectDate(context),
                 child: InputDecorator(

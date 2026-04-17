@@ -3,6 +3,7 @@ plugins {
     id("kotlin-android")
     // Flutter Gradle Plugin phải đặt SAU Android và Kotlin plugins
     id("dev.flutter.flutter-gradle-plugin")
+    id("com.google.gms.google-services")
 }
 
 android {
@@ -34,7 +35,7 @@ android {
         minSdk = flutter.minSdkVersion
         // Project yêu cầu targetSdk = 30 (Android 11)
         // Lưu ý: Google Play yêu cầu targetSdk >= 34 nếu muốn publish lên store
-        targetSdk = 30
+        targetSdk = 34
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }

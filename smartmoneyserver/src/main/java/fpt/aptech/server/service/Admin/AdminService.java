@@ -17,6 +17,11 @@ public interface AdminService {
     void unlockAccount(Integer id);
     Map<String, Object> getDashboardOverview();
     List<Notification> getAdminNotifications(Integer adminId);
+    
+    // [NEW] Quản lý trạng thái đọc thông báo cho Admin
+    void markNotificationAsRead(Integer notificationId);
+    void markAllNotificationsAsRead();
+
     Map<String, Object> getUserFinancialInsights(Integer userId);
 
     // CẬP NHẬT: Nhận startDate và endDate trực tiếp từ Client

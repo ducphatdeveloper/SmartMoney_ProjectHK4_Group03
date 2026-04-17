@@ -21,15 +21,21 @@ public interface ContactRequestRepository extends JpaRepository<ContactRequest, 
            "(:status IS NULL OR cr.requestStatus = :status) AND " +
            "(:type IS NULL OR cr.requestType = :type) AND " +
            "(:priority IS NULL OR cr.requestPriority = :priority) " +
-           "ORDER BY cr.createdAt DESC")
+           "ORDER BY cr.createdAt DESC, cr.id DESC")
     List<ContactRequest> findAllByFilters(
             @Param("status") ContactRequestStatus status,
             @Param("type") ContactRequestType type,
             @Param("priority") ContactRequestPriority priority);
 
-    Optional<ContactRequest> findFirstByAccountIdAndRequestTypeAndRequestStatusOrderByCreatedAtDesc(
+    Optional<ContactRequest> findFirstByAccountIdAndRequestTypeAndRequestStatusOrderByCreatedAtDescIdDesc(
             Integer accountId, ContactRequestType requestType, ContactRequestStatus requestStatus);
 
-    Optional<ContactRequest> findFirstByAccountIdAndRequestTypeInOrderByCreatedAtDesc(
-            Integer accountId, List<ContactRequestType> types);
+    @Query("SELECT cr FROM ContactRequest cr WHERE cr.account.id = :accountId AND cr.requestType IN :types ORDER BY cr.createdAt DESC, cr.id DESC")
+    List<ContactRequest> findLatestRequests(
+            @Param("accountId") Integer accountId, 
+            @Param("types") List<ContactRequestType> types);
+
+    default Optional<ContactRequest> findFirstByAccountIdAndRequestTypeInOrderByCreatedAtDescIdDesc(Integer accountId, List<ContactRequestType> types) {
+        return findLatestRequests(accountId, types).stream().findFirst();
+    }
 }

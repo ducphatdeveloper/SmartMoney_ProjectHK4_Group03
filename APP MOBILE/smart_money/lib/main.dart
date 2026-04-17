@@ -3,6 +3,7 @@ import 'package:smart_money/core/di/setup_dependencies.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'core/routing/app_router.dart';
 import 'modules/auth/providers/auth_provider.dart';
 import 'modules/budget/providers/budget_provider.dart';
@@ -22,57 +23,53 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
-// --- CẤU HÌNH THÔNG BÁO CỤC BỘ (LOCAL NOTIFICATIONS) ---
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
     FlutterLocalNotificationsPlugin();
 
 const AndroidNotificationChannel channel = AndroidNotificationChannel(
-  'smart_money_high_importance_channel', 
+  'smart_money_channel', 
   'Smart Money Notifications', 
   description: 'This channel is used for important notifications.', 
-  importance: Importance.max,
+  importance: Importance.max, 
   playSound: true,
   enableVibration: true,
   showBadge: true,
 );
 
-/// Hàm hiển thị thông báo cục bộ dùng chung
 void _showLocalNotification(RemoteMessage message) {
   RemoteNotification? notification = message.notification;
-  String? title = notification?.title ?? message.data['title'];
-  String? body = notification?.body ?? message.data['body'];
+  String? title = notification?.title ?? message.data['title'] ?? 'Smart Money';
+  String? body = notification?.body ?? message.data['body'] ?? 'Bạn có thông báo mới';
 
-  if (title != null || body != null) {
-    flutterLocalNotificationsPlugin.show(
-      message.hashCode,
-      title,
-      body,
-      NotificationDetails(
-        android: AndroidNotificationDetails(
-          channel.id,
-          channel.name,
-          channelDescription: channel.description,
-          icon: '@mipmap/launcher_icon',
-          importance: Importance.max,
-          priority: Priority.high,
-          ticker: 'ticker',
-          visibility: NotificationVisibility.public, // Hiển thị trên màn hình khóa
-          playSound: true,
-          enableVibration: true,
-        ),
+  flutterLocalNotificationsPlugin.show(
+    message.hashCode,
+    title,
+    body,
+    NotificationDetails(
+      android: AndroidNotificationDetails(
+        channel.id,
+        channel.name,
+        channelDescription: channel.description,
+        icon: '@mipmap/launcher_icon',
+        importance: Importance.max,
+        priority: Priority.high,
+        ticker: 'ticker',
+        visibility: NotificationVisibility.public,
+        playSound: true,
+        enableVibration: true,
+        fullScreenIntent: true, 
       ),
-      payload: '/notifications', // Gửi route để điều hướng khi bấm vào
-    );
-  }
+    ),
+    payload: '/notifications',
+  );
 }
 
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  debugPrint("Handling a background message: ${message.messageId}");
-  
-  // Hiển thị thông báo khi app đang ở chế độ Background/Terminated
-  _showLocalNotification(message);
+  if (message.notification == null) {
+    _showLocalNotification(message);
+  }
 }
 
 void main() async {
@@ -90,7 +87,6 @@ void main() async {
   const InitializationSettings initializationSettings =
       InitializationSettings(android: initializationSettingsAndroid);
   
-  // Khởi tạo và xử lý khi người dùng BẤM vào thông báo (lúc app đang mở hoặc chạy ngầm)
   await flutterLocalNotificationsPlugin.initialize(
     initializationSettings,
     onDidReceiveNotificationResponse: (NotificationResponse response) {
@@ -154,11 +150,24 @@ class _SmartMoneyAppState extends State<SmartMoneyApp> {
   @override
   void initState() {
     super.initState();
+    _requestPermission();
     _setupFCM();
   }
 
+  void _requestPermission() async {
+    await Permission.notification.request();
+    await FirebaseMessaging.instance.requestPermission(
+      alert: true,
+      badge: true,
+      sound: true,
+    );
+  }
+
   void _setupFCM() async {
-    // 1. Khi đang mở app (Foreground)
+    // LẤY TOKEN VÀ IN RA LOG ĐỂ KIỂM TRA
+    String? token = await FirebaseMessaging.instance.getToken();
+    debugPrint("🚀🚀🚀 FCM DEVICE TOKEN: $token");
+
     FirebaseMessaging.onMessage.listen((RemoteMessage message) {
       _showLocalNotification(message);
 
@@ -173,16 +182,13 @@ class _SmartMoneyAppState extends State<SmartMoneyApp> {
       }
     });
 
-    // 2. Khi app đang ở Background và người dùng BẤM vào thông báo của Firebase
     FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
       AppRouter.router.push('/notifications');
     });
 
-    // 3. Khi app đã bị TẮT hẳn (Terminated) và người dùng mở app từ thông báo
     RemoteMessage? initialMessage = await FirebaseMessaging.instance.getInitialMessage();
     if (initialMessage != null) {
-      // Đợi một chút để app khởi tạo router xong
-      Future.delayed(const Duration(milliseconds: 500), () {
+      Future.delayed(const Duration(milliseconds: 800), () {
         AppRouter.router.push('/notifications');
       });
     }

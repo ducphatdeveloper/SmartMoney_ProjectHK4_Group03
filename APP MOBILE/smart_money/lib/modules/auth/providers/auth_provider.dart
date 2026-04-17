@@ -4,10 +4,13 @@ import 'package:jwt_decoder/jwt_decoder.dart';
 import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart';
 import 'package:go_router/go_router.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 
 import '../../../core/di/setup_dependencies.dart';
 import '../../../core/models/user_model.dart';
 import '../../../core/services/auth_service.dart';
+import '../../../core/services/google_auth_service.dart';
 import '../../../core/helpers/token_helper.dart';
 import '../models/login_request.dart';
 import '../models/register_request.dart';
@@ -17,11 +20,9 @@ import 'package:provider/provider.dart';
 
 class AuthProvider extends ChangeNotifier {
   final AuthService _authService = getIt<AuthService>();
+  final GoogleAuthService _googleAuthService = getIt<GoogleAuthService>();
+  
   UserModel? _currentUser;
-  UserModel? _user;
-
-  UserModel? get user => _user;
-
   bool _isLoading = false;
 
   UserModel? get currentUser => _currentUser;
@@ -48,49 +49,27 @@ class AuthProvider extends ChangeNotifier {
 
   Future<void> _loadCurrentUser() async {
     _setLoading(true);
-
     final accessToken = await TokenHelper.getAccessToken();
     if (accessToken != null && !JwtDecoder.isExpired(accessToken)) {
       final decodedToken = JwtDecoder.decode(accessToken);
-      
-      List<dynamic> authorities = decodedToken['authorities'] ?? [];
-      String? roleCode;
-      List<String> permissions = [];
-      final String sub = decodedToken['sub']?.toString() ?? "";
-      
-      for (var auth in authorities) {
-        if (auth.toString().startsWith('ROLE_')) {
-          roleCode = auth.toString();
-        } else {
-          permissions.add(auth.toString());
-        }
-      }
-
-      _currentUser = UserModel(
-        userId: decodedToken['userId'],
-        accEmail: sub.contains('@') ? sub : null,
-        accPhone: !sub.contains('@') ? sub : null,
-        roleCode: roleCode,
-        permissions: permissions,
-      );
+      _currentUser = _fromDecodedToken(decodedToken);
     }
-
     _setLoading(false);
   }
 
-  Future<bool> login(String username, String password, BuildContext context) async {
-    _isLoading = true;
-    _errorMessage = null;
-    _successMessage = null;
-    _fieldErrors = {};
-    notifyListeners();
+  Future<Map<String, String?>> _getDeviceInfo() async {
+    final deviceInfo = DeviceInfoPlugin();
+    String? deviceToken;
+    String? deviceType = "ANDROID";
+    String? deviceName = "Unknown";
 
     try {
-      final deviceInfo = DeviceInfoPlugin();
-      String? deviceToken;
-      String? deviceType;
-      String? deviceName;
+      deviceToken = await FirebaseMessaging.instance.getToken();
+    } catch (e) {
+      debugPrint("FCM Token Error: $e");
+    }
 
+    try {
       if (kIsWeb) {
         deviceType = "WEB";
         deviceName = "Web Browser";
@@ -102,50 +81,95 @@ class AuthProvider extends ChangeNotifier {
         final iosInfo = await deviceInfo.iosInfo;
         deviceType = "IOS";
         deviceName = iosInfo.name;
-      } else {
-        deviceType = Platform.operatingSystem.toUpperCase();
-        deviceName = Platform.localHostname;
       }
+    } catch (e) {
+       debugPrint("Device Info Error: $e");
+    }
 
+    return {
+      "deviceToken": deviceToken,
+      "deviceType": deviceType,
+      "deviceName": deviceName,
+    };
+  }
+
+  Future<bool> login(String username, String password, BuildContext context) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final info = await _getDeviceInfo();
       final request = LoginRequest(
         username: username,
         password: password,
-        deviceToken: deviceToken,
-        deviceType: deviceType,
-        deviceName: deviceName,
+        deviceToken: info["deviceToken"],
+        deviceType: info["deviceType"],
+        deviceName: info["deviceName"],
       );
 
       final response = await _authService.login(request);
-
       if (response.success && response.data != null) {
         _currentUser = UserModel.fromAuthResponse(response.data!);
-        _successMessage = response.message ?? 'Đăng nhập thành công';
-        
-        // Tải thông báo ngay khi đăng nhập
-        if (context.mounted) {
-          context.read<NotificationProvider>().fetchNotifications();
-        }
-        
+        if (context.mounted) context.read<NotificationProvider>().fetchNotifications();
         _isLoading = false;
         notifyListeners();
         return true;
-      } else {
-        _currentUser = null;
-        _errorMessage = _extractErrorMessage(response);
-        try {
-          final raw = response.data as dynamic;
-          if (raw is Map<String, dynamic> && raw != null && raw.isNotEmpty) {
-            _fieldErrors = Map<String, String>.from(raw as Map<String, dynamic>);
-          }
-        } catch (_) {}
+      }
+      _errorMessage = _extractErrorMessage(response);
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    } catch (e) {
+      _errorMessage = 'Lỗi kết nối server.';
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<bool> loginWithGoogle(BuildContext context) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      // 1. Thực hiện lấy Authentication từ Google
+      final googleAuth = await _googleAuthService.signInWithGoogle();
+
+      if (googleAuth == null || googleAuth.idToken == null) {
+        _errorMessage = "Đăng nhập bị hủy hoặc không thể kết nối tới Google.";
         _isLoading = false;
         notifyListeners();
         return false;
       }
+
+      // 2. Lấy thông tin thiết bị (bọc trong try-catch riêng để tránh crash)
+      final info = await _getDeviceInfo();
+
+      // 3. Gửi idToken lên Backend
+      final response = await _authService.loginWithGoogle(
+        idToken: googleAuth.idToken!,
+        deviceToken: info["deviceToken"],
+        deviceType: info["deviceType"],
+        deviceName: info["deviceName"],
+      );
+
+      if (response.success && response.data != null) {
+        _currentUser = UserModel.fromAuthResponse(response.data!);
+        if (context.mounted) context.read<NotificationProvider>().fetchNotifications();
+        _isLoading = false;
+        notifyListeners();
+        return true;
+      }
+      
+      _errorMessage = response.message ?? "Tài khoản Google này chưa được cấp phép hoặc lỗi xác thực.";
+      _isLoading = false;
+      notifyListeners();
+      return false;
     } catch (e) {
-      debugPrint("Login Error: $e");
-      _currentUser = null;
-      _errorMessage = 'Không thể kết nối đến server. Kiểm tra lại mạng.';
+      debugPrint("LoginWithGoogle Exception: $e");
+      _errorMessage = 'Lỗi trong quá trình xử lý đăng nhập Google.';
       _isLoading = false;
       notifyListeners();
       return false;
@@ -155,104 +179,58 @@ class AuthProvider extends ChangeNotifier {
   Future<bool> register(String? email, String? phone, String password, String confirmPassword) async {
     _isLoading = true;
     _errorMessage = null;
-    _successMessage = null;
-    _fieldErrors = {};
     notifyListeners();
-
     try {
-      final request = RegisterRequest(
-        accEmail: email,
-        accPhone: phone,
-        password: password,
-        confirmPassword: confirmPassword,
-      );
-
+      final request = RegisterRequest(accEmail: email, accPhone: phone, password: password, confirmPassword: confirmPassword);
       final response = await _authService.register(request);
-
       if (response.success) {
         _successMessage = response.message ?? 'Đăng ký thành công';
         _isLoading = false;
         notifyListeners();
         return true;
-      } else {
-        _errorMessage = _extractErrorMessage(response);
-        try {
-          final raw = response.data as dynamic;
-          if (raw is Map<String, dynamic> && raw != null && raw.isNotEmpty) {
-            _fieldErrors = Map<String, String>.from(raw as Map<String, dynamic>);
-          }
-        } catch (_) {}
-        _isLoading = false;
-        notifyListeners();
-        return false;
       }
+      _errorMessage = _extractErrorMessage(response);
+      _isLoading = false;
+      notifyListeners();
+      return false;
     } catch (e) {
-      debugPrint("Register Error: $e");
-      _errorMessage = 'Không thể kết nối đến server. Kiểm tra lại mạng.';
+      _errorMessage = 'Không thể kết nối đến server.';
       _isLoading = false;
       notifyListeners();
       return false;
     }
   }
 
-  /// Xử lý đăng xuất và điều hướng về login
   Future<void> logout(BuildContext context) async {
     _setLoading(true);
-
     try {
-      String? deviceToken;
+      String? deviceToken = await FirebaseMessaging.instance.getToken();
       await _authService.logout(deviceToken: deviceToken ?? "");
-      
-      // Xóa thông báo khi đăng xuất
-      if (context.mounted) {
-        context.read<NotificationProvider>().clearNotifications();
-      }
-    } catch (e) {
-      debugPrint("Logout Error: $e");
-    } finally {
-      // 1. Xóa dữ liệu người dùng cục bộ
+    } catch (_) {} finally {
       _currentUser = null;
-      
-      // 2. Xóa các token đã lưu
       await TokenHelper.clearTokens();
-      
+      await _googleAuthService.signOutGoogle();
       _setLoading(false);
-      
-      // 3. Điều hướng về màn hình đăng nhập và xóa toàn bộ stack cũ
-      if (context.mounted) {
-        context.go("/login");
-      }
+      if (context.mounted) context.go("/login");
     }
   }
+
+  // ... (các hàm khác giữ nguyên)
 
   Future<bool> requestPasswordReset(String email) async {
     _setLoading(true);
     try {
       final response = await _authService.forgotPassword(email);
       return response.success == true;
-    } catch (e) {
-      debugPrint("RequestPasswordReset Error: $e");
-      return false;
-    } finally {
-      _setLoading(false);
-    }
+    } catch (_) { return false; } finally { _setLoading(false); }
   }
 
-  Future<bool> confirmResetPassword({
-    required String email,
-    required String otp,
-    required String newPassword,
-  }) async {
+  Future<bool> confirmResetPassword({required String email, required String otp, required String newPassword}) async {
     _setLoading(true);
     try {
       final response = await _authService.resetPassword(email, otp, newPassword);
       return response.success == true;
-    } catch (e) {
-      debugPrint("ConfirmResetPassword Error: $e");
-      return false;
-    } finally {
-      _setLoading(false);
-    }
+    } catch (_) { return false; } finally { _setLoading(false); }
   }
 
   Future<void> getProfile() async {
@@ -262,11 +240,7 @@ class AuthProvider extends ChangeNotifier {
       if (response.success == true && response.data != null) {
         _currentUser = UserModel.fromAuthResponse(response.data!);
       }
-    } catch (e) {
-      debugPrint("GetProfile Error: $e");
-    } finally {
-      _setLoading(false);
-    }
+    } catch (_) {} finally { _setLoading(false); }
   }
 
   Future<String?> updateAvatar(String filePath) async {
@@ -276,16 +250,12 @@ class AuthProvider extends ChangeNotifier {
       if (response.success == true && response.data != null) {
         if (_currentUser != null) {
           _currentUser = _currentUser!.copyWith(avatarUrl: response.data);
+          notifyListeners();
         }
         return response.data;
       }
       return null;
-    } catch (e) {
-      debugPrint("UpdateAvatar Error: $e");
-      return null;
-    } finally {
-      _setLoading(false);
-    }
+    } catch (_) { return null; } finally { _setLoading(false); }
   }
 
   Future<bool> updateProfile(UpdateProfileRequest request) async {
@@ -294,15 +264,11 @@ class AuthProvider extends ChangeNotifier {
       final response = await _authService.updateProfile(request);
       if (response.success == true && response.data != null) {
         _currentUser = UserModel.fromAuthResponse(response.data!);
+        notifyListeners();
         return true;
       }
       return false;
-    } catch (e) {
-      debugPrint("UpdateProfile Error: $e");
-      return false;
-    } finally {
-      _setLoading(false);
-    }
+    } catch (_) { return false; } finally { _setLoading(false); }
   }
 
   Future<bool> sendEmergencyLockOTP(String identityCard) async {
@@ -310,12 +276,7 @@ class AuthProvider extends ChangeNotifier {
     try {
       final response = await _authService.sendEmergencyLockOTP(identityCard);
       return response.success == true;
-    } catch (e) {
-      debugPrint("EmergencyLock Error: $e");
-      return false;
-    } finally {
-      _setLoading(false);
-    }
+    } catch (_) { return false; } finally { _setLoading(false); }
   }
 
   Future<bool> verifyAndLockAccount(String otpCode) async {
@@ -323,23 +284,32 @@ class AuthProvider extends ChangeNotifier {
     try {
       final response = await _authService.verifyAndLockAccount(otpCode);
       return response.success == true;
-    } catch (e) {
-      debugPrint("VerifyAndLock Error: $e");
-      return false;
-    } finally {
-      _setLoading(false);
-    }
+    } catch (_) { return false; } finally { _setLoading(false); }
   }
 
   String _extractErrorMessage(dynamic response) {
-    try {
-      final raw = response.data;
-      if (raw is Map && raw.isNotEmpty) {
-        return raw.values.join('\n');
+    if (response.message != null && response.message!.isNotEmpty) return response.message!;
+    return 'Có lỗi xảy ra. Vui lòng thử lại.';
+  }
+
+  UserModel _fromDecodedToken(Map<String, dynamic> decodedToken) {
+    List<dynamic> authorities = decodedToken['authorities'] ?? [];
+    String? roleCode;
+    List<String> permissions = [];
+    final String sub = decodedToken['sub']?.toString() ?? "";
+    for (var auth in authorities) {
+      if (auth.toString().startsWith('ROLE_')) {
+        roleCode = auth.toString();
+      } else {
+        permissions.add(auth.toString());
       }
-    } catch (_) {}
-    return response.message?.toString().isNotEmpty == true
-        ? response.message.toString()
-        : 'Có lỗi xảy ra. Vui lòng thử lại.';
+    }
+    return UserModel(
+      userId: decodedToken['userId'],
+      accEmail: sub.contains('@') ? sub : null,
+      accPhone: !sub.contains('@') ? sub : null,
+      roleCode: roleCode,
+      permissions: permissions,
+    );
   }
 }

@@ -415,6 +415,39 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           ),
                         ),
 
+                        const SizedBox(height: 15),
+                        // --- Nút Đăng ký bằng Google ---
+                        SizedBox(
+                          width: double.infinity,
+                          height: 50,
+                          child: OutlinedButton.icon(
+                            icon: Image.asset(
+                              'assets/icons/google_logo.png', // Thay đổi từ Image.network sang Image.asset
+                              height: 24,
+                            ),
+                            label: const Text(
+                              "Sign up with Google",
+                              style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold),
+                            ),
+                            style: OutlinedButton.styleFrom(
+                              side: const BorderSide(color: Colors.grey),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                            ),
+                            onPressed: authProvider.isLoading ? null : () async {
+                              final success = await authProvider.loginWithGoogle(context); // Sử dụng lại logic loginWithGoogle
+                              if (!mounted) return;
+                              if (success) {
+                                _showSnackBar(authProvider.successMessage ?? 'Đăng ký/Đăng nhập Google thành công!', isError: false);
+                                context.go("/main");
+                              } else if (authProvider.errorMessage != null) {
+                                _showSnackBar(authProvider.errorMessage!);
+                              }
+                            },
+                          ),
+                        ),
+
                         const SizedBox(height: 20),
 
                         /// LOGIN LINK

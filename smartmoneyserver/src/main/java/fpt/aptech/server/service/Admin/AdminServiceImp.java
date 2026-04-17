@@ -11,10 +11,7 @@ import fpt.aptech.server.entity.ContactRequest;
 import fpt.aptech.server.enums.contact.ContactRequestStatus;
 import fpt.aptech.server.enums.contact.ContactRequestType;
 import fpt.aptech.server.enums.notification.NotificationType;
-import fpt.aptech.server.repos.AccountRepository;
-import fpt.aptech.server.repos.UserDeviceRepository;
-import fpt.aptech.server.repos.TransactionRepository;
-import fpt.aptech.server.repos.ContactRequestRepository;
+import fpt.aptech.server.repos.*;
 import fpt.aptech.server.service.debt.DebtCalculationService;
 import fpt.aptech.server.service.notification.NotificationService;
 import fpt.aptech.server.service.notification.NotificationContent;
@@ -32,7 +29,6 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
@@ -56,6 +52,7 @@ public class AdminServiceImp implements AdminService {
     private final AccountRepository accountRepository;
     private final UserDeviceRepository userDeviceRepository;
     private final NotificationService notificationService;
+    private final NotificationRepository notificationRepository;
     private final TransactionRepository transactionRepository;
     private final DebtCalculationService debtCalculationService;
     private final ContactRequestRepository contactRequestRepository;
@@ -130,27 +127,27 @@ public class AdminServiceImp implements AdminService {
 
     /**
      * Khóa tài khoản.
-     * ✅ Yêu cầu: Phải có ít nhất 1 ContactRequest (ACCOUNT_LOCK) ở trạng thái APPROVED.
-     * ✅ Ràng buộc: Phải là yêu cầu mới nhất liên quan đến trạng thái tài khoản.
+     * ✅ Yêu cầu: Phải dựa trên ContactRequest (ACCOUNT_LOCK) ở trạng thái APPROVED mới nhất.
+     * ✅ Ràng buộc: Phải là yêu cầu mới nhất liên quan đến trạng thái tài khoản (dựa trên thời gian và ID).
      */
     @Override
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    @Transactional
     public void lockAccount(Integer id) {
         Account account = accountRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy tài khoản ID: " + id));
+                .orElseThrow(() -> new RuntimeException("Account ID not found: " + id));
 
-        // 1. Lấy yêu cầu mới nhất liên quan đến LOCK/UNLOCK
-        ContactRequest latestRequest = contactRequestRepository.findFirstByAccountIdAndRequestTypeInOrderByCreatedAtDesc(
+        // 1. Lấy yêu cầu mới nhất liên quan đến LOCK/UNLOCK (Sắp xếp theo createdAt DESC, id DESC)
+        ContactRequest latestRequest = contactRequestRepository.findFirstByAccountIdAndRequestTypeInOrderByCreatedAtDescIdDesc(
                         id, Arrays.asList(ContactRequestType.ACCOUNT_LOCK, ContactRequestType.ACCOUNT_UNLOCK))
-                .orElseThrow(() -> new RuntimeException("Người dùng chưa có yêu cầu hỗ trợ nào liên quan đến trạng thái tài khoản."));
+                .orElseThrow(() -> new RuntimeException("The user has not made any support requests related to account status."));
 
         // 2. Kiểm tra tính hợp lệ của yêu cầu mới nhất
         if (latestRequest.getRequestType() != ContactRequestType.ACCOUNT_LOCK) {
-            throw new RuntimeException("Yêu cầu mới nhất của người dùng là MỞ KHÓA. Không thể thực hiện KHÓA.");
+            throw new RuntimeException("The user's latest request is " + latestRequest.getRequestType() + ". Cannot execute LOCK.");
         }
 
         if (latestRequest.getRequestStatus() != ContactRequestStatus.APPROVED) {
-            throw new RuntimeException("Yêu cầu KHÓA TÀI KHOẢN mới nhất chưa được phê duyệt.");
+            throw new RuntimeException("Request to LOCK the latest ACCOUNT (#" + latestRequest.getId() + ") not approved yet.");
         }
 
         // 3. Khóa tài khoản
@@ -175,27 +172,27 @@ public class AdminServiceImp implements AdminService {
 
     /**
      * Mở khóa tài khoản.
-     * ✅ Yêu cầu: Phải có ít nhất 1 ContactRequest (ACCOUNT_UNLOCK) ở trạng thái APPROVED.
-     * ✅ Ràng buộc: Phải là yêu cầu mới nhất liên quan đến trạng thái tài khoản.
+     * ✅ Yêu cầu: Phải dựa trên ContactRequest (ACCOUNT_UNLOCK) ở trạng thái APPROVED mới nhất.
+     * ✅ Ràng buộc: Phải là yêu cầu mới nhất liên quan đến trạng thái tài khoản (dựa trên thời gian và ID).
      */
     @Override
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    @Transactional
     public void unlockAccount(Integer id) {
         Account account = accountRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Không tìm thấy tài khoản ID: " + id));
 
-        // 1. Lấy yêu cầu mới nhất liên quan đến LOCK/UNLOCK
-        ContactRequest latestRequest = contactRequestRepository.findFirstByAccountIdAndRequestTypeInOrderByCreatedAtDesc(
+        // 1. Lấy yêu cầu mới nhất liên quan đến LOCK/UNLOCK (Sắp xếp theo createdAt DESC, id DESC)
+        ContactRequest latestRequest = contactRequestRepository.findFirstByAccountIdAndRequestTypeInOrderByCreatedAtDescIdDesc(
                         id, Arrays.asList(ContactRequestType.ACCOUNT_LOCK, ContactRequestType.ACCOUNT_UNLOCK))
                 .orElseThrow(() -> new RuntimeException("Người dùng chưa có yêu cầu hỗ trợ nào liên quan đến trạng thái tài khoản."));
 
         // 2. Kiểm tra tính hợp lệ của yêu cầu mới nhất
         if (latestRequest.getRequestType() != ContactRequestType.ACCOUNT_UNLOCK) {
-            throw new RuntimeException("Yêu cầu mới nhất của người dùng là KHÓA TÀI KHOẢN. Không thể thực hiện MỞ KHÓA.");
+            throw new RuntimeException("The user's latest request is " + latestRequest.getRequestType() + ". Unable to UNLOCK.");
         }
 
         if (latestRequest.getRequestStatus() != ContactRequestStatus.APPROVED) {
-            throw new RuntimeException("Yêu cầu MỞ KHÓA TÀI KHOẢN mới nhất chưa được phê duyệt.");
+            throw new RuntimeException("Request to UNLOCK the latest ACCOUNT (#" + latestRequest.getId() + ") not approved yet.");
         }
 
         // 3. Mở khóa tài khoản
@@ -207,7 +204,7 @@ public class AdminServiceImp implements AdminService {
             NotificationContent msg = NotificationMessages.accountUnlocked();
             notificationService.createNotification(account, msg.title(), msg.content(), NotificationType.SYSTEM, null, LocalDateTime.now());
         } catch (Exception e) { 
-            log.warn("Không thể gửi thông báo mở khóa: {}", e.getMessage()); 
+            log.warn("Cannot send unlock notification: {}", e.getMessage());
         }
     }
 
@@ -225,7 +222,37 @@ public class AdminServiceImp implements AdminService {
 
     @Override
     public List<Notification> getAdminNotifications(Integer adminId) {
-        return notificationService.getNotificationsByType(NotificationType.SYSTEM.getValue());
+        // [CẬP NHẬT] Chỉ lấy thông báo hệ thống (SYSTEM) cho trang Admin, sắp xếp mới nhất
+        return notificationRepository.findAllVisibleNotificationsByNotifyTypeOrderByScheduledTimeDesc(
+                NotificationType.SYSTEM.getValue(), 
+                LocalDateTime.now()
+        );
+    }
+
+    @Override
+    @Transactional
+    public void markNotificationAsRead(Integer notificationId) {
+        Notification n = notificationRepository.findById(notificationId)
+                .orElseThrow(() -> new RuntimeException("Notification not found"));
+        if (!n.getNotifyRead()) {
+            n.setNotifyRead(true);
+            notificationRepository.save(n);
+        }
+    }
+
+    @Override
+    @Transactional
+    public void markAllNotificationsAsRead() {
+        // Chỉ đánh dấu các thông báo SYSTEM của Admin là đã đọc
+        List<Notification> unread = notificationRepository.findAllVisibleNotificationsByNotifyTypeOrderByScheduledTimeDesc(
+                NotificationType.SYSTEM.getValue(), 
+                LocalDateTime.now()
+        ).stream().filter(n -> !n.getNotifyRead()).toList();
+        
+        if (!unread.isEmpty()) {
+            unread.forEach(n -> n.setNotifyRead(true));
+            notificationRepository.saveAll(unread);
+        }
     }
 
     @Override
@@ -378,10 +405,10 @@ public class AdminServiceImp implements AdminService {
     @Transactional
     public void restoreTransaction(Long transactionId) {
         Transaction tx = transactionRepository.findAnyById(transactionId)
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy giao dịch ID: " + transactionId));
+                .orElseThrow(() -> new RuntimeException("Transaction ID not found: " + transactionId));
         
         if (Boolean.FALSE.equals(tx.getDeleted())) {
-            throw new RuntimeException("Giao dịch này hiện không bị xóa.");
+            throw new RuntimeException("This transaction is currently not deleted.");
         }
 
         log.info("Attempting to restore transaction ID: {} (Account ID: {})", transactionId, tx.getAccount().getId());
@@ -408,8 +435,8 @@ public class AdminServiceImp implements AdminService {
         log.info("Transaction ID: {} restored successfully. New deleted status: {}", transactionId, tx.getDeleted());
 
         try {
-            String title = "Giao dịch được khôi phục";
-            String content = "Giao dịch trị giá " + tx.getAmount().toString() + " đã được Admin khôi phục thành công.";
+            String title = "Transaction has been restored";
+            String content = "Transaction worth" + tx.getAmount().toString() + " has been successfully restored by the Admin.";
             notificationService.createNotification(tx.getAccount(), title, content, NotificationType.SYSTEM, tx.getId(), LocalDateTime.now());
         } catch (Exception e) {
             log.warn("Giao dịch đã khôi phục nhưng không thể gửi thông báo: {}", e.getMessage());
@@ -454,8 +481,8 @@ public class AdminServiceImp implements AdminService {
                 .forEach(debtId -> debtCalculationService.recalculateDebt(debtId, account));
 
         try {
-            String title = "Dữ liệu được khôi phục";
-            String content = "Toàn bộ giao dịch đã xóa của bạn đã được Admin khôi phục thành công.";
+            String title = "Transaction has been restored";
+            String content = "All of your deleted transactions have been successfully restored by the Admin.";
             notificationService.createNotification(account, title, content, NotificationType.SYSTEM, null, LocalDateTime.now());
         } catch (Exception e) {
             log.warn("Đã khôi phục nhưng không thể gửi thông báo cho user {}: {}", userId, e.getMessage());

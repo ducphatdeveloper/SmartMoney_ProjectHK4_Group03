@@ -165,7 +165,9 @@ export const adminApi = {
         params: cleanParams(params)
     }),
     handleAutoLogout: () => api.post('/admin/system/auto-logout'),
-    getAdminNotifications: () => api.get('/admin/notifications'), // Updated
+    getAdminNotifications: () => api.get('/admin/notifications'),
+    markAdminAsRead: (id) => api.put(`/admin/notifications/${id}/read`),
+    markAllAdminAsRead: () => api.put('/admin/notifications/read-all'),
     getAllContactRequests: (params) => api.get('/admin/contact-requests', { params: cleanParams(params) }),
     getContactRequestById: (id) => api.get(`/admin/contact-requests/${id}`),
     resolveContactRequest: (id, data) => api.patch(`/admin/contact-requests/${id}/resolve`, data),

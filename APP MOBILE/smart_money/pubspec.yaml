@@ -34,9 +34,6 @@ dependencies:
 
   # --- IMAGE LOADING & CACHE ---
   # Load ảnh từ URL Cloudinary và tự lưu vào bộ nhớ thiết bị.
-  # Lần đầu: tải từ internet. Lần sau: đọc từ máy, không tốn băng thông.
-  # Cache giữ mãi đến khi user xóa cache app trong Cài đặt điện thoại.
-  # Dùng cho: avatar người dùng, icon ví, icon danh mục, icon sự kiện.
   cached_network_image: ^3.3.1
 
   image_picker: ^1.1.2
@@ -69,17 +66,20 @@ dependencies:
   # --- Firebase ---
   # Bắt buộc phải có: khởi tạo Firebase trước khi dùng bất kỳ dịch vụ Firebase nào
   firebase_core: ^3.6.0
+  # Firebase Authentication
+  firebase_auth: ^5.3.1
+  # Google Sign In
+  google_sign_in: ^6.2.1
+  
   # Nhận push notification khi app đang ĐÓNG hoặc chạy nền (vuốt từ trên xuống)
   firebase_messaging: ^15.1.3
   # Hiện thông báo vuốt từ trên xuống khi app đang MỞ
-  # Firebase không tự hiện UI khi app foreground, package này bù phần đó
   flutter_local_notifications: ^17.0.0
   # Kiểm tra có Wifi/4G không trước khi gọi API
-  # Mất mạng → báo ngay "Không có kết nối" thay vì chờ 30 giây rồi crash
   connectivity_plus: ^6.0.3
 
   # --- NAVIGATION ---
-  # Điều hướng giữa các màn hình, khớp với core/routing/app_router.dart
+  # Điều hiểu giữa các màn hình, khớp với core/routing/app_router.dart
   go_router: ^14.0.2
 
   # --- URL LAUNCHER ---
