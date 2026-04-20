@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { adminApi, authApi, notificationApi, utilApi, getIconUrl } from '../server/api';
+import { adminApi, authApi, utilApi, getIconUrl, getCategoryName } from '../server/api';
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Tooltip, Legend, ArcElement } from 'chart.js';
 import { Bar, Doughnut } from 'react-chartjs-2';
 
@@ -182,6 +182,57 @@ const AdminDashboard = () => {
             rangeScrollRef.current.scrollBy({ left: direction === 'left' ? -scrollAmount : scrollAmount, behavior: 'smooth' });
         }
     }, []);
+
+    /**
+     * Dịch chi tiết nhãn dải ngày từ Backend (e.g. "Oct 2023", "Week 42", "Quarter 4", "This month", "Future")
+     */
+    const translateRangeLabel = useCallback((label) => {
+        if (lang !== 'vi' || !label) return label;
+        let translated = label;
+        
+        // 1. Dịch cụm từ nguyên bản thường gặp
+        const fixedPhrases = {
+            'This month': 'Tháng này',
+            'Last month': 'Tháng trước',
+            'This week': 'Tuần này',
+            'Last week': 'Tuần trước',
+            'This year': 'Năm nay',
+            'Last year': 'Năm trước',
+            'Today': 'Hôm nay',
+            'Yesterday': 'Hôm qua',
+            'Future': 'Tương lai',
+            'CURRENT': 'HIỆN TẠI',
+            'LAST': 'TRƯỚC'
+        };
+        if (fixedPhrases[label]) return fixedPhrases[label];
+
+        // Sort keys by length descending to ensure longer phrases are matched first
+        const sortedPhrases = Object.keys(fixedPhrases).sort((a, b) => b.length - a.length);
+        for (const phrase of sortedPhrases) {
+            if (translated.includes(phrase)) {
+                translated = translated.replace(new RegExp(`\\b${phrase}\\b`, 'g'), fixedPhrases[phrase]);
+            }
+        }
+
+        // 2. Dịch tháng (Jan -> Th01, ...)
+        const months = {
+            'Jan': 'Th01', 'Feb': 'Th02', 'Mar': 'Th03', 'Apr': 'Th04', 'May': 'Th05', 'Jun': 'Th06',
+            'Jul': 'Th07', 'Aug': 'Th08', 'Sep': 'Th09', 'Oct': 'Th10', 'Nov': 'Th11', 'Dec': 'Th12'
+        };
+        Object.keys(months).forEach(m => {
+            translated = translated.replace(new RegExp(`\\b${m}\\b`, 'g'), months[m]);
+        });
+
+        // 3. Dịch các từ khóa khác (replace theo word boundary để tránh dính chữ)
+        translated = translated.replace(/\bQuarter\b/g, 'Quý');
+        translated = translated.replace(/\bWeek\b/g, 'Tuần');
+        translated = translated.replace(/\bLAST\b/g, 'TRƯỚC');
+        translated = translated.replace(/\bCURRENT\b/g, 'HIỆN TẠI');
+        translated = translated.replace(/\bThis\b/g, 'Tháng này');
+        translated = translated.replace(/\bmonth\b/g, 'tháng');
+
+        return translated;
+    }, [lang]);
 
     // --- API CALLS ---
     const handleLogout = useCallback(async (reason = '') => {
@@ -503,7 +554,7 @@ const AdminDashboard = () => {
             return { labels: [], datasets: [] };
         }
         return {
-            labels: chartStats.sortedBreakdown.map(item => wrapLabel(item.categoryName)),
+            labels: chartStats.sortedBreakdown.map(item => wrapLabel(getCategoryName(item.categoryName, lang))),
             datasets: [{
                 label: t('weight'),
                 data: chartStats.sortedBreakdown.map(item => Number(item.percentage)),
@@ -511,7 +562,7 @@ const AdminDashboard = () => {
                 borderRadius: 6, barPercentage: 0.7
             }]
         };
-    }, [chartStats, wrapLabel, t]);
+    }, [chartStats, wrapLabel, t, lang]);
 
     const doughnutData = useMemo(() => {
         if (!chartStats) {
@@ -570,17 +621,17 @@ const AdminDashboard = () => {
                 const effectiveIconIdentifier = item.categoryIcon || item.icon || item.iconName || item.categoryName;
                 const iconUrl = effectiveIconIdentifier ? getIconUrl(effectiveIconIdentifier) : null;
                 const iconImg = iconUrl ? loadedIcons[iconUrl] : null;
-                const categoryName = wrapLabel(item.categoryName);
+                const categoryDisplayName = wrapLabel(getCategoryName(item.categoryName, lang));
 
                 ctx.font = 'bold 11px Inter, sans-serif';
                 ctx.textBaseline = 'middle';
 
-                const textWidth = ctx.measureText(categoryName).width;
+                const textWidth = ctx.measureText(categoryDisplayName).width;
                 const textX = labelAreaWidth - textWidth;
                 
                 ctx.fillStyle = '#64748b';
                 ctx.textAlign = 'left';
-                ctx.fillText(categoryName, textX, yPos);
+                ctx.fillText(categoryDisplayName, textX, yPos);
 
                 const iconX = textX - textMargin - iconSize;
                 if (iconImg && iconImg.complete) {
@@ -595,7 +646,7 @@ const AdminDashboard = () => {
             });
             ctx.restore();
         }
-    }), [chartStats.sortedBreakdown, loadedIcons, wrapLabel]);
+    }), [chartStats.sortedBreakdown, loadedIcons, wrapLabel, lang]);
 
     // --- EFFECTS ---
     useEffect(() => {
@@ -782,7 +833,7 @@ const AdminDashboard = () => {
             <div className="card shadow-sm border-0 rounded-4 overflow-hidden mb-4">
                 <div className="card-header bg-white border-0 pt-4 px-4">
                     <div className="d-flex flex-wrap justify-content-between align-items-center gap-3">
-                        <div><h5 className="mb-1 fw-bold text-dark">{t('flowAnalysis')}</h5><p className="text-muted small mb-0">{selectedRange ? `${selectedRange.label}` : t('loading')}</p></div>
+                        <div><h5 className="mb-1 fw-bold text-dark">{t('flowAnalysis')}</h5><p className="text-muted small mb-0">{selectedRange ? `${translateRangeLabel(selectedRange.label)}` : t('loading')}</p></div>
                         <div className="btn-group btn-group-sm p-1 bg-light rounded-3">
                             {[{m: 'DAILY', l: t('day')}, {m: 'WEEKLY', l: t('week')}, {m: 'MONTHLY', l: t('month')}, {m: 'QUARTERLY', l: t('quarter')}, {m: 'YEARLY', l: t('year')}].map(item => (<button key={item.m} className={`btn border-0 px-3 rounded-2 transition-all ${rangeMode === item.m ? 'bg-white shadow-sm fw-bold text-primary' : 'text-muted'}`} onClick={() => handleModeChange(item.m)}>{item.l}</button>))}
                         </div>
@@ -790,7 +841,7 @@ const AdminDashboard = () => {
                     <div className="range-scroll-wrapper mt-3">
                         <button className="scroll-btn me-2" onClick={() => scrollRanges('left')}><i className="bi bi-chevron-left"></i></button>
                         <div className="range-scroll-container" ref={rangeScrollRef} style={{ opacity: loadingRanges ? 0.6 : 1 }}>
-                            {dateRanges.map((range) => (<div key={range.label} className={`range-item ${selectedRange?.label === range.label ? 'range-item-active' : ''}`} onClick={() => handleRangeChange(range)}>{range.label}</div>))}
+                            {dateRanges.map((range) => (<div key={range.label} className={`range-item ${selectedRange?.label === range.label ? 'range-item-active' : ''}`} onClick={() => handleRangeChange(range)}>{translateRangeLabel(range.label)}</div>))}
                         </div>
                         <button className="scroll-btn ms-2" onClick={() => scrollRanges('right')}><i className="bi bi-chevron-right"></i></button>
                     </div>
@@ -803,13 +854,13 @@ const AdminDashboard = () => {
                                 <div className="col-md-4"><div className="p-3 rounded-4 bg-light border-start border-4 border-danger"><div className="text-muted small mb-1 fw-bold">{t('expense')}</div><div className="fw-bold text-danger fs-5">{chartStats.expensePerc}%</div></div></div>
                                 <div className="col-md-4"><div className={`p-3 rounded-4 border-start border-4 ${chartStats.netFlow >= 0 ? 'bg-success-subtle border-success' : 'bg-danger-subtle border-danger'}`}><div className="text-muted small mb-1 fw-bold">{t('netFlow')}</div><div className={`fw-bold fs-4 ${chartStats.netFlow >= 0 ? 'text-success' : 'text-danger'}`}>{chartStats.netFlowPerc}%</div></div></div>
                             </div></div>
-                            <div className="col-xl-4 d-flex flex-column align-items-center justify-content-center py-4"><div style={{ height: '280px', width: '100%', position: 'relative' }}><Doughnut data={doughnutData} options={{ maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { enabled: true } } }} plugins={[doughnutLabelsPlugin]} /><div className="position-absolute top-50 start-50 translate-middle text-center"><div className="text-muted extra-small text-uppercase fw-extrabold" style={{ letterSpacing: '0.05em' }}>{t('totalVolume')}</div></div></div></div>
+                            <div className="col-xl-4 d-flex flex-column align-items-center justify-content-center py-4"><div style={{ height: '280px', width: '100%', position: 'relative' }}><Doughnut key={`doughnut-${lang}`} data={doughnutData} options={{ maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { enabled: true } } }} plugins={[doughnutLabelsPlugin]} /><div className="position-absolute top-50 start-50 translate-middle text-center"><div className="text-muted extra-small text-uppercase fw-extrabold" style={{ letterSpacing: '0.05em' }}>{t('totalVolume')}</div></div></div></div>
                             <div className="col-xl-8 border-start border-light ps-lg-5">
                                 <h6 className="fw-bold mb-4 d-flex align-items-center gap-2"><i className="bi bi-layers-half text-primary"></i> {t('categoryDetail')}</h6>
                                 <div className="custom-scrollbar overflow-auto pe-2" style={{ maxHeight: '450px' }}>
                                     <div style={{ height: `${dynamicChartHeight}px` }}>
                                         <Bar 
-                                            key={`bar-chart-${Object.keys(loadedIcons).length}`}
+                                            key={`bar-chart-${lang}-${Object.keys(loadedIcons).length}`}
                                             data={barChartData} 
                                             options={{ 
                                                 indexAxis: 'y', 
@@ -1062,7 +1113,9 @@ const AdminDashboard = () => {
                                                                                 size={20}
                                                                                 rounded="4px"
                                                                             />
-                                                                            <span className={`badge ${tr.isIncome ? 'bg-success-subtle text-success' : 'bg-danger-subtle text-danger'} extra-small`}>{tr.categoryName}</span>
+                                                                            <span className={`badge ${tr.isIncome ? 'bg-success-subtle text-success' : 'bg-danger-subtle text-danger'} extra-small`}>
+                                                                                {getCategoryName(tr.categoryName, lang)}
+                                                                            </span>
                                                                         </div>
                                                                         {tr.note && <div className="text-muted extra-small mt-1 fst-italic">"{tr.note}"</div>}
                                                                     </td>

@@ -215,8 +215,9 @@ class _AccountManagementScreenState extends State<AccountManagementScreen> {
             onPressed: () async {
               Navigator.pop(context);
               await authProvider.logout(context);
+              // Chuyển hướng thẳng tới /login sau khi logout
               if (context.mounted) {
-                context.go("/main");
+                context.go("/login");
               }
             },
           ),
