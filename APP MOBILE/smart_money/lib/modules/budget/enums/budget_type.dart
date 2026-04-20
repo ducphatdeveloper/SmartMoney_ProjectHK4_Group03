@@ -14,13 +14,13 @@
     String get label {
       switch (this) {
         case BudgetType.weekly:
-          return "Tuần này";
+          return "This week";
         case BudgetType.monthly:
-          return "Tháng này";
+          return "This month";
         case BudgetType.yearly:
-          return "Năm nay";
+          return "This year";
         case BudgetType.custom:
-          return "Tuỳ chỉnh";
+          return "Custom";
       }
     }
 
