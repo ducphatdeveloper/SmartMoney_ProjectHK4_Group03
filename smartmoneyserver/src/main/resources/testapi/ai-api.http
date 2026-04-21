@@ -1,0 +1,464 @@
+### ══════════════════════════════════════════
+### MODULE AI — API TEST FILE
+### User test: minh.pham@gmail.com (acc_id=6)
+### ══════════════════════════════════════════
+
+### [0] Đăng nhập lấy Token
+# @name login
+POST http://localhost:9999/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "minh.pham@gmail.com",
+  "password": "Test@123",
+  "deviceToken": "ai_test_device_token_http",
+  "deviceType": "Postman",
+  "deviceName": "AI Test Client"
+}
+
+> {%
+    client.global.set("auth_token", response.body.data.accessToken);
+%}
+
+### ══════════════════════════════════════════
+### 1. AI CHAT - TẠO GIAO DỊCH
+### ══════════════════════════════════════════
+
+### [1.1] Chat - Gửi tin nhắn tạo giao dịch (Cơ bản)
+# Kỳ vọng: 200 OK, AI hỏi lại để xác nhận
+POST http://localhost:9999/api/ai/chat
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "message": "tiền nhà 50k"
+}
+
+> {%
+    if (response.body.data && response.body.data.action && response.body.data.action.params) {
+        client.global.set("ai_action_params", JSON.stringify(response.body.data.action.params));
+        client.log("Đã set ai_action_params: " + client.global.get("ai_action_params"));
+    } else {
+        client.log("Không tìm thấy action.params trong response");
+    }
+%}
+
+### [1.2] Chat - Xác nhận tạo giao dịch (Đồng ý)
+# Kỳ vọng: 200 OK, thực thi action tạo giao dịch từ request [1.1]
+# LƯU Ý: Chạy request này SAU khi chạy request [1.1]
+POST http://localhost:9999/api/ai/chat
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "message": "Lưu"
+}
+
+### [1.3] Chat - Gửi tin nhắn tạo giao dịch (Chỉ định ví cụ thể)
+# Kỳ vọng: 200 OK, AI nhận diện được ví MB Bank (nếu user có ví tên này)
+POST http://localhost:9999/api/ai/chat
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "message": "truyện tranh 509k"
+}
+
+### [1.4] Chat - Hủy tạo giao dịch (Hủy)
+# Kỳ vọng: 200 OK, hủy action và trả về thông báo "Đã hủy thao tác."
+# LƯU Ý: Chạy request này SAU khi chạy request [1.3]
+POST http://localhost:9999/api/ai/chat
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "message": "Hủy"
+}
+
+### [1.5] Chat - Gửi tin nhắn tạo giao dịch (Lỗi - thiếu amount)
+# Kỳ vọng: 200 OK, AI hỏi lại bạn muốn ghi nhận giao dịch bao nhiêu tiền
+POST http://localhost:9999/api/ai/chat
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "message": "hôm nay tôi đi ăn phở"
+}
+
+### ══════════════════════════════════════════
+### 2. AI CHAT - BÁO CÁO & TƯ VẤN & NHẮC NHỞ
+### ══════════════════════════════════════════
+
+### [2.1] Chat - Hỏi báo cáo (Khoảng thời gian tương đối)
+# Kỳ vọng: 200 OK, AI query DB và trả về tổng thu chi tháng này
+POST http://localhost:9999/api/ai/chat
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "message": "15/04 tôi tiêu bao nhiêu rồi?"
+}
+
+### [2.2] Chat - Hỏi báo cáo (Khoảng thời gian cụ thể)
+# Kỳ vọng: 200 OK, AI query DB và trả về báo cáo từ ngày đến ngày
+POST http://localhost:9999/api/ai/chat
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "message": "28/12/2025 tôi chi những gì?"
+}
+
+### [2.3] Chat - Đặt nhắc nhở (Remind)
+# Kỳ vọng: 200 OK, AI tạo Notification với scheduledTime tương ứng
+POST http://localhost:9999/api/ai/chat
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "message": "nhắc tôi trả nợ anh Phát 900k vào lúc 10h54 tối ngày 20/4/2026"
+}
+
+### [2.4] Chat - Tư vấn tài chính (Advisory)
+# Kỳ vọng: 200 OK, AI build gợi ý dựa trên dữ liệu thực tế của user (50/30/20)
+POST http://localhost:9999/api/ai/chat
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "message": "gợi ý kế hoạch chi tiêu với mức lương 8tr"
+}
+
+### [2.5] Chat - Hỏi ngân sách tháng này
+# Kỳ vọng: 200 OK, AI query ngân sách hiện có và tư vấn (intent=3)
+POST http://localhost:9999/api/ai/chat
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "message": "Ngân sách tháng này"
+}
+
+### [2.6] Chat - Hỏi tình trạng ngân sách
+# Kỳ vọng: 200 OK, AI query ngân sách hiện có và tư vấn (intent=3)
+POST http://localhost:9999/api/ai/chat
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "message": "tình trạng ngân sách của tôi"
+}
+
+### [2.6] Chat - Hỏi tình trạng ngân sách
+# Kỳ vọng: 200 OK, AI query ngân sách hiện có và tư vấn (intent=3)
+POST http://localhost:9999/api/ai/chat
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "message": "ngân sách tháng 2 năm 2026"
+}
+
+### [2.7] Chat - Hỏi ngân sách tuần này
+# Kỳ vọng: 200 OK, AI query ngân sách hiện có và tư vấn (intent=3)
+POST http://localhost:9999/api/ai/chat
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "message": "ngân sách tuần này tôi đã chi bao nhiêu"
+}
+
+### [2.8] Chat - Hỏi mục tiêu tiết kiệm
+# Kỳ vọng: 200 OK, AI gợi ý mục tiêu tiết kiệm
+POST http://localhost:9999/api/ai/chat
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "message": "mục tiêu tiết kiệm mua xe"
+}
+
+### [2.9] Chat - Hỏi bẫy tài chính phổ biến chi tiết
+# Kỳ vọng: 200 OK, AI trả lời về các bẫy tài chính (trả góp 0%, đa cấp, cho vay người thân, lifestyle creep)
+POST http://localhost:9999/api/ai/chat
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "message": "các bẫy tài chính phổ biến là gì? tôi cần tránh những gì?"
+}
+
+### [2.10] Chat - Hỏi triết lý tài chính
+# Kỳ vọng: 200 OK, AI trả lời về triết lý tài chính (trả mình trước, quỹ khẩn cấp, bảo hiểm y tế, lãi kép)
+POST http://localhost:9999/api/ai/chat
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "message": "triết lý tài chính là gì? tôi nên bắt đầu từ đâu?"
+}
+
+### [2.11] Chat - Hỏi về đầu tư
+# Kỳ vọng: 200 OK, AI trả lời về các kênh đầu tư an toàn, trung bình, phòng vệ ở Việt Nam
+POST http://localhost:9999/api/ai/chat
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "message": "tôi muốn đầu tư tiền nhàn rỗi, các kênh đầu tư an toàn ở Việt Nam là gì?"
+}
+
+### ══════════════════════════════════════════
+### 3. TƯ VẤN THEO NGÀNH NGHỀ & KỸ NĂNG MỀM
+### ══════════════════════════════════════════
+
+### [3.1] Chat - Tư vấn cho IT/Lập trình viên
+# Kỳ vọng: 200 OK, AI tư vấn đa dạng hóa thu nhập, đầu tư vào kỹ năng mới, xây dựng thương hiệu cá nhân
+POST http://localhost:9999/api/ai/chat
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "message": "tôi là lập trình viên, lương 20tr nhưng hay bị burnout, làm sao để quản lý tài chính tốt hơn?"
+}
+
+### [3.2] Chat - Tư vấn cho Freelancer
+# Kỳ vọng: 200 OK, AI tư vấn quỹ khẩn cấp lớn, đa dạng hóa khách hàng, hợp đồng rõ ràng
+POST http://localhost:9999/api/ai/chat
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "message": "tôi làm freelance, thu nhập không ổn định, làm sao để quản lý tài chính?"
+}
+
+### [3.3] Chat - Tư vấn kỹ năng mềm & networking
+# Kỳ vọng: 200 OK, AI tư vấn về kỹ năng mềm, xây dựng thương hiệu cá nhân, networking
+POST http://localhost:9999/api/ai/chat
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "message": "kỹ năng mềm nào giúp tôi tăng thu nhập và giảm rủi ro thất nghiệp?"
+}
+
+### ══════════════════════════════════════════
+### 4. MÔ HÌNH KINH DOANH RỦI RO THẤP & MXH
+### ══════════════════════════════════════════
+
+### [4.1] Chat - Hỏi mô hình kinh doanh rủi ro thấp
+# Kỳ vọng: 200 OK, AI tư vấn về gửi tiết kiệm, quỹ mở, vàng, bất động sản nhỏ
+POST http://localhost:9999/api/ai/chat
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "message": "tôi muốn kinh doanh nhưng vốn ít, các mô hình rủi ro thấp là gì?"
+}
+
+### [4.2] Chat - Tư vấn kinh doanh online
+# Kỳ vọng: 200 OK, AI tư vấn bán hàng trên Shopee/Lazada, dropshipping, affiliate marketing
+POST http://localhost:9999/api/ai/chat
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "message": "làm sao để bắt đầu kinh doanh online với vốn ít?"
+}
+
+### [4.3] Chat - Tư vấn content creator
+# Kỳ vọng: 200 OK, AI tư vấn YouTube, TikTok, Instagram, Blog
+POST http://localhost:9999/api/ai/chat
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "message": "tôi muốn làm content creator kiếm tiền, nên bắt đầu từ nền tảng nào?"
+}
+
+### [4.4] Chat - Tư vấn Facebook Business
+# Kỳ vọng: 200 OK, AI tư vấn Marketplace, Group, Fanpage, cảnh báo lừa đảo
+POST http://localhost:9999/api/ai/chat
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "message": "làm sao để bán hàng hiệu quả trên Facebook mà tránh lừa đảo?"
+}
+
+### [4.5] Chat - Tư vấn TikTok Shop
+# Kỳ vọng: 200 OK, AI tư vấn livestream, video ngắn, cảnh báo cam kết lợi nhuận quá cao
+POST http://localhost:9999/api/ai/chat
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "message": "tôi muốn bán hàng trên TikTok Shop, có rủi ro gì không?"
+}
+
+### [4.6] Chat - Cảnh báo lừa đảo trên MXH
+# Kỳ vọng: 200 OK, AI cảnh báo các app cam kết lợi nhuận cao, đa cấp, lừa đảo tuyển dụng
+POST http://localhost:9999/api/ai/chat
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "message": "làm sao để tránh lừa đảo trên mạng xã hội?"
+}
+
+### ══════════════════════════════════════════
+### 5. TƯ VẤN CHI TIẾT TỪNG NỀN TẢNG MXH
+### ══════════════════════════════════════════
+
+### [5.1] Chat - Tư vấn Facebook chi tiết
+# Kỳ vọng: 200 OK, AI tư vấn Marketplace, Group, Fanpage
+POST http://localhost:9999/api/ai/chat
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "message": "làm sao để bán hàng trên Facebook hiệu quả?"
+}
+
+### [5.2] Chat - Tư vấn YouTube chi tiết
+# Kỳ vọng: 200 OK, AI tư vấn AdSense, sponsor, affiliate marketing
+POST http://localhost:9999/api/ai/chat
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "message": "làm sao để kiếm tiền từ YouTube?"
+}
+
+### [5.3] Chat - Tư vấn Zalo chi tiết
+# Kỳ vọng: 200 OK, AI tư vấn Zalo Shop, Group, Zalo OA
+POST http://localhost:9999/api/ai/chat
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "message": "làm sao để bán hàng trên Zalo?"
+}
+
+### ══════════════════════════════════════════
+### 6. TƯ VẤN THEO XU HƯỚNG TƯƠNG LAI
+### ══════════════════════════════════════════
+
+### [6.1] Chat - Tư vấn về AI và lượng tử
+# Kỳ vọng: 200 OK, AI tư vấn học kỹ năng mới, xây dựng thu nhập thụ động
+POST http://localhost:9999/api/ai/chat
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "message": "cuộc cách mạng AI sẽ ảnh hưởng thế nào đến thu nhập của tôi?"
+}
+
+### [6.2] Chat - Tư vấn về lạm phát
+# Kỳ vọng: 200 OK, AI tư vấn đầu tư vào tài sản thực, giữ ngoại tệ đa dạng
+POST http://localhost:9999/api/ai/chat
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "message": "làm sao để bảo vệ tiền trước lạm phát?"
+}
+
+### [6.3] Chat - Tư vấn thất nghiệp do AI
+# Kỳ vọng: 200 OK, AI tư vấn kế hoạch B, học kỹ năng mới, xây dựng mạng lưới quan hệ
+POST http://localhost:9999/api/ai/chat
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "message": "nếu AI thay thế công việc của tôi, tôi nên làm gì?"
+}
+
+### ══════════════════════════════════════════
+### 7. THỰC THI HÀNH ĐỘNG (THỦ CÔNG QUA NÚT BẤM UI)
+### ══════════════════════════════════════════
+
+### [7.1] Execute - Xác nhận tạo giao dịch
+# Kỳ vọng: 200 OK, tạo thành công giao dịch 50k từ chat [1.1]
+# LƯU Ý: Biến {{ai_action_params}} được lấy tự động từ response của request [1.1]
+POST http://localhost:9999/api/ai/execute
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "actionType": "create_transaction",
+  "params": {{ai_action_params}}
+}
+
+### ══════════════════════════════════════════
+### 4. OCR HÓA ĐƠN
+### ══════════════════════════════════════════
+
+### [4.1] OCR - Tải ảnh hóa đơn (không có walletId)
+# Kỳ vọng: 200 OK, AI đọc hóa đơn và hỏi xác nhận
+# THAY ĐỔI: Thay đổi đường dẫn file bên dưới thành file ảnh hóa đơn thực tế trên máy bạn.
+POST http://localhost:9999/api/ai/upload-receipt
+Authorization: Bearer {{auth_token}}
+Content-Type: multipart/form-data; boundary=boundary
+
+--boundary
+Content-Disposition: form-data; name="image"; filename="receipt.jpg"
+
+< C:\Users\ducph\Desktop\image\Hoa-Don-Tien-Nuoc.jpg
+--boundary--
+
+### [4.2] OCR - Tải ảnh hóa đơn (có walletId để tạo giao dịch ngay)
+# Kỳ vọng: 200 OK, AI đọc hóa đơn và tự động tạo giao dịch vào ví có id=10
+# THAY ĐỔI: Thay đổi đường dẫn file bên dưới.
+POST http://localhost:9999/api/ai/upload-receipt?walletId=10
+Authorization: Bearer {{auth_token}}
+Content-Type: multipart/form-data; boundary=boundary
+
+--boundary
+Content-Disposition: form-data; name="image"; filename="receipt2.png"
+
+< C:\Users\ducph\Desktop\image\Hoa-Don-Tien-Nuoc.jpg
+--boundary--
+
+### ══════════════════════════════════════════
+### 5. LỊCH SỬ CHAT
+### ══════════════════════════════════════════
+
+### [5.1] Lấy lịch sử chat (trang đầu tiên, 10 tin nhắn)
+# Kỳ vọng: 200 OK, trả về danh sách các tin nhắn đã chat
+GET http://localhost:9999/api/ai/history?page=0&size=10
+Authorization: Bearer {{auth_token}}
+
+### [5.2] Xóa lịch sử chat (xóa toàn bộ)
+# Kỳ vọng: 200 OK, thông báo xóa thành công
+DELETE http://localhost:9999/api/ai/history
+Authorization: Bearer {{auth_token}}
+
+### [5.3] Xóa một cuộc trò chuyện riêng lẻ theo ID
+# Kỳ vọng: 200 OK, thông báo xóa thành công
+# LƯU Ý: Thay đổi conversationId bằng ID thực tế từ lịch sử chat của bạn
+DELETE http://localhost:9999/api/ai/history/315
+Authorization: Bearer {{auth_token}}
+
+### [5.4] Kiểm tra lại lịch sử sau khi xóa
+# Kỳ vọng: 200 OK, trả về danh sách (có thể rỗng nếu xóa toàn bộ)
+GET http://localhost:9999/api/ai/history?page=0&size=10
+Authorization: Bearer {{auth_token}}
+
+### ══════════════════════════════════════════
+### 6. UPLOAD ẢNH ĐÍNH KÈM (KHÔNG OCR)
+### ══════════════════════════════════════════
+
+### [6.1] Tải ảnh đính kèm
+# Kỳ vọng: 200 OK, trả về URL ảnh trên Cloudinary
+# THAY ĐỔI: Thay đổi đường dẫn file bên dưới.
+POST http://localhost:9999/api/ai/upload-image
+Authorization: Bearer {{auth_token}}
+Content-Type: multipart/form-data; boundary=boundary
+
+--boundary
+Content-Disposition: form-data; name="image"; filename="attachment.png"
+
+< C:\Users\ducph\Desktop\image\attachment.png
+--boundary--
