@@ -74,7 +74,7 @@ public class WalletScheduler {
     public void checkAbnormalActivity() {
         LocalDateTime since = LocalDateTime.now().minusHours(24); // Mốc: 24h trước
 
-        log.info("[WalletScheduler] Kiểm tra chi tiêu bất thường 24h qua...");
+        log.info("[WalletScheduler] Checking abnormal spending in last 24h...");
 
         // Bước 1: Truy vấn ví nào có > ABNORMAL_THRESHOLD giao dịch chi trong 24h
         // Kết quả: [walletId, txCount, totalAmount]
@@ -83,7 +83,7 @@ public class WalletScheduler {
 
         // Bước 2: Nếu không có ví bất thường → log và return
         if (abnormalWallets.isEmpty()) {
-            log.info("[WalletScheduler] Không phát hiện chi tiêu bất thường.");
+            log.info("[WalletScheduler] No abnormal spending detected.");
             return;
         }
 
@@ -132,14 +132,14 @@ public class WalletScheduler {
                 }
 
                 count++;
-                log.warn("[WalletScheduler] Ví '{}' (id={}) bất thường: {} giao dịch, tổng {}",
+                log.warn("[WalletScheduler] Wallet '{}' (id={}) abnormal: {} transactions, total {}",
                         wallet.getWalletName(), walletId, txCount, totalAmt);
             } catch (Exception e) {
-                log.error("[WalletScheduler] Lỗi xử lý ví bất thường: {}", e.getMessage());
+                log.error("[WalletScheduler] Error processing abnormal wallet: {}", e.getMessage());
             }
         }
 
-        log.info("[WalletScheduler] Đã cảnh báo {} ví bất thường.", count);
+        log.info("[WalletScheduler] Warned {} abnormal wallets.", count);
     }
 }
 

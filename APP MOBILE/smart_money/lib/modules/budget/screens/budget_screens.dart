@@ -68,13 +68,13 @@ class _BudgetScreenState extends State<BudgetScreen>
 
     switch (b.budgetType) {
       case BudgetType.weekly:
-        return "Tuần này $range";
+        return "This week $range";
       case BudgetType.monthly:
-        return "Tháng này $range";
+        return "This month $range";
       case BudgetType.yearly:
-        return "Năm nay $range";
+        return "This year $range";
       case BudgetType.custom:
-        return "Tùy chỉnh $range";
+        return "Custom $range";
     }
   }
 
@@ -263,11 +263,11 @@ class _BudgetScreenState extends State<BudgetScreen>
   String getTimeLabel(BudgetResponse b) {
     switch (b.budgetType) {
       case BudgetType.weekly:
-        return "Tuần này";
+        return "This week";
       case BudgetType.monthly:
-        return "Tháng này";
+        return "This month";
       case BudgetType.yearly:
-        return "Năm nay";
+        return "This year";
       case BudgetType.custom:
         final start = b.beginDate;
         final end = b.endDate;
@@ -434,7 +434,7 @@ class _BudgetScreenState extends State<BudgetScreen>
                       ),
                       const SizedBox(width: 4),
                       const Text(
-                        "Hết hạn",
+                        "Expired",
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w500,
@@ -504,7 +504,7 @@ class _BudgetScreenState extends State<BudgetScreen>
                         SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            "Bạn đang xem ngân sách của ví này trước khi xóa",
+                            "You are viewing budget of this wallet before deletion",
                             style: TextStyle(color: Colors.orange),
                           ),
                         ),
@@ -564,11 +564,11 @@ class _BudgetScreenState extends State<BudgetScreen>
     if (b.isOther == true) {
       // Ngân sách "Other" - hiển thị icon mặc định
       iconUrl = null;
-      displayName = "Khác";
+      displayName = "Other";
     } else if (b.allCategories == true) {
       // Ngân sách all categories
       iconUrl = b.primaryCategoryIconUrl;
-      displayName = "Tất cả";
+      displayName = "All";
     } else if (b.categories?.isNotEmpty ?? false) {
       // Ngân sách theo category cụ thể
       iconUrl = b.categories!.first.ctgIconUrl;
@@ -576,7 +576,7 @@ class _BudgetScreenState extends State<BudgetScreen>
     } else {
       // Fallback
       iconUrl = b.primaryCategoryIconUrl;
-      displayName = "Tất cả";
+      displayName = "All";
     }
 
     return OpenContainer<BudgetResponse>(
@@ -652,8 +652,8 @@ class _BudgetScreenState extends State<BudgetScreen>
                         style: const TextStyle(color: Colors.grey)),
                     Text(
                       left >= 0
-                          ? "Còn ${formatMoney(left)}"
-                          : "⚠️ Vượt ${formatMoney(left.abs())}",
+                          ? "Remaining ${formatMoney(left)}"
+                          : "⚠️ Over ${formatMoney(left.abs())}",
                       style: TextStyle(
                           color: left >= 0 ? Colors.green : Colors.red,
                           fontWeight: FontWeight.w500),
@@ -701,8 +701,8 @@ class _BudgetScreenState extends State<BudgetScreen>
                     const SizedBox(height: 10),
                     Text(
                       remain >= 0
-                          ? "Số tiền bạn có thể chi"
-                          : "⚠️ Bạn đã vượt ngân sách",
+                          ? "Amount you can spend"
+                          : "⚠️ You have exceeded budget",
                       style: TextStyle(
                         color: remain >= 0 ? Colors.grey : Colors.redAccent,
                         fontWeight: FontWeight.w500,
@@ -725,11 +725,11 @@ class _BudgetScreenState extends State<BudgetScreen>
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _info(totalBudget, "Ngân sách"),
+              _info(totalBudget, "Budget"),
               _divider(),
-              _info(totalSpent, "Đã chi"),
+              _info(totalSpent, "Spent"),
               _divider(),
-              _info(p * 100, "Tiến độ"),
+              _info(p * 100, "Progress"),
             ],
           ),
           const SizedBox(height: 20),
@@ -746,7 +746,7 @@ class _BudgetScreenState extends State<BudgetScreen>
                   padding: const EdgeInsets.symmetric(vertical: 10),
                 ),
                 onPressed: addBudget,
-                child: const Text("Tạo ngân sách"),
+                child: const Text("Create budget"),
               ),
             ),
           ),
@@ -778,7 +778,7 @@ class _BudgetScreenState extends State<BudgetScreen>
     return Center(
       child: ElevatedButton(
         onPressed: _pickWallet,
-        child: const Text("Chọn ví"),
+        child: const Text("Select wallet"),
       ),
     );
   }
@@ -794,7 +794,7 @@ class _BudgetScreenState extends State<BudgetScreen>
           const SizedBox(height: 8),
 
           const Text(
-            "Ví trước đó đã bị xóa",
+            "Previous wallet has been deleted",
             style: TextStyle(
               color: Colors.redAccent,
               fontWeight: FontWeight.w600,
@@ -804,7 +804,7 @@ class _BudgetScreenState extends State<BudgetScreen>
           const SizedBox(height: 4),
 
           const Text(
-            "Vui lòng chọn ví khác để tiếp tục",
+            "Please select another wallet to continue",
             style: TextStyle(color: Colors.grey),
           ),
 
@@ -812,7 +812,7 @@ class _BudgetScreenState extends State<BudgetScreen>
 
           ElevatedButton(
             onPressed: _pickWallet,
-            child: const Text("Chọn ví khác"),
+            child: const Text("Select another wallet"),
           ),
         ],
       ),
@@ -843,7 +843,7 @@ class _BudgetScreenState extends State<BudgetScreen>
             ),
             const SizedBox(height: 24),
             const Text(
-              "Chưa có ngân sách",
+              "No budget yet",
               style: TextStyle(
                 color: Colors.white,
                 fontSize: 20,
@@ -852,7 +852,7 @@ class _BudgetScreenState extends State<BudgetScreen>
             ),
             const SizedBox(height: 8),
             Text(
-              "Tạo ngân sách để theo dõi chi tiêu\nvà kiểm soát tài chính tốt hơn.",
+              "Create budget to track spending\nand better control your finances.",
               textAlign: TextAlign.center,
               style: TextStyle(
                 color: Colors.white.withOpacity(0.6),
@@ -873,7 +873,7 @@ class _BudgetScreenState extends State<BudgetScreen>
                 ),
               ),
               icon: const Icon(Icons.add),
-              label: const Text("Tạo ngân sách"),
+              label: const Text("Create budget"),
             ),
           ],
         ),

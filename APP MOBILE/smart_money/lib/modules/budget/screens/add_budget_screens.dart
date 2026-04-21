@@ -64,7 +64,7 @@ class _AddBudgetScreenState extends State<AddBudgetScreen> {
           ..removeCurrentSnackBar()
           ..showSnackBar(
             const SnackBar(
-              content: Text("Số tiền không được vượt quá 1000 tỷ"),
+              content: Text("Amount must not exceed 1000 billion"),
               duration: Duration(seconds: 2),
             ),
           );
@@ -164,7 +164,7 @@ class _AddBudgetScreenState extends State<AddBudgetScreen> {
               const SizedBox(height: 12),
               const Center(
                 child: Text(
-                  "Khoảng thời gian",
+                  "Time period",
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 16,
@@ -175,7 +175,7 @@ class _AddBudgetScreenState extends State<AddBudgetScreen> {
               const SizedBox(height: 12),
 
               _sheetBtn(
-                "Tuần này (${_f(startOfWeek)} - ${_f(endOfWeek)})",
+                "This week (${_f(startOfWeek)} - ${_f(endOfWeek)})",
                     () {
                   setRange(startOfWeek, endOfWeek, BudgetType.weekly);
                   Navigator.pop(context);
@@ -183,7 +183,7 @@ class _AddBudgetScreenState extends State<AddBudgetScreen> {
               ),
 
               _sheetBtn(
-                "Tháng này (${_f(startOfMonth)} - ${_f(endOfMonth)})",
+                "This month (${_f(startOfMonth)} - ${_f(endOfMonth)})",
                     () {
                   setRange(startOfMonth, endOfMonth, BudgetType.monthly);
                   Navigator.pop(context);
@@ -191,7 +191,7 @@ class _AddBudgetScreenState extends State<AddBudgetScreen> {
               ),
 
               _sheetBtn(
-                "Năm nay (${_f(startOfYear)} - ${_f(endOfYear)})",
+                "This year (${_f(startOfYear)} - ${_f(endOfYear)})",
                     () {
                   setRange(startOfYear, endOfYear, BudgetType.yearly);
                   Navigator.pop(context);
@@ -199,7 +199,7 @@ class _AddBudgetScreenState extends State<AddBudgetScreen> {
               ),
 
               _sheetBtn(
-                "Tuỳ chỉnh",
+                "Custom",
                     () async {
                   Navigator.pop(context);
 
@@ -221,7 +221,7 @@ class _AddBudgetScreenState extends State<AddBudgetScreen> {
               const SizedBox(height: 8),
 
               _sheetBtn(
-                "Huỷ",
+                "Cancel",
                     () => Navigator.pop(context),
                 isCancel: true,
               ),
@@ -268,35 +268,35 @@ class _AddBudgetScreenState extends State<AddBudgetScreen> {
     // validate các trường
     if (amountValue <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Vui lòng nhập số tiền hợp lệ")),
+        const SnackBar(content: Text("Please enter a valid amount")),
       );
       return;
     }
 
     if (amountValue > 1000000000000) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Số tiền không được vượt quá 1000 tỷ")),
+        const SnackBar(content: Text("Amount must not exceed 1000 billion")),
       );
       return;
     }
 
     if (range == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Vui lòng chọn khoảng thời gian")),
+        const SnackBar(content: Text("Please select time period")),
       );
       return;
     }
 
     if (wallet == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Vui lòng chọn ví")),
+        const SnackBar(content: Text("Please select wallet")),
       );
       return;
     }
 
     if (category == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Vui lòng chọn nhóm chi tiêu")),
+        const SnackBar(content: Text("Please select spending category")),
       );
       return;
     }
@@ -320,7 +320,7 @@ class _AddBudgetScreenState extends State<AddBudgetScreen> {
       Navigator.pop(context, res.data);
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(res.message ?? "Tạo thất bại")),
+        SnackBar(content: Text(res.message ?? "Creation failed")),
       );
     }
   }
@@ -344,7 +344,7 @@ class _AddBudgetScreenState extends State<AddBudgetScreen> {
         ),
 
         title: const Text(
-          "Sửa ngân sách",
+          "Edit budget",
           style: TextStyle(
             color: Colors.white,
             fontSize: 18,
@@ -367,7 +367,7 @@ class _AddBudgetScreenState extends State<AddBudgetScreen> {
             backgroundColor:
             isValid ? Colors.green : Colors.grey.shade800,
           ),
-          child: const Text("Lưu"),
+          child: const Text("Save"),
         ),
       ),
       body: ListView(
@@ -382,7 +382,7 @@ class _AddBudgetScreenState extends State<AddBudgetScreen> {
                     radius: 20,
                   ),
                   title: Text(
-                    category?.ctgName ?? "Chọn nhóm",
+                    category?.ctgName ?? "Select category",
                     style: const TextStyle(color: Colors.white),
                   ),
                   trailing: const Icon(Icons.chevron_right),
@@ -406,7 +406,7 @@ class _AddBudgetScreenState extends State<AddBudgetScreen> {
                   leading: const Icon(Icons.calendar_today),
                   title: Text(
                     range == null
-                        ? "Chọn thời gian"
+                        ? "Select time"
                         : "${FormatHelper.formatDate(range!.start)} - ${FormatHelper.formatDate(range!.end)}",
                     style: const TextStyle(color: Colors.white),
                   ),
@@ -421,7 +421,7 @@ class _AddBudgetScreenState extends State<AddBudgetScreen> {
                     radius: 22,
                   ),
                   title: Text(
-                    wallet?.walletName ?? "Không có ví",
+                    wallet?.walletName ?? "No wallet",
                     style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
                   ),
                   subtitle: Text(
@@ -441,11 +441,11 @@ class _AddBudgetScreenState extends State<AddBudgetScreen> {
               value: repeat,
               onChanged: (v) => setState(() => repeat = v),
               title: const Text(
-                "Lặp lại ngân sách này",
+                "Repeat this budget",
                 style: TextStyle(color: Colors.white),
               ),
               subtitle: const Text(
-                "Ngân sách sẽ tự lặp lại kỳ tiếp theo",
+                "Budget will automatically repeat in next period",
                 style: TextStyle(color: Colors.grey),
               ),
             ),

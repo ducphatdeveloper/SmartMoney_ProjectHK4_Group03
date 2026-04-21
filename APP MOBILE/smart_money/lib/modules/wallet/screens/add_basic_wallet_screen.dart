@@ -73,12 +73,12 @@ class _AddBasicWalletScreenState extends State<AddBasicWalletScreen> {
   }
 
   String? _validateName(String text) {
-    if (text.isEmpty) return "Tên ví không được để trống";
-    if (text.length > 30) return "Tên ví tối đa 30 ký tự";
+    if (text.isEmpty) return "Wallet name cannot be empty";
+    if (text.length > 30) return "Wallet name max 30 characters";
 
     final regex = RegExp(r'^[a-zA-Z0-9\sÀ-ỹ]+$');
     if (!regex.hasMatch(text)) {
-      return "Không chứa ký tự đặc biệt";
+      return "No special characters";
     }
 
     return null;
@@ -99,7 +99,7 @@ class _AddBasicWalletScreenState extends State<AddBasicWalletScreen> {
         ),
         centerTitle: true,
         title: const Text(
-          "Thêm Ví",
+          "Add Wallet",
           style: TextStyle(
             color: Colors.white,
             fontSize: 18,
@@ -166,7 +166,7 @@ class _AddBasicWalletScreenState extends State<AddBasicWalletScreen> {
 
               ],
               decoration: InputDecoration(
-                hintText: "Tên ví",
+                hintText: "Wallet name",
                 hintStyle: const TextStyle(color: Colors.grey),
                 border: InputBorder.none,
                 errorText: nameError,
@@ -191,7 +191,7 @@ class _AddBasicWalletScreenState extends State<AddBasicWalletScreen> {
               ),
             ),
             title: const Text(
-              "Đơn vị tiền tệ",
+              "Currency",
               style: TextStyle(color: Colors.grey),
             ),
             trailing: Row(
@@ -210,7 +210,7 @@ class _AddBasicWalletScreenState extends State<AddBasicWalletScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  "Số tiền hiện có",
+                  "Current balance",
                   style: TextStyle(color: Colors.grey),
                 ),
                 const SizedBox(height: 8),
@@ -289,11 +289,11 @@ class _AddBasicWalletScreenState extends State<AddBasicWalletScreen> {
       decoration: _card(),
       child: SwitchListTile(
         title: const Text(
-          "Không tính vào tổng",
+          "Exclude from total",
           style: TextStyle(color: Colors.white),
         ),
         subtitle: const Text(
-          'Bỏ qua ví này khỏi "Tổng"',
+          'Exclude this wallet from "Total"',
           style: TextStyle(color: Colors.grey),
         ),
         value: excludeFromTotal,
@@ -307,12 +307,12 @@ class _AddBasicWalletScreenState extends State<AddBasicWalletScreen> {
   }
 
   String? _validateBalance(String text) {
-    if (text.isEmpty) return "Số tiền không được để trống";
+    if (text.isEmpty) return "Amount cannot be empty";
     final raw = text.replaceAll(',', '');
     final value = double.tryParse(raw);
-    if (value == null) return "Số tiền không hợp lệ";
-    if (value < 0) return "Số tiền không được âm";
-    if (value > 1000000000000) return "Số tiền tối đa là 1000 Tỷ VND";
+    if (value == null) return "Invalid amount";
+    if (value < 0) return "Amount cannot be negative";
+    if (value > 1000000000000) return "Maximum amount is 1000 billion VND";
     return null;
   }
 
@@ -360,7 +360,7 @@ class _AddBasicWalletScreenState extends State<AddBasicWalletScreen> {
     if (success) {
       Navigator.pop(context, true);
     } else {
-      _showError(provider.error ?? "Tạo ví thất bại");
+      _showError(provider.error ?? "Failed to create wallet");
     }
   }
 

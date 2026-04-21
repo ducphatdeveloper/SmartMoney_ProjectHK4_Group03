@@ -25,7 +25,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   bool isBalanceHidden = false;
-  final NumberFormat currencyFormat = NumberFormat.currency(locale: 'en_US', symbol: '\$');
+  final NumberFormat currencyFormat = NumberFormat.currency(locale: 'vi_VN', symbol: '₫');
   final ScrollController _dateScrollController = ScrollController();
   
   List<CategoryReportDTO> _categoryReports = [];
@@ -485,7 +485,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ),
                     Text(
-                      isLoggedIn ? currencyFormat.format(cat.totalAmount) : "\$0.00",
+                      isLoggedIn ? currencyFormat.format(cat.totalAmount) : "0 ₫",
                       style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
                     ),
                   ],

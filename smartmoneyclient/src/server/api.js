@@ -33,10 +33,78 @@ const slugify = (str) => {
 };
 
 /**
- * Mapping từ tên danh mục tiếng Việt sang filename icon trên Cloudinary.
- * Giúp giải quyết lỗi 404 khi slugify tên tiếng Việt không khớp với file đã upload.
+ * Bản dịch danh mục (Từ Tiếng Việt sang Tiếng Anh)
+ * Dùng để hiển thị khi người dùng chọn ngôn ngữ EN.
+ */
+export const CATEGORY_TRANSLATIONS = {
+    // --- NHÓM CHI TIÊU ---
+    "an-uong": "Food & Beverage",
+    "bao-hiem": "Insurance",
+    "cac-chi-phi-khac": "Other Expenses",
+    "dau-tu": "Investment",
+    "di-chuyen": "Transportation",
+    "gia-dinh": "Family",
+    "giai-tri": "Entertainment",
+    "giao-duc": "Education",
+    "hoa-don-tien-ich": "Bills & Utilities",
+    "mua-sam": "Shopping",
+    "qua-tang-quyen-gop": "Gifts & Donations",
+    "suc-khoe": "Health",
+    "tien-chuyen-di": "Outgoing Transfer",
+    "tra-lai": "Interest Paid",
+    "cho-vay": "Lending",
+    "tra-no": "Debt Repayment",
+
+    // --- NHÓM THU NHẬP ---
+    "luong": "Salary",
+    "thu-lai": "Interest Received",
+    "thu-nhap-khac": "Other Income",
+    "tien-chuyen-den": "Incoming Transfer",
+    "di-vay": "Borrowing",
+    "thu-no": "Debt Collection",
+
+    // --- DANH MỤC CON ---
+    "bao-duong-xe": "Vehicle Maintenance",
+    "dich-vu-gia-dinh": "Home Services",
+    "sua-trang-tri-nha": "Home Renovation",
+    "vat-nuoi": "Pets",
+    "dich-vu-truc-tuyen": "Online Services",
+    "vui-choi": "Travel & Leisure",
+    "hoa-don-dien": "Electricity Bill",
+    "hoa-don-dien-thoai": "Phone Bill",
+    "hoa-don-gas": "Gas Bill",
+    "hoa-don-internet": "Internet Bill",
+    "hoa-don-nuoc": "Water Bill",
+    "hoa-don-tien-ich-khac": "Other Utility Bills",
+    "hoa-don-tv": "Television Bill",
+    "thue-nha": "Rent",
+    "do-dung-ca-nhan": "Personal Items",
+    "do-gia-dung": "Home Appliances",
+    "lam-dep": "Beauty",
+    "kham-suc-khoe": "Medical Checkup",
+    "the-duc-the-thao": "Sports"
+};
+
+/**
+ * Hàm lấy tên danh mục theo ngôn ngữ.
+ * Identifier thường là tên danh mục gốc (Tiếng Việt từ Database).
+ */
+export const getCategoryName = (identifier, lang = 'vi') => {
+    if (!identifier) return '';
+    
+    // Nếu chọn Tiếng Việt -> Trả về chính identifier (vì DB lưu Tiếng Việt)
+    if (lang === 'vi') return identifier;
+
+    // Nếu chọn Tiếng Anh -> Tìm trong CATEGORY_TRANSLATIONS
+    const slug = slugify(identifier);
+    return CATEGORY_TRANSLATIONS[slug] || identifier;
+};
+
+/**
+ * Mapping từ tên danh mục (tiếng Việt hoặc English slug) sang filename icon trên Cloudinary.
  */
 const ICON_MAPPING = {
+    // --- VIETNAMESE SLUGS (Khớp với SQL DB) ---
     "an-uong": "icon_food.png",
     "di-chuyen": "icon_transport.png",
     "mua-sam": "icon_shopping.png",
@@ -77,8 +145,50 @@ const ICON_MAPPING = {
     "tra-lai": "icon_interest_pay.png",
     "thu-nhap-khac": "icon_other_income.png",
     "cac-chi-phi-khac": "icon_other_expense.png",
-    "vui-choi": "icon_entertainment.png",
-    "giai-tri-vui-choi": "icon_entertainment.png"
+    "vui-choi": "icon_travel.png",
+
+    // --- ENGLISH SLUGS (Hỗ trợ fallback) ---
+    "food-beverage": "icon_food.png",
+    "transportation": "icon_transport.png",
+    "shopping": "icon_shopping.png",
+    "salary": "icon_salary.png",
+    "investment": "icon_invest.png",
+    "education": "icon_education.png",
+    "health-fitness": "icon_health.png",
+    "entertainment": "icon_entertainment.png",
+    "family": "icon_family.png",
+    "gifts-donations": "icon_gift.png",
+    "insurance": "icon_insurance.png",
+    "borrowing": "icon_loan_in.png",
+    "lending": "icon_loan_out.png",
+    "debt-repayment": "icon_debt_repayment.png",
+    "debt-collection": "icon_debt_collection.png",
+    "phone-bill": "icon_phone_bill.png",
+    "electricity-bill": "icon_electricity.png",
+    "water-bill": "icon_water.png",
+    "internet-bill": "icon_internet.png",
+    "gas-bill": "icon_gas.png",
+    "television-bill": "icon_tv.png",
+    "bills-utilities": "icon_utilities.png",
+    "other-utility-bills": "icon_other_bill.png",
+    "rent": "icon_rent.png",
+    "beauty": "icon_beauty.png",
+    "sports": "icon_sport.png",
+    "medical-checkup": "icon_medical.png",
+    "personal-items": "icon_personal_item.png",
+    "home-appliances": "icon_home_appliance.png",
+    "pets": "icon_pets.png",
+    "vehicle-maintenance": "icon_car_repair.png",
+    "online-services": "icon_online_service.png",
+    "home-services": "icon_home_service.png",
+    "home-renovation": "icon_home_decor.png",
+    "incoming-transfer": "icon_transfer_in.png",
+    "outgoing-transfer": "icon_transfer_out.png",
+    "interest-received": "icon_interest_receive.png",
+    "interest-paid": "icon_interest_pay.png",
+    "other-income": "icon_other_income.png",
+    "other-expenses": "icon_other_expense.png",
+    "travel-leisure": "icon_travel.png"
 };
 
 /**
@@ -96,15 +206,16 @@ export const getIconUrl = (identifier) => {
     if (identifier.includes('.')) {
         publicId = identifier;
     } else {
-        // 3. Xử lý logic mapping tên tiếng Việt
+        // 3. Xử lý logic mapping tên tiếng Việt/Anh
         const slug = slugify(identifier);
         
         // Thử tìm trong mapping
         if (ICON_MAPPING[slug]) {
             publicId = ICON_MAPPING[slug];
         } else {
-            // Fallback: icon_[slug].png
-            publicId = `icon_${slug}.png`;
+            // Fallback: icon_[slug].png (thay '-' bằng '_' để khớp với convention Cloudinary)
+            const underscoreSlug = slug.replace(/-/g, '_');
+            publicId = `icon_${underscoreSlug}.png`;
         }
     }
 

@@ -89,14 +89,14 @@ public class BudgetScheduler {
         // Bước 1: Lấy ngày hiện tại và tìm tất cả ngân sách đang hoạt động (beginDate <= today <= endDate)
         LocalDate today = LocalDate.now(); // Ngày hôm nay
         List<Budget> activeBudgets = budgetRepository.findActiveBudgets(today); // Lấy danh sách ngân sách đang chạy
-        log.info("[BudgetScheduler] Kiểm tra {} ngân sách...", activeBudgets.size());
+        log.info("[BudgetScheduler] Checking {} budgets...", activeBudgets.size());
 
         // Bước 2: Duyệt từng ngân sách, gọi checkAndNotify() trong transaction riêng biệt
         for (Budget budget : activeBudgets) { // Loop qua từng ngân sách
             try {
                 self.checkAndNotify(budget); // Gọi method check cho từng budget (transaction riêng)
             } catch (Exception e) {
-                log.error("[BudgetScheduler] Lỗi ngân sách id={}: {}", budget.getId(), e.getMessage()); // Log lỗi nếu fail
+                log.error("[BudgetScheduler] Budget id={} error: {}", budget.getId(), e.getMessage()); // Log lỗi nếu fail
             }
         }
     }
@@ -112,14 +112,14 @@ public class BudgetScheduler {
         // Bước 1: Tìm ngân sách lặp lại đã hết hạn (endDate < today AND repeating = true)
         LocalDate today = LocalDate.now(); // Ngày hôm nay
         List<Budget> expiredRepeating = budgetRepository.findExpiredRepeatingBudgets(today); // Lấy ngân sách hết hạn + lặp
-        log.info("[BudgetScheduler] Gia hạn {} ngân sách lặp lại...", expiredRepeating.size());
+        log.info("[BudgetScheduler] Renewing {} recurring budgets...", expiredRepeating.size());
 
         // Bước 2: Gia hạn từng ngân sách trong transaction riêng biệt
         for (Budget old : expiredRepeating) { // Loop qua từng ngân sách cần gia hạn
             try {
                 self.renewBudget(old); // Gọi method gia hạn cho từng budget (transaction riêng)
             } catch (Exception e) {
-                log.error("[BudgetScheduler] Lỗi gia hạn ngân sách id={}: {}", old.getId(), e.getMessage()); // Log lỗi nếu fail
+                log.error("[BudgetScheduler] Budget renewal id={} error: {}", old.getId(), e.getMessage()); // Log lỗi nếu fail
             }
         }
     }
@@ -161,7 +161,7 @@ public class BudgetScheduler {
 
         // ── Bước 3: Xác định nhãn ngân sách (tên category hoặc "Tất cả danh mục") ──
         String budgetLabel = Boolean.TRUE.equals(budget.getAllCategories())
-                ? "Tất cả danh mục" // Nếu allCategories=true thì hiển thị "Tất cả danh mục"
+                ? "All categories" // Nếu allCategories=true thì hiển thị "Tất cả danh mục"
                 : budgetRepository.findCategoryNamesByBudgetId(budget.getId()).stream() // Nếu không thì lấy tên category
                 .collect(Collectors.joining(", ")); // Nối bằng dấu phẩy
 
@@ -199,7 +199,7 @@ public class BudgetScheduler {
                         null                                   // scheduledTime = null → gửi ngay
                 );
             } else { // Nếu đã gửi → bỏ qua
-                log.info("[BudgetScheduler] Bỏ qua notification cho budget id={} (đã gửi trong 24h gần đây)", budget.getId());
+                log.info("[BudgetScheduler] Skipping notification for budget id={} (already sent in last 24h)", budget.getId());
             }
         }
 
@@ -308,7 +308,7 @@ public class BudgetScheduler {
 
         // ── Log khi ngân sách ổn định (không cần gửi thông báo) ──
         if (msg == null && percent < DAILY_ALLOWANCE_THRESHOLD) { // Nếu không có msg và <60% → ổn định
-            log.info("[BudgetScheduler] Ngân sách id={} ổn định ({}%). Không thông báo.", budget.getId(), percent);
+            log.info("[BudgetScheduler] Budget id={} stable ({}%). No notification.", budget.getId(), percent);
         }
     }
 
@@ -398,7 +398,7 @@ public class BudgetScheduler {
         }
 
         if (hasConflict) { // Nếu có conflict
-            log.warn("[BudgetScheduler] Bỏ qua gia hạn ngân sách id={} → Conflict với budget thủ công trong kỳ [{} → {}]",
+            log.warn("[BudgetScheduler] Skipping budget renewal id={} → Conflict with manual budget in period [{} → {}]",
                     old.getId(), newStart, newEnd);
             // Vẫn đánh dấu budget cũ không lặp lại để tránh loop vô hạn
             old.setRepeating(false); // Set repeating = false
@@ -423,14 +423,14 @@ public class BudgetScheduler {
         old.setRepeating(false); // Set repeating = false
         budgetRepository.save(old); // Save budget cũ
 
-        log.info("[BudgetScheduler] Gia hạn ngân sách id={} → [{} → {}]", old.getId(), newStart, newEnd);
+        log.info("[BudgetScheduler] Budget renewed id={} → [{} → {}]", old.getId(), newStart, newEnd);
 
         // Bước 5: Gửi thông báo xác nhận gia hạn
         // Query category names để hiển thị trong thông báo
         List<String> categoryList = budgetRepository.findCategoryNamesByBudgetId(old.getId());
         String categoryNames;
         if (categoryList == null || categoryList.isEmpty()) {
-            categoryNames = "Tất cả danh mục"; // Nếu allCategories=true hoặc không có category
+            categoryNames = "All categories"; // Nếu allCategories=true hoặc không có category
         } else {
             categoryNames = String.join(", ", categoryList); // Join list thành string
         }

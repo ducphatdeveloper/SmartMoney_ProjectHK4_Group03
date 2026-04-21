@@ -134,20 +134,20 @@ public class AdminServiceImp implements AdminService {
     @Transactional
     public void lockAccount(Integer id) {
         Account account = accountRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Account ID not found: " + id));
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy ID tài khoản: " + id));
 
         // 1. Lấy yêu cầu mới nhất liên quan đến LOCK/UNLOCK (Sắp xếp theo createdAt DESC, id DESC)
         ContactRequest latestRequest = contactRequestRepository.findFirstByAccountIdAndRequestTypeInOrderByCreatedAtDescIdDesc(
                         id, Arrays.asList(ContactRequestType.ACCOUNT_LOCK, ContactRequestType.ACCOUNT_UNLOCK))
-                .orElseThrow(() -> new RuntimeException("The user has not made any support requests related to account status."));
+                .orElseThrow(() -> new RuntimeException("Người dùng chưa tạo bất kỳ yêu cầu hỗ trợ nào liên quan đến trạng thái tài khoản."));
 
         // 2. Kiểm tra tính hợp lệ của yêu cầu mới nhất
         if (latestRequest.getRequestType() != ContactRequestType.ACCOUNT_LOCK) {
-            throw new RuntimeException("The user's latest request is " + latestRequest.getRequestType() + ". Cannot execute LOCK.");
+            throw new RuntimeException("Yêu cầu mới nhất của người dùng là " + latestRequest.getRequestType() + ". Không thể thực hiện KHÓA.");
         }
 
         if (latestRequest.getRequestStatus() != ContactRequestStatus.APPROVED) {
-            throw new RuntimeException("Request to LOCK the latest ACCOUNT (#" + latestRequest.getId() + ") not approved yet.");
+            throw new RuntimeException("Yêu cầu KHÓA TÀI KHOẢN mới nhất (#" + latestRequest.getId() + ") chưa được phê duyệt.");
         }
 
         // 3. Khóa tài khoản
@@ -157,8 +157,8 @@ public class AdminServiceImp implements AdminService {
         // 4. Thu hồi toàn bộ phiên đăng nhập
         try {
             userDeviceRepository.revokeAllSessionsByAccountId(id);
-        } catch (Exception e) { 
-            log.warn("Không thể thu hồi session cho account {}: {}", id, e.getMessage()); 
+        } catch (Exception e) {
+            log.warn("Không thể thu hồi session cho account {}: {}", id, e.getMessage());
         }
         
         // 5. Gửi thông báo
@@ -179,20 +179,20 @@ public class AdminServiceImp implements AdminService {
     @Transactional
     public void unlockAccount(Integer id) {
         Account account = accountRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy tài khoản ID: " + id));
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy ID tài khoản: " + id));
 
         // 1. Lấy yêu cầu mới nhất liên quan đến LOCK/UNLOCK (Sắp xếp theo createdAt DESC, id DESC)
         ContactRequest latestRequest = contactRequestRepository.findFirstByAccountIdAndRequestTypeInOrderByCreatedAtDescIdDesc(
                         id, Arrays.asList(ContactRequestType.ACCOUNT_LOCK, ContactRequestType.ACCOUNT_UNLOCK))
-                .orElseThrow(() -> new RuntimeException("Người dùng chưa có yêu cầu hỗ trợ nào liên quan đến trạng thái tài khoản."));
+                .orElseThrow(() -> new RuntimeException("Người dùng chưa tạo bất kỳ yêu cầu hỗ trợ nào liên quan đến trạng thái tài khoản."));
 
         // 2. Kiểm tra tính hợp lệ của yêu cầu mới nhất
         if (latestRequest.getRequestType() != ContactRequestType.ACCOUNT_UNLOCK) {
-            throw new RuntimeException("The user's latest request is " + latestRequest.getRequestType() + ". Unable to UNLOCK.");
+            throw new RuntimeException("Yêu cầu mới nhất của người dùng là " + latestRequest.getRequestType() + ". Không thể thực hiện MỞ KHÓA.");
         }
 
         if (latestRequest.getRequestStatus() != ContactRequestStatus.APPROVED) {
-            throw new RuntimeException("Request to UNLOCK the latest ACCOUNT (#" + latestRequest.getId() + ") not approved yet.");
+            throw new RuntimeException("Yêu cầu MỞ KHÓA TÀI KHOẢN mới nhất (#" + latestRequest.getId() + ") chưa được phê duyệt.");
         }
 
         // 3. Mở khóa tài khoản
@@ -204,7 +204,7 @@ public class AdminServiceImp implements AdminService {
             NotificationContent msg = NotificationMessages.accountUnlocked();
             notificationService.createNotification(account, msg.title(), msg.content(), NotificationType.SYSTEM, null, LocalDateTime.now());
         } catch (Exception e) { 
-            log.warn("Cannot send unlock notification: {}", e.getMessage());
+            log.warn("Không thể gửi thông báo mở khóa: {}", e.getMessage());
         }
     }
 
@@ -233,7 +233,7 @@ public class AdminServiceImp implements AdminService {
     @Transactional
     public void markNotificationAsRead(Integer notificationId) {
         Notification n = notificationRepository.findById(notificationId)
-                .orElseThrow(() -> new RuntimeException("Notification not found"));
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy thông báo"));
         if (!n.getNotifyRead()) {
             n.setNotifyRead(true);
             notificationRepository.save(n);
@@ -245,10 +245,10 @@ public class AdminServiceImp implements AdminService {
     public void markAllNotificationsAsRead() {
         // Chỉ đánh dấu các thông báo SYSTEM của Admin là đã đọc
         List<Notification> unread = notificationRepository.findAllVisibleNotificationsByNotifyTypeOrderByScheduledTimeDesc(
-                NotificationType.SYSTEM.getValue(), 
+                NotificationType.SYSTEM.getValue(),
                 LocalDateTime.now()
         ).stream().filter(n -> !n.getNotifyRead()).toList();
-        
+
         if (!unread.isEmpty()) {
             unread.forEach(n -> n.setNotifyRead(true));
             notificationRepository.saveAll(unread);
@@ -392,7 +392,7 @@ public class AdminServiceImp implements AdminService {
     @Override
     @Transactional(readOnly = true)
     public Map<String, Object> getUserFinancialInsights(Integer userId) {
-        Account acc = accountRepository.findById(userId).orElseThrow(() -> new RuntimeException("User not found"));
+        Account acc = accountRepository.findById(userId).orElseThrow(() -> new RuntimeException("Không tìm thấy người dùng"));
         AccountDto userInfo = new AccountDto(acc);
         return Map.of(
             "userInfo", userInfo, 
@@ -405,10 +405,10 @@ public class AdminServiceImp implements AdminService {
     @Transactional
     public void restoreTransaction(Long transactionId) {
         Transaction tx = transactionRepository.findAnyById(transactionId)
-                .orElseThrow(() -> new RuntimeException("Transaction ID not found: " + transactionId));
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy ID giao dịch: " + transactionId));
         
         if (Boolean.FALSE.equals(tx.getDeleted())) {
-            throw new RuntimeException("This transaction is currently not deleted.");
+            throw new RuntimeException("Giao dịch này hiện không ở trạng thái đã xóa.");
         }
 
         log.info("Attempting to restore transaction ID: {} (Account ID: {})", transactionId, tx.getAccount().getId());
@@ -436,7 +436,7 @@ public class AdminServiceImp implements AdminService {
 
         try {
             String title = "Transaction has been restored";
-            String content = "Transaction worth" + tx.getAmount().toString() + " has been successfully restored by the Admin.";
+            String content = "Transaction worth " + tx.getAmount().toString() + " has been successfully restored by the Admin.";
             notificationService.createNotification(tx.getAccount(), title, content, NotificationType.SYSTEM, tx.getId(), LocalDateTime.now());
         } catch (Exception e) {
             log.warn("Giao dịch đã khôi phục nhưng không thể gửi thông báo: {}", e.getMessage());
@@ -447,14 +447,14 @@ public class AdminServiceImp implements AdminService {
     @Transactional
     public void restoreAllUserTransactions(Integer userId) {
         Account account = accountRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy người dùng ID: " + userId));
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy ID người dùng: " + userId));
         
-        log.info("Restoring all deleted transactions for user ID: {}", userId);
+        log.info("Khôi phục tất cả các giao dịch đã xóa cho ID người dùng: {}", userId);
 
         List<Transaction> deletedTxs = transactionRepository.findAllUserTransactionsNative(userId, 0, 1, null);
         
         if (deletedTxs.isEmpty()) {
-            log.info("No deleted transactions found for user ID: {}", userId);
+            log.info("Không tìm thấy giao dịch nào đã bị xóa cho ID người dùng này.: {}", userId);
             return;
         }
 
@@ -489,7 +489,7 @@ public class AdminServiceImp implements AdminService {
         }
 
         entityManager.clear(); 
-        log.info("All deleted transactions for user ID: {} restored successfully.", userId);
+        log.info("Tất cả các giao dịch đã bị xóa cho ID người dùng: {} khôi phục thành công.", userId);
     }
 
     @Override
