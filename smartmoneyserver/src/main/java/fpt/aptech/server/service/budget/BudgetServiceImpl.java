@@ -128,7 +128,7 @@ public class BudgetServiceImpl implements BudgetService {
     @Override
     @Transactional
     public BudgetResponse createBudget(BudgetRequest request, Integer userId) {
-        validateDates(request.beginDate(), request.endDate());
+        validateDates(request.beginDate(), request.endDate(), request.budgetType().name());
         // bắt lỗi
         validateDuplicateBudget(request, userId, null);
         Account currentUser = accountRepository.findById(userId)
@@ -169,7 +169,7 @@ public class BudgetServiceImpl implements BudgetService {
     public BudgetResponse updateBudget(Integer budgetId, BudgetRequest request, Integer userId) {
 
         // 1. Validate ngày
-        validateDates(request.beginDate(), request.endDate());
+        validateDates(request.beginDate(), request.endDate(), request.budgetType().name());
 
         // 2. Lấy budget
         Budget budget = getOwnedBudget(budgetId, userId);
@@ -656,14 +656,17 @@ public class BudgetServiceImpl implements BudgetService {
     /**
      * Validate ngày bắt đầu phải trước ngày kết thúc.
      */
-    private void validateDates(LocalDate beginDate, LocalDate endDate) {
+    private void validateDates(LocalDate beginDate, LocalDate endDate, String budgetType) {
         if (!beginDate.isBefore(endDate)) {
             throw new IllegalArgumentException("Start date must be before end date.");
         }
-        // Kiểm tra ngày không được âm (trước ngày hiện tại)
-        LocalDate today = LocalDate.now();
-        if (beginDate.isBefore(today)) {
-            throw new IllegalArgumentException("Start date must be today or later.");
+
+        // Chỉ kiểm tra beginDate >= today khi budgetType = CUSTOM
+        if ("CUSTOM".equals(budgetType)) {
+            LocalDate today = LocalDate.now();
+            if (beginDate.isBefore(today)) {
+                throw new IllegalArgumentException("Start date must be today or later for custom budget.");
+            }
         }
     }
 }
