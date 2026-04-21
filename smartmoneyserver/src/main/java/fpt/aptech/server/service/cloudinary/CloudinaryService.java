@@ -51,22 +51,45 @@ public class CloudinaryService {
 
         // 2. Validate loại file (chỉ cho phép ảnh)
         String contentType = file.getContentType();
+        log.info("[Cloudinary] File name: {}, ContentType: {}", file.getOriginalFilename(), contentType);
+
         if (contentType == null || !contentType.startsWith("image/")) {
-            throw new IllegalArgumentException("Chỉ chấp nhận file ảnh (jpg, png, svg, webp...).");
+            // Fallback: check file extension nếu contentType null
+            String filename = file.getOriginalFilename();
+            if (filename != null) {
+                String extension = filename.toLowerCase().substring(filename.lastIndexOf('.') + 1);
+                log.info("[Cloudinary] ContentType null, check extension: {}", extension);
+                if (extension.matches("jpg|jpeg|png|svg|webp|gif|bmp")) {
+                    log.info("[Cloudinary] File extension hợp lệ, cho phép upload");
+                } else {
+                    throw new IllegalArgumentException("Chỉ chấp nhận file ảnh (jpg, png, svg, webp...). File extension: " + extension);
+                }
+            } else {
+                throw new IllegalArgumentException("Chỉ chấp nhận file ảnh (jpg, png, svg, webp...).");
+            }
         }
 
-        // 3. Upload lên Cloudinary
+        // 3. Tạo random name cho file để tránh conflict
+        String originalFilename = file.getOriginalFilename();
+        String extension = "";
+        if (originalFilename != null && originalFilename.contains(".")) {
+            extension = originalFilename.substring(originalFilename.lastIndexOf("."));
+        }
+        String randomFilename = "receipt_" + System.currentTimeMillis() + "_" + (int)(Math.random() * 1000) + extension;
+
+        // 4. Upload lên Cloudinary với random name
         Map<String, Object> uploadResult = cloudinary.uploader().upload(
                 file.getBytes(),
                 ObjectUtils.asMap(
                         "folder", folder,                  // Folder trên cloud
                         "resource_type", "image",          // Loại resource
-                        "overwrite", true,                 // Ghi đè nếu trùng
+                        "public_id", randomFilename,       // Random name để tránh conflict
+                        "overwrite", false,                // Không ghi đè (vì đã có random name)
                         "transformation", "q_auto,f_auto"  // Tự động nén & chọn format tốt nhất
                 )
         );
 
-        // 4. Trả về URL HTTPS (secure_url)
+        // 5. Trả về URL HTTPS (secure_url)
         String secureUrl = (String) uploadResult.get("secure_url");
         log.info("✅ Upload ảnh thành công: {}", secureUrl);
         return secureUrl;

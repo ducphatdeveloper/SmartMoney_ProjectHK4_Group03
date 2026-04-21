@@ -515,7 +515,21 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
                                                       @Param("end") LocalDateTime end);
 
     // =================================================================================
-    // WALLET SCHEDULER — Quét chi tiêu bất thường trong 24h
+    // 14. CÁC HÀM CHO AI CHAT (AI CONVERSATION)
+    // =================================================================================
+
+    /// [AI CHAT] Lấy danh sách Transaction có ai_chat_id trong danh sách (dùng khi xóa lịch sử chat)
+    /// Thêm accountId để lọc theo user (tránh xóa transaction của user khác)
+    List<Transaction> findByAiConversationIdInAndAccountId(List<Integer> conversationIds, Integer accountId);
+
+    /// [AI CHAT] Update trực tiếp ai_chat_id = NULL và source_type = 1 cho các transaction liên quan
+    /// Dùng @Modifying UPDATE query thay vì load entity rồi saveAll (tối ưu hiệu năng, tránh quá tải)
+    @Modifying
+    @Query("UPDATE Transaction t SET t.aiConversation = null, t.sourceType = 1 WHERE t.aiConversation.id IN :conversationIds AND t.account.id = :accountId")
+    void updateAiConversationToNullByConversationIds(@Param("conversationIds") List<Integer> conversationIds, @Param("accountId") Integer accountId);
+
+    // =================================================================================
+    // 15. WALLET SCHEDULER — Quét chi tiêu bất thường trong 24h
     // =================================================================================
 
     // [WALLET-SCHEDULER] Đếm số giao dịch CHI + tổng tiền theo từng wallet_id trong 24h qua
