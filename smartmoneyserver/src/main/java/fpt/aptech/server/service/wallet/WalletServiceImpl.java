@@ -54,7 +54,7 @@ public class WalletServiceImpl implements WalletService {
     public WalletResponse createWallet(Integer accountId, WalletRequest request) {
 
         if (accountId == null) {
-            throw new IllegalArgumentException("Account không hợp lệ");
+            throw new IllegalArgumentException("Invalid account");
         }
 
         // ===== Normalize =====
@@ -72,30 +72,30 @@ public class WalletServiceImpl implements WalletService {
 
         // ===== Validate =====
         if (walletName == null || walletName.isBlank()) {
-            throw new IllegalArgumentException("Tên ví không hợp lệ");
+            throw new IllegalArgumentException("Invalid wallet name");
         }
 
         if (currencyCode == null || currencyCode.isBlank()) {
-            throw new IllegalArgumentException("Loại tiền tệ không hợp lệ");
+            throw new IllegalArgumentException("Invalid currency");
         }
 
         if (initBalance.compareTo(BigDecimal.ZERO) < 0) {
-            throw new IllegalArgumentException("Số dư không được âm");
+            throw new IllegalArgumentException("Balance cannot be negative");
         }
 
         boolean exists = walletRepository
                 .existsByAccountIdAndWalletNameIgnoreCase(accountId, walletName);
 
         if (exists) {
-            throw new IllegalArgumentException("Tên ví đã tồn tại");
+            throw new IllegalArgumentException("Wallet name already exists");
         }
 
         // ===== Fetch =====
         Account account = accountRepository.findById(accountId)
-                .orElseThrow(() -> new IllegalArgumentException("Tài khoản không tồn tại"));
+                .orElseThrow(() -> new IllegalArgumentException("Account does not exist"));
 
         Currency currency = currencyRepository.findById(currencyCode)
-                .orElseThrow(() -> new IllegalArgumentException("Loại tiền tệ không tồn tại"));
+                .orElseThrow(() -> new IllegalArgumentException("Currency does not exist"));
 
         // ===== Create =====
         Wallet wallet = new Wallet();
@@ -112,14 +112,14 @@ public class WalletServiceImpl implements WalletService {
         // ===== Init Transaction =====
         if (initBalance.compareTo(BigDecimal.ZERO) > 0) {
             Category category = categoryRepository.findById(SystemCategory.INCOME_OTHER.getId())
-                    .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy danh mục hệ thống 'Thu nhập khác'"));
+                    .orElseThrow(() -> new IllegalArgumentException("System category 'Other Income' not found"));
 
             Transaction initTransaction = Transaction.builder()
                     .account(account)
                     .wallet(savedWallet)
                     .category(category)
                     .amount(initBalance)
-                    .note("Số dư ban đầu")
+                    .note("Initial balance")
                     .reportable(false) // Không tính vào báo cáo
                     .transDate(LocalDateTime.now())
                     .build();
@@ -144,10 +144,10 @@ public class WalletServiceImpl implements WalletService {
     public WalletResponse updateWallet(Integer accountId, Integer walletId, WalletRequest request) {
         // Bước 1: Tìm ví và kiểm tra quyền
         Wallet wallet = walletRepository.findById(walletId)
-                .orElseThrow(() -> new IllegalArgumentException("Ví không tồn tại"));
+                .orElseThrow(() -> new IllegalArgumentException("Wallet does not exist"));
 
         if (!wallet.getAccount().getId().equals(accountId)) {
-            throw new SecurityException("Bạn không có quyền sửa ví này");
+            throw new SecurityException("You do not have permission to edit this wallet");
         }
 
         // Bước 2: Xử lý điều chỉnh số dư
@@ -156,7 +156,7 @@ public class WalletServiceImpl implements WalletService {
             String name = request.getWalletName().trim();
 
             if (name.isBlank()) {
-                throw new IllegalArgumentException("Tên ví không hợp lệ");
+                throw new IllegalArgumentException("Invalid wallet name");
             }
 
 
@@ -169,7 +169,7 @@ public class WalletServiceImpl implements WalletService {
             BigDecimal newBalance = request.getBalance();
 
             if (newBalance.compareTo(BigDecimal.ZERO) < 0) {
-                throw new IllegalArgumentException("Số dư không được âm");
+                throw new IllegalArgumentException("Balance cannot be negative");
             }
 
             BigDecimal currentBalance = wallet.getBalance();
@@ -186,7 +186,7 @@ public class WalletServiceImpl implements WalletService {
                         : SystemCategory.OTHER_EXPENSE;
                 
                 Category category = categoryRepository.findById(systemCategory.getId())
-                        .orElseThrow(() -> new IllegalStateException("Không tìm thấy danh mục hệ thống: " + systemCategory.name()));
+                        .orElseThrow(() -> new IllegalStateException("System category not found: " + systemCategory.name()));
 
                 // Tạo giao dịch điều chỉnh
                 Transaction adjustmentTransaction = Transaction.builder()
@@ -194,7 +194,7 @@ public class WalletServiceImpl implements WalletService {
                         .wallet(wallet)
                         .category(category)
                         .amount(adjustmentAmount)
-                        .note("Điều chỉnh số dư")
+                        .note("Balance adjustment")
                         .reportable(false)  //Giao dịch điều chỉnh không tính vào báo cáo
                         .transDate(LocalDateTime.now())
                         .build();
@@ -234,7 +234,7 @@ public class WalletServiceImpl implements WalletService {
         // ===== currency =====
         if (request.getCurrencyCode() != null) {
             Currency currency = currencyRepository.findById(request.getCurrencyCode())            
-                    .orElseThrow(() -> new IllegalArgumentException("Loại tiền tệ không tồn tại"));
+                    .orElseThrow(() -> new IllegalArgumentException("Currency does not exist"));
 
             wallet.setCurrency(currency);
         }
@@ -277,9 +277,9 @@ public class WalletServiceImpl implements WalletService {
     public void deleteWallet(Integer accountId, Integer walletId) {
         // Bước 1: Tìm ví và kiểm tra quyền
         Wallet wallet = walletRepository.findById(walletId)
-                .orElseThrow(() -> new IllegalArgumentException("Ví không tồn tại"));
+                .orElseThrow(() -> new IllegalArgumentException("Wallet does not exist"));
         if (!wallet.getAccount().getId().equals(accountId)) {
-            throw new SecurityException("Bạn không có quyền xóa ví này");
+            throw new SecurityException("You do not have permission to delete this wallet");
         }
 
         // Bước 2: Soft delete cascade — xóa mềm các bản ghi liên kết
@@ -305,9 +305,9 @@ public class WalletServiceImpl implements WalletService {
     @Override
     public WalletResponse getWalletById(Integer accountId, Integer walletId) {
         Wallet wallet = walletRepository.findById(walletId)
-                .orElseThrow(() -> new IllegalArgumentException("Ví không tồn tại"));
+                .orElseThrow(() -> new IllegalArgumentException("Wallet does not exist"));
         if (!wallet.getAccount().getId().equals(accountId)) {
-            throw new SecurityException("Bạn không có quyền xem ví này");
+            throw new SecurityException("You do not have permission to view this wallet");
         }
         return mapToResponse(wallet);
     }

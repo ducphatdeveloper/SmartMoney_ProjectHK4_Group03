@@ -71,7 +71,7 @@ class _EditBudgetDetailScreenState extends State<EditBudgetDetailScreen> {
           ..removeCurrentSnackBar()
           ..showSnackBar(
             const SnackBar(
-              content: Text("Số tiền không được vượt quá 1000 tỷ"),
+              content: Text("Amount must not exceed 1000 billion"),
               duration: Duration(seconds: 2),
             ),
           );
@@ -129,27 +129,27 @@ class _EditBudgetDetailScreenState extends State<EditBudgetDetailScreen> {
             const SizedBox(height: 12),
             const Center(
               child: Text(
-                "Khoảng thời gian",
+                "Time period",
                 style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
               ),
             ),
             const SizedBox(height: 12),
-            _sheetBtn("Tuần này (${_f(startOfWeek)} - ${_f(endOfWeek)})", () {
+            _sheetBtn("This week (${_f(startOfWeek)} - ${_f(endOfWeek)})", () {
               setRange(startOfWeek, endOfWeek);
               periodType = "WEEKLY";
               Navigator.pop(context);
             }),
-            _sheetBtn("Tháng này (${_f(startOfMonth)} - ${_f(endOfMonth)})", () {
+            _sheetBtn("This month (${_f(startOfMonth)} - ${_f(endOfMonth)})", () {
               setRange(startOfMonth, endOfMonth);
               periodType = "MONTHLY";
               Navigator.pop(context);
             }),
-            _sheetBtn("Năm nay (${_f(startOfYear)} - ${_f(endOfYear)})", () {
+            _sheetBtn("This year (${_f(startOfYear)} - ${_f(endOfYear)})", () {
               setRange(startOfYear, endOfYear);
               periodType = "YEARLY";
               Navigator.pop(context);
             }),
-            _sheetBtn("Tuỳ chỉnh", () async {
+            _sheetBtn("Custom", () async {
               Navigator.pop(context);
               final result = await showDateRangePicker(
                 context: context,
@@ -163,7 +163,7 @@ class _EditBudgetDetailScreenState extends State<EditBudgetDetailScreen> {
               });
             }),
             const SizedBox(height: 8),
-            _sheetBtn("Huỷ", () => Navigator.pop(context), isCancel: true),
+            _sheetBtn("Cancel", () => Navigator.pop(context), isCancel: true),
             const SizedBox(height: 16),
           ],
         ),
@@ -198,7 +198,7 @@ class _EditBudgetDetailScreenState extends State<EditBudgetDetailScreen> {
   Future<void> save() async {
     if (amountValue <= 0 || range == null || category == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Vui lòng nhập đầy đủ thông tin")),
+        const SnackBar(content: Text("Please enter all required information")),
       );
       return;
     }
@@ -233,7 +233,7 @@ class _EditBudgetDetailScreenState extends State<EditBudgetDetailScreen> {
       Navigator.pop(context, updatedBudget); // 🔹 pop kèm dữ liệu
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Cập nhật thất bại")),
+        const SnackBar(content: Text("Update failed")),
       );
       Navigator.pop(context); // 🔹 Chỉ pop, không cần BudgetResponse
     }
@@ -260,7 +260,7 @@ class _EditBudgetDetailScreenState extends State<EditBudgetDetailScreen> {
         ],
 
         title: const Text(
-          "Sửa ngân sách",
+          "Edit budget",
           style: TextStyle(
             color: Colors.white,
             fontSize: 18,
@@ -282,7 +282,7 @@ class _EditBudgetDetailScreenState extends State<EditBudgetDetailScreen> {
           style: ElevatedButton.styleFrom(
             backgroundColor: isValid ? Colors.green : Colors.grey.shade800,
           ),
-          child: const Text("Lưu"),
+          child: const Text("Save"),
         ),
       ),
       body: ListView(
@@ -303,7 +303,7 @@ class _EditBudgetDetailScreenState extends State<EditBudgetDetailScreen> {
                       ),
                     ),
                   ),
-                  title: Text(category?.ctgName ?? "Chọn nhóm", style: const TextStyle(color: Colors.white)),
+                  title: Text(category?.ctgName ?? "Select category", style: const TextStyle(color: Colors.white)),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: pickCategory,
                 ),
@@ -324,7 +324,7 @@ class _EditBudgetDetailScreenState extends State<EditBudgetDetailScreen> {
                   leading: const Icon(Icons.calendar_today),
                   title: Text(
                     range == null
-                        ? "Chọn thời gian"
+                        ? "Select time"
                         : "${FormatHelper.formatDate(range!.start)} - ${FormatHelper.formatDate(range!.end)}",
                     style: const TextStyle(color: Colors.white),
                   ),
@@ -340,7 +340,7 @@ class _EditBudgetDetailScreenState extends State<EditBudgetDetailScreen> {
                     radius: 22,
                   ),
                   title: Text(
-                    wallet?.walletName ?? "Không có ví",
+                    wallet?.walletName ?? "No wallet",
                     style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
                   ),
                   subtitle: Text(
@@ -359,8 +359,8 @@ class _EditBudgetDetailScreenState extends State<EditBudgetDetailScreen> {
             child: SwitchListTile(
               value: repeat,
               onChanged: (v) => setState(() => repeat = v),
-              title: const Text("Lặp lại ngân sách này", style: TextStyle(color: Colors.white)),
-              subtitle: const Text("Ngân sách sẽ tự lặp lại kỳ tiếp theo", style: TextStyle(color: Colors.grey)),
+              title: const Text("Repeat this budget", style: TextStyle(color: Colors.white)),
+              subtitle: const Text("Budget will automatically repeat in next period", style: TextStyle(color: Colors.grey)),
             ),
           ),
         ],

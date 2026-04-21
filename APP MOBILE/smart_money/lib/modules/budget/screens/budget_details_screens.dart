@@ -97,9 +97,9 @@ class _BudgetDetailScreenState extends State<BudgetDetailScreen>
         .difference(today)
         .inDays;
 
-    if (diff < 0) return "Quá hạn ${diff.abs()} ngày";
-    if (diff == 0) return "Hết hạn hôm nay";
-    return "Còn $diff ngày";
+    if (diff < 0) return "Overdue by ${diff.abs()} days";
+    if (diff == 0) return "Expires today";
+    return "$diff days remaining";
   }
 
   String _formatDate(DateTime d) => DateFormat('dd/MM/yyyy').format(d);
@@ -153,7 +153,7 @@ class _BudgetDetailScreenState extends State<BudgetDetailScreen>
           // Tiêu đề
           Expanded(
             child: Text(
-              "Ngân sách #${_budget.id}",
+              "Budget #${_budget.id}",
               textAlign: TextAlign.center,
               style: const TextStyle(
                 fontWeight: FontWeight.bold,
@@ -191,17 +191,17 @@ class _BudgetDetailScreenState extends State<BudgetDetailScreen>
                 context: context,
                 builder: (context) =>
                     AlertDialog(
-                      title: const Text("Xác nhận xóa"),
+                      title: const Text("Confirm delete"),
                       content: const Text(
-                          "Bạn có chắc chắn muốn xóa ngân sách này không?"),
+                          "Are you sure you want to delete this budget?"),
                       actions: [
                         TextButton(
                           onPressed: () => Navigator.pop(context, false),
-                          child: const Text("Hủy"),
+                          child: const Text("Cancel"),
                         ),
                         TextButton(
                           onPressed: () => Navigator.pop(context, true),
-                          child: const Text("Xóa", style: TextStyle(
+                          child: const Text("Delete", style: TextStyle(
                               color: Colors.red)),
                         ),
                       ],
@@ -214,11 +214,11 @@ class _BudgetDetailScreenState extends State<BudgetDetailScreen>
                 if (success) {
                   Navigator.pop(context); // Quay về màn hình trước
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text("Xóa ngân sách thành công")),
+                    const SnackBar(content: Text("Budget deleted successfully")),
                   );
                 } else {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text("Xóa ngân sách thất bại")),
+                    const SnackBar(content: Text("Failed to delete budget")),
                   );
                 }
               }
@@ -258,7 +258,7 @@ class _BudgetDetailScreenState extends State<BudgetDetailScreen>
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
-                  b.categories.isNotEmpty ? b.categories.first.ctgName : "Danh mục",
+                  b.categories.isNotEmpty ? b.categories.first.ctgName : "Category",
                   style: const TextStyle(
                       fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
                 ),
@@ -278,8 +278,8 @@ class _BudgetDetailScreenState extends State<BudgetDetailScreen>
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  _moneyInfo("Đã chi", spent, crossAlign: CrossAxisAlignment.start),
-                  _moneyInfo("Còn lại", remaining,
+                  _moneyInfo("Spent", spent, crossAlign: CrossAxisAlignment.start),
+                  _moneyInfo("Remaining", remaining,
                       color: remaining < 0 ? Colors.redAccent : Colors.greenAccent,
                       crossAlign: CrossAxisAlignment.end),
                 ],
@@ -430,7 +430,7 @@ class _BudgetDetailScreenState extends State<BudgetDetailScreen>
                                 fontWeight: FontWeight.bold,
                                 color: Colors.white)),
                         const SizedBox(height: 4),
-                        Text("Đã chi",
+                        Text("Spent",
                             style: TextStyle(color: Colors.grey[400],
                                 fontSize: 12)),
                         const SizedBox(height: 6),
@@ -446,8 +446,8 @@ class _BudgetDetailScreenState extends State<BudgetDetailScreen>
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  _infoItem("Ngân sách", formatMoney(total)),
-                  _infoItem(percent >= 1 ? "Vượt" : "Còn lại",
+                  _infoItem("Budget", formatMoney(total)),
+                  _infoItem(percent >= 1 ? "Over" : "Remaining",
                       formatMoney(percent >= 1 ? spent - total : remaining),
                       color: percent >= 1 ? Colors.redAccent : Colors
                           .greenAccent),
@@ -476,12 +476,12 @@ class _BudgetDetailScreenState extends State<BudgetDetailScreen>
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-          const Text("Giao dịch", style: TextStyle(fontSize: 16)),
+          const Text("Transactions", style: TextStyle(fontSize: 16)),
           TextButton(
-              onPressed: _showAllTransactions, child: const Text("Xem tất cả")),
+              onPressed: _showAllTransactions, child: const Text("View all")),
         ]),
         const SizedBox(height: 8),
-        if (preview.isEmpty) const Text("Không có giao dịch"),
+        if (preview.isEmpty) const Text("No transactions"),
         ...preview.map(_item),
       ],
     );
@@ -524,7 +524,7 @@ class _BudgetDetailScreenState extends State<BudgetDetailScreen>
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
-                      t.categoryName ?? "Khác",
+                      t.categoryName ?? "Other",
                       style: const TextStyle(
                           color: Colors.white, fontWeight: FontWeight.w500, fontSize: 14),
                     ),
@@ -539,13 +539,13 @@ class _BudgetDetailScreenState extends State<BudgetDetailScreen>
 
               // Chi tiết từng trường
               if (t.transDate != null)
-                _detailRow("Ngày giao dịch",
+                _detailRow("Transaction date",
                     DateFormat('dd/MM/yyyy • HH:mm').format(t.transDate)),
-              if (t.note != null && t.note!.isNotEmpty) _detailRow("Ghi chú", t.note!),
+              if (t.note != null && t.note!.isNotEmpty) _detailRow("Note", t.note!),
               if (t.withPerson != null && t.withPerson!.isNotEmpty)
-                _detailRow("Với ai", t.withPerson!),
+                _detailRow("With whom", t.withPerson!),
               if (t.eventName != null && t.eventName!.isNotEmpty)
-                _detailRow("Sự kiện", t.eventName!),
+                _detailRow("Event", t.eventName!),
             ],
           ),
         ),

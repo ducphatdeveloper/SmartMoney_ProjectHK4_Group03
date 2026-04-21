@@ -58,7 +58,7 @@ class _SelectWalletScreenState extends State<SelectWalletScreen> {
                   .firstWhere((e) => e.id == selectedId);
               Navigator.pop(context, selected);
             },
-            child: const Text("Xong",
+            child: const Text("Done",
                 style: TextStyle(color: Colors.green)),
           )
         ],
@@ -73,10 +73,10 @@ class _SelectWalletScreenState extends State<SelectWalletScreen> {
           const SizedBox(height: 20),
 
           if (reportableWallets.isNotEmpty)
-            _group("VÍ TỔNG", reportableWallets),
+            _group("TOTAL WALLETS", reportableWallets),
 
           if (nonReportableWallets.isNotEmpty)
-            _group("VÍ KHÔNG TÍNH TỔNG", nonReportableWallets),
+            _group("EXCLUDED WALLETS", nonReportableWallets),
 
           const SizedBox(height: 20),
 
@@ -107,7 +107,7 @@ class _SelectWalletScreenState extends State<SelectWalletScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
-                "Tổng Tài Sản",
+                "Total Assets",
                 style: TextStyle(
                   color: Colors.grey,
                   fontSize: 13,
@@ -244,7 +244,7 @@ class _SelectWalletScreenState extends State<SelectWalletScreen> {
               color: isEmpty ? Colors.blue : Colors.green,
             ),
             title: Text(
-              isEmpty ? "Tạo ví đầu tiên" : "Thêm ví",
+              isEmpty ? "Create first wallet" : "Add wallet",
               style: TextStyle(
                 color: isEmpty ? Colors.blue : Colors.green,
                 fontWeight: FontWeight.w500,

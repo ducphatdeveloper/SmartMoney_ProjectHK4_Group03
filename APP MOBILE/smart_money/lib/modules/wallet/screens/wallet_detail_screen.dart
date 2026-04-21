@@ -159,7 +159,7 @@ class _WalletDetailScreenState extends State<WalletDetailScreen> {
           const SizedBox(height: 6),
 
           const Text(
-            "Số dư hiện tại",
+            "Current balance",
             style: TextStyle(color: Colors.grey),
           ),
 
@@ -176,7 +176,7 @@ class _WalletDetailScreenState extends State<WalletDetailScreen> {
               Icon(Icons.attach_money, color: Colors.grey, size: 18),
               SizedBox(width: 6),
               Text(
-                "Việt Nam Đồng",
+                "Vietnamese Dong",
                 style: TextStyle(color: Colors.grey),
               ),
             ],
@@ -273,7 +273,7 @@ class _WalletDetailScreenState extends State<WalletDetailScreen> {
                 );
               },
               child: const Text(
-                "Xem ngân sách liên quan",
+                "View related budgets",
                 style: TextStyle(
                   color: Colors.blueAccent,
                   decoration: TextDecoration.underline,
@@ -303,7 +303,7 @@ class _WalletDetailScreenState extends State<WalletDetailScreen> {
               Navigator.pop(context, true);
             },
             child: const Text(
-              "Xóa",
+              "Delete",
               style: TextStyle(color: Colors.red),
             ),
           ),

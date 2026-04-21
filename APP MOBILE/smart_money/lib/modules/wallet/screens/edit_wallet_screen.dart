@@ -32,8 +32,8 @@ class _EditWalletScreenState extends State<EditWalletScreen> {
   String? balanceError;
 
   String? _validateName(String text) {
-    if (text.isEmpty) return "Tên ví không được để trống";
-    if (text.length > 30) return "Tên ví tối đa 30 ký tự";
+    if (text.isEmpty) return "Wallet name cannot be empty";
+    if (text.length > 30) return "Wallet name max 30 characters";
     return null;
   }
 
@@ -66,7 +66,7 @@ class _EditWalletScreenState extends State<EditWalletScreen> {
         ),
         centerTitle: true,
         title: const Text(
-          "Chỉnh sửa ví",
+          "Edit wallet",
           style: TextStyle(
             color: Colors.white,
             fontSize: 18,
@@ -130,7 +130,7 @@ class _EditWalletScreenState extends State<EditWalletScreen> {
               controller: nameController,
               style: const TextStyle(color: Colors.white),
               decoration: InputDecoration(
-                hintText: "Tên ví",
+                hintText: "Wallet name",
                 hintStyle: const TextStyle(color: Colors.grey),
                 border: InputBorder.none,
                 errorText: nameError,
@@ -166,7 +166,7 @@ class _EditWalletScreenState extends State<EditWalletScreen> {
               ),
             ),
             title: const Text(
-              "Đơn vị tiền tệ",
+              "Currency",
               style: TextStyle(color: Colors.grey),
             ),
             trailing: Row(
@@ -186,7 +186,7 @@ class _EditWalletScreenState extends State<EditWalletScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  "Số tiền hiện có",
+                  "Current balance",
                   style: TextStyle(color: Colors.grey),
                 ),
                 const SizedBox(height: 8),
@@ -226,11 +226,11 @@ class _EditWalletScreenState extends State<EditWalletScreen> {
           decoration: _card(),
           child: SwitchListTile(
             title: const Text(
-              "Bật thông báo",
+              "Enable notifications",
               style: TextStyle(color: Colors.white),
             ),
             subtitle: const Text(
-              "Nhận thông báo khi ví có giao dịch",
+              "Receive notifications when wallet has transactions",
               style: TextStyle(color: Colors.grey),
             ),
             value: notification,
@@ -247,11 +247,11 @@ class _EditWalletScreenState extends State<EditWalletScreen> {
           decoration: _card(),
           child: SwitchListTile(
             title: const Text(
-              "Không tính vào tổng",
+              "Exclude from total",
               style: TextStyle(color: Colors.white),
             ),
             subtitle: const Text(
-              'Bỏ qua ví này khỏi "Tổng"',
+              'Exclude this wallet from "Total"',
               style: TextStyle(color: Colors.grey),
             ),
             value: excludeFromTotal,
@@ -292,7 +292,7 @@ class _EditWalletScreenState extends State<EditWalletScreen> {
       setState(() {
         _lastValidText = '';
         balanceController.text = '';
-        balanceError = "Số tiền không được để trống";
+        balanceError = "Amount cannot be empty";
       });
       return;
     }
@@ -350,16 +350,16 @@ class _EditWalletScreenState extends State<EditWalletScreen> {
   // ================= VALIDATION =================
 
   String? _validateBalance(String text) {
-    if (text.isEmpty) return "Số tiền không được để trống";
+    if (text.isEmpty) return "Amount cannot be empty";
 
     final raw = text.replaceAll('.', '');
 
     final value = double.tryParse(raw);
 
-    if (value == null) return "Số tiền không hợp lệ";
-    if (value < 0) return "Số tiền không được âm";
+    if (value == null) return "Invalid amount";
+    if (value < 0) return "Amount cannot be negative";
     if (value > 1000000000000) {
-      return "Số tiền tối đa là 1000 Tỷ VND";
+      return "Maximum amount is 1000 billion VND";
     }
 
     return null;
@@ -409,7 +409,7 @@ class _EditWalletScreenState extends State<EditWalletScreen> {
     if (success) {
       Navigator.pop(context, true);
     } else {
-      _showError(provider.error ?? "Cập nhật ví thất bại");
+      _showError(provider.error ?? "Failed to update wallet");
     }
   }
 
