@@ -72,7 +72,7 @@ class _WalletListViewState extends State<WalletListView> {
               onPressed: () => Navigator.pop(context),
             ),
             title: const Text(
-              "Ví của tôi",
+              "My Wallets",
               style: TextStyle(fontWeight: FontWeight.bold),
             ),
             centerTitle: true,
@@ -101,10 +101,10 @@ class _WalletListViewState extends State<WalletListView> {
                 _header(totalBalance),
                 const SizedBox(height: 20),
                 if (reportableWallets.isNotEmpty)
-                  _walletGroup("Ví tổng", reportableWallets, context),
+                  _walletGroup("Total Wallets", reportableWallets, context),
                 if (nonReportableWallets.isNotEmpty)
                   _walletGroup(
-                      "Ví không tính tổng", nonReportableWallets, context),
+                      "Excluded Wallets", nonReportableWallets, context),
               ],
             ),
           ),
@@ -126,7 +126,7 @@ class _WalletListViewState extends State<WalletListView> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text(
-            "Tổng tài sản",
+            "Total Assets",
             style: TextStyle(color: Colors.white70),
           ),
           const SizedBox(height: 8),
@@ -248,7 +248,7 @@ class _WalletListViewState extends State<WalletListView> {
             ),
             const SizedBox(height: 16),
             const Text(
-              "Chưa có ví nào",
+              "No wallets yet",
               style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
@@ -257,7 +257,7 @@ class _WalletListViewState extends State<WalletListView> {
             ),
             const SizedBox(height: 8),
             const Text(
-              "Tạo ví để bắt đầu quản lý tài chính",
+              "Create a wallet to start managing your finances",
               style: TextStyle(color: Colors.grey),
             ),
             const SizedBox(height: 20),
@@ -275,7 +275,7 @@ class _WalletListViewState extends State<WalletListView> {
                   ),
                 );
               },
-              child: const Text("Tạo ví"),
+              child: const Text("Create Wallet"),
             )
           ],
         ),

@@ -10,7 +10,7 @@ class AddWalletTypeScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
-        title: const Text("Thêm Ví"),
+        title: const Text("Add Wallet"),
         centerTitle: true,
         backgroundColor: Colors.black,
       ),
@@ -28,14 +28,14 @@ class AddWalletTypeScreen extends StatelessWidget {
           itemBuilder: (context, index) {
             final items = [
               {
-                "title": "Ví cơ bản",
+                "title": "Basic Wallet",
                 "color1": const Color(0xFF34C759),
                 "color2": const Color(0xFF2DBE60),
                 "icon": Icons.account_balance_wallet,
                 "screen": const AddBasicWalletScreen(),
               },
               {
-                "title": "Ví tiết kiệm",
+                "title": "Savings Wallet",
                 "color1": const Color(0xFFFF5F6D),
                 "color2": const Color(0xFFFF3B30),
                 "icon": Icons.savings,

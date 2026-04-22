@@ -57,7 +57,7 @@ public class BudgetServiceImpl implements BudgetService {
     public List<BudgetResponse> getBudgets(Integer userId, Integer walletId) {
 
         if (walletId == null) {
-            throw new IllegalArgumentException("Phải chọn ví");
+            throw new IllegalArgumentException("Wallet is required");
         }
 
         List<Budget> budgets = budgetRepository
@@ -128,14 +128,14 @@ public class BudgetServiceImpl implements BudgetService {
     @Override
     @Transactional
     public BudgetResponse createBudget(BudgetRequest request, Integer userId) {
-        validateDates(request.beginDate(), request.endDate());
+        validateDates(request.beginDate(), request.endDate(), request.budgetType().name());
         // bắt lỗi
         validateDuplicateBudget(request, userId, null);
         Account currentUser = accountRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("Tài khoản không tồn tại"));
+                .orElseThrow(() -> new IllegalArgumentException("Account does not exist"));
 
         Wallet wallet = walletRepository.findById(request.walletId())
-                .orElseThrow(() -> new IllegalArgumentException("Ví không tồn tại"));
+                .orElseThrow(() -> new IllegalArgumentException("Wallet does not exist"));
 
         validateBudgetType(
                 request.beginDate(),
@@ -169,19 +169,19 @@ public class BudgetServiceImpl implements BudgetService {
     public BudgetResponse updateBudget(Integer budgetId, BudgetRequest request, Integer userId) {
 
         // 1. Validate ngày
-        validateDates(request.beginDate(), request.endDate());
+        validateDates(request.beginDate(), request.endDate(), request.budgetType().name());
 
         // 2. Lấy budget
         Budget budget = getOwnedBudget(budgetId, userId);
 
         // 3. ❌ Không cho đổi wallet
         if (!budget.getWallet().getId().equals(request.walletId())) {
-            throw new IllegalArgumentException("Không được thay đổi ví");
+            throw new IllegalArgumentException("Cannot change wallet");
         }
 
         // 4. Validate category cơ bản
         if (!Boolean.TRUE.equals(request.allCategories()) && request.categoryId() == null) {
-            throw new IllegalArgumentException("Phải chọn category");
+            throw new IllegalArgumentException("Category is required");
         }
 
         // 5. Validate type (nếu bạn vẫn muốn giữ)
@@ -218,7 +218,7 @@ public class BudgetServiceImpl implements BudgetService {
             case "WEEKLY":
                 // phải đúng 7 ngày
                 if (days != 7) {
-                    throw new IllegalArgumentException("Ngân sách tuần phải đúng 7 ngày");
+                    throw new IllegalArgumentException("Weekly budget must be exactly 7 days");
                 }
                 break;
 
@@ -226,7 +226,7 @@ public class BudgetServiceImpl implements BudgetService {
                 // phải từ ngày 1 đến cuối tháng
                 if (!(begin.getDayOfMonth() == 1 &&
                         end.getDayOfMonth() == end.lengthOfMonth())) {
-                    throw new IllegalArgumentException("Ngân sách tháng phải từ đầu đến cuối tháng");
+                    throw new IllegalArgumentException("Monthly budget must be from first to last day of month");
                 }
                 break;
 
@@ -234,7 +234,7 @@ public class BudgetServiceImpl implements BudgetService {
                 // phải từ 01/01 đến 31/12
                 if (!(begin.getDayOfYear() == 1 &&
                         end.getDayOfYear() == end.lengthOfYear())) {
-                    throw new IllegalArgumentException("Ngân sách năm phải từ 01/01 đến 31/12");
+                    throw new IllegalArgumentException("Yearly budget must be from 01/01 to 12/31");
                 }
                 break;
 
@@ -243,7 +243,7 @@ public class BudgetServiceImpl implements BudgetService {
                 break;
 
             default:
-                throw new IllegalArgumentException("Loại ngân sách không hợp lệ");
+                throw new IllegalArgumentException("Invalid budget type");
         }
     }
 
@@ -267,7 +267,7 @@ public class BudgetServiceImpl implements BudgetService {
     private Budget getOwnedBudget(Integer budgetId, Integer userId) {
         return budgetRepository.findByIdAndAccount_Id(budgetId, userId)
                 .orElseThrow(() -> new SecurityException(
-                        "Ngân sách không tồn tại hoặc bạn không có quyền truy cập."));
+                        "Budget does not exist or you do not have access."));
     }
 
     /**
@@ -302,15 +302,15 @@ public class BudgetServiceImpl implements BudgetService {
 
         if (categoryId == null) {
             throw new IllegalArgumentException(
-                    "Vui lòng chọn một danh mục hoặc chọn 'Tất cả danh mục'.");
+                    "Please select a category or select 'All categories'.");
         }
 
         Category selected = categoryRepository.findById(categoryId)
-                .orElseThrow(() -> new IllegalArgumentException("Danh mục không tồn tại"));
+                .orElseThrow(() -> new IllegalArgumentException("Category does not exist"));
 
         // Validate: chỉ được dùng category hệ thống hoặc của chính user
         if (selected.getAccount() != null && !selected.getAccount().getId().equals(userId)) {
-            throw new SecurityException("Không có quyền sử dụng danh mục này");
+            throw new SecurityException("You do not have permission to use this category");
         }
 
         Set<Category> categories = new HashSet<>();
@@ -368,7 +368,7 @@ public class BudgetServiceImpl implements BudgetService {
 
         if (!isAllCategory) {
             Category selected = categoryRepository.findById(request.categoryId())
-                    .orElseThrow(() -> new IllegalArgumentException("Danh mục không tồn tại"));
+                    .orElseThrow(() -> new IllegalArgumentException("Category does not exist"));
 
             requestCategoryIds.add(selected.getId());
 
@@ -396,7 +396,7 @@ public class BudgetServiceImpl implements BudgetService {
             // 🚨 2.1 ALL CATEGORY (block mạnh nhất)
             if (isAllCategory || existingAll) {
                 throw new IllegalArgumentException(
-                        "Đã tồn tại ngân sách cho tất cả danh mục trong khoảng thời gian này");
+                        "Budget already exists for all categories in this time period");
             }
 
             // 🚨 2.2 CHECK CATEGORY TRÙNG
@@ -422,27 +422,27 @@ public class BudgetServiceImpl implements BudgetService {
                 case MONTHLY:
                     if (isSameMonth(existing.getBeginDate(), request.beginDate())) {
                         throw new IllegalArgumentException(
-                                "Danh mục đã có ngân sách trong tháng này");
+                                "Category already has a budget in this month");
                     }
                     break;
 
                 case WEEKLY:
                     if (isSameWeek(existing.getBeginDate(), request.beginDate())) {
                         throw new IllegalArgumentException(
-                                "Danh mục đã có ngân sách trong tuần này");
+                                "Category already has a budget in this week");
                     }
                     break;
 
                 case YEARLY:
                     if (existing.getBeginDate().getYear() == request.beginDate().getYear()) {
                         throw new IllegalArgumentException(
-                                "Danh mục đã có ngân sách trong năm này");
+                                "Category already has a budget in this year");
                     }
                     break;
 
                 case CUSTOM:
                     throw new IllegalArgumentException(
-                            "Danh mục đã có ngân sách trong khoảng thời gian này");
+                            "Category already has a budget in this time period");
             }
         }
     }
@@ -597,6 +597,7 @@ public class BudgetServiceImpl implements BudgetService {
                 ? List.of()
                 : budget.getCategories().stream()
                         .map(categoryMapper::toDto)
+                        .sorted((c1, c2) -> Integer.compare(c1.id(), c2.id()))  // 👉 Sắp xếp theo ID để đảm bảo thứ tự ổn định
                         .collect(Collectors.toList());
 
         // =========================
@@ -622,7 +623,7 @@ public class BudgetServiceImpl implements BudgetService {
 //                : null;
 
 
-        String walletName = budget.getWallet() != null ? budget.getWallet().getWalletName() : "Tổng cộng";
+        String walletName = budget.getWallet() != null ? budget.getWallet().getWalletName() : "Total";
         // =========================
         // 10. BUILD RESPONSE
         // =========================
@@ -655,9 +656,17 @@ public class BudgetServiceImpl implements BudgetService {
     /**
      * Validate ngày bắt đầu phải trước ngày kết thúc.
      */
-    private void validateDates(LocalDate beginDate, LocalDate endDate) {
+    private void validateDates(LocalDate beginDate, LocalDate endDate, String budgetType) {
         if (!beginDate.isBefore(endDate)) {
-            throw new IllegalArgumentException("Ngày bắt đầu phải trước ngày kết thúc.");
+            throw new IllegalArgumentException("Start date must be before end date.");
+        }
+
+        // Chỉ kiểm tra beginDate >= today khi budgetType = CUSTOM
+        if ("CUSTOM".equals(budgetType)) {
+            LocalDate today = LocalDate.now();
+            if (beginDate.isBefore(today)) {
+                throw new IllegalArgumentException("Start date must be today or later for custom budget.");
+            }
         }
     }
 }

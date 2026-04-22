@@ -7,13 +7,12 @@ import fpt.aptech.server.entity.Account;
 import fpt.aptech.server.entity.Transaction;
 import fpt.aptech.server.entity.Notification;
 import fpt.aptech.server.entity.UserDevice;
-import fpt.aptech.server.enums.notification.NotificationType;
-import fpt.aptech.server.enums.contact.ContactRequestType;
+import fpt.aptech.server.entity.ContactRequest;
 import fpt.aptech.server.enums.contact.ContactRequestStatus;
-import fpt.aptech.server.repos.AccountRepository;
-import fpt.aptech.server.repos.UserDeviceRepository;
-import fpt.aptech.server.repos.TransactionRepository;
-import fpt.aptech.server.repos.ContactRequestRepository;
+import fpt.aptech.server.enums.contact.ContactRequestType;
+import fpt.aptech.server.enums.notification.NotificationType;
+import fpt.aptech.server.repos.*;
+import fpt.aptech.server.service.debt.DebtCalculationService;
 import fpt.aptech.server.service.notification.NotificationService;
 import fpt.aptech.server.service.notification.NotificationContent;
 import fpt.aptech.server.service.notification.NotificationMessages;
@@ -42,6 +41,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Objects;
 import java.util.Map;
+import java.util.Arrays;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -52,7 +52,9 @@ public class AdminServiceImp implements AdminService {
     private final AccountRepository accountRepository;
     private final UserDeviceRepository userDeviceRepository;
     private final NotificationService notificationService;
+    private final NotificationRepository notificationRepository;
     private final TransactionRepository transactionRepository;
+    private final DebtCalculationService debtCalculationService;
     private final ContactRequestRepository contactRequestRepository;
 
     @PersistenceContext
@@ -123,49 +125,87 @@ public class AdminServiceImp implements AdminService {
         return new PageResponse<>(new PageImpl<>(dtoList, pageable, accountPage.getTotalElements()));
     }
 
+    /**
+     * Khóa tài khoản.
+     * ✅ Yêu cầu: Phải dựa trên ContactRequest (ACCOUNT_LOCK) ở trạng thái APPROVED mới nhất.
+     * ✅ Ràng buộc: Phải là yêu cầu mới nhất liên quan đến trạng thái tài khoản (dựa trên thời gian và ID).
+     */
     @Override
     @Transactional
     public void lockAccount(Integer id) {
         Account account = accountRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy tài khoản ID: " + id));
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy ID tài khoản: " + id));
 
-        contactRequestRepository.findFirstByAccountIdAndRequestTypeAndRequestStatusOrderByCreatedAtDesc(
-                id, ContactRequestType.ACCOUNT_LOCK, ContactRequestStatus.APPROVED)
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy yêu cầu khóa tài khoản đã được duyệt cho ID: " + id));
+        // 1. Lấy yêu cầu mới nhất liên quan đến LOCK/UNLOCK (Sắp xếp theo createdAt DESC, id DESC)
+        ContactRequest latestRequest = contactRequestRepository.findFirstByAccountIdAndRequestTypeInOrderByCreatedAtDescIdDesc(
+                        id, Arrays.asList(ContactRequestType.ACCOUNT_LOCK, ContactRequestType.ACCOUNT_UNLOCK))
+                .orElseThrow(() -> new RuntimeException("Người dùng chưa tạo bất kỳ yêu cầu hỗ trợ nào liên quan đến trạng thái tài khoản."));
 
+        // 2. Kiểm tra tính hợp lệ của yêu cầu mới nhất
+        if (latestRequest.getRequestType() != ContactRequestType.ACCOUNT_LOCK) {
+            throw new RuntimeException("Yêu cầu mới nhất của người dùng là " + latestRequest.getRequestType() + ". Không thể thực hiện KHÓA.");
+        }
+
+        if (latestRequest.getRequestStatus() != ContactRequestStatus.APPROVED) {
+            throw new RuntimeException("Yêu cầu KHÓA TÀI KHOẢN mới nhất (#" + latestRequest.getId() + ") chưa được phê duyệt.");
+        }
+
+        // 3. Khóa tài khoản
         account.setLocked(true);
-        accountRepository.saveAndFlush(account);
+        accountRepository.save(account);
+
+        // 4. Thu hồi toàn bộ phiên đăng nhập
         try {
-            List<UserDevice> devices = userDeviceRepository.findAllByAccount_Id(id);
-            if (devices != null && !devices.isEmpty()) {
-                devices.forEach(device -> device.setRefreshToken(null));
-                userDeviceRepository.saveAll(devices);
-                userDeviceRepository.flush();
-            }
-        } catch (Exception e) { log.warn("Không thể thu hồi token: {}", e.getMessage()); }
+            userDeviceRepository.revokeAllSessionsByAccountId(id);
+        } catch (Exception e) {
+            log.warn("Không thể thu hồi session cho account {}: {}", id, e.getMessage());
+        }
+        
+        // 5. Gửi thông báo
         try {
             NotificationContent msg = NotificationMessages.accountLocked();
             notificationService.createNotification(account, msg.title(), msg.content(), NotificationType.SYSTEM, null, LocalDateTime.now());
-        } catch (Exception e) { log.warn("Không thể gửi thông báo khóa: {}", e.getMessage()); }
+        } catch (Exception e) { 
+            log.warn("Không thể gửi thông báo khóa: {}", e.getMessage()); 
+        }
     }
 
+    /**
+     * Mở khóa tài khoản.
+     * ✅ Yêu cầu: Phải dựa trên ContactRequest (ACCOUNT_UNLOCK) ở trạng thái APPROVED mới nhất.
+     * ✅ Ràng buộc: Phải là yêu cầu mới nhất liên quan đến trạng thái tài khoản (dựa trên thời gian và ID).
+     */
     @Override
     @Transactional
     public void unlockAccount(Integer id) {
         Account account = accountRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy tài khoản ID: " + id));
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy ID tài khoản: " + id));
 
-        contactRequestRepository.findFirstByAccountIdAndRequestTypeAndRequestStatusOrderByCreatedAtDesc(
-                id, ContactRequestType.ACCOUNT_UNLOCK, ContactRequestStatus.APPROVED)
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy yêu cầu mở khóa tài khoản đã được duyệt cho ID: " + id));
+        // 1. Lấy yêu cầu mới nhất liên quan đến LOCK/UNLOCK (Sắp xếp theo createdAt DESC, id DESC)
+        ContactRequest latestRequest = contactRequestRepository.findFirstByAccountIdAndRequestTypeInOrderByCreatedAtDescIdDesc(
+                        id, Arrays.asList(ContactRequestType.ACCOUNT_LOCK, ContactRequestType.ACCOUNT_UNLOCK))
+                .orElseThrow(() -> new RuntimeException("Người dùng chưa tạo bất kỳ yêu cầu hỗ trợ nào liên quan đến trạng thái tài khoản."));
 
+        // 2. Kiểm tra tính hợp lệ của yêu cầu mới nhất
+        if (latestRequest.getRequestType() != ContactRequestType.ACCOUNT_UNLOCK) {
+            throw new RuntimeException("Yêu cầu mới nhất của người dùng là " + latestRequest.getRequestType() + ". Không thể thực hiện MỞ KHÓA.");
+        }
+
+        if (latestRequest.getRequestStatus() != ContactRequestStatus.APPROVED) {
+            throw new RuntimeException("Yêu cầu MỞ KHÓA TÀI KHOẢN mới nhất (#" + latestRequest.getId() + ") chưa được phê duyệt.");
+        }
+
+        // 3. Mở khóa tài khoản
         account.setLocked(false);
         accountRepository.save(account);
-        accountRepository.flush();
+
+        // 4. Gửi thông báo
         try {
             NotificationContent msg = NotificationMessages.accountUnlocked();
             notificationService.createNotification(account, msg.title(), msg.content(), NotificationType.SYSTEM, null, LocalDateTime.now());
-        } catch (Exception e) { log.warn("Không thể gửi thông báo mở khóa: {}", e.getMessage()); }
+        } catch (Exception e) { 
+            log.warn("Không thể gửi thông báo mở khóa: {}", e.getMessage());
+        }
     }
 
     @Override
@@ -182,7 +222,37 @@ public class AdminServiceImp implements AdminService {
 
     @Override
     public List<Notification> getAdminNotifications(Integer adminId) {
-        return notificationService.getNotificationsByType(NotificationType.SYSTEM.getValue());
+        // [CẬP NHẬT] Chỉ lấy thông báo hệ thống (SYSTEM) cho trang Admin, sắp xếp mới nhất
+        return notificationRepository.findAllVisibleNotificationsByNotifyTypeOrderByScheduledTimeDesc(
+                NotificationType.SYSTEM.getValue(), 
+                LocalDateTime.now()
+        );
+    }
+
+    @Override
+    @Transactional
+    public void markNotificationAsRead(Integer notificationId) {
+        Notification n = notificationRepository.findById(notificationId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy thông báo"));
+        if (!n.getNotifyRead()) {
+            n.setNotifyRead(true);
+            notificationRepository.save(n);
+        }
+    }
+
+    @Override
+    @Transactional
+    public void markAllNotificationsAsRead() {
+        // Chỉ đánh dấu các thông báo SYSTEM của Admin là đã đọc
+        List<Notification> unread = notificationRepository.findAllVisibleNotificationsByNotifyTypeOrderByScheduledTimeDesc(
+                NotificationType.SYSTEM.getValue(),
+                LocalDateTime.now()
+        ).stream().filter(n -> !n.getNotifyRead()).toList();
+
+        if (!unread.isEmpty()) {
+            unread.forEach(n -> n.setNotifyRead(true));
+            notificationRepository.saveAll(unread);
+        }
     }
 
     @Override
@@ -192,7 +262,6 @@ public class AdminServiceImp implements AdminService {
         int onlyDeleted = "DELETED".equalsIgnoreCase(deletedStatus) ? 1 : 0;
         Boolean isIncome = parseType(type);
         
-        // Sử dụng Native Query để lấy được cả dữ liệu đã xóa
         Page<Transaction> transactions = transactionRepository.findAllUserTransactionsNativePage(
                 userId, includeDeleted, onlyDeleted, isIncome, pageable);
                 
@@ -323,7 +392,7 @@ public class AdminServiceImp implements AdminService {
     @Override
     @Transactional(readOnly = true)
     public Map<String, Object> getUserFinancialInsights(Integer userId) {
-        Account acc = accountRepository.findById(userId).orElseThrow(() -> new RuntimeException("User not found"));
+        Account acc = accountRepository.findById(userId).orElseThrow(() -> new RuntimeException("Không tìm thấy người dùng"));
         AccountDto userInfo = new AccountDto(acc);
         return Map.of(
             "userInfo", userInfo, 
@@ -332,31 +401,43 @@ public class AdminServiceImp implements AdminService {
         );
     }
 
-    /**
-     * Khôi phục giao dịch.
-     * GIẢI PHÁP FIX LỖI: Loại bỏ hoàn toàn việc gọi Stored Procedure.
-     * Chỉ thực hiện cập nhật deleted=0 qua Repository. 
-     * Trigger 'trg_Transactions_SoftDelete_Balance' trong DB sẽ tự động cập nhật số dư ví.
-     */
     @Override
     @Transactional
     public void restoreTransaction(Long transactionId) {
-        Transaction transaction = transactionRepository.findAnyById(transactionId)
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy giao dịch ID: " + transactionId));
+        Transaction tx = transactionRepository.findAnyById(transactionId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy ID giao dịch: " + transactionId));
         
-        if (Boolean.FALSE.equals(transaction.getDeleted())) {
-            throw new RuntimeException("Giao dịch này hiện không bị xóa.");
+        if (Boolean.FALSE.equals(tx.getDeleted())) {
+            throw new RuntimeException("Giao dịch này hiện không ở trạng thái đã xóa.");
         }
 
-        // 1. Khôi phục trạng thái xóa (Trigger DB sẽ tự động lo phần cộng/trừ lại balance)
+        log.info("Attempting to restore transaction ID: {} (Account ID: {})", transactionId, tx.getAccount().getId());
+
+        boolean isIncome = tx.getCategory() != null && Boolean.TRUE.equals(tx.getCategory().getCtgType());
+        
+        if (tx.getWallet() != null) {
+            if (isIncome) transactionRepository.applyWalletBalanceForIncome(transactionId);
+            else transactionRepository.applyWalletBalanceForExpense(transactionId);
+        } else if (tx.getSavingGoal() != null) {
+            if (isIncome) transactionRepository.applyGoalBalanceForIncome(transactionId);
+            else transactionRepository.applyGoalBalanceForExpense(transactionId);
+        }
+
         transactionRepository.restoreTransaction(transactionId);
         
-        // 2. Gửi thông báo cho người dùng (Sử dụng service có Propagation.REQUIRES_NEW để tránh rollback chéo)
+        entityManager.flush();
+        entityManager.refresh(tx);
+
+        if (tx.getDebt() != null) {
+            debtCalculationService.recalculateDebt(tx.getDebt().getId(), tx.getAccount());
+        }
+
+        log.info("Transaction ID: {} restored successfully. New deleted status: {}", transactionId, tx.getDeleted());
+
         try {
-            String title = "Giao dịch được khôi phục";
-            String content = "Giao dịch trị giá " + transaction.getAmount().toString() + " đã được Admin khôi phục thành công.";
-            notificationService.createNotification(transaction.getAccount(), title, content, NotificationType.SYSTEM, transaction.getId(), LocalDateTime.now());
-            log.info("Admin đã khôi phục giao dịch ID: {} thành công.", transactionId);
+            String title = "Transaction has been restored";
+            String content = "Transaction worth " + tx.getAmount().toString() + " has been successfully restored by the Admin.";
+            notificationService.createNotification(tx.getAccount(), title, content, NotificationType.SYSTEM, tx.getId(), LocalDateTime.now());
         } catch (Exception e) {
             log.warn("Giao dịch đã khôi phục nhưng không thể gửi thông báo: {}", e.getMessage());
         }
@@ -365,12 +446,50 @@ public class AdminServiceImp implements AdminService {
     @Override
     @Transactional
     public void restoreAllUserTransactions(Integer userId) {
-        accountRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy người dùng ID: " + userId));
+        Account account = accountRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy ID người dùng: " + userId));
         
+        log.info("Khôi phục tất cả các giao dịch đã xóa cho ID người dùng: {}", userId);
+
+        List<Transaction> deletedTxs = transactionRepository.findAllUserTransactionsNative(userId, 0, 1, null);
+        
+        if (deletedTxs.isEmpty()) {
+            log.info("Không tìm thấy giao dịch nào đã bị xóa cho ID người dùng này.: {}", userId);
+            return;
+        }
+
+        for (Transaction tx : deletedTxs) {
+            boolean isIncome = tx.getCategory() != null && Boolean.TRUE.equals(tx.getCategory().getCtgType());
+            if (tx.getWallet() != null) {
+                if (isIncome) transactionRepository.applyWalletBalanceForIncome(tx.getId());
+                else transactionRepository.applyWalletBalanceForExpense(tx.getId());
+            } else if (tx.getSavingGoal() != null) {
+                if (isIncome) transactionRepository.applyGoalBalanceForIncome(tx.getId());
+                else transactionRepository.applyGoalBalanceForExpense(tx.getId());
+            }
+        }
+
         transactionRepository.restoreAllUserTransactions(userId);
         
-        log.info("Admin đã khôi phục tất cả giao dịch cho người dùng ID: {}", userId);
+        entityManager.flush();
+
+        deletedTxs.stream()
+                .map(Transaction::getDebt)
+                .filter(Objects::nonNull)
+                .map(fpt.aptech.server.entity.Debt::getId)
+                .distinct()
+                .forEach(debtId -> debtCalculationService.recalculateDebt(debtId, account));
+
+        try {
+            String title = "Transaction has been restored";
+            String content = "All of your deleted transactions have been successfully restored by the Admin.";
+            notificationService.createNotification(account, title, content, NotificationType.SYSTEM, null, LocalDateTime.now());
+        } catch (Exception e) {
+            log.warn("Đã khôi phục nhưng không thể gửi thông báo cho user {}: {}", userId, e.getMessage());
+        }
+
+        entityManager.clear(); 
+        log.info("Tất cả các giao dịch đã bị xóa cho ID người dùng: {} khôi phục thành công.", userId);
     }
 
     @Override
@@ -378,7 +497,7 @@ public class AdminServiceImp implements AdminService {
     public List<Map<String, Object>> getGlobalDeletedTransactions() {
         Query query = entityManager.createNativeQuery("SELECT * FROM vAdminDeletedTransactions ORDER BY deleted_at DESC");
         List<Object[]> results = query.getResultList();
-        
+
         return results.stream().map(row -> {
             Map<String, Object> map = new HashMap<>();
             map.put("transactionId", row[0]);

@@ -48,4 +48,9 @@ public interface NotificationRepository extends JpaRepository<Notification, Inte
     List<Notification> findAllByNotifyTypeOrderByScheduledTimeDesc(Integer notifyType);
     @Deprecated
     List<Notification> findAllByAccount_IdAndNotifyTypeOrderByScheduledTimeDesc(Integer accId, Integer notifyType);
+
+    /// [SCHEDULER] Kiểm tra xem đã có notification nào cho budget này trong khoảng thời gian gần đây chưa
+    /// Dùng để tránh spam notification (ví dụ: chỉ gửi cảnh báo 80% 1 lần)
+    @Query("SELECT COUNT(n) > 0 FROM Notification n WHERE n.account.id = :accountId AND n.notifyType = :notifyType AND n.relatedId = :relatedId AND n.scheduledTime >= :since")
+    boolean existsRecentNotificationForBudget(@Param("accountId") Integer accountId, @Param("notifyType") Integer notifyType, @Param("relatedId") Long relatedId, @Param("since") LocalDateTime since);
 }

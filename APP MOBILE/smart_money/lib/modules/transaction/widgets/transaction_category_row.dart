@@ -43,7 +43,7 @@ class TransactionCategoryRow extends StatelessWidget {
             // Tên danh mục hoặc "Chọn nhóm"
             Expanded(
               child: Text(
-                selected?.ctgName ?? 'Chọn nhóm', // hiện tên nếu đã chọn
+                selected?.ctgName ?? 'Select category', // hiện tên nếu đã chọn
                 style: TextStyle(
                   color: selected != null ? Colors.white : Colors.grey,
                   fontSize: 16,

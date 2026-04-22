@@ -363,13 +363,13 @@ class _TransactionSearchScreenState extends State<TransactionSearchScreen> {
         icon: const Icon(Icons.close, color: Colors.white),
         onPressed: () => Navigator.pop(context), // đóng màn hình
       ),
-      title: const Text("Tìm kiếm", style: TextStyle(color: Colors.white)),
+      title: const Text("Search", style: TextStyle(color: Colors.white)),
       actions: [
         // Nút TÌM KIẾM — chỉ enable khi không đang search
         TextButton(
           onPressed: _isSearching ? null : _search,
           child: Text(
-            "TÌM KIẾM",
+            "SEARCH",
             style: TextStyle(
               color: _isSearching ? Colors.grey : Colors.green,
               fontWeight: FontWeight.bold,
@@ -391,12 +391,12 @@ class _TransactionSearchScreenState extends State<TransactionSearchScreen> {
         children: [
           // [A] Ghi chú
           _buildFilterRow(
-            label: "GHI CHÚ",
+            label: "NOTE",
             child: TextField(
               controller: _noteController,
               style: const TextStyle(color: Colors.white),
               decoration: const InputDecoration(
-                hintText: "Ghi chú",
+                hintText: "Note",
                 hintStyle: TextStyle(color: Colors.grey),
                 border: InputBorder.none,
               ),
@@ -407,12 +407,12 @@ class _TransactionSearchScreenState extends State<TransactionSearchScreen> {
 
           // [B] Với ai
           _buildFilterRow(
-            label: "VỚI",
+            label: "WITH",
             child: TextField(
               controller: _withPersonController,
               style: const TextStyle(color: Colors.white),
               decoration: const InputDecoration(
-                hintText: "Với",
+                hintText: "With",
                 hintStyle: TextStyle(color: Colors.grey),
                 border: InputBorder.none,
               ),
@@ -444,7 +444,7 @@ class _TransactionSearchScreenState extends State<TransactionSearchScreen> {
           TextButton.icon(
             onPressed: _resetFilters,
             icon: const Icon(Icons.refresh, size: 16, color: Colors.grey),
-            label: const Text("Xóa bộ lọc", style: TextStyle(color: Colors.grey, fontSize: 13)),
+            label: const Text("Clear filters", style: TextStyle(color: Colors.grey, fontSize: 13)),
           ),
         ],
       ),
@@ -459,16 +459,16 @@ class _TransactionSearchScreenState extends State<TransactionSearchScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // Label + 4 nút chọn kiểu lọc
-        _buildFilterLabel("SỐ TIỀN"),
+        _buildFilterLabel("AMOUNT"),
         const SizedBox(height: 8),
         // 4 chip chọn kiểu lọc số tiền
         Wrap(
           spacing: 8,
           children: [
-            _buildChip(label: "Tất cả",      value: "all"),
-            _buildChip(label: "Lớn hơn",     value: "gt"),
-            _buildChip(label: "Nhỏ hơn",     value: "lt"),
-            _buildChip(label: "Trong khoảng", value: "range"),
+            _buildChip(label: "All",      value: "all"),
+            _buildChip(label: "Greater than",     value: "gt"),
+            _buildChip(label: "Less than",     value: "lt"),
+            _buildChip(label: "In range", value: "range"),
           ],
         ),
         // Hiện ô nhập số tiền khi không phải "Tất cả"
@@ -483,7 +483,7 @@ class _TransactionSearchScreenState extends State<TransactionSearchScreen> {
                   keyboardType: TextInputType.number,
                   style: const TextStyle(color: Colors.white),
                   decoration: InputDecoration(
-                    hintText: _amountFilter == 'lt' ? "Nhỏ hơn..." : "Từ...",
+                    hintText: _amountFilter == 'lt' ? "Less than..." : "From...",
                     hintStyle: const TextStyle(color: Colors.grey, fontSize: 13),
                     filled: true,
                     fillColor: const Color(0xFF2C2C2E),
@@ -507,7 +507,7 @@ class _TransactionSearchScreenState extends State<TransactionSearchScreen> {
                     keyboardType: TextInputType.number,
                     style: const TextStyle(color: Colors.white),
                     decoration: InputDecoration(
-                      hintText: "Đến...",
+                      hintText: "To...",
                       hintStyle: const TextStyle(color: Colors.grey, fontSize: 13),
                       filled: true,
                       fillColor: const Color(0xFF2C2C2E),
@@ -535,7 +535,7 @@ class _TransactionSearchScreenState extends State<TransactionSearchScreen> {
   // → Giờ dùng bottom sheet như transaction_app_bar.dart và create/edit screen
   Widget _buildWalletFilter() {
     // Xác định tên + iconUrl đang chọn để hiện trên row
-    String currentLabel = 'Tất cả các ví';
+    String currentLabel = 'All wallets';
     String? currentIconUrl;
     String currentType = 'all'; // 'all' | 'wallet' | 'saving_goal'
 
@@ -550,7 +550,7 @@ class _TransactionSearchScreenState extends State<TransactionSearchScreen> {
     }
 
     return _buildFilterRow(
-      label: "VÍ",
+      label: "WALLET",
       child: _loadingDropdowns
           // Đang load → hiện spinner nhỏ
           ? const SizedBox(
@@ -676,7 +676,7 @@ class _TransactionSearchScreenState extends State<TransactionSearchScreen> {
               child: Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
-                  'Chọn ví',
+                  'Select wallet',
                   style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
                 ),
               ),
@@ -853,7 +853,7 @@ class _TransactionSearchScreenState extends State<TransactionSearchScreen> {
             // Tên category
             Expanded(
               child: Text(
-                _selectedCategory?.ctgName ?? "All categorys",
+                _selectedCategory?.ctgName ?? "All categories",
                 style: TextStyle(
                   color: _selectedCategory != null ? Colors.white : Colors.grey,
                 ),
@@ -1079,10 +1079,10 @@ class _TransactionSearchScreenState extends State<TransactionSearchScreen> {
                 // Tìm kiếm lại sau khi xóa
                 await _search();
               } else {
-                _showSnackBar(provider.errorMessage ?? 'Xóa thất bại', isError: true);
+                _showSnackBar(provider.errorMessage ?? 'Delete failed', isError: true);
               }
             },
-            child: const Text('Xóa', style: TextStyle(color: Colors.red)),
+            child: const Text('Delete', style: TextStyle(color: Colors.red)),
           ),
         ],
       ),

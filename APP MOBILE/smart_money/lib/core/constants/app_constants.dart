@@ -59,11 +59,15 @@ class AppConstants {
   }
 
   // =============================================
-  // 3. TOKEN KEYS — dùng trong token_helper.dart
+  // 3. STORAGE KEYS — dùng trong token_helper.dart
   // =============================================
 
   static const String accessTokenKey  = "access_token";
   static const String refreshTokenKey = "refresh_token";
+  
+  // Biometric keys
+  static const String biometricEnabledKey = "biometric_enabled";
+  static const String biometricUserEmailKey = "biometric_user_email"; // Để biết user nào đang enable biometric
 
   // =============================================
   // 4. ENDPOINTS — theo từng module trong blueprint
@@ -71,6 +75,7 @@ class AppConstants {
 
   // --- Auth ---
   static String get authLogin         => "$baseUrl/auth/login";
+  static String get authGoogleLogin   => "$baseUrl/auth/google-login";
   static String get authRegister      => "$baseUrl/auth/register";
   static String get authLogout        => "$baseUrl/auth/logout";
   static String get authForgotPassword => "$baseUrl/auth/forgot-password";
@@ -136,4 +141,12 @@ class AppConstants {
   // --- Contact Request ---
   static String get contactRequestsBase => "$baseUrl/contact-requests";
   static String get myContactRequests   => "$baseUrl/contact-requests/my";
+
+  // --- AI Chat & OCR ---
+  static String get aiBase              => "$baseUrl/ai";
+  static String get aiChat             => "$baseUrl/ai/chat";
+  static String get aiUploadReceipt    => "$baseUrl/ai/upload-receipt";
+  static String get aiHistory          => "$baseUrl/ai/history";
+  static String get aiExecute          => "$baseUrl/ai/execute";
+  static String aiDeleteConversation(int id) => "$baseUrl/ai/history/$id";
 }

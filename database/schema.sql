@@ -772,6 +772,55 @@ FROM (VALUES
 JOIN tCategories p ON p.ctg_name = v.parent_name AND p.parent_id IS NULL;
 GO
 
+UPDATE tCategories
+SET ctg_name = CASE id
+    WHEN 1 THEN 'Food & Beverage'
+    WHEN 2 THEN 'Insurance'
+    WHEN 3 THEN 'Other Expenses'
+    WHEN 4 THEN 'Investment'
+    WHEN 5 THEN 'Transportation'
+    WHEN 6 THEN 'Family'
+    WHEN 7 THEN 'Entertainment'
+    WHEN 8 THEN 'Education'
+    WHEN 9 THEN 'Bills & Utilities'
+    WHEN 10 THEN 'Shopping'
+    WHEN 11 THEN 'Gifts & Donations'
+    WHEN 12 THEN 'Health'
+    WHEN 13 THEN 'Transfer Out'
+    WHEN 14 THEN 'Interest Payment'
+    WHEN 15 THEN 'Salary'
+    WHEN 16 THEN 'Interest Received'
+    WHEN 17 THEN 'Other Income'
+    WHEN 18 THEN 'Transfer In'
+    WHEN 19 THEN 'Lending'
+    WHEN 20 THEN 'Borrowing'
+    WHEN 21 THEN 'Debt Collection'
+    WHEN 22 THEN 'Debt Repayment'
+    WHEN 23 THEN 'Vehicle Maintenance'
+    WHEN 24 THEN 'Home Services'
+    WHEN 25 THEN 'Home Repair & Decor'
+    WHEN 26 THEN 'Pets'
+    WHEN 27 THEN 'Online Services'
+    WHEN 28 THEN 'Travel & Leisure'
+    WHEN 29 THEN 'Electricity Bill'
+    WHEN 30 THEN 'Phone Bill'
+    WHEN 31 THEN 'Gas Bill'
+    WHEN 32 THEN 'Internet Bill'
+    WHEN 33 THEN 'Water Bill'
+    WHEN 34 THEN 'Other Utility Bills'
+    WHEN 35 THEN 'TV Bill'
+    WHEN 36 THEN 'Rent'
+    WHEN 37 THEN 'Personal Items'
+    WHEN 38 THEN 'Home Appliances'
+    WHEN 39 THEN 'Beauty'
+    WHEN 40 THEN 'Medical Check-up'
+    WHEN 41 THEN 'Sports & Fitness'
+    ELSE ctg_name 
+END
+WHERE acc_id IS NULL;
+
+GO
+
 -- ======================================================================
 -- 8. BẢNG VÍ (1-N với tAccounts)
 -- ======================================================================
@@ -811,7 +860,7 @@ INSERT INTO tWallets (acc_id, wallet_name, balance, currency, notified, reportab
 (19, N'ZaloPay', 1800000, 'VND', 1, 1, 'wallet.png'),
 (4, N'Agribank', 20000000, 'VND', 1, 1, 'wallet.png'),
 (5, N'Ví tiết kiệm', 50000000, 'VND', 0, 0, 'wallet.png'),
-(6, N'MB Bank', 6500000, 'VND', 1, 1, 'wallet.png'),
+(6, N'MB Bank', 96500000, 'VND', 1, 1, 'wallet.png'),
 (6, N'VNPay', 900000, 'VND', 1, 1, 'wallet.png'),
 (7, N'ACB', 18000000, 'VND', 1, 1, 'wallet.png'),
 (20, N'Ví du lịch', 10000000, 'VND', 1, 1, 'wallet.png'),
@@ -2112,6 +2161,8 @@ CREATE INDEX idx_notify_ui ON tNotifications(acc_id, notify_read, created_at DES
 
 -- Index: Tối ưu load thông báo mới nhất
 CREATE INDEX idx_notify_latest ON tNotifications(acc_id, created_at DESC) INCLUDE (notify_read, title, content);
+-- Index: hỗ trợ tránh bị time out khi dùng ai 4/21/2026
+CREATE INDEX idx_notification_sent_time ON tNotifications(notify_sent, scheduled_time);
 GO
 
 -- ======================================================================
@@ -2743,12 +2794,14 @@ GO
 --select * from tWallets
 --select * from tSavingGoals
 --select * from tAccounts
---select * from tTransactions
+--select * from tTransactions where acc_id = 6 ORDER BY created_at DESC
 --select * from tUserDevices
 --select * from tReceipts
 --select * from tPlannedTransactions
 --select * from tNotifications where acc_id = 6 ORDER BY notify_read DESC
---select * from tCategories
+--SELECT * FROM tCategories WHERE acc_id IS NULL ORDER BY id ASC;
+SELECT * FROM tReceipts WHERE acc_id = 6;
+SELECT * FROM tAIConversations WHERE acc_id = 6;
 --select * from tBudgets
 --select * from tDebts
 --select * from tContactRequests
@@ -2772,5 +2825,30 @@ GO
 --SELECT * FROM tPlannedTransactions ORDER BY deleted_at DESC;
 --SELECT * FROM tEvents ORDER BY deleted_at DESC;
 
+-- =================================================================================================
+-- LOGIC HỖ TRỢ ADMIN THEO DÕI VÀ KHÔI PHỤC GIAO DỊCH XÓA MỀM
+-- =================================================================================================
 
-
+GO
+-- 1. View dành cho Admin theo dõi các giao dịch đã xóa
+CREATE OR ALTER VIEW vAdminDeletedTransactions AS
+SELECT
+    t.id AS trans_id,
+    a.fullname AS user_name,
+    a.acc_email,
+    w.wallet_name,
+    c.ctg_name,
+    CASE WHEN c.ctg_type = 1 THEN N'Thu nhập' ELSE N'Chi tiêu' END AS trans_type_desc,
+    t.amount,
+    t.note,
+    t.trans_date,
+    t.deleted_at,
+    t.source_type
+FROM tTransactions t
+         JOIN tAccounts a ON t.acc_id = a.id
+         JOIN tWallets w ON t.wallet_id = w.id
+         LEFT JOIN tCategories c ON t.ctg_id = c.id
+WHERE t.deleted = 1;
+GO
+ALTER TABLE tAIConversations
+ADD action_params NVARCHAR(MAX) NULL;

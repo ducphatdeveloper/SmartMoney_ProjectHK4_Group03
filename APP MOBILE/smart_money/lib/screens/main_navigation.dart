@@ -82,28 +82,33 @@ class _MainNavigationState extends State<MainNavigation> {
           child: _buildScreen(),
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        backgroundColor: Colors.green,
-        elevation: 8,
-        onPressed: () async {
-          final txProvider = context.read<TransactionProvider>();
-          final currentSource = txProvider.selectedSource;
-
-          final result = await Navigator.push<bool>(
-            context,
-            MaterialPageRoute(
-              builder: (_) => TransactionCreateScreen(
-                initialSourceItem: currentSource,
-              ),
-            ),
-          );
-
-          if (result == true && mounted) {
-            // Provider sẽ tự reload khi tạo giao dịch thành công
-          }
-        },
-        child: const Icon(Icons.add, size: 28),
-      ),
+      // floatingActionButton: FloatingActionButton(
+      //   backgroundColor: Colors.green,
+      //   elevation: 8,
+      //   onPressed: () async {
+      //     final txProvider = context.read<TransactionProvider>();
+      //     final currentSource = txProvider.selectedSource;
+      //
+      //     final result = await Navigator.push<bool>(
+      //       context,
+      //       MaterialPageRoute(builder: (_) => TransactionCreateScreen(
+      //         initialSourceItem: currentSource,
+      //       )),
+      //     );
+      //
+      //     if (result == true && mounted) {
+      //       // 👉 Chỉ reload BudgetProvider nếu user đang ở tab Budget
+      //       // Tránh reload liên tục khi user đang ở tab khác
+      //       if (index == 3) {
+      //         final budgetProvider = context.read<BudgetProvider>();
+      //         if (budgetProvider.selectedWalletId != null) {
+      //           await budgetProvider.refreshAllData();
+      //         }
+      //       }
+      //     }
+      //   },
+      //   child: const Icon(Icons.add, size: 28),
+      // ),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
       bottomNavigationBar: _buildBottomNavBar(),
     );
@@ -125,17 +130,32 @@ class _MainNavigationState extends State<MainNavigation> {
           child: BottomAppBar(
             color: Colors.black.withOpacity(0.85),
             shape: const CircularNotchedRectangle(),
-            notchMargin: 8,
+            notchMargin: 6,
             child: SizedBox(
-              height: 65,
+              height: 64,
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
-                  buildItem(Icons.home, "Tổng quan", 0),
-                  buildItem(Icons.list, "Sổ giao dịch", 1),
-                  const SizedBox(width: 40),
-                  buildItem(Icons.account_balance_wallet, "Ngân sách", 3),
-                  buildItem(Icons.person, "Tài khoản", 4),
+                  Expanded(
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        buildItem(Icons.home, "Home", 0),
+                        buildItem(Icons.list, "Transactions", 1),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  _buildAddButton(),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                      children: [
+                        buildItem(Icons.account_balance_wallet, "Budget", 3),
+                        buildItem(Icons.person, "Account", 4),
+                      ],
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -152,18 +172,25 @@ class _MainNavigationState extends State<MainNavigation> {
         setState(() {
           index = itemIndex;
         });
+
+        // 👉 Reload BudgetProvider khi switch về tab Budget
+        // Giải quyết vấn đề Budget không load lại khi quay lại từ màn hình khác
+        if (itemIndex == 3) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            final budgetProvider = context.read<BudgetProvider>();
+            if (budgetProvider.selectedWalletId != null) {
+              budgetProvider.refreshAllData();
+            }
+          });
+        }
       },
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          AnimatedScale(
-            scale: selected ? 1.25 : 1,
-            duration: const Duration(milliseconds: 200),
-            child: Icon(
-              icon,
-              color: selected ? Colors.green : Colors.grey,
-              size: 24,
-            ),
+          Icon(
+            icon,
+            color: selected ? Colors.green : Colors.grey,
+            size: 24,
           ),
           const SizedBox(height: 4),
           Text(
@@ -187,4 +214,45 @@ class _MainNavigationState extends State<MainNavigation> {
       ),
     );
   }
+
+  Widget _buildAddButton() {
+    return Transform.translate(
+      offset: const Offset(0, -8),
+      child: GestureDetector(
+        onTap: () async {
+          final txProvider = context.read<TransactionProvider>();
+          final currentSource = txProvider.selectedSource;
+
+          final result = await Navigator.push<bool>(
+            context,
+            MaterialPageRoute(
+              builder: (_) => TransactionCreateScreen(
+                initialSourceItem: currentSource,
+              ),
+            ),
+          );
+
+          if (result == true && mounted) {
+            if (index == 3) {
+              final budgetProvider = context.read<BudgetProvider>();
+              if (budgetProvider.selectedWalletId != null) {
+                await budgetProvider.refreshAllData();
+              }
+            }
+          }
+        },
+        child: Material(
+          color: Colors.green,
+          shape: const CircleBorder(),
+          elevation: 8,
+          child: const SizedBox(
+            height: 52,
+            width: 52,
+            child: Icon(Icons.add, size: 26, color: Colors.white),
+          ),
+        ),
+      ),
+    );
+  }
+
 }

@@ -78,7 +78,7 @@ class _IconPickerScreenState extends State<IconPickerScreen> {
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
-        title: const Text("Chọn icon"),
+        title: const Text("Select icon"),
         backgroundColor: Colors.black,
         centerTitle: true,
       ),
@@ -109,7 +109,7 @@ class _IconPickerScreenState extends State<IconPickerScreen> {
             ElevatedButton(
               onPressed: _loadIcons,
               style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
-              child: const Text('Thử lại'),
+              child: const Text('Retry'),
             ),
           ],
         ),
@@ -120,7 +120,7 @@ class _IconPickerScreenState extends State<IconPickerScreen> {
     if (_icons.isEmpty) {
       return const Center(
         child: Text(
-          'Không có icon nào',
+'No icons available',
           style: TextStyle(color: Colors.grey, fontSize: 16),
         ),
       );

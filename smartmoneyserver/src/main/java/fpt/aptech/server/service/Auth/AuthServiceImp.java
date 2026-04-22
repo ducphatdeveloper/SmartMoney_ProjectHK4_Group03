@@ -11,22 +11,27 @@ import fpt.aptech.server.service.notification.NotificationContent;
 import fpt.aptech.server.service.notification.NotificationMessages;
 import fpt.aptech.server.service.notification.NotificationService;
 import fpt.aptech.server.service.UserDevice.UserDeviceService;
+import fpt.aptech.server.service.emailsender.EmailService;
 import fpt.aptech.server.utils.JwtUtils;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.client.RestTemplate;
 
 import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 @Service
+@Slf4j
 public class AuthServiceImp implements AuthService {
 
     @Autowired private AccountRepository    accountRepository;
@@ -38,60 +43,107 @@ public class AuthServiceImp implements AuthService {
     @Autowired private PasswordEncoder      passwordEncoder;
     @Autowired private UserDetailsService   userDetailsService;
     @Autowired private CurrencyRepository   currencyRepository;
+    @Autowired private EmailService         emailService;
 
-    // Cache để lưu trữ OTP. Key: username, Value: OtpData(otp, expiry)
     private final Map<String, OtpData> otpCache = new ConcurrentHashMap<>();
 
-    // Inner class để chứa thông tin OTP
     private static class OtpData {
         private final String otp;
         private final LocalDateTime expiry;
-
         public OtpData(String otp, LocalDateTime expiry) {
             this.otp = otp;
             this.expiry = expiry;
         }
-
         public String getOtp() { return otp; }
         public LocalDateTime getExpiry() { return expiry; }
     }
-    // =================================================================================
-    // 1. XÁC THỰC (AUTHENTICATE)
-    // =================================================================================
 
-    /**
-     * [1.1] Xác thực tập trung "tất cả trong một":
-     * Bước 1 — Login (kiểm tra mật khẩu, trạng thái khóa).
-     * Bước 2 — Tạo Access Token.
-     * Bước 3 — Đăng ký thiết bị + tạo Refresh Token.
-     * Bước 4 — Đóng gói toàn bộ thông tin vào AuthResponse.
-     */
     @Override
     public AuthResponse authenticate(LoginRequest loginRequest, String ipAddress) {
-        // Bước 1: Xác thực tài khoản
         Account account = login(loginRequest.getUsername(), loginRequest.getPassword());
+        return createAuthResponse(account, loginRequest.getDeviceToken(), loginRequest.getDeviceType(), 
+                loginRequest.getDeviceName() != null ? loginRequest.getDeviceName() : "Unknown Device", ipAddress);
+    }
 
-        // Bước 2: Tạo Access Token
-        String accessToken = generateAccessToken(account);
+    @Override
+    @Transactional
+    public AuthResponse authenticateGoogle(String idToken, String deviceToken, String deviceType, String deviceName, String ipAddress) {
+        log.info("[GoogleAuth] Bắt đầu xác thực Google ID Token...");
+        
+        String googleVerifyUrl = "https://oauth2.googleapis.com/tokeninfo?id_token=" + idToken;
+        RestTemplate restTemplate = new RestTemplate();
+        Map<String, Object> response;
+        try {
+            response = restTemplate.getForObject(googleVerifyUrl, Map.class);
+        } catch (Exception e) {
+            log.error("[GoogleAuth] Lỗi mạng khi gọi Google API: {}", e.getMessage());
+            throw new IllegalArgumentException("Không thể kết nối tới Google để xác thực. Vui lòng thử lại.");
+        }
 
-        // Bước 3: Đăng ký thiết bị + Refresh Token
-        UserDevice device = userDeviceService.registerDevice(
-                account,
-                loginRequest.getDeviceToken(),
-                loginRequest.getDeviceType(),
-                loginRequest.getDeviceName() != null ? loginRequest.getDeviceName() : "Unknown Device",
-                ipAddress
-        );
+        if (response == null || response.containsKey("error")) {
+            log.error("[GoogleAuth] Google API từ chối Token: {}", response != null ? response.get("error_description") : "null");
+            throw new IllegalArgumentException("Đăng nhập Google thất bại: Token không hợp lệ hoặc đã hết hạn.");
+        }
+
+        String email = (String) response.get("email");
+        String name = (String) response.get("name");
+        String picture = (String) response.get("picture");
+        log.info("[GoogleAuth] Xác thực thành công cho email: {}", email);
+
+        Account account = accountRepository.findByAccEmail(email).orElseGet(() -> {
+            log.info("[GoogleAuth] Tạo tài khoản mới cho user Google: {}", email);
+            Role userRole = roleRepository.findByRoleCode("ROLE_USER")
+                    .orElseThrow(() -> new IllegalStateException("Hệ thống chưa cấu hình ROLE_USER"));
+            Currency defaultCurrency = currencyRepository.findById("VND")
+                    .orElseThrow(() -> new IllegalStateException("Hệ thống chưa cấu hình Currency VND"));
+
+            Account newAcc = Account.builder()
+                    .accEmail(email)
+                    .fullname(name)
+                    .hashPassword(passwordEncoder.encode("GOOGLE_AUTH_" + UUID.randomUUID()))
+                    .avatarUrl(picture)
+                    .role(userRole)
+                    .currency(defaultCurrency)
+                    .locked(false)
+                    .createdAt(LocalDateTime.now())
+                    .updatedAt(LocalDateTime.now())
+                    .build();
+            
+            Account saved = accountRepository.save(newAcc);
+            
+            // Gửi email chào mừng ngay khi đăng ký qua Google thành công
+            try {
+                String subject = "Chào mừng bạn đến với SmartMoney";
+                String htmlBody = "<h3>Đăng ký thành công qua Google!</h3><p>Chào <b>" + name + "</b>, cảm ơn bạn đã tham gia SmartMoney. Hãy bắt đầu quản lý tài chính hiệu quả ngay hôm nay.</p>";
+                emailService.sendHtmlReport(saved.getAccEmail(), subject, htmlBody);
+            } catch (Exception e) {
+                log.warn("[GoogleAuth] Không thể gửi email chào mừng tới {}: {}", email, e.getMessage());
+            }
+
+            notifyAdminsAboutNewUser(saved);
+            return saved;
+        });
+
+        if (Boolean.TRUE.equals(account.getLocked())) {
+            throw new IllegalStateException("Tài khoản Google này hiện đang bị khóa");
+        }
+
+        return createAuthResponse(account, deviceToken, deviceType, deviceName, ipAddress);
+    }
+
+    private AuthResponse createAuthResponse(Account account, String deviceToken, String deviceType, String deviceName, String ipAddress) {
         UserDetails userDetails = userDetailsService.loadUserByUsername(account.getAccEmail());
+        
+        String accessToken = jwtUtils.generateAccessToken(userDetails, account.getId());
         String refreshToken = jwtUtils.generateRefreshToken(userDetails, account.getId());
+
+        UserDevice device = userDeviceService.registerDevice(account, deviceToken, deviceType, deviceName, ipAddress);
         device.setRefreshToken(refreshToken);
         userDeviceRepository.save(device);
 
-        // Bước 4: Đóng gói AuthResponse
         UserInfoDTO userInfo = convertToUserInfoDTO(account);
+        
         return AuthResponse.builder()
-                .accessToken(accessToken)
-                .refreshToken(refreshToken)
                 .userId(userInfo.getId())
                 .accPhone(userInfo.getPhone())
                 .accEmail(userInfo.getEmail())
@@ -101,143 +153,87 @@ public class AuthServiceImp implements AuthService {
                 .roleCode(userInfo.getRoleCode())
                 .roleName(userInfo.getRoleName())
                 .permissions(userInfo.getPermissions())
+                .accessToken(accessToken)
+                .refreshToken(refreshToken)
+                .accessTokenExpiry(3600000L)
+                .refreshTokenExpiry(86400000L)
                 .loginAt(LocalDateTime.now())
+                .message("Đăng nhập thành công")
                 .build();
     }
 
-    // =================================================================================
-    // 2. ĐĂNG NHẬP & TOKEN
-    // =================================================================================
-
-    /**
-     * [2.1] Kiểm tra username/password và trạng thái tài khoản.
-     * Ném RuntimeException nếu không hợp lệ → GlobalExceptionHandler bắt lại.
-     */
     @Override
     @Transactional(readOnly = true)
     public Account login(String username, String password) {
-        // Bước 1: Tìm tài khoản theo email hoặc số điện thoại
         Account account = accountRepository.findByUsernameOrEmail(username)
-                .orElseThrow(() -> new IllegalArgumentException("Tài khoản không tồn tại")); // Đổi RuntimeException
-
-        // Bước 2: Kiểm tra tài khoản có bị khóa không
-        if (account.getLocked()) {
-            throw new IllegalStateException("Tài khoản hiện đang bị khóa"); // Đổi RuntimeException
+                .orElseThrow(() -> new IllegalArgumentException("Tài khoản không tồn tại"));
+        if (Boolean.TRUE.equals(account.getLocked())) {
+            throw new IllegalStateException("Tài khoản hiện đang bị khóa");
         }
-
-        // Bước 3: Kiểm tra mật khẩu
         if (!passwordEncoder.matches(password, account.getHashPassword())) {
-            throw new IllegalArgumentException("Mật khẩu không chính xác"); // Đổi RuntimeException
+            throw new IllegalArgumentException("Mật khẩu không chính xác");
         }
-
         return account;
     }
 
     @Override
     public String generateResetToken(String username) {
-        // 1. Vẫn kiểm tra tài khoản tồn tại trong DB
         accountRepository.findByUsernameOrEmail(username)
                 .orElseThrow(() -> new RuntimeException("Tài khoản không tồn tại trong hệ thống"));
-
-        // 2. Tạo OTP 6 số ngẫu nhiên
         String otp = String.valueOf((int) ((Math.random() * 900000) + 100000));
-
-        // 3. Lưu OTP và thời gian hết hạn vào cache, không cần save account
-        LocalDateTime expiry = LocalDateTime.now().plusMinutes(15); // Hết hạn sau 15 phút
+        LocalDateTime expiry = LocalDateTime.now().plusMinutes(15);
         otpCache.put(username, new OtpData(otp, expiry));
-
         return otp;
     }
 
     @Override
     public void resetPassword(String username, String otp, String newPassword) {
-        // 1. Lấy dữ liệu OTP từ cache
         OtpData storedOtp = otpCache.get(username);
-
-        // 2. Kiểm tra OTP
         if (storedOtp == null || !storedOtp.getOtp().equals(otp)) {
             throw new RuntimeException("Mã OTP không chính xác hoặc không tồn tại");
         }
-
         if (storedOtp.getExpiry().isBefore(LocalDateTime.now())) {
             throw new RuntimeException("Mã OTP đã hết hạn");
         }
-
-        // 3. Nếu OTP hợp lệ, tìm tài khoản và đổi mật khẩu
         Account account = accountRepository.findByUsernameOrEmail(username)
-                .orElseThrow(() -> new RuntimeException("Tài khoản không tồn tại")); // Should not happen
-
+                .orElseThrow(() -> new RuntimeException("Tài khoản không tồn tại"));
         account.setHashPassword(passwordEncoder.encode(newPassword));
         accountRepository.save(account);
-
-        // 4. Xóa OTP khỏi cache sau khi sử dụng
         otpCache.remove(username);
     }
 
-    /**
-     * [2.2] Tạo và lưu Refresh Token mới cho thiết bị.
-     * Hiện tại được thay thế bởi logic trong authenticate() — giữ lại để tương thích ngược.
-     */
     @Override
     @Transactional
     public String generateAndSaveRefreshToken(Account account, String deviceToken,
                                               String deviceType, String deviceName,
                                               String ipAddress, Boolean loggedIn) {
-        // Bước 1: Đăng ký thiết bị qua UserDeviceService
-        UserDevice device = userDeviceService.registerDevice(
-                account, deviceToken, deviceType, deviceName, ipAddress);
-
-        // Bước 2: Tạo Refresh Token
+        UserDevice device = userDeviceService.registerDevice(account, deviceToken, deviceType, deviceName, ipAddress);
         UserDetails userDetails = userDetailsService.loadUserByUsername(account.getAccEmail());
         String refreshToken = jwtUtils.generateRefreshToken(userDetails, account.getId());
-
-        // Bước 3: Gắn token vào thiết bị và lưu
         device.setRefreshToken(refreshToken);
         userDeviceRepository.save(device);
-
         return refreshToken;
     }
 
-    /**
-     * [2.3] Tạo Access Token từ thông tin Account.
-     */
     @Override
     public String generateAccessToken(Account account) {
         UserDetails userDetails = userDetailsService.loadUserByUsername(account.getAccEmail());
         return jwtUtils.generateAccessToken(userDetails, account.getId());
     }
 
-    // =================================================================================
-    // 3. ĐĂNG KÝ (REGISTER)
-    // =================================================================================
-
-    /**
-     * [3.1] Đăng ký tài khoản mới.
-     * Bước 1 — Validate trùng email/SĐT.
-     * Bước 2 — Lấy Role USER và Currency VND mặc định.
-     * Bước 3 — Tạo Account.
-     * Bước 4 — Gửi thông báo cho Admin.
-     */
     @Override
     @Transactional
     public Account register(RegisterRequest request) {
-        // Bước 1: Validate trùng lặp
-        if (request.getAccEmail() != null
-                && accountRepository.existsByAccEmail(request.getAccEmail())) {
+        if (request.getAccEmail() != null && accountRepository.existsByAccEmail(request.getAccEmail())) {
             throw new IllegalArgumentException("Email đã được sử dụng");
         }
-        if (request.getAccPhone() != null
-                && accountRepository.existsByAccPhone(request.getAccPhone())) {
+        if (request.getAccPhone() != null && accountRepository.existsByAccPhone(request.getAccPhone())) {
             throw new IllegalArgumentException("Số điện thoại đã được sử dụng");
         }
-
-        // Bước 2: Lấy Role và Currency mặc định
         Role userRole = roleRepository.findByRoleCode("ROLE_USER")
-                .orElseThrow(() -> new IllegalStateException("Role USER không tồn tại trong hệ thống")); // Đổi RuntimeException
+                .orElseThrow(() -> new IllegalStateException("Role USER không tồn tại"));
         Currency defaultCurrency = currencyRepository.findById("VND")
-                .orElseThrow(() -> new IllegalStateException("Currency VND không tồn tại")); // Đổi RuntimeException
-
-        // Bước 3: Tạo và lưu Account
+                .orElseThrow(() -> new IllegalStateException("Currency VND không tồn tại"));
         Account account = Account.builder()
                 .accPhone(request.getAccPhone())
                 .accEmail(request.getAccEmail())
@@ -249,33 +245,16 @@ public class AuthServiceImp implements AuthService {
                 .updatedAt(LocalDateTime.now())
                 .build();
         Account savedAccount = accountRepository.save(account);
-
-        // Bước 4: Thông báo cho Admin
         notifyAdminsAboutNewUser(savedAccount);
-
         return savedAccount;
     }
 
-    // =================================================================================
-    // 4. ĐĂNG XUẤT (LOGOUT)
-    // =================================================================================
-
-    /**
-     * [4.1] Đăng xuất thiết bị theo device token.
-     */
     @Override
     @Transactional
     public void logout(String deviceToken) {
         userDeviceService.logoutDevice(deviceToken);
     }
 
-    // =================================================================================
-    // 5. HELPER
-    // =================================================================================
-
-    /**
-     * [5.1] Chuyển đổi Account → UserInfoDTO để đóng gói vào AuthResponse.
-     */
     @Override
     @Transactional(readOnly = true)
     public UserInfoDTO convertToUserInfoDTO(Account account) {
@@ -285,12 +264,9 @@ public class AuthServiceImp implements AuthService {
         userInfo.setPhone(account.getAccPhone());
         userInfo.setAvatarUrl(account.getAvatarUrl());
         userInfo.setIsLocked(account.getLocked());
-
-        if (account.getCurrency() != null) {
-            userInfo.setCurrencyCode(account.getCurrency().getCurrencyCode());
-        }
+        if (account.getCurrency() != null) userInfo.setCurrencyCode(account.getCurrency().getCurrencyCode());
         if (account.getRole() != null) {
-            userInfo.setRoleId(account.getRole().getId()); // Dùng cho React: if (roleId === 1)
+            userInfo.setRoleId(account.getRole().getId());
             userInfo.setRoleName(account.getRole().getRoleName());
             userInfo.setRoleCode(account.getRole().getRoleCode());
             if (account.getRole().getPermissions() != null) {
@@ -303,32 +279,12 @@ public class AuthServiceImp implements AuthService {
         return userInfo;
     }
 
-    /**
-     * [5.2] Gửi thông báo type=4 (SYSTEM) cho tất cả Admin khi có user mới đăng ký.
-     * Dùng NotificationMessages.newUserRegistered() để đảm bảo message chuẩn hóa.
-     */
     private void notifyAdminsAboutNewUser(Account newUser) {
-        // Bước 1: Tìm tất cả tài khoản Admin
         List<Account> admins = accountRepository.findByRole_RoleCode("ROLE_ADMIN");
-
-        // Bước 2: Lấy tên hiển thị của user mới (email hoặc SĐT)
-        String userName = newUser.getAccEmail() != null
-                ? newUser.getAccEmail()
-                : newUser.getAccPhone();
-
-        // Bước 3: Tạo nội dung thông báo từ template chuẩn
+        String userName = newUser.getAccEmail() != null ? newUser.getAccEmail() : newUser.getAccPhone();
         NotificationContent msg = NotificationMessages.newUserRegistered(userName);
-
-        // Bước 4: Gửi thông báo đến từng Admin
         for (Account admin : admins) {
-            notificationService.createNotification(
-                    admin,
-                    msg.title(),
-                    msg.content(),
-                    NotificationType.SYSTEM,
-                    Long.valueOf(newUser.getId()),
-                    LocalDateTime.now()
-            );
+            notificationService.createNotification(admin, msg.title(), msg.content(), NotificationType.SYSTEM, Long.valueOf(newUser.getId()), LocalDateTime.now());
         }
     }
 }

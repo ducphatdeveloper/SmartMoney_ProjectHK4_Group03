@@ -68,13 +68,13 @@ class _BudgetScreenState extends State<BudgetScreen>
 
     switch (b.budgetType) {
       case BudgetType.weekly:
-        return "Tuần này $range";
+        return "This week $range";
       case BudgetType.monthly:
-        return "Tháng này $range";
+        return "This month $range";
       case BudgetType.yearly:
-        return "Năm nay $range";
+        return "This year $range";
       case BudgetType.custom:
-        return "Tùy chỉnh $range";
+        return "Custom $range";
     }
   }
 
@@ -141,12 +141,11 @@ class _BudgetScreenState extends State<BudgetScreen>
       // 🔥 CASE 1: đi từ xoá ví → preview
       if (widget.initialWallet != null) {
         isPreviewBeforeDelete = true;
-
-        provider.setWallet(widget.initialWallet!); // ✅ chỉ 1 API
+        provider.setWallet(widget.initialWallet!); // chỉ 1 API
       }
       // 🔥 CASE 2: vào bình thường
       else {
-        provider.refreshAllData(); // ✅ chỉ 1 API
+        provider.refreshAllData(); // chỉ 1 API
       }
     });
   }
@@ -155,7 +154,8 @@ class _BudgetScreenState extends State<BudgetScreen>
 
   // Hàm này dùng chung cho cả việc tạo mới và đóng chi tiết
   Future<void> _handleDataChange() async {
-    await context.read<BudgetProvider>().refreshAllData();
+    final provider = context.read<BudgetProvider>();
+    await provider.refreshAllData(); // refreshAllData đã tự loadExpiredBudgets
     _controller.forward(from: 0);
   }
 
@@ -195,6 +195,9 @@ class _BudgetScreenState extends State<BudgetScreen>
 
     await provider.setWallet(result); // 🔥 load xong mới update UI
 
+    // 🔥 Load lại ngân sách hết hạn sau khi chọn ví mới
+    await provider.loadExpiredBudgets(walletId: provider.selectedWalletId);
+
     if (!mounted) return;
     _controller.forward(from: 0);
   }
@@ -228,6 +231,9 @@ class _BudgetScreenState extends State<BudgetScreen>
         forceRefresh: true,
       );
 
+      /// 🔥 Load lại ngân sách hết hạn để cập nhật badge
+      await provider.loadExpiredBudgets(walletId: provider.selectedWalletId);
+
       /// 🔥 SET FILTER THEO TYPE MỚI
       setState(() {
         _selected = result.budgetType;
@@ -257,11 +263,11 @@ class _BudgetScreenState extends State<BudgetScreen>
   String getTimeLabel(BudgetResponse b) {
     switch (b.budgetType) {
       case BudgetType.weekly:
-        return "Tuần này";
+        return "This week";
       case BudgetType.monthly:
-        return "Tháng này";
+        return "This month";
       case BudgetType.yearly:
-        return "Năm nay";
+        return "This year";
       case BudgetType.custom:
         final start = b.beginDate;
         final end = b.endDate;
@@ -297,20 +303,14 @@ class _BudgetScreenState extends State<BudgetScreen>
         ? _selected
         : (availableTypes.isNotEmpty ? availableTypes.first : BudgetType.monthly);
 
-
-    // 🔥 CHỈ chạy 1 lần khi availableTypes thay đổi
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      if (!availableTypes.contains(_selected)) {
-        setState(() {
-          _selected = availableTypes.isNotEmpty
-              ? availableTypes.first
-              : BudgetType.monthly;
-        });
-      }
-    });
-
-
+    // 🔥 Chỉ update _selected khi cần thiết
+    if (!availableTypes.contains(_selected) && mounted) {
+      setState(() {
+        _selected = availableTypes.isNotEmpty
+            ? availableTypes.first
+            : BudgetType.monthly;
+      });
+    }
 
     final filteredBudgets = budgets
         .where((b) => b.budgetType == safeSelected)
@@ -326,12 +326,6 @@ class _BudgetScreenState extends State<BudgetScreen>
           (sum, b) => sum + b.spentAmount,
     );
 
-    if (!isLoading && hasSelectedWallet) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _controller?.forward(from: 0); // <- safe
-      });
-    }
-
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
@@ -339,7 +333,7 @@ class _BudgetScreenState extends State<BudgetScreen>
         title: Row(
           children: [
             const Text(
-              "Ngân sách",
+              "Budget",
               style: TextStyle(fontWeight: FontWeight.bold),
             ),
             const Spacer(),
@@ -360,21 +354,34 @@ class _BudgetScreenState extends State<BudgetScreen>
                 return GestureDetector(
                   onTap: _pickWallet,
                   child: Container(
-                    padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF2C2C2E),
-                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: Colors.white24),
+                      borderRadius: BorderRadius.circular(8),
                     ),
+                    constraints: const BoxConstraints(maxWidth: 200),
                     child: Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
                         IconHelper.buildCircleAvatar(
                           iconUrl: selectedWallet.goalImageUrl ?? "",
                           radius: 10,
                         ),
-                        const SizedBox(width: 6),
-                        Text(selectedWallet.walletName),
-                        const Icon(Icons.arrow_drop_down),
+                        const SizedBox(width: 8),
+                        Flexible(
+                          child: Text(
+                            selectedWallet.walletName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        const Icon(Icons.unfold_more, color: Colors.white70, size: 18),
                       ],
                     ),
                   ),
@@ -382,17 +389,65 @@ class _BudgetScreenState extends State<BudgetScreen>
               },
             ),
             const Spacer(),
-            GestureDetector(
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const ExpiredBudgetScreen(),
+            Builder(
+              builder: (context) {
+                final budgetProvider = context.watch<BudgetProvider>();
+                final expiredCount = budgetProvider.expiredBudgets.length;
+
+                // 🔥 Chỉ hiển thị badge khi đã chọn ví
+                if (budgetProvider.selectedWalletId == null) {
+                  return const SizedBox();
+                }
+
+                return GestureDetector(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const ExpiredBudgetScreen(),
+                      ),
+                    );
+                  },
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Stack(
+                        children: [
+                          const Icon(Icons.archive_outlined, color: Colors.grey),
+                          if (expiredCount > 0)
+                            Positioned(
+                              right: 0,
+                              top: 0,
+                              child: Container(
+                                padding: const EdgeInsets.all(3),
+                                decoration: BoxDecoration(
+                                  color: Colors.red,
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Text(
+                                  "$expiredCount",
+                                  style: const TextStyle(color: Colors.white, fontSize: 9),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(width: 4),
+                      const Text(
+                        "Expired",
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: Colors.grey,
+                        ),
+                      ),
+                    ],
                   ),
                 );
               },
-              child: const Icon(Icons.more_horiz),
-            ),
+            )
+
+
           ],
         ),
       ),
@@ -427,12 +482,10 @@ class _BudgetScreenState extends State<BudgetScreen>
           // ❗ CASE 4: bình thường
           return RefreshIndicator(
             onRefresh: () async {
-              await context.read<BudgetProvider>().loadBudgets(
-                walletId: budgetProvider.selectedWalletId,
-              );
+              await context.read<BudgetProvider>().refreshAllData(); // refreshAllData đã tự loadExpiredBudgets
             },
             child: ListView(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 16),
               children: [
 
                 // 🔥 CHÈN NGAY ĐÂY (TRÊN CÙNG)
@@ -451,7 +504,7 @@ class _BudgetScreenState extends State<BudgetScreen>
                         SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            "Bạn đang xem ngân sách của ví này trước khi xóa",
+                            "You are viewing budget of this wallet before deletion",
                             style: TextStyle(color: Colors.orange),
                           ),
                         ),
@@ -470,8 +523,9 @@ class _BudgetScreenState extends State<BudgetScreen>
                       availableTypes: availableTypes,
                       onChanged: _onFilterChanged,
                     ),
+                  const SizedBox(height: 30),
                   _overview(totalBudget, totalSpent),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 30),
                   _budgetSection(filteredBudgets),
                 ],
               ],
@@ -494,32 +548,7 @@ class _BudgetScreenState extends State<BudgetScreen>
       children: budgets.map((b) => _budgetItem(b)).toList(),
     );
   }
-
-  // Future<void> _reloadBudgets() async {
-  //   final provider = context.read<BudgetProvider>();
-  //   if (provider.selectedWalletId != null) {
-  //     await provider.loadBudgets(walletId: provider.selectedWalletId);
-  //     await _reloadTransactions(provider.selectedWalletId!);
-  //   }
-  // }
-
-  // Future<void> _reloadTransactions(int walletId) async {
-  //   final provider = context.read<BudgetProvider>();
-  //   await provider.loadAllBudgetTransactions(walletId: walletId); // 🔥 cần method trong provider
-  //   if (!mounted) return;
-  //   _controller.forward(from: 0);
-  // }
-  // void _onBudgetClosed() async {
-  //   final provider = context.read<BudgetProvider>();
-  //   if (provider.selectedWalletId != null) {
-  //     // Reload budgets và transactions sau khi đóng detail
-  //     await provider.loadBudgets(
-  //         walletId: provider.selectedWalletId, forceRefresh: true);
-  //     await _reloadTransactions(provider.selectedWalletId!);
-  //     if (!mounted) return;
-  //     _controller.forward(from: 0);
-  //   }
-  // }
+  
 
 
   // ================= ITEM =================
@@ -527,6 +556,28 @@ class _BudgetScreenState extends State<BudgetScreen>
     final provider = context.watch<BudgetProvider>();
     final p = (b.spentAmount / (b.amount == 0 ? 1 : b.amount)).clamp(0.0, 1.0);
     final left = b.amount - b.spentAmount;
+
+    // 👉 Xác định icon và tên hiển thị
+    String? iconUrl;
+    String displayName;
+
+    if (b.isOther == true) {
+      // Ngân sách "Other" - hiển thị icon mặc định
+      iconUrl = null;
+      displayName = "Other";
+    } else if (b.allCategories == true) {
+      // Ngân sách all categories
+      iconUrl = b.primaryCategoryIconUrl;
+      displayName = "All";
+    } else if (b.categories?.isNotEmpty ?? false) {
+      // Ngân sách theo category cụ thể
+      iconUrl = b.categories!.first.ctgIconUrl;
+      displayName = b.categories!.first.ctgName;
+    } else {
+      // Fallback
+      iconUrl = b.primaryCategoryIconUrl;
+      displayName = "All";
+    }
 
     return OpenContainer<BudgetResponse>(
       closedColor: Colors.transparent,
@@ -555,7 +606,7 @@ class _BudgetScreenState extends State<BudgetScreen>
                 Row(
                   children: [
                     IconHelper.buildCircleAvatar(
-                      iconUrl: b.primaryCategoryIconUrl,
+                      iconUrl: iconUrl,
                       radius: 22,
                     ),
                     const SizedBox(width: 10),
@@ -564,9 +615,7 @@ class _BudgetScreenState extends State<BudgetScreen>
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            (b.categories?.isNotEmpty ?? false)
-                                ? b.categories!.first.ctgName
-                                : "Tất cả",
+                            displayName,
                             style: const TextStyle(
                                 color: Colors.white, fontWeight: FontWeight.bold),
                           ),
@@ -603,8 +652,8 @@ class _BudgetScreenState extends State<BudgetScreen>
                         style: const TextStyle(color: Colors.grey)),
                     Text(
                       left >= 0
-                          ? "Còn ${formatMoney(left)}"
-                          : "⚠️ Vượt ${formatMoney(left.abs())}",
+                          ? "Remaining ${formatMoney(left)}"
+                          : "⚠️ Over ${formatMoney(left.abs())}",
                       style: TextStyle(
                           color: left >= 0 ? Colors.green : Colors.red,
                           fontWeight: FontWeight.w500),
@@ -652,8 +701,8 @@ class _BudgetScreenState extends State<BudgetScreen>
                     const SizedBox(height: 10),
                     Text(
                       remain >= 0
-                          ? "Số tiền bạn có thể chi"
-                          : "⚠️ Bạn đã vượt ngân sách",
+                          ? "Amount you can spend"
+                          : "⚠️ You have exceeded budget",
                       style: TextStyle(
                         color: remain >= 0 ? Colors.grey : Colors.redAccent,
                         fontWeight: FontWeight.w500,
@@ -676,11 +725,11 @@ class _BudgetScreenState extends State<BudgetScreen>
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _info(totalBudget, "Ngân sách"),
+              _info(totalBudget, "Budget"),
               _divider(),
-              _info(totalSpent, "Đã chi"),
+              _info(totalSpent, "Spent"),
               _divider(),
-              _info(p * 100, "Tiến độ"),
+              _info(p * 100, "Progress"),
             ],
           ),
           const SizedBox(height: 20),
@@ -694,10 +743,10 @@ class _BudgetScreenState extends State<BudgetScreen>
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(20),
                   ),
-                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  padding: const EdgeInsets.symmetric(vertical: 10),
                 ),
                 onPressed: addBudget,
-                child: const Text("Tạo ngân sách"),
+                child: const Text("Create budget"),
               ),
             ),
           ),
@@ -729,7 +778,7 @@ class _BudgetScreenState extends State<BudgetScreen>
     return Center(
       child: ElevatedButton(
         onPressed: _pickWallet,
-        child: const Text("Chọn ví"),
+        child: const Text("Select wallet"),
       ),
     );
   }
@@ -745,7 +794,7 @@ class _BudgetScreenState extends State<BudgetScreen>
           const SizedBox(height: 8),
 
           const Text(
-            "Ví trước đó đã bị xóa",
+            "Previous wallet has been deleted",
             style: TextStyle(
               color: Colors.redAccent,
               fontWeight: FontWeight.w600,
@@ -755,7 +804,7 @@ class _BudgetScreenState extends State<BudgetScreen>
           const SizedBox(height: 4),
 
           const Text(
-            "Vui lòng chọn ví khác để tiếp tục",
+            "Please select another wallet to continue",
             style: TextStyle(color: Colors.grey),
           ),
 
@@ -763,7 +812,7 @@ class _BudgetScreenState extends State<BudgetScreen>
 
           ElevatedButton(
             onPressed: _pickWallet,
-            child: const Text("Chọn ví khác"),
+            child: const Text("Select another wallet"),
           ),
         ],
       ),
@@ -794,7 +843,7 @@ class _BudgetScreenState extends State<BudgetScreen>
             ),
             const SizedBox(height: 24),
             const Text(
-              "Chưa có ngân sách",
+              "No budget yet",
               style: TextStyle(
                 color: Colors.white,
                 fontSize: 20,
@@ -803,7 +852,7 @@ class _BudgetScreenState extends State<BudgetScreen>
             ),
             const SizedBox(height: 8),
             Text(
-              "Tạo ngân sách để theo dõi chi tiêu\nvà kiểm soát tài chính tốt hơn.",
+              "Create budget to track spending\nand better control your finances.",
               textAlign: TextAlign.center,
               style: TextStyle(
                 color: Colors.white.withOpacity(0.6),
@@ -824,7 +873,7 @@ class _BudgetScreenState extends State<BudgetScreen>
                 ),
               ),
               icon: const Icon(Icons.add),
-              label: const Text("Tạo ngân sách"),
+              label: const Text("Create budget"),
             ),
           ],
         ),

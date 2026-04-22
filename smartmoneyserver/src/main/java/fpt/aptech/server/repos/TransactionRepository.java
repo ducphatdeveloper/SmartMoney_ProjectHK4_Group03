@@ -240,7 +240,7 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
             @Param("accountId") Integer accountId);
 
     // =================================================================================
-    // 8. CÁC HÀM HOÀN TIỀN KHI XÓA DANH MỤC
+    // 8. CÁC HÀM HOÀN TIỀN KHI XÓA DANH MỤC (REVERT & APPLY)
     // =================================================================================
 
     @Modifying
@@ -294,6 +294,32 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
             "   WHERE ctg_id = :categoryId AND goal_id IS NOT NULL AND acc_id = :accountId AND deleted = 0 " +
             ")", nativeQuery = true)
     void revertGoalBalanceForExpenseCategory(@Param("categoryId") Integer categoryId, @Param("accountId") Integer accountId);
+
+    // --- APPLY (Sử dụng khi khôi phục) ---
+
+    @Modifying
+    @Query(value = "UPDATE tWallets " +
+            "SET balance = balance + (SELECT amount FROM tTransactions WHERE id = :id) " +
+            "WHERE id = (SELECT wallet_id FROM tTransactions WHERE id = :id AND wallet_id IS NOT NULL)", nativeQuery = true)
+    void applyWalletBalanceForIncome(@Param("id") Long id);
+
+    @Modifying
+    @Query(value = "UPDATE tWallets " +
+            "SET balance = balance - (SELECT amount FROM tTransactions WHERE id = :id) " +
+            "WHERE id = (SELECT wallet_id FROM tTransactions WHERE id = :id AND wallet_id IS NOT NULL)", nativeQuery = true)
+    void applyWalletBalanceForExpense(@Param("id") Long id);
+
+    @Modifying
+    @Query(value = "UPDATE tSavingGoals " +
+            "SET current_amount = current_amount + (SELECT amount FROM tTransactions WHERE id = :id) " +
+            "WHERE id = (SELECT goal_id FROM tTransactions WHERE id = :id AND goal_id IS NOT NULL)", nativeQuery = true)
+    void applyGoalBalanceForIncome(@Param("id") Long id);
+
+    @Modifying
+    @Query(value = "UPDATE tSavingGoals " +
+            "SET current_amount = current_amount - (SELECT amount FROM tTransactions WHERE id = :id) " +
+            "WHERE id = (SELECT goal_id FROM tTransactions WHERE id = :id AND goal_id IS NOT NULL)", nativeQuery = true)
+    void applyGoalBalanceForExpense(@Param("id") Long id);
 
     // =================================================================================
     // 9. CÁC HÀM CHO ADMIN (ADMIN)
@@ -366,12 +392,18 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
             @Param("isIncome") Boolean isIncome,
             Pageable pageable);
 
+    /**
+     * ✅ SỬA: Chuyển sang Native Query để tránh @SQLRestriction chặn bản ghi đang bị xóa (deleted=1).
+     */
     @Modifying
-    @Query("UPDATE Transaction t SET t.deleted = false, t.deletedAt = null WHERE t.id = :id")
+    @Query(value = "UPDATE tTransactions SET deleted = 0, deleted_at = NULL WHERE id = :id", nativeQuery = true)
     void restoreTransaction(@Param("id") Long id);
 
+    /**
+     * ✅ SỬA: Chuyển sang Native Query để khôi phục hàng loạt mà không bị Hibernate filter.
+     */
     @Modifying
-    @Query("UPDATE Transaction t SET t.deleted = false, t.deletedAt = null WHERE t.account.id = :userId AND t.deleted = true")
+    @Query(value = "UPDATE tTransactions SET deleted = 0, deleted_at = NULL WHERE acc_id = :userId AND deleted = 1", nativeQuery = true)
     void restoreAllUserTransactions(@Param("userId") Integer userId);
 
     // =================================================================================
@@ -483,7 +515,21 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
                                                       @Param("end") LocalDateTime end);
 
     // =================================================================================
-    // WALLET SCHEDULER — Quét chi tiêu bất thường trong 24h
+    // 14. CÁC HÀM CHO AI CHAT (AI CONVERSATION)
+    // =================================================================================
+
+    /// [AI CHAT] Lấy danh sách Transaction có ai_chat_id trong danh sách (dùng khi xóa lịch sử chat)
+    /// Thêm accountId để lọc theo user (tránh xóa transaction của user khác)
+    List<Transaction> findByAiConversationIdInAndAccountId(List<Integer> conversationIds, Integer accountId);
+
+    /// [AI CHAT] Update trực tiếp ai_chat_id = NULL và source_type = 1 cho các transaction liên quan
+    /// Dùng @Modifying UPDATE query thay vì load entity rồi saveAll (tối ưu hiệu năng, tránh quá tải)
+    @Modifying
+    @Query("UPDATE Transaction t SET t.aiConversation = null, t.sourceType = 1 WHERE t.aiConversation.id IN :conversationIds AND t.account.id = :accountId")
+    void updateAiConversationToNullByConversationIds(@Param("conversationIds") List<Integer> conversationIds, @Param("accountId") Integer accountId);
+
+    // =================================================================================
+    // 15. WALLET SCHEDULER — Quét chi tiêu bất thường trong 24h
     // =================================================================================
 
     // [WALLET-SCHEDULER] Đếm số giao dịch CHI + tổng tiền theo từng wallet_id trong 24h qua

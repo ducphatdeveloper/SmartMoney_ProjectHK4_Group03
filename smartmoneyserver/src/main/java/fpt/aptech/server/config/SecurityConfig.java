@@ -15,6 +15,7 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.http.HttpMethod;
 
 @Configuration
 @EnableWebSecurity
@@ -44,6 +45,9 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         // Public API
                         .requestMatchers("/api/auth/**", "/api/test/**", "/error").permitAll()
+                        
+                        // [NEW] Cho phép GUEST (không cần login) gửi yêu cầu hỗ trợ
+                        .requestMatchers(HttpMethod.POST, "/api/contact-requests").permitAll()
 
                         // Admin API -> Yêu cầu quyền ADMIN_SYSTEM_ALL (trong bảng tPermissions)
                         .requestMatchers("/api/admin/**").hasAuthority("ADMIN_SYSTEM_ALL")

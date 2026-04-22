@@ -27,7 +27,7 @@ dependencies:
   # Vẽ biểu đồ tròn, cột, đường trong màn hình Báo cáo/Thống kê
   fl_chart: ^0.66.2
   animations: ^2.0.11
-  # Format tiền "1.000.000 đ" và ngày "12/03/2025" (dùng trong format_helper.dart)
+  # ✅ [RESTORE] Giữ nguyên theo Flutter SDK để không bị lỗi ghim phiên bản
   intl: ^0.20.2
   # Hiện popup nhỏ phản hồi thao tác: "Tạo ví thành công", "Xóa thất bại"...
   fluttertoast: ^8.2.4
@@ -36,7 +36,7 @@ dependencies:
   # Load ảnh từ URL Cloudinary và tự lưu vào bộ nhớ thiết bị.
   # Lần đầu: tải từ internet. Lần sau: đọc từ máy, không tốn băng thông.
   # Cache giữ mãi đến khi user xóa cache app trong Cài đặt điện thoại.
-  # Dùng cho: avatar người dùng, icon ví, icon danh mục, icon sự kiện.
+  # Dùng cho: avatar người dùng, icon ví, icon danh mục, icon sự kiện.  
   cached_network_image: ^3.3.1
 
   image_picker: ^1.1.2
@@ -58,19 +58,38 @@ dependencies:
   # Lưu cài đặt đơn giản: chế độ sáng/tối, ngôn ngữ, lần đầu mở app
   shared_preferences: ^2.2.2
 
+  # --- BIOMETRIC AUTHENTICATION ---
+  # ✅ [UPGRADE] Sử dụng phiên bản mới nhất để tương thích intl 0.20.2
+  local_auth: ^2.3.0
+
+  # --- VOICE RECOGNITION ---
+  # Chuyển giọng nói thành văn bản cho AI Chat
+  speech_to_text: ^7.0.0
+
+  # --- IMAGE PICKER ---
+  # Chọn ảnh từ gallery để upload hóa đơn OCR
+  #image_picker: đã có
+
   # --- AUTHENTICATION & NOTIFICATION ---
   # Giải mã JWT token để đọc thông tin role/userId mà không cần gọi API
   jwt_decoder: ^2.0.1
   # Lấy thông tin thiết bị (tên máy, hệ điều hành) để gửi kèm khi đăng nhập
   device_info_plus: ^10.1.0
+  # ✅ [ADD] Xin quyền thông báo và các quyền khác của hệ thống
+  permission_handler: ^11.3.1
 
   # --- Firebase ---
   # Bắt buộc phải có: khởi tạo Firebase trước khi dùng bất kỳ dịch vụ Firebase nào
   firebase_core: ^3.6.0
+  # Firebase Authentication
+  firebase_auth: ^5.3.1
+  # Google Sign In
+  google_sign_in: ^6.2.1
+  
   # Nhận push notification khi app đang ĐÓNG hoặc chạy nền (vuốt từ trên xuống)
   firebase_messaging: ^15.1.3
   # Hiện thông báo vuốt từ trên xuống khi app đang MỞ
-  # Firebase không tự hiện UI khi app foreground, package này bù phần đó
+  # Firebase không tự hiện UI khi app foreground, package này bù phần đó  
   flutter_local_notifications: ^17.0.0
   # Kiểm tra có Wifi/4G không trước khi gọi API
   # Mất mạng → báo ngay "Không có kết nối" thay vì chờ 30 giây rồi crash
@@ -96,11 +115,11 @@ dev_dependencies:
 # ==========================================
 # 4. APP ICON CONFIG
 # ==========================================
-flutter_icons:
-  android: true
+flutter_launcher_icons:
+  android: "launcher_icon"
   ios: true
   image_path: "assets/images/logo.png"
-
+  min_sdk_android: 21
 # ==========================================
 # 5. FLUTTER CONFIG
 # ==========================================

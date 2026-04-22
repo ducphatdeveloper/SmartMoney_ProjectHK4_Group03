@@ -68,13 +68,13 @@ class _ExpiredBudgetScreenState extends State<ExpiredBudgetScreen>
 
     switch (b.budgetType) {
       case BudgetType.weekly:
-        return "Tuần này $range";
+        return "This week $range";
       case BudgetType.monthly:
-        return "Tháng này $range";
+        return "This month $range";
       case BudgetType.yearly:
-        return "Năm nay $range";
+        return "This year $range";
       case BudgetType.custom:
-        return "Tùy chỉnh $range";
+        return "Custom $range";
     }
   }
 
@@ -104,7 +104,7 @@ class _ExpiredBudgetScreenState extends State<ExpiredBudgetScreen>
       backgroundColor: Colors.black,
       appBar: AppBar(
         backgroundColor: Colors.black,
-        title: const Text("Ngân sách hết hạn"),
+        title: const Text("Expired budgets"),
       ),
       body: RefreshIndicator(
         onRefresh: () async {
@@ -112,7 +112,7 @@ class _ExpiredBudgetScreenState extends State<ExpiredBudgetScreen>
               walletId: provider.selectedWalletId);
         },
         child: ListView(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 16),
           children: [
             if (availableTypes.isNotEmpty)
               Padding(
@@ -126,7 +126,7 @@ class _ExpiredBudgetScreenState extends State<ExpiredBudgetScreen>
             if (filteredBudgets.isEmpty)
               Center(
                 child: Text(
-                  "Không có ngân sách hết hạn cho tab này",
+                  "No expired budgets for this tab",
                   style: TextStyle(color: Colors.grey.shade400),
                 ),
               )
@@ -168,7 +168,7 @@ class _ExpiredBudgetScreenState extends State<ExpiredBudgetScreen>
                     Text(
                       (b.categories?.isNotEmpty ?? false)
                           ? b.categories!.first.ctgName
-                          : "Tất cả",
+                          : "All",
                       style: const TextStyle(
                           color: Colors.white, fontWeight: FontWeight.bold),
                     ),
@@ -205,8 +205,8 @@ class _ExpiredBudgetScreenState extends State<ExpiredBudgetScreen>
                   style: const TextStyle(color: Colors.grey)),
               Text(
                 left >= 0
-                    ? "Còn ${formatMoney(left)}"
-                    : "⚠️ Vượt ${formatMoney(left.abs())}",
+                    ? "Remaining ${formatMoney(left)}"
+                    : "⚠️ Over ${formatMoney(left.abs())}",
                 style: TextStyle(
                     color: left >= 0 ? Colors.green : Colors.red,
                     fontWeight: FontWeight.w500),

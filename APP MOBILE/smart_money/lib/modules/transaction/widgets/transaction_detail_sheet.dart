@@ -212,7 +212,7 @@ class TransactionDetailSheet extends StatelessWidget {
                   child: OutlinedButton.icon(
                     onPressed: onDelete,
                     icon: const Icon(Icons.delete_outline, color: Colors.red, size: 18),
-                    label: const Text('Xóa', style: TextStyle(color: Colors.red)),
+                    label: const Text('Delete', style: TextStyle(color: Colors.red)),
                     style: OutlinedButton.styleFrom(
                       side: const BorderSide(color: Colors.red),
                       padding: const EdgeInsets.symmetric(vertical: 12),
@@ -228,7 +228,7 @@ class TransactionDetailSheet extends StatelessWidget {
                   child: ElevatedButton.icon(
                     onPressed: onEdit,
                     icon: const Icon(Icons.edit_outlined, size: 18),
-                    label: const Text('Sửa'),
+                    label: const Text('Edit'),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF4CAF50),
                       foregroundColor: Colors.white,

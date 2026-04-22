@@ -19,8 +19,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
-
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -102,14 +100,14 @@ public class AdminController {
     }
 
     /**
-     * Khôi phục một giao dịch đã bị xóa mềm. 
+     * Khôi phục một giao dịch đã bị xóa mềm.
      * Sau khi khôi phục (deleted = 0), giao dịch sẽ xuất hiện lại trong lịch sử của User như cũ.
      */
     @PatchMapping("/transactions/{id}/restore")
     @PreAuthorize("hasRole('ROLE_ADMIN') or hasAuthority('ADMIN_SYSTEM_ALL')")
     public ResponseEntity<ApiResponse<String>> restoreTransaction(@PathVariable("id") Long id) {
         adminService.restoreTransaction(id);
-        return ResponseEntity.ok(ApiResponse.success("Giao dịch đã được khôi phục thành công. Người dùng hiện đã có thể thấy lại giao dịch này."));
+        return ResponseEntity.ok(ApiResponse.success("Giao dịch đã được khôi phục thành công."));
     }
 
     /**
@@ -119,7 +117,7 @@ public class AdminController {
     @PreAuthorize("hasRole('ROLE_ADMIN') or hasAuthority('ADMIN_SYSTEM_ALL')")
     public ResponseEntity<ApiResponse<String>> restoreAllUserTransactions(@PathVariable("userId") Integer userId) {
         adminService.restoreAllUserTransactions(userId);
-        return ResponseEntity.ok(ApiResponse.success("Tất cả giao dịch của người dùng đã được khôi phục về trạng thái ban đầu."));
+        return ResponseEntity.ok(ApiResponse.success("Tất cả giao dịch của người dùng đã được khôi phục."));
     }
 
     @GetMapping("/stats")
@@ -142,6 +140,12 @@ public class AdminController {
         return ResponseEntity.ok(ApiResponse.success(adminService.countOnlineUsers()));
     }
 
+    @GetMapping("/users/online-live")
+    @PreAuthorize("hasRole('ROLE_ADMIN') or hasAuthority('ADMIN_SYSTEM_ALL')")
+    public ResponseEntity<ApiResponse<List<AccountDto>>> getAllLiveOnlineUsers() {
+        return ResponseEntity.ok(ApiResponse.success(adminService.getAllLiveOnlineUsers()));
+    }
+
     @PostMapping("/system/auto-logout")
     @PreAuthorize("hasRole('ROLE_ADMIN') or hasAuthority('ADMIN_SYSTEM_ALL')")
     public ResponseEntity<ApiResponse<String>> handleAutoLogout() {
@@ -149,10 +153,26 @@ public class AdminController {
         return ResponseEntity.ok(ApiResponse.success("Đã thu hồi phiên quá hạn."));
     }
 
-    @GetMapping("/notifications/{adminId}")
+    @GetMapping("/notifications")
     @PreAuthorize("hasRole('ROLE_ADMIN') or hasAuthority('ADMIN_SYSTEM_ALL')")
-    public ResponseEntity<ApiResponse<List<Notification>>> getAdminNotifications(@PathVariable("adminId") Integer adminId) {
-        return ResponseEntity.ok(ApiResponse.success(adminService.getAdminNotifications(adminId)));
+    public ResponseEntity<ApiResponse<List<Notification>>> getAdminNotifications(@AuthenticationPrincipal Account currentAdmin) {
+        return ResponseEntity.ok(ApiResponse.success(adminService.getAdminNotifications(currentAdmin.getId())));
+    }
+
+    // [MỚI] API Đánh dấu một thông báo đã đọc
+    @PutMapping("/notifications/{id}/read")
+    @PreAuthorize("hasRole('ROLE_ADMIN') or hasAuthority('ADMIN_SYSTEM_ALL')")
+    public ResponseEntity<ApiResponse<String>> markAsRead(@PathVariable Integer id) {
+        adminService.markNotificationAsRead(id);
+        return ResponseEntity.ok(ApiResponse.success("Notification marked as read."));
+    }
+
+    // [MỚI] API Đánh dấu tất cả thông báo admin đã đọc
+    @PutMapping("/notifications/read-all")
+    @PreAuthorize("hasRole('ROLE_ADMIN') or hasAuthority('ADMIN_SYSTEM_ALL')")
+    public ResponseEntity<ApiResponse<String>> markAllAsRead() {
+        adminService.markAllNotificationsAsRead();
+        return ResponseEntity.ok(ApiResponse.success("All notifications marked as read."));
     }
 
     @GetMapping("/contact-requests")

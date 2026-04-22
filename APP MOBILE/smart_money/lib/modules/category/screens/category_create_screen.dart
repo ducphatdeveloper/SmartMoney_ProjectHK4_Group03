@@ -144,7 +144,7 @@ class _CategoryCreateScreenState extends State<CategoryCreateScreen> {
     if (name.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text("Vui lòng nhập tên danh mục"),
+          content: Text("Please enter category name"),
           backgroundColor: Colors.red,
         ),
       );
@@ -174,7 +174,7 @@ class _CategoryCreateScreenState extends State<CategoryCreateScreen> {
       // Thành công → hiện thông báo + quay về
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(provider.successMessage ?? "Tạo danh mục thành công"),
+          content: Text(provider.successMessage ?? "Category created successfully"),
           backgroundColor: Colors.green,
         ),
       );
@@ -183,7 +183,7 @@ class _CategoryCreateScreenState extends State<CategoryCreateScreen> {
       // Thất bại → hiện lỗi từ server (tiếng Việt)
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(provider.errorMessage ?? "Có lỗi xảy ra"),
+          content: Text(provider.errorMessage ?? "An error occurred"),
           backgroundColor: Colors.red,
         ),
       );
@@ -198,7 +198,7 @@ class _CategoryCreateScreenState extends State<CategoryCreateScreen> {
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
-        title: const Text("Nhóm mới"),
+        title: const Text("New category"),
         backgroundColor: Colors.black,
         centerTitle: true,
       ),
@@ -284,7 +284,7 @@ class _CategoryCreateScreenState extends State<CategoryCreateScreen> {
                             size: 20,
                           ),
                           const SizedBox(width: 8),
-                          const Text("Khoản chi",
+                          const Text("Expense",
                               style: TextStyle(color: Colors.white, fontSize: 14)),
                         ],
                       ),
@@ -307,7 +307,7 @@ class _CategoryCreateScreenState extends State<CategoryCreateScreen> {
                             size: 20,
                           ),
                           const SizedBox(width: 8),
-                          const Text("Khoản thu",
+                          const Text("Income",
                               style: TextStyle(color: Colors.white, fontSize: 14)),
                         ],
                       ),

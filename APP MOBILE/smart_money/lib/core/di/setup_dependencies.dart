@@ -1,5 +1,7 @@
 import 'package:get_it/get_it.dart';
 import '../services/auth_service.dart';
+import '../services/biometric_service.dart';
+import '../services/google_auth_service.dart';
 import '../../modules/category/services/category_service.dart';
 import '../../modules/transaction/services/transaction_service.dart';
 import '../../modules/transaction/services/util_service.dart';
@@ -16,6 +18,8 @@ void setupDependencies() {
 
   // Auth — dùng AuthService từ core/services/ theo blueprint
   getIt.registerLazySingleton<AuthService>(() => AuthService());
+  getIt.registerLazySingleton<GoogleAuthService>(() => GoogleAuthService());
+  getIt.registerLazySingleton<BiometricService>(() => BiometricService());
 
   // Category — gọi API CRUD danh mục
   getIt.registerLazySingleton<CategoryService>(() => CategoryService());

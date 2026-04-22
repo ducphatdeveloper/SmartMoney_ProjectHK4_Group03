@@ -152,6 +152,25 @@ public final class NotificationMessages {
                 null, null, null, null);
     }
 
+    /**
+     * Giao dịch được khôi phục bởi Admin.
+     */
+    public static NotificationContent transactionRestored(BigDecimal amount) {
+        String title = "Giao dịch được khôi phục ♻️";
+        String content = String.format("Giao dịch trị giá %s đã được Admin khôi phục thành công. Vui lòng kiểm tra lại số dư ví.",
+                CurrencyUtils.formatVND(amount));
+        return new NotificationContent(title, content);
+    }
+
+    /**
+     * Tất cả giao dịch đã xóa được khôi phục bởi Admin.
+     */
+    public static NotificationContent allTransactionsRestored() {
+        String title = "Khôi phục dữ liệu thành công ♻️";
+        String content = "Tất cả giao dịch đã bị xóa của bạn đã được Admin khôi phục lại trạng thái ban đầu.";
+        return new NotificationContent(title, content);
+    }
+
     // ════════════════════════════════════════════════════════════════════════
     // TYPE 2 — SAVING GOAL
     // ════════════════════════════════════════════════════════════════════════
@@ -275,16 +294,20 @@ public final class NotificationMessages {
      * Ngân sách đã được tự động gia hạn sang kỳ mới.
      * Dùng khi: BudgetScheduler.renewBudget() hoàn thành.
      */
-    public static NotificationContent budgetRenewed(LocalDate newStart, LocalDate newEnd) {
+    public static NotificationContent budgetRenewed(LocalDate oldBeginDate, LocalDate oldEndDate,
+                                                   LocalDate newBeginDate, LocalDate newEndDate,
+                                                   String categoryNames, BigDecimal amount) {
         String title = "Ngân sách đã được gia hạn 🔄";
         String content = String.format(
-                "Ngân sách của bạn đã được tự động tạo mới cho kỳ %s đến %s.",
-                newStart.format(VN_DATE), newEnd.format(VN_DATE));
+                "Ngân sách %s (%s) đã được gia hạn từ kỳ %s - %s sang kỳ mới %s - %s.",
+                categoryNames, CurrencyUtils.formatVND(amount),
+                oldBeginDate.format(VN_DATE), oldEndDate.format(VN_DATE),
+                newBeginDate.format(VN_DATE), newEndDate.format(VN_DATE));
         return new NotificationContent(title, content);
     }
 
     /**
-     * Gợi ý phân bổ chi tiêu theo ngày (tính toán Java thuần — KHÔNG phải AI).
+     * Phân tích phân bổ chi tiêu theo ngày (tính toán Java thuần).
      * Công thức: dailyAllowance = remaining / daysLeft
      * Dùng khi: BudgetScheduler.checkAndNotify() → percent >= 60 VÀ còn > 5 ngày.
      */
@@ -292,7 +315,7 @@ public final class NotificationMessages {
                                                            BigDecimal remaining,
                                                            long daysLeft,
                                                            BigDecimal dailyAllowance) {
-        String title = "💡 Gợi ý chi tiêu hôm nay";
+        String title = "💡 Phân tích chi tiêu hôm nay";
         String content = String.format(
                 "Ngân sách %s còn %s cho %d ngày tới. Mỗi ngày bạn chỉ nên chi tối đa %s để đảm bảo đủ tháng.",
                 label, CurrencyUtils.formatVND(remaining),

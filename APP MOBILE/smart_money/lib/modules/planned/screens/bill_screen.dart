@@ -979,7 +979,7 @@ class _BillScreenState extends State<BillScreen> with SingleTickerProviderStateM
               }
             },
             // [TODO i18n] Dialog delete
-            child: const Text('Xóa', style: TextStyle(color: Color(0xFFFF3B30))),
+            child: const Text('Delete', style: TextStyle(color: Color(0xFFFF3B30))),
           ),
         ],
       ),

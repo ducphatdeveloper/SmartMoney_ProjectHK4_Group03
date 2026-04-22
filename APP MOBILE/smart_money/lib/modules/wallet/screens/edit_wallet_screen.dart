@@ -32,8 +32,8 @@ class _EditWalletScreenState extends State<EditWalletScreen> {
   String? balanceError;
 
   String? _validateName(String text) {
-    if (text.isEmpty) return "Tên ví không được để trống";
-    if (text.length > 30) return "Tên ví tối đa 30 ký tự";
+    if (text.isEmpty) return "Wallet name cannot be empty";
+    if (text.length > 30) return "Wallet name max 30 characters";
     return null;
   }
 
@@ -41,43 +41,62 @@ class _EditWalletScreenState extends State<EditWalletScreen> {
   @override
   void initState() {
     super.initState();
-    _lastValidText = balanceController.text;
-
 
     notification = widget.wallet.notified ?? true;
     nameController = TextEditingController(text: widget.wallet.walletName);
     balanceController =
         TextEditingController(text: _formatNumber(widget.wallet.balance));
+    // ✅ PHẢI đặt SAU khi init controller
+    _lastValidText = balanceController.text;
     excludeFromTotal = !(widget.wallet.reportable ?? true);
     _selectedIconUrl = widget.wallet.goalImageUrl;
   }
 
   @override
   Widget build(BuildContext context) {
+    final isValid = nameError == null && balanceError == null;
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
         backgroundColor: Colors.black,
         elevation: 0,
-        title: const Text("Chỉnh sửa ví"),
-        actions: [
-          TextButton(
-            onPressed: (nameError == null && balanceError == null)
-                ? _save
-                : null,
-            // nút luôn hiển thị
-            child: isSaving
-                ? const SizedBox(
-              width: 18,
-              height: 18,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            )
-                : const Text(
-              "Lưu",
-              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
+        ),
+        centerTitle: true,
+        title: const Text(
+          "Edit wallet",
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.2,
+          ),
+        ),
+      ),
+      bottomNavigationBar: Padding(
+        padding: const EdgeInsets.all(16),
+        child: ElevatedButton(
+          onPressed: (nameError == null && balanceError == null && !isSaving)
+              ? _save
+              : null,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: (nameError == null && balanceError == null && !isSaving)
+                ? Colors.green
+                : Colors.grey.shade800,
+          ),
+          child: isSaving
+              ? const SizedBox(
+            width: 20,
+            height: 20,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: Colors.white,
             ),
           )
-        ],
+              : const Text("Save"),
+        ),
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
@@ -111,7 +130,7 @@ class _EditWalletScreenState extends State<EditWalletScreen> {
               controller: nameController,
               style: const TextStyle(color: Colors.white),
               decoration: InputDecoration(
-                hintText: "Tên ví",
+                hintText: "Wallet name",
                 hintStyle: const TextStyle(color: Colors.grey),
                 border: InputBorder.none,
                 errorText: nameError,
@@ -147,7 +166,7 @@ class _EditWalletScreenState extends State<EditWalletScreen> {
               ),
             ),
             title: const Text(
-              "Đơn vị tiền tệ",
+              "Currency",
               style: TextStyle(color: Colors.grey),
             ),
             trailing: Row(
@@ -155,7 +174,6 @@ class _EditWalletScreenState extends State<EditWalletScreen> {
               children: [
                 Text(currency, style: const TextStyle(color: Colors.white)),
                 const SizedBox(width: 4),
-                const Icon(Icons.chevron_right, color: Colors.grey),
               ],
             ),
           ),
@@ -168,7 +186,7 @@ class _EditWalletScreenState extends State<EditWalletScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  "Số tiền hiện có",
+                  "Current balance",
                   style: TextStyle(color: Colors.grey),
                 ),
                 const SizedBox(height: 8),
@@ -208,11 +226,11 @@ class _EditWalletScreenState extends State<EditWalletScreen> {
           decoration: _card(),
           child: SwitchListTile(
             title: const Text(
-              "Bật thông báo",
+              "Enable notifications",
               style: TextStyle(color: Colors.white),
             ),
             subtitle: const Text(
-              "Nhận thông báo khi ví có giao dịch",
+              "Receive notifications when wallet has transactions",
               style: TextStyle(color: Colors.grey),
             ),
             value: notification,
@@ -229,11 +247,11 @@ class _EditWalletScreenState extends State<EditWalletScreen> {
           decoration: _card(),
           child: SwitchListTile(
             title: const Text(
-              "Không tính vào tổng",
+              "Exclude from total",
               style: TextStyle(color: Colors.white),
             ),
             subtitle: const Text(
-              'Bỏ qua ví này khỏi "Tổng"',
+              'Exclude this wallet from "Total"',
               style: TextStyle(color: Colors.grey),
             ),
             value: excludeFromTotal,
@@ -274,7 +292,7 @@ class _EditWalletScreenState extends State<EditWalletScreen> {
       setState(() {
         _lastValidText = '';
         balanceController.text = '';
-        balanceError = "Số tiền không được để trống";
+        balanceError = "Amount cannot be empty";
       });
       return;
     }
@@ -291,7 +309,7 @@ class _EditWalletScreenState extends State<EditWalletScreen> {
           ..removeCurrentSnackBar()
           ..showSnackBar(
             const SnackBar(
-              content: Text("Số tiền không được vượt quá 1000 tỷ"),
+              content: Text("Amount must not exceed 1000 billion"),
             ),
           );
       }
@@ -332,16 +350,16 @@ class _EditWalletScreenState extends State<EditWalletScreen> {
   // ================= VALIDATION =================
 
   String? _validateBalance(String text) {
-    if (text.isEmpty) return "Số tiền không được để trống";
+    if (text.isEmpty) return "Amount cannot be empty";
 
     final raw = text.replaceAll('.', '');
 
     final value = double.tryParse(raw);
 
-    if (value == null) return "Số tiền không hợp lệ";
-    if (value < 0) return "Số tiền không được âm";
+    if (value == null) return "Invalid amount";
+    if (value < 0) return "Amount cannot be negative";
     if (value > 1000000000000) {
-      return "Số tiền tối đa là 1000 Tỷ VND";
+      return "Maximum amount is 1000 billion VND";
     }
 
     return null;
@@ -391,7 +409,7 @@ class _EditWalletScreenState extends State<EditWalletScreen> {
     if (success) {
       Navigator.pop(context, true);
     } else {
-      _showError(provider.error ?? "Cập nhật ví thất bại");
+      _showError(provider.error ?? "Failed to update wallet");
     }
   }
 

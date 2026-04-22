@@ -101,15 +101,15 @@ class TransactionJournalList extends StatelessWidget {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: Colors.grey[900],
-        title: const Text('Xóa giao dịch', style: TextStyle(color: Colors.white)),
+        title: const Text('Delete transaction', style: TextStyle(color: Colors.white)),
         content: const Text(
-          'Bạn có chắc muốn xóa giao dịch này?',
+          'Are you sure you want to delete this transaction?',
           style: TextStyle(color: Colors.grey),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Hủy', style: TextStyle(color: Colors.grey)),
+            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
           ),
           TextButton(
             onPressed: () async {
@@ -119,20 +119,20 @@ class TransactionJournalList extends StatelessWidget {
               if (success && context.mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
-                    content: Text('Đã xóa giao dịch'),
+                    content: Text('Transaction deleted'),
                     backgroundColor: Colors.green,
                   ),
                 );
               } else if (!success && context.mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text(provider.errorMessage ?? 'Có lỗi xảy ra'),
+                    content: Text(provider.errorMessage ?? 'An error occurred'),
                     backgroundColor: Colors.red,
                   ),
                 );
               }
             },
-            child: const Text('Xóa', style: TextStyle(color: Colors.red)),
+            child: const Text('Delete', style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
@@ -147,7 +147,7 @@ class TransactionJournalList extends StatelessWidget {
           Icon(icon, size: 64, color: Colors.grey[700]),
           const SizedBox(height: 16),
           Text(
-            'Chưa có giao dịch nào',
+'No transactions yet',
             style: TextStyle(color: Colors.grey[500], fontSize: 16),
           ),
         ],
@@ -199,7 +199,7 @@ class TransactionGroupedList extends StatelessWidget {
                             style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w500),
                           ),
                           Text(
-                            '${group.transactionCount} giao dịch',
+                            '${group.transactionCount} transactions',
                             style: TextStyle(color: Colors.grey[500], fontSize: 12),
                           ),
                         ],
@@ -286,15 +286,15 @@ class TransactionGroupedList extends StatelessWidget {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: Colors.grey[900],
-        title: const Text('Xóa giao dịch', style: TextStyle(color: Colors.white)),
+        title: const Text('Delete transaction', style: TextStyle(color: Colors.white)),
         content: const Text(
-          'Bạn có chắc muốn xóa giao dịch này?',
+          'Are you sure you want to delete this transaction?',
           style: TextStyle(color: Colors.grey),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Hủy', style: TextStyle(color: Colors.grey)),
+            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
           ),
           TextButton(
             onPressed: () async {
@@ -302,7 +302,7 @@ class TransactionGroupedList extends StatelessWidget {
               final provider = Provider.of<TransactionProvider>(context, listen: false);
               await provider.deleteTransaction(transaction.id);
             },
-            child: const Text('Xóa', style: TextStyle(color: Colors.red)),
+            child: const Text('Delete', style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
@@ -356,7 +356,7 @@ class TransactionGroupedList extends StatelessWidget {
           Icon(icon, size: 64, color: Colors.grey[700]),
           const SizedBox(height: 16),
           Text(
-            'Chưa có giao dịch nào',
+'No transactions yet',
             style: TextStyle(color: Colors.grey[500], fontSize: 16),
           ),
         ],

@@ -32,7 +32,7 @@ class TransactionSummary extends StatelessWidget {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Tiền vào', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                      const Text('Income', style: TextStyle(color: Colors.grey, fontSize: 12)),
                       const SizedBox(height: 4),
                       Text(
                         FormatHelper.formatVND(provider.totalIncome),
@@ -43,7 +43,7 @@ class TransactionSummary extends StatelessWidget {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      const Text('Tiền ra', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                      const Text('Expense', style: TextStyle(color: Colors.grey, fontSize: 12)),
                       const SizedBox(height: 4),
                       Text(
                         FormatHelper.formatVND(provider.totalExpense),
@@ -61,7 +61,7 @@ class TransactionSummary extends StatelessWidget {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  const Text('Còn lại', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                  const Text('Remaining', style: TextStyle(color: Colors.grey, fontSize: 12)),
                   const SizedBox(height: 4),
                   Text(
                     FormatHelper.formatVND(provider.netTotal),
@@ -98,7 +98,7 @@ class TransactionReportButton extends StatelessWidget {
           ),
           icon: const Icon(Icons.bar_chart, color: Colors.green, size: 18),
           label: const Text(
-            'Xem báo cáo cho giai đoạn này',
+            'View report for this period',
             style: TextStyle(
                 color: Colors.green, fontWeight: FontWeight.w600),
           ),

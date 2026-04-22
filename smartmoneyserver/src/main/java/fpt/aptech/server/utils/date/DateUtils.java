@@ -63,7 +63,7 @@ public final class DateUtils {
         }
 
         // Nếu không có thông tin nào hợp lệ, báo lỗi
-        throw new IllegalArgumentException("API yêu cầu phải có 'range' hoặc cả 'startDate' và 'endDate'.");
+        throw new IllegalArgumentException("API requires 'range' or both 'startDate' and 'endDate'.");
     }
 
     // =========================================================================
@@ -242,12 +242,12 @@ public final class DateUtils {
 
     /**
      * Format ngày hiển thị thân thiện kiểu app thu chi.
-     * VD: "Hôm nay", "Hôm qua", "Thứ Sáu, 14/03"
+     * VD: "Today", "Yesterday", "Thứ Sáu, 14/03"
      */
     public static String formatDisplayDate(LocalDate date) {
         LocalDate today = LocalDate.now();
-        if (date.equals(today)) return "Hôm nay";
-        if (date.equals(today.minusDays(1))) return "Hôm qua";
+        if (date.equals(today)) return "Today";
+        if (date.equals(today.minusDays(1))) return "Yesterday";
         return date.format(DateTimeFormatter.ofPattern("EEEE, dd/MM/yyyy", VI_LOCALE));
     }
 
@@ -255,7 +255,7 @@ public final class DateUtils {
      * Format tháng/năm cho label báo cáo. VD: "Tháng 2/2026"
      */
     public static String formatMonthYear(LocalDate date) {
-        return "Tháng " + date.getMonthValue() + "/" + date.getYear();
+        return "Month " + date.getMonthValue() + "/" + date.getYear();
     }
 
     /**
@@ -263,7 +263,7 @@ public final class DateUtils {
      */
     public static String formatQuarterYear(LocalDate date) {
         int quarter = (date.getMonthValue() - 1) / 3 + 1;
-        return "Quý " + quarter + "/" + date.getYear();
+        return "Quarter " + quarter + "/" + date.getYear();
     }
 
     /**
@@ -271,6 +271,6 @@ public final class DateUtils {
      */
     public static String formatWeekYear(LocalDate date) {
         int week = date.get(WEEK_FIELDS.weekOfWeekBasedYear());
-        return "Tuần " + week + "/" + date.getYear();
+        return "Week " + week + "/" + date.getYear();
     }
 }

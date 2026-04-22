@@ -14,10 +14,15 @@ import java.util.Map;
  * Service upload & xóa hình ảnh trên Cloudinary.
  *
  * Folder trên Cloudinary:
- *   - smartmoney/icons      → Icon danh mục, ví, sự kiện, mục tiêu tiết kiệm
- *   - smartmoney/avatars    → Avatar người dùng
- *   - smartmoney/receipts   → Hóa đơn (OCR)
- *   - smartmoney/ai         → File đính kèm từ AI chat
+ *   - avatars                → Avatar người dùng (UserService.updateAvatar)
+ *   - smartmoney/receipts   → Hóa đơn (OCR) - ảnh upload qua /api/ai/upload-receipt
+ *   - smartmoney/icons      → Icon danh mục, ví, sự kiện, mục tiêu tiết kiệm (UploadController - chưa sử dụng)
+ *   - smartmoney/avatars    → Avatar người dùng (UploadController - chưa sử dụng)
+ *   - smartmoney/ai         → File đính kèm từ AI chat (UploadController - chưa sử dụng, đã xóa API)
+ *
+ * Lưu ý:
+ *   - Icon danh mục (Category) được hardcode filename trong DB, không upload lên Cloudinary
+ *   - Avatar người dùng được upload trực tiếp vào folder "avatars" (không có prefix smartmoney/)
  *
  * Phương thức:
  *   1. uploadImage(file, folder)  — Upload file → trả về URL HTTPS
@@ -51,22 +56,45 @@ public class CloudinaryService {
 
         // 2. Validate loại file (chỉ cho phép ảnh)
         String contentType = file.getContentType();
+        log.info("[Cloudinary] File name: {}, ContentType: {}", file.getOriginalFilename(), contentType);
+
         if (contentType == null || !contentType.startsWith("image/")) {
-            throw new IllegalArgumentException("Chỉ chấp nhận file ảnh (jpg, png, svg, webp...).");
+            // Fallback: check file extension nếu contentType null
+            String filename = file.getOriginalFilename();
+            if (filename != null) {
+                String extension = filename.toLowerCase().substring(filename.lastIndexOf('.') + 1);
+                log.info("[Cloudinary] ContentType null, check extension: {}", extension);
+                if (extension.matches("jpg|jpeg|png|svg|webp|gif|bmp")) {
+                    log.info("[Cloudinary] File extension hợp lệ, cho phép upload");
+                } else {
+                    throw new IllegalArgumentException("Chỉ chấp nhận file ảnh (jpg, png, svg, webp...). File extension: " + extension);
+                }
+            } else {
+                throw new IllegalArgumentException("Chỉ chấp nhận file ảnh (jpg, png, svg, webp...).");
+            }
         }
 
-        // 3. Upload lên Cloudinary
+        // 3. Tạo random name cho file để tránh conflict
+        String originalFilename = file.getOriginalFilename();
+        String extension = "";
+        if (originalFilename != null && originalFilename.contains(".")) {
+            extension = originalFilename.substring(originalFilename.lastIndexOf("."));
+        }
+        String randomFilename = "receipt_" + System.currentTimeMillis() + "_" + (int)(Math.random() * 1000) + extension;
+
+        // 4. Upload lên Cloudinary với random name
         Map<String, Object> uploadResult = cloudinary.uploader().upload(
                 file.getBytes(),
                 ObjectUtils.asMap(
                         "folder", folder,                  // Folder trên cloud
                         "resource_type", "image",          // Loại resource
-                        "overwrite", true,                 // Ghi đè nếu trùng
+                        "public_id", randomFilename,       // Random name để tránh conflict
+                        "overwrite", false,                // Không ghi đè (vì đã có random name)
                         "transformation", "q_auto,f_auto"  // Tự động nén & chọn format tốt nhất
                 )
         );
 
-        // 4. Trả về URL HTTPS (secure_url)
+        // 5. Trả về URL HTTPS (secure_url)
         String secureUrl = (String) uploadResult.get("secure_url");
         log.info("✅ Upload ảnh thành công: {}", secureUrl);
         return secureUrl;

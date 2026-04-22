@@ -209,12 +209,12 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
     if (isCreatingNewDebt) {
       // Bắt buộc phải chọn ngày hẹn trả
       if (_debtDueDate == null) {
-        _showSnackBar('Vui lòng chọn ngày hẹn trả cho khoản nợ.', isError: true);
+        _showSnackBar('Please select a due date for the debt.', isError: true);
         return;
       }
       // Ngày hẹn trả phải là ngày trong tương lai
       if (!_debtDueDate!.isAfter(DateTime.now())) {
-        _showSnackBar('Ngày hẹn trả phải là ngày trong tương lai.', isError: true);
+        _showSnackBar('The due date must be in the future.', isError: true);
         return;
       }
     }
@@ -1100,8 +1100,8 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
             Expanded(
               child: Text(
                 _reminderTime != null
-                    ? 'Nhắc nhở: ${FormatHelper.formatDisplayDate(_reminderTime!)} ${_reminderTime!.hour.toString().padLeft(2, '0')}:${_reminderTime!.minute.toString().padLeft(2, '0')}'
-                    : 'Đặt nhắc nhở (tùy chọn)',
+                    ? 'Reminder: ${FormatHelper.formatDisplayDate(_reminderTime!)} ${_reminderTime!.hour.toString().padLeft(2, '0')}:${_reminderTime!.minute.toString().padLeft(2, '0')}'
+                    : 'Set reminder (optional)',
                 style: TextStyle(
                   color: _reminderTime != null ? Colors.white : Colors.grey,
                   fontSize: 15,
@@ -1291,11 +1291,11 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
             Expanded(
               child: Text(
                 _debtDueDate != null
-                    ? 'Hạn trả: ${_debtDueDate!.day.toString().padLeft(2, '0')}/'
+                    ? 'Due date: ${_debtDueDate!.day.toString().padLeft(2, '0')}/'
                         '${_debtDueDate!.month.toString().padLeft(2, '0')}/'
                         '${_debtDueDate!.year}'
                     // [REQUIRED] Đổi hint thành bắt buộc — có dấu * và màu cam
-                    : 'Chọn ngày hẹn trả *',
+                    : 'Select due date *',
                 style: TextStyle(
                   // Màu đỏ nhạt khi chưa chọn để nhắc nhở bắt buộc
                   color: _debtDueDate != null ? Colors.white : Colors.orangeAccent,
@@ -1326,9 +1326,9 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
       initialDate: _debtDueDate ?? now.add(const Duration(days: 30)),
       firstDate: now,
       lastDate: DateTime(now.year + 10),
-      helpText: 'Chọn ngày hẹn trả',
-      confirmText: 'Xác nhận',
-      cancelText: 'Hủy',
+      helpText: 'Select due date',
+      confirmText: 'Confirm',
+      cancelText: 'Cancel',
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(

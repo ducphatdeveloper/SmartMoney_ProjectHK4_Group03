@@ -73,12 +73,12 @@ class _AddBasicWalletScreenState extends State<AddBasicWalletScreen> {
   }
 
   String? _validateName(String text) {
-    if (text.isEmpty) return "Tên ví không được để trống";
-    if (text.length > 30) return "Tên ví tối đa 30 ký tự";
+    if (text.isEmpty) return "Wallet name cannot be empty";
+    if (text.length > 30) return "Wallet name max 30 characters";
 
     final regex = RegExp(r'^[a-zA-Z0-9\sÀ-ỹ]+$');
     if (!regex.hasMatch(text)) {
-      return "Không chứa ký tự đặc biệt";
+      return "No special characters";
     }
 
     return null;
@@ -87,32 +87,49 @@ class _AddBasicWalletScreenState extends State<AddBasicWalletScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isValid = nameError == null && balanceError == null;
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
         backgroundColor: Colors.black,
         elevation: 0,
-        leading: TextButton(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () => Navigator.pop(context),
-          child: const Text("Hủy", style: TextStyle(color: Colors.grey)),
         ),
         centerTitle: true,
-        title: const Text("Thêm Ví"),
-        actions: [
-          TextButton(
-            onPressed: _saveWallet, // nút luôn luôn hiển thị
-            child: isSaving
-                ? const SizedBox(
-              width: 18,
-              height: 18,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            )
-                : const Text(
-              "Lưu",
-              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        title: const Text(
+          "Add Wallet",
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.2,
+          ),
+        ),
+      ),
+      bottomNavigationBar: Padding(
+        padding: const EdgeInsets.all(16),
+        child: ElevatedButton(
+          onPressed: (nameError == null && balanceError == null && !isSaving)
+              ? _saveWallet
+              : null,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: (nameError == null && balanceError == null && !isSaving)
+                ? Colors.green
+                : Colors.grey.shade800,
+          ),
+          child: isSaving
+              ? const SizedBox(
+            width: 20,
+            height: 20,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: Colors.white,
             ),
           )
-        ],
+              : const Text("Save"),
+        ),
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
@@ -149,7 +166,7 @@ class _AddBasicWalletScreenState extends State<AddBasicWalletScreen> {
 
               ],
               decoration: InputDecoration(
-                hintText: "Tên ví",
+                hintText: "Wallet name",
                 hintStyle: const TextStyle(color: Colors.grey),
                 border: InputBorder.none,
                 errorText: nameError,
@@ -174,7 +191,7 @@ class _AddBasicWalletScreenState extends State<AddBasicWalletScreen> {
               ),
             ),
             title: const Text(
-              "Đơn vị tiền tệ",
+              "Currency",
               style: TextStyle(color: Colors.grey),
             ),
             trailing: Row(
@@ -182,7 +199,6 @@ class _AddBasicWalletScreenState extends State<AddBasicWalletScreen> {
               children: const [
                 Text("VND", style: TextStyle(color: Colors.white)),
                 SizedBox(width: 4),
-                Icon(Icons.chevron_right, color: Colors.grey),
               ],
             ),
             onTap: null,
@@ -194,7 +210,7 @@ class _AddBasicWalletScreenState extends State<AddBasicWalletScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  "Số tiền hiện có",
+                  "Current balance",
                   style: TextStyle(color: Colors.grey),
                 ),
                 const SizedBox(height: 8),
@@ -248,7 +264,7 @@ class _AddBasicWalletScreenState extends State<AddBasicWalletScreen> {
           ..removeCurrentSnackBar()
           ..showSnackBar(
             const SnackBar(
-              content: Text("Số tiền không được vượt quá 1000 tỷ"),
+              content: Text("Amount must not exceed 1000 billion"),
               duration: Duration(seconds: 2),
             ),
           );
@@ -273,11 +289,11 @@ class _AddBasicWalletScreenState extends State<AddBasicWalletScreen> {
       decoration: _card(),
       child: SwitchListTile(
         title: const Text(
-          "Không tính vào tổng",
+          "Exclude from total",
           style: TextStyle(color: Colors.white),
         ),
         subtitle: const Text(
-          'Bỏ qua ví này khỏi "Tổng"',
+          'Exclude this wallet from "Total"',
           style: TextStyle(color: Colors.grey),
         ),
         value: excludeFromTotal,
@@ -291,12 +307,12 @@ class _AddBasicWalletScreenState extends State<AddBasicWalletScreen> {
   }
 
   String? _validateBalance(String text) {
-    if (text.isEmpty) return "Số tiền không được để trống";
+    if (text.isEmpty) return "Amount cannot be empty";
     final raw = text.replaceAll(',', '');
     final value = double.tryParse(raw);
-    if (value == null) return "Số tiền không hợp lệ";
-    if (value < 0) return "Số tiền không được âm";
-    if (value > 1000000000000) return "Số tiền tối đa là 1000 Tỷ VND";
+    if (value == null) return "Invalid amount";
+    if (value < 0) return "Amount cannot be negative";
+    if (value > 1000000000000) return "Maximum amount is 1000 billion VND";
     return null;
   }
 
@@ -344,7 +360,7 @@ class _AddBasicWalletScreenState extends State<AddBasicWalletScreen> {
     if (success) {
       Navigator.pop(context, true);
     } else {
-      _showError(provider.error ?? "Tạo ví thất bại");
+      _showError(provider.error ?? "Failed to create wallet");
     }
   }
 

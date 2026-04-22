@@ -9,19 +9,19 @@ class DateRangeModeDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final modes = [
-      {'label': 'Ngày', 'value': 'DAILY'},
-      {'label': 'Tuần', 'value': 'WEEKLY'},
-      {'label': 'Tháng', 'value': 'MONTHLY'},
-      {'label': 'Quý', 'value': 'QUARTERLY'},
-      {'label': 'Năm', 'value': 'YEARLY'},
-      {'label': 'Tất cả', 'value': 'ALL'},
-      {'label': 'Tùy chỉnh', 'value': 'CUSTOM'},
+      {'label': 'Day', 'value': 'DAILY'},
+      {'label': 'Week', 'value': 'WEEKLY'},
+      {'label': 'Month', 'value': 'MONTHLY'},
+      {'label': 'Quarter', 'value': 'QUARTERLY'},
+      {'label': 'Year', 'value': 'YEARLY'},
+      {'label': 'All', 'value': 'ALL'},
+      {'label': 'Custom', 'value': 'CUSTOM'},
     ];
 
     return AlertDialog(
       backgroundColor: Colors.grey[900],
       title: const Text(
-        'Khoảng thời gian',
+        'Time period',
         style: TextStyle(color: Colors.white, fontSize: 18),
       ),
       content: Column(
@@ -91,7 +91,7 @@ class _CustomDateRangeDialogState extends State<CustomDateRangeDialog> {
     return AlertDialog(
       backgroundColor: Colors.grey[900],
       title: const Text(
-        'Chọn khoảng thời gian',
+        'Select time range',
         style: TextStyle(color: Colors.white, fontSize: 18),
       ),
       content: Column(
@@ -99,7 +99,7 @@ class _CustomDateRangeDialogState extends State<CustomDateRangeDialog> {
         children: [
           // Từ ngày
           ListTile(
-            title: const Text('Từ', style: TextStyle(color: Colors.grey)),
+            title: const Text('From', style: TextStyle(color: Colors.grey)),
             subtitle: Text(
               '${startDate.day.toString().padLeft(2, '0')}/${startDate.month.toString().padLeft(2, '0')}/${startDate.year}',
               style: const TextStyle(color: Colors.white, fontSize: 16),
@@ -128,7 +128,7 @@ class _CustomDateRangeDialogState extends State<CustomDateRangeDialog> {
           const Divider(color: Colors.grey),
           // Đến ngày
           ListTile(
-            title: const Text('Đến', style: TextStyle(color: Colors.grey)),
+            title: const Text('To', style: TextStyle(color: Colors.grey)),
             subtitle: Text(
               '${endDate.day.toString().padLeft(2, '0')}/${endDate.month.toString().padLeft(2, '0')}/${endDate.year}',
               style: const TextStyle(color: Colors.white, fontSize: 16),
@@ -159,7 +159,7 @@ class _CustomDateRangeDialogState extends State<CustomDateRangeDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Hủy', style: TextStyle(color: Colors.grey)),
+          child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
         ),
         ElevatedButton(
           style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
@@ -169,7 +169,7 @@ class _CustomDateRangeDialogState extends State<CustomDateRangeDialog> {
             final end = DateTime(endDate.year, endDate.month, endDate.day, 23, 59, 59);
             provider.loadCustomDateRange(startDate, end);
           },
-          child: const Text('Đồng ý'),
+          child: const Text('Confirm'),
         ),
       ],
     );

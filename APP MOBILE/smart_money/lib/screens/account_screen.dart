@@ -19,14 +19,31 @@ class AccountScreen extends StatefulWidget {
 }
 
 class _AccountScreenState extends State<AccountScreen> {
+  bool _canBiometric = false;
+  bool _biometricEnabled = false;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (context.read<AuthProvider>().isLoggedIn) {
-        context.read<AuthProvider>().getProfile();
+      final authProvider = context.read<AuthProvider>();
+      if (authProvider.isLoggedIn) {
+        authProvider.getProfile();
       }
+      _checkBiometricSupport();
     });
+  }
+
+  Future<void> _checkBiometricSupport() async {
+    final authProvider = context.read<AuthProvider>();
+    final canBio = await authProvider.canUseBiometric();
+    final isEnabled = await authProvider.isBiometricEnabled();
+    if (mounted) {
+      setState(() {
+        _canBiometric = canBio;
+        _biometricEnabled = isEnabled;
+      });
+    }
   }
 
   @override
@@ -50,6 +67,7 @@ class _AccountScreenState extends State<AccountScreen> {
           if (isLoggedIn) {
             await authProvider.getProfile();
           }
+          await _checkBiometricSupport();
         },
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
@@ -142,6 +160,23 @@ class _AccountScreenState extends State<AccountScreen> {
             ),
 
             const SizedBox(height: 16),
+            _section("Security"),
+            if (_canBiometric)
+              SwitchListTile(
+                title: const Text("Biometric Login", style: TextStyle(color: Colors.white)),
+                subtitle: const Text("Fingerprint / FaceID", style: TextStyle(color: Colors.grey, fontSize: 12)),
+                secondary: const Icon(Icons.fingerprint, color: Colors.white),
+                value: _biometricEnabled,
+                activeColor: Colors.green,
+                onChanged: (bool value) async {
+                  await authProvider.toggleBiometric(value);
+                  setState(() {
+                    _biometricEnabled = value;
+                  });
+                },
+              ),
+
+            const SizedBox(height: 16),
             _section("Other"),
             _item(
               Icons.support_agent,
@@ -153,9 +188,6 @@ class _AccountScreenState extends State<AccountScreen> {
                 );
               },
             ),
-            _item(Icons.build, "Tools"),
-            _item(Icons.upload_file, "Export to Google Sheets"),
-            _item(Icons.settings, "Settings"),
           ],
         ),
       ),

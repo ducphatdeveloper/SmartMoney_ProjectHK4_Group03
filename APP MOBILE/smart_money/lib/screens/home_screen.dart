@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:smart_money/core/helpers/icon_helper.dart';
 import 'package:smart_money/widgets/chart_card.dart';
 import 'package:smart_money/widgets/summary_card.dart';
 import 'package:smart_money/modules/transaction/widgets/transaction_date_slider.dart';
@@ -23,9 +25,9 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   bool isBalanceHidden = false;
-  final NumberFormat currencyFormat = NumberFormat.currency(locale: 'en_US', symbol: '\$');
+  final NumberFormat currencyFormat = NumberFormat.currency(locale: 'vi_VN', symbol: '₫');
   final ScrollController _dateScrollController = ScrollController();
-
+  
   List<CategoryReportDTO> _categoryReports = [];
   bool _isCategoryLoading = false;
 
@@ -77,7 +79,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _fetchTopCategories() async {
     if (!mounted) return;
-
+    
     final auth = context.read<AuthProvider>();
     if (!auth.isLoggedIn) {
       setState(() {
@@ -91,7 +93,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final source = transProvider.selectedSource;
     final walletId = source.type == 'wallet' ? source.id : null;
     final goalId = source.type == 'saving_goal' ? source.id : null;
-
+    
     DateTime startDate;
     DateTime endDate;
 
@@ -106,7 +108,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     setState(() => _isCategoryLoading = true);
-
+    
     try {
       final response = await TransactionService.getCategoryReport(
         startDate: startDate,
@@ -189,7 +191,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
 
                 const SizedBox(height: 16),
-
+                
                 // Filter section giống trang sổ giao dịch
                 if (!transProvider.isAllMode && !transProvider.isCustomMode)
                   TransactionDateSlider(scrollController: _dateScrollController),
@@ -281,6 +283,14 @@ class _HomeScreenState extends State<HomeScreen> {
                   builder: (_) => const DateRangeModeDialog(),
                 );
               },
+            ),
+            // Bước 1: Thêm nút AI Chat
+            IconButton(
+              icon: const Icon(Icons.smart_toy_outlined, size: 20),
+              onPressed: () {
+                context.push('/ai-chat');
+              },
+              tooltip: 'AI Assistant',
             ),
             Consumer<NotificationProvider>(
               builder: (context, provider, child) {
@@ -429,7 +439,7 @@ class _HomeScreenState extends State<HomeScreen> {
       return const SizedBox(height: 100, child: Center(child: CircularProgressIndicator(strokeWidth: 2)));
     }
 
-    final displayItems = isLoggedIn && _categoryReports.isNotEmpty
+    final displayItems = isLoggedIn && _categoryReports.isNotEmpty 
         ? _categoryReports.take(5).toList()
         : _getDefaultCategories();
 
@@ -474,20 +484,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 final cat = displayItems[index];
                 return Row(
                   children: [
-                    Container(
-                      width: 32,
-                      height: 32,
-                      decoration: BoxDecoration(
-                        color: Colors.redAccent.withValues(alpha: 0.1),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Center(
-                        child: Text(
-                          (index + 1).toString(),
-                          style: const TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold, fontSize: 12),
-                        ),
-                      ),
-                    ),
+                    _buildCategoryIcon(cat.categoryIcon, false),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
@@ -496,7 +493,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ),
                     Text(
-                      isLoggedIn ? currencyFormat.format(cat.totalAmount) : "\$0.00",
+                      isLoggedIn ? currencyFormat.format(cat.totalAmount) : "0 ₫",
                       style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
                     ),
                   ],
@@ -538,15 +535,15 @@ class _HomeScreenState extends State<HomeScreen> {
                     final source = filteredSources[index];
                     final bool isTotal = source.type == 'all';
                     final bool isGoal = source.type == 'saving_goal';
-
+                    
                     return ListTile(
-                      leading: isTotal
-                          ? const CircleAvatar(backgroundColor: Colors.blueAccent, child: Icon(Icons.account_balance, color: Colors.white, size: 20))
-                          : (isGoal
-                          ? const CircleAvatar(backgroundColor: Colors.orange, child: Icon(Icons.savings, color: Colors.white, size: 20))
-                          : (source.iconUrl != null
-                          ? Image.network(source.iconUrl!, width: 30, height: 30)
-                          : const Icon(Icons.account_balance_wallet))),
+                      leading: isTotal 
+                        ? const CircleAvatar(backgroundColor: Colors.blueAccent, child: Icon(Icons.account_balance, color: Colors.white, size: 20))
+                        : (isGoal 
+                            ? const CircleAvatar(backgroundColor: Colors.orange, child: Icon(Icons.savings, color: Colors.white, size: 20))
+                            : (source.iconUrl != null 
+                                ? Image.network(source.iconUrl!, width: 30, height: 30)
+                                : const Icon(Icons.account_balance_wallet))),
                       title: Text(isTotal ? "Total Balance" : source.name),
                       trailing: Text(currencyFormat.format(source.balance ?? 0.0)),
                       selected: provider.selectedSource.id == source.id && provider.selectedSource.type == source.type,
@@ -564,7 +561,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 title: const Text("Manage Wallets"),
                 onTap: () {
                   Navigator.pop(context);
-                  context.push('/wallets');
+                  context.push('/wallets'); 
                 },
               )
             ],
@@ -601,13 +598,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
         return ListTile(
           contentPadding: EdgeInsets.zero,
-          leading: CircleAvatar(
-            backgroundColor: (isIncome ? Colors.green : Colors.red).withValues(alpha: 0.1),
-            child: Icon(
-              isIncome ? Icons.arrow_downward : Icons.arrow_upward,
-              color: isIncome ? Colors.green : Colors.red,
-            ),
-          ),
+          leading: _buildCategoryIcon(tx.categoryIconUrl, isIncome),
           title: Text(tx.categoryName ?? "Unnamed", style: const TextStyle(fontWeight: FontWeight.w600)),
           subtitle: Text(DateFormat('MMM dd, yyyy').format(tx.transDate)),
           trailing: Text(
@@ -619,6 +610,51 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         );
       },
+    );
+  }
+
+  Widget _buildCategoryIcon(String? iconUrl, bool isIncome) {
+    final cloudinaryUrl = IconHelper.buildCloudinaryUrl(iconUrl);
+    
+    if (cloudinaryUrl != null && cloudinaryUrl.isNotEmpty) {
+      return CachedNetworkImage(
+        imageUrl: cloudinaryUrl,
+        width: 40,
+        height: 40,
+        imageBuilder: (context, imageProvider) {
+          return Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(8),
+              image: DecorationImage(image: imageProvider, fit: BoxFit.cover),
+            ),
+          );
+        },
+        placeholder: (_, __) => _buildFallbackIcon(isIncome),
+        errorWidget: (_, __, ___) => _buildFallbackIcon(isIncome),
+      );
+    }
+    return _buildFallbackIcon(isIncome);
+  }
+
+  Widget _buildFallbackIcon(bool isIncome) {
+    return Container(
+      width: 40,
+      height: 40,
+      decoration: BoxDecoration(
+        color: isIncome
+            ? Colors.green.withValues(alpha: 0.1)
+            : Colors.red.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Center(
+        child: Icon(
+          isIncome ? Icons.arrow_downward : Icons.arrow_upward,
+          color: isIncome ? Colors.green : Colors.red,
+          size: 18,
+        ),
+      ),
     );
   }
 }
