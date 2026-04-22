@@ -76,10 +76,12 @@ class SavingGoalListScreenState extends State<SavingGoalListScreen> {
         children: [
           _buildSegment(),
 
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-            child: _totalBalanceCard(),
-          ),
+          // Kiểm tra nếu KHÔNG PHẢI Finished thì mới hiện Card
+          if (!_isFinished)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              child: _totalBalanceCard(),
+            ),
 
           Expanded(
             child: (_accessToken == null)
@@ -172,7 +174,7 @@ class SavingGoalListScreenState extends State<SavingGoalListScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    "${NumberFormat("#,###").format(total)} đ",
+                    "${NumberFormat("#,###").format(total)} VND",
                     style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white),
                   ),
                   Icon(

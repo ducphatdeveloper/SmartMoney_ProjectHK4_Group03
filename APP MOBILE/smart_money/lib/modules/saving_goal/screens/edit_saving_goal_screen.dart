@@ -57,22 +57,22 @@ class _EditSavingGoalScreenState extends State<EditSavingGoalScreen> {
     final targetStr = _targetController.text.trim();
     final currentStr = _currentController.text.trim();
 
-    if (name.isEmpty) return "Tên mục tiêu không được để trống";
-    if (targetStr.isEmpty) return "Số tiền mục tiêu không được để trống";
+    if (name.isEmpty) return "Goal name cannot be empty";
+    if (targetStr.isEmpty) return "Target amount cannot be empty";
 
     final targetAmount = double.tryParse(targetStr);
-    if (targetAmount == null || targetAmount <= 0) return "Số tiền mục tiêu phải lớn hơn 0";
-    if (targetAmount >= 10000000000) return "Số tiền mục tiêu phải nhỏ hơn 10 tỷ";
+    if (targetAmount == null || targetAmount <= 0) return "Target amount must be greater than 0";
+    if (targetAmount > 1000000000000) return "Target amount must be less than 1,000 billion";
 
-    if (currentStr.isEmpty) return "Số tiền hiện tại không được để trống";
+    if (currentStr.isEmpty) return "Current balance cannot be empty";
     final currentAmount = double.tryParse(currentStr);
-    if (currentAmount == null || currentAmount < 0) return "Số tiền hiện tại không hợp lệ";
+    if (currentAmount == null || currentAmount < 0) return "Invalid current balance";
 
     if (currentAmount > targetAmount) {
-      return "Số dư hiện tại không được lớn hơn mục tiêu";
+      return "Current balance cannot exceed target amount";
     }
 
-    if (_endDate == null) return "Vui lòng chọn ngày kết thúc";
+    if (_endDate == null) return "Please select a target date";
 
     return null;
   }
@@ -121,12 +121,17 @@ class _EditSavingGoalScreenState extends State<EditSavingGoalScreen> {
     setState(() => _isSaving = false);
 
     if (success) {
-      // Use the provider's current filter to refresh the correct tab
+      // Refresh dữ liệu ở List
       await provider.loadGoals(provider.currentFilter, forceRefresh: true);
-      _showSnackBar("Cập nhật thành công!", isError: false);
-      Navigator.of(context).pop(true);
+      _showSnackBar("Goal updated successfully!", isError: false);
+
+      // FIX LUỒNG: Quay về màn hình List (Back 2 lần)
+      // Lần 1: Thoát khỏi Edit
+      // Lần 2: Thoát khỏi Detail để về List
+      int count = 0;
+      Navigator.of(context).popUntil((_) => count++ >= 2);
     } else {
-      _showSnackBar(provider.errorMessage ?? "Lỗi khi lưu", isError: true);
+      _showSnackBar(provider.errorMessage ?? "Error while saving", isError: true);
     }
   }
 
@@ -228,7 +233,7 @@ class _EditSavingGoalScreenState extends State<EditSavingGoalScreen> {
                   label: "Current Balance",
                   icon: Icons.account_balance_wallet,
                   iconColor: Colors.blueAccent,
-                  enabled: true, // GIỮ NGUYÊN UI NHƯNG CHO PHÉP SỬA
+                  enabled: true,
                 ),
                 const Divider(height: 1, color: Colors.white10, indent: 40),
                 ListTile(
@@ -285,7 +290,7 @@ class _EditSavingGoalScreenState extends State<EditSavingGoalScreen> {
 
   Widget _sectionLabel(String text) => Padding(
     padding: const EdgeInsets.only(left: 8, bottom: 8),
-    child: Text(text, style: const TextStyle(color: Color(0xFF8E8E93), fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
+    child: Text(text, style: const TextStyle(color: const Color(0xFF8E8E93), fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
   );
 
   Widget _buildFieldWrapper({required Widget child}) => Container(
@@ -322,7 +327,11 @@ class _EditSavingGoalScreenState extends State<EditSavingGoalScreen> {
       lastDate: DateTime(2100),
       builder: (context, child) => Theme(
         data: ThemeData.dark().copyWith(
-          colorScheme: const ColorScheme.dark(primary: Colors.greenAccent, onPrimary: Colors.black, surface: Color(0xFF1C1C1E)),
+          colorScheme: const ColorScheme.dark(
+              primary: Colors.greenAccent,
+              onPrimary: Colors.black,
+              surface: Color(0xFF1C1C1E)
+          ),
         ),
         child: child!,
       ),

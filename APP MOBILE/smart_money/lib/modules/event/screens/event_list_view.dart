@@ -10,7 +10,9 @@ import 'event_detail_screen.dart';
 
 class EventListView extends StatefulWidget {
   final String? accessToken;
-  const EventListView({super.key, this.accessToken});
+  final Function(bool)? onTabChanged; // 🔥 Thêm callback để báo về EventScreen
+
+  const EventListView({super.key, this.accessToken, this.onTabChanged});
 
   @override
   State<EventListView> createState() => _EventListViewState();
@@ -21,18 +23,15 @@ class _EventListViewState extends State<EventListView> {
   @override
   void initState() {
     super.initState();
-    // Tự động tải dữ liệu ngay khi vào trang
     _handleRefresh();
   }
 
-  /// Hàm xử lý lấy dữ liệu mới nhất
   Future<void> _handleRefresh() async {
-    // Đảm bảo widget đã mount trước khi gọi Provider
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        // forceRefresh: true để server trả về dữ liệu mới nhất, không dùng cache
-        // false ở tham số đầu tiên thường là mặc định lấy "Active Events"
-        context.read<EventProvider>().loadEvents(false, forceRefresh: true);
+        final provider = context.read<EventProvider>();
+        // Lấy dữ liệu theo tab hiện tại đang đứng
+        provider.loadEvents(provider.currentFilter, forceRefresh: true);
       }
     });
   }
@@ -53,12 +52,10 @@ class _EventListViewState extends State<EventListView> {
   Widget build(BuildContext context) {
     return Consumer<EventProvider>(
       builder: (context, provider, child) {
-        // Hiển thị loading khi đang tải và danh sách đang trống
         if (provider.isLoading && provider.events.isEmpty) {
           return const Center(child: CircularProgressIndicator(color: Colors.greenAccent));
         }
 
-        // Trường hợp không có dữ liệu
         if (provider.events.isEmpty) {
           return RefreshIndicator(
             onRefresh: _handleRefresh,
@@ -81,7 +78,6 @@ class _EventListViewState extends State<EventListView> {
           );
         }
 
-        // Danh sách hiển thị
         return RefreshIndicator(
           onRefresh: _handleRefresh,
           color: Colors.greenAccent,
@@ -129,12 +125,15 @@ class _EventListViewState extends State<EventListView> {
         borderRadius: BorderRadius.circular(28),
         child: InkWell(
           onTap: () async {
-            // Đợi khi quay lại từ màn hình chi tiết
             await Navigator.push(
               context,
-              MaterialPageRoute(builder: (_) => EventDetailScreen(event: e)),
+              MaterialPageRoute(
+                builder: (_) => EventDetailScreen(
+                  event: e,
+                  onTabChanged: widget.onTabChanged, // 🔥 Truyền tiếp xuống Detail
+                ),
+              ),
             );
-            // Luôn làm mới dữ liệu khi quay lại để cập nhật số dư/trạng thái
             _handleRefresh();
           },
           child: Column(
@@ -184,9 +183,6 @@ class _EventListViewState extends State<EventListView> {
       ),
     );
   }
-
-  // ... Các hàm _buildEventIcon, _buildFinanceRow, _buildProgressBar giữ nguyên như cũ ...
-  // (Đảm bảo sử dụng widget.accessToken trong CachedNetworkImage)
 
   Widget _buildEventIcon(String url, bool isFinished) {
     return Container(
@@ -239,7 +235,7 @@ class _EventListViewState extends State<EventListView> {
   }
 
   Widget _buildFinanceItem(String label, double amount, Color color, String? currencyCode) {
-    final fmt = NumberFormat.compact(locale: 'vi_VN');
+    final fmt = NumberFormat.compact(locale: 'en_US');
     return Expanded(
       child: Column(
         children: [
