@@ -10,6 +10,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import '../../../core/di/setup_dependencies.dart';
 import '../../../core/models/user_model.dart';
 import '../../../core/services/auth_service.dart';
+import '../../../core/services/biometric_service.dart';
 import '../../../core/services/google_auth_service.dart';
 import '../../../core/helpers/token_helper.dart';
 import '../models/login_request.dart';
@@ -18,9 +19,21 @@ import '../models/update_profile_request.dart';
 import '../../notification/providers/notification_provider.dart';
 import 'package:provider/provider.dart';
 
+// Enum để biểu thị trạng thái đăng nhập sinh trắc học
+enum BiometricLoginStatus {
+  success,
+  notAvailable,
+  notEnabled,
+  authFailed,
+  noCredentials,
+  loginApiFailed,
+  unknownError,
+}
+
 class AuthProvider extends ChangeNotifier {
   final AuthService _authService = getIt<AuthService>();
   final GoogleAuthService _googleAuthService = getIt<GoogleAuthService>();
+  final BiometricService _biometricService = getIt<BiometricService>();
   
   UserModel? _currentUser;
   bool _isLoading = false;
@@ -112,6 +125,9 @@ class AuthProvider extends ChangeNotifier {
       if (response.success && response.data != null) {
         _currentUser = UserModel.fromAuthResponse(response.data!);
         if (context.mounted) context.read<NotificationProvider>().fetchNotifications();
+        
+        await TokenHelper.saveCredentials(username, password);
+        
         _isLoading = false;
         notifyListeners();
         return true;
@@ -134,27 +150,20 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // 1. Thực hiện lấy Authentication từ Google
       final googleAuth = await _googleAuthService.signInWithGoogle();
-
       if (googleAuth == null || googleAuth.idToken == null) {
         _errorMessage = "Đăng nhập bị hủy hoặc không thể kết nối tới Google.";
         _isLoading = false;
         notifyListeners();
         return false;
       }
-
-      // 2. Lấy thông tin thiết bị (bọc trong try-catch riêng để tránh crash)
       final info = await _getDeviceInfo();
-
-      // 3. Gửi idToken lên Backend
       final response = await _authService.loginWithGoogle(
         idToken: googleAuth.idToken!,
         deviceToken: info["deviceToken"],
         deviceType: info["deviceType"],
         deviceName: info["deviceName"],
       );
-
       if (response.success && response.data != null) {
         _currentUser = UserModel.fromAuthResponse(response.data!);
         if (context.mounted) context.read<NotificationProvider>().fetchNotifications();
@@ -162,13 +171,11 @@ class AuthProvider extends ChangeNotifier {
         notifyListeners();
         return true;
       }
-      
       _errorMessage = response.message ?? "Tài khoản Google này chưa được cấp phép hoặc lỗi xác thực.";
       _isLoading = false;
       notifyListeners();
       return false;
     } catch (e) {
-      debugPrint("LoginWithGoogle Exception: $e");
       _errorMessage = 'Lỗi trong quá trình xử lý đăng nhập Google.';
       _isLoading = false;
       notifyListeners();
@@ -176,6 +183,65 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  // =============================================
+  // BIOMETRIC LOGIN (THỰC SỰ GỌI LOGIN API)
+  // =============================================
+  Future<BiometricLoginStatus> loginWithBiometric(BuildContext context, {String? customMessage}) async {
+    try {
+      final isAvailable = await _biometricService.isBiometricAvailable();
+      if (!isAvailable) return BiometricLoginStatus.notAvailable;
+
+      final isEnabled = await TokenHelper.isBiometricEnabled();
+      if (!isEnabled) return BiometricLoginStatus.notEnabled;
+
+      // 1. Quét sinh trắc học với tin nhắn tùy chỉnh
+      final authenticated = await _biometricService.authenticate(customMessage: customMessage);
+      if (!authenticated) return BiometricLoginStatus.authFailed;
+
+      // 2. Lấy credentials đã lưu trong "Két sắt"
+      final creds = await TokenHelper.getCredentials();
+      final username = creds['username'];
+      final password = creds['password'];
+
+      if (username != null && password != null) {
+        final success = await login(username, password, context);
+        return success ? BiometricLoginStatus.success : BiometricLoginStatus.loginApiFailed;
+      } else {
+        final accessToken = await TokenHelper.getAccessToken();
+        if (accessToken != null && !JwtDecoder.isExpired(accessToken)) {
+          final decodedToken = JwtDecoder.decode(accessToken);
+          _currentUser = _fromDecodedToken(decodedToken);
+          if (context.mounted) context.read<NotificationProvider>().fetchNotifications();
+          notifyListeners();
+          return BiometricLoginStatus.success;
+        }
+        return BiometricLoginStatus.noCredentials;
+      }
+    } catch (e) {
+      debugPrint("Biometric login error: $e");
+      return BiometricLoginStatus.unknownError;
+    }
+  }
+
+  Future<bool> canUseBiometric() async {
+    return await _biometricService.isBiometricAvailable();
+  }
+
+  Future<void> toggleBiometric(bool enabled) async {
+    await TokenHelper.setBiometricEnabled(enabled);
+    if (!enabled) {
+      await TokenHelper.clearBiometricConfig();
+    }
+    notifyListeners();
+  }
+
+  Future<bool> isBiometricEnabled() async {
+    return await TokenHelper.isBiometricEnabled();
+  }
+
+  // --- Các hàm khác giữ nguyên ---
+  // ...
+  
   Future<bool> register(String? email, String? phone, String password, String confirmPassword) async {
     _isLoading = true;
     _errorMessage = null;
@@ -214,8 +280,6 @@ class AuthProvider extends ChangeNotifier {
       if (context.mounted) context.go("/login");
     }
   }
-
-  // ... (các hàm khác giữ nguyên)
 
   Future<bool> requestPasswordReset(String email) async {
     _setLoading(true);

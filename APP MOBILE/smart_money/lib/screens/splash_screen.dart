@@ -91,10 +91,15 @@ class _SplashScreenState extends State<SplashScreen>
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Row(
           children: [
-            Icon(Icons.notifications_active, color: const Color(0xff1FA2FF), size: 28),
+            const Icon(Icons.notifications_active, color: Color(0xff1FA2FF), size: 28),
             const SizedBox(width: 12),
-            Text(isPermanentlyDenied ? "Turn on notifications" : "Allow notifications",
-                 style: const TextStyle(fontWeight: FontWeight.bold)),
+            Expanded(
+              child: Text(
+                isPermanentlyDenied ? "Turn on notifications" : "Allow notifications",
+                style: const TextStyle(fontWeight: FontWeight.bold),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
           ],
         ),
         content: Text(

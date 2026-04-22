@@ -50,7 +50,7 @@ class AppConstants {
       // 192.168.x.x (IP máy tính) là dành cho máy thật.
 
       // Gán ip máy tính thật để test
-      String computerIp = "172.16.2.93"; // <--- THAY BẰNG IP MÁY TÍNH (Gõ ipconfig để lấy)
+      String computerIp = "192.168.100.74"; // <--- THAY BẰNG IP MÁY TÍNH (Gõ ipconfig để lấy)
 
       return "http://$computerIp:9999/api";
     }
@@ -59,11 +59,15 @@ class AppConstants {
   }
 
   // =============================================
-  // 3. TOKEN KEYS — dùng trong token_helper.dart
+  // 3. STORAGE KEYS — dùng trong token_helper.dart
   // =============================================
 
   static const String accessTokenKey  = "access_token";
   static const String refreshTokenKey = "refresh_token";
+  
+  // Biometric keys
+  static const String biometricEnabledKey = "biometric_enabled";
+  static const String biometricUserEmailKey = "biometric_user_email"; // Để biết user nào đang enable biometric
 
   // =============================================
   // 4. ENDPOINTS — theo từng module trong blueprint
