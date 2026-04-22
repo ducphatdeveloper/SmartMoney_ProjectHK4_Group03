@@ -4,6 +4,9 @@ import '../../../core/helpers/api_handler.dart';
 import '../models/wallet_request.dart';
 import '../models/wallet_response.dart';
 import '../models/total_balance_response.dart';
+import '../models/transfer_request.dart';
+import '../models/transfer_response.dart';
+import '../models/wallet_delete_preview_response.dart';
 
 class WalletService {
 
@@ -86,5 +89,28 @@ class WalletService {
 
     if (!response.success) throw Exception(response.message);
     return response.data?.totalBalance ?? 0.0;
+  }
+
+  // ================= TRANSFER =================
+  Future<String> transferMoney(TransferRequest request) async {
+    final response = await ApiHandler.post<TransferResponse>(
+      "${AppConstants.walletsBase}/transfer",
+      body: request.toJson(),
+      fromJson: (data) => TransferResponse.fromJson(data),
+    );
+
+    if (!response.success) throw Exception(response.message);
+    return response.data?.message ?? "Transfer successful";
+  }
+
+  // ================= DELETE PREVIEW =================
+  Future<WalletDeletePreviewResponse> getDeletePreview(int walletId) async {
+    final response = await ApiHandler.get<WalletDeletePreviewResponse>(
+      "${AppConstants.walletsBase}/$walletId/delete-preview",
+      fromJson: (data) => WalletDeletePreviewResponse.fromJson(data),
+    );
+
+    if (!response.success) throw Exception(response.message);
+    return response.data!;
   }
 }

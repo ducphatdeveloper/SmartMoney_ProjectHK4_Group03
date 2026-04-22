@@ -10,6 +10,7 @@ import '../../wallet/models/wallet_response.dart';
 import 'package:smart_money/modules/budget/models/budget_request.dart';
 import 'package:smart_money/modules/budget/models/budget_response.dart';
 import 'package:smart_money/modules/budget/providers/budget_provider.dart';
+import 'package:smart_money/modules/budget/enums/budget_type.dart';
 
 
 class EditBudgetDetailScreen extends StatefulWidget {
@@ -35,6 +36,8 @@ class _EditBudgetDetailScreenState extends State<EditBudgetDetailScreen> {
   DateTimeRange? range;
   String periodType = "CUSTOM";
   bool _hasShownLimitWarning = false; // cờ kiểm tra đã show snack
+  bool isTimeChanged = false;
+
 
 
   @override
@@ -45,6 +48,7 @@ class _EditBudgetDetailScreenState extends State<EditBudgetDetailScreen> {
     category = _currentBudget.categories.isNotEmpty ? _currentBudget.categories.first : null;
     repeat = _currentBudget.repeating;
     range = DateTimeRange(start: _currentBudget.beginDate, end: _currentBudget.endDate);
+    periodType = _currentBudget.budgetType.apiValue; // 🔥 Set periodType từ budget hiện có
 
     _amountCtrl.text = NumberFormat('#,###', 'vi_VN').format(_currentBudget.amount);
   }
@@ -102,8 +106,12 @@ class _EditBudgetDetailScreenState extends State<EditBudgetDetailScreen> {
   }
 
   void setRange(DateTime start, DateTime end) {
-    setState(() => range = DateTimeRange(start: start, end: end));
+    setState(() {
+      range = DateTimeRange(start: start, end: end);
+      isTimeChanged = true; // 🔥 quan trọng
+    });
   }
+
 
   void pickQuickRange() async {
     final now = DateTime.now();
@@ -153,7 +161,7 @@ class _EditBudgetDetailScreenState extends State<EditBudgetDetailScreen> {
               Navigator.pop(context);
               final result = await showDateRangePicker(
                 context: context,
-                firstDate: DateTime(2023),
+                firstDate: DateTime.now(),
                 lastDate: DateTime(2030),
                 initialDateRange: range,
               );
@@ -195,13 +203,68 @@ class _EditBudgetDetailScreenState extends State<EditBudgetDetailScreen> {
     );
   }
 
+  String? _validateBudgetType(String type, DateTime start, DateTime end) {
+    final days = end.difference(start).inDays + 1;
+
+    switch (type) {
+      case "WEEKLY":
+        if (days != 7) {
+          return "Weekly budget must be exactly 7 days";
+        }
+        break;
+      case "MONTHLY":
+        if (start.day != 1 || end.day != DateTime(start.year, start.month + 1, 0).day) {
+          return "Monthly budget must be from first to last day of month";
+        }
+        break;
+      case "YEARLY":
+        if (start.day != 1 || start.month != 1 || end.day != 31 || end.month != 12) {
+          return "Yearly budget must be from 01/01 to 12/31";
+        }
+        break;
+      case "CUSTOM":
+        final today = DateTime.now();
+        final todayDate = DateTime(today.year, today.month, today.day);
+        final startDate = DateTime(start.year, start.month, start.day);
+        if (startDate.isBefore(todayDate)) {
+          return "Start date must be today or later for custom budget";
+        }
+        break;
+    }
+    return null;
+  }
+
   Future<void> save() async {
-    if (amountValue <= 0 || range == null || category == null) {
+    // if (amountValue <= 0 || range == null || category == null)
+    if (amountValue <= 0 || category == null)
+    {
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text("Please enter all required information")),
       );
       return;
     }
+
+    // Validate theo budget type
+    // if (range != null) {
+    //   final validationError = _validateBudgetType(periodType, range!.start, range!.end);
+    //   if (validationError != null) {
+    //     ScaffoldMessenger.of(context).showSnackBar(
+    //       SnackBar(content: Text(validationError)),
+    //     );
+    //     return;
+    //   }
+    // }
+    if (isTimeChanged && range != null) {
+      final validationError = _validateBudgetType(periodType, range!.start, range!.end);
+      if (validationError != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(validationError)),
+        );
+        return;
+      }
+    }
+
 
     final request = BudgetRequest(
       walletId: wallet!.id,
@@ -226,7 +289,7 @@ class _EditBudgetDetailScreenState extends State<EditBudgetDetailScreen> {
         amount: amountValue.toDouble(),
         categories: category != null ? [category!] : [],
         primaryCategoryIconUrl: category?.ctgIconUrl,
-        repeating: repeat, transactions: [],
+        repeating: repeat,
         // budgetType vẫn giữ nguyên nếu không thay đổi
       );
 

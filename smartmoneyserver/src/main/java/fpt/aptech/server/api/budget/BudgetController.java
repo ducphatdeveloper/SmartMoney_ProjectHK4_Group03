@@ -76,7 +76,7 @@ public class BudgetController {
             @AuthenticationPrincipal Account currentUser) {
         BudgetResponse newBudget = budgetService.createBudget(request, currentUser.getId());
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.success(newBudget, "Tạo ngân sách thành công"));
+                .body(ApiResponse.success(newBudget, "Budget created successfully"));
     }
 
     /// Cập nhật ngân sách
@@ -87,7 +87,7 @@ public class BudgetController {
             @Valid @RequestBody BudgetRequest request,
             @AuthenticationPrincipal Account currentUser) {
         BudgetResponse updated = budgetService.updateBudget(id, request, currentUser.getId());
-        return ResponseEntity.ok(ApiResponse.success(updated, "Cập nhật ngân sách thành công"));
+        return ResponseEntity.ok(ApiResponse.success(updated, "Budget updated successfully"));
     }
 
     /// Xóa ngân sách (không xóa giao dịch)
@@ -97,7 +97,7 @@ public class BudgetController {
             @PathVariable Integer id,
             @AuthenticationPrincipal Account currentUser) {
         budgetService.deleteBudget(id, currentUser.getId());
-        return ResponseEntity.ok(ApiResponse.success("Xóa ngân sách thành công"));
+        return ResponseEntity.ok(ApiResponse.success("Budget deleted successfully"));
     }
 
     /// Trigger kiểm tra ngân sách thủ công (test only)
@@ -105,6 +105,6 @@ public class BudgetController {
     @PreAuthorize("hasAuthority('USER_STANDARD_MANAGE')")
     public ResponseEntity<ApiResponse<String>> triggerBudgetCheck() {
         budgetScheduler.checkBudgets();
-        return ResponseEntity.ok(ApiResponse.success("Đã kích hoạt kiểm tra ngân sách."));
+        return ResponseEntity.ok(ApiResponse.success("Budget check triggered."));
     }
 }

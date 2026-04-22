@@ -1,6 +1,9 @@
 package fpt.aptech.server.service.wallet;
 
 import fpt.aptech.server.dto.wallet.TotalBalanceResponse;
+import fpt.aptech.server.dto.wallet.TransferRequest;
+import fpt.aptech.server.dto.wallet.TransferResponse;
+import fpt.aptech.server.dto.wallet.WalletDeletePreviewResponse;
 import fpt.aptech.server.dto.wallet.WalletRequest;
 import fpt.aptech.server.dto.wallet.WalletResponse;
 
@@ -22,4 +25,10 @@ public interface WalletService {
 
     // Lấy tổng số dư hiện tại của người dùng
     TotalBalanceResponse getTotalBalance(Integer accountId);
+
+    // ================== TRANSFER MONEY ==================
+    TransferResponse transferMoney(Integer accountId, TransferRequest request);
+
+    // ================== DELETE PREVIEW ==================
+    WalletDeletePreviewResponse getDeletePreview(Integer accountId, Integer walletId);
 }

@@ -262,6 +262,40 @@ class _AddBudgetScreenState extends State<AddBudgetScreen> {
   }
 
   // =========================
+// VALIDATE BUDGET TYPE
+// =========================
+  String? _validateBudgetType(BudgetType type, DateTime start, DateTime end) {
+    final days = end.difference(start).inDays + 1;
+
+    switch (type) {
+      case BudgetType.weekly:
+        if (days != 7) {
+          return "Weekly budget must be exactly 7 days";
+        }
+        break;
+      case BudgetType.monthly:
+        if (start.day != 1 || end.day != DateTime(start.year, start.month + 1, 0).day) {
+          return "Monthly budget must be from first to last day of month";
+        }
+        break;
+      case BudgetType.yearly:
+        if (start.day != 1 || start.month != 1 || end.day != 31 || end.month != 12) {
+          return "Yearly budget must be from 01/01 to 12/31";
+        }
+        break;
+      case BudgetType.custom:
+        final today = DateTime.now();
+        final todayDate = DateTime(today.year, today.month, today.day);
+        final startDate = DateTime(start.year, start.month, start.day);
+        if (startDate.isBefore(todayDate)) {
+          return "Start date must be today or later for custom budget";
+        }
+        break;
+    }
+    return null;
+  }
+
+  // =========================
   // SAVE
   // =========================
   Future<void> save() async {
@@ -344,7 +378,7 @@ class _AddBudgetScreenState extends State<AddBudgetScreen> {
         ),
 
         title: const Text(
-          "Edit budget",
+          "Add budget",
           style: TextStyle(
             color: Colors.white,
             fontSize: 18,

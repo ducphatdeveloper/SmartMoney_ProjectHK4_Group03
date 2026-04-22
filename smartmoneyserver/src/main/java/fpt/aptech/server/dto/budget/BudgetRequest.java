@@ -11,30 +11,30 @@ import java.time.LocalDate;
 @Builder
 public record BudgetRequest(
 
-        @NotNull(message = "Số tiền không được để trống")
-        @DecimalMin(value = "0.0", inclusive = false, message = "Số tiền phải lớn hơn 0")
+        @NotNull(message = "Amount is required")
+        @DecimalMin(value = "0.0", inclusive = false, message = "Amount must be greater than 0")
         BigDecimal amount,
 
-        @NotNull(message = "Ngày bắt đầu không được để trống")
+        @NotNull(message = "Start date is required")
         LocalDate beginDate,
 
-        @NotNull(message = "Ngày kết thúc không được để trống")
+        @NotNull(message = "End date is required")
         LocalDate endDate,
 
-        @NotNull(message = "Wallet không được để trống")
+        @NotNull(message = "Wallet is required")
         Integer walletId,       // null → áp dụng cho tất cả ví
 
-        @NotNull(message = "allCategories không được để trống")
+        @NotNull(message = "allCategories is required")
         Boolean allCategories,  // true → Tất cả danh mục chi | false → theo categoryId
 
         Integer categoryId,     // null nếu allCategories=true
         // id cha → expand cha + toàn bộ con
         // id con → chỉ con đó
 
-        @NotNull(message = "repeating không được để trống")
+        @NotNull(message = "repeating is required")
         Boolean repeating   ,    // true → tự động tạo ngân sách mới khi hết kỳ
 
-        @NotNull(message = "Loại ngân sách không được để trống")
+        @NotNull(message = "Budget type is required")
         BudgetType budgetType
 
 ) {}

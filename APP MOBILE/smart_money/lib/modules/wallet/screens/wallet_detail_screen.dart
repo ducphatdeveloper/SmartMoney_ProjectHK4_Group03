@@ -4,6 +4,8 @@ import '../../../core/helpers/icon_helper.dart';
 import '../../../modules/transaction/providers/transaction_provider.dart';
 import '../../budget/screens/budget_screens.dart';
 import '../models/wallet_response.dart';
+import '../models/transfer_request.dart';
+import '../models/wallet_delete_preview_response.dart';
 import '../providers/wallet_provider.dart';
 import 'edit_wallet_screen.dart';
 
@@ -19,16 +21,37 @@ class WalletDetailScreen extends StatefulWidget {
 class _WalletDetailScreenState extends State<WalletDetailScreen> {
   late bool excludeFromTotal;
   bool notification = false;
+  WalletResponse? _wallet;
+  bool _hasViewedBudgets = false; // Track xem user đã xem ngân sách chưa
 
   @override
   void initState() {
     super.initState();
+    _wallet = widget.wallet;
     excludeFromTotal = !(widget.wallet.reportable ?? true);
+    _loadWalletDetail();
+  }
+
+  Future<void> _loadWalletDetail() async {
+    try {
+      final provider = Provider.of<WalletProvider>(context, listen: false);
+      final freshWallet = await provider.getWalletDetail(widget.wallet.id);
+      if (freshWallet != null) {
+        setState(() {
+          _wallet = freshWallet;
+        });
+      }
+    } catch (e) {
+      // Nếu lỗi, dùng wallet cũ
+      setState(() {
+        _wallet = widget.wallet;
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final wallet = widget.wallet;
+    final wallet = _wallet ?? widget.wallet;
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -64,19 +87,6 @@ class _WalletDetailScreenState extends State<WalletDetailScreen> {
         children: [
           _mainCard(wallet),
           const SizedBox(height: 20),
-          // _switchTile(
-          //   title: "Bật thông báo",
-          //   subtitle: "Nhận thông báo khi ví có giao dịch mới.",
-          //   value: notification,
-          //   onChanged: (v) => setState(() => notification = v),
-          // ),
-          // const SizedBox(height: 10),
-          // _switchTile(
-          //   title: "Không tính vào tổng",
-          //   subtitle: 'Bỏ qua ví này khỏi "Tổng".',
-          //   value: excludeFromTotal,
-          //   onChanged: (v) => setState(() => excludeFromTotal = v),
-          // ),
           const SizedBox(height: 30),
           _deleteButton(context),
         ],
@@ -186,23 +196,6 @@ class _WalletDetailScreenState extends State<WalletDetailScreen> {
     );
   }
 
-  Widget _switchTile({
-    required String title,
-    required String subtitle,
-    required bool value,
-    required Function(bool) onChanged,
-  }) {
-    return Container(
-      decoration: _card(),
-      child: SwitchListTile(
-        title: Text(title, style: const TextStyle(color: Colors.white)),
-        subtitle: Text(subtitle, style: const TextStyle(color: Colors.grey)),
-        value: value,
-        onChanged: onChanged,
-      ),
-    );
-  }
-
   Widget _deleteButton(BuildContext context) {
     return ElevatedButton(
       style: ElevatedButton.styleFrom(
@@ -228,14 +221,19 @@ class _WalletDetailScreenState extends State<WalletDetailScreen> {
   }
 
 
-  BoxDecoration _card() => BoxDecoration(
-    color: const Color(0xFF1C1C1E),
-    borderRadius: BorderRadius.circular(20),
-  );
-
   // ================= ACTION =================
 
   void _confirmDelete(BuildContext context) {
+    // Nếu user chưa xem ngân sách, hiển thị dialog với link xem ngân sách
+    if (!_hasViewedBudgets) {
+      _showFirstDeleteDialog(context);
+    } else {
+      // Nếu đã xem ngân sách, check số dư và hiển thị dialog phù hợp
+      _checkBalanceAndShowDialog(context);
+    }
+  }
+
+  void _showFirstDeleteDialog(BuildContext context) {
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
@@ -250,24 +248,148 @@ class _WalletDetailScreenState extends State<WalletDetailScreen> {
               style: TextStyle(color: Colors.white),
             ),
             const SizedBox(height: 8),
-
             const Text(
               "If deleted, all budgets related to this wallet may be affected.",
               style: TextStyle(color: Colors.redAccent),
             ),
-
             const SizedBox(height: 12),
-
-            // 🔗 LINK XEM BUDGET
             GestureDetector(
               onTap: () {
                 Navigator.pop(context);
-
+                // KHÔNG set _hasViewedBudgets = true, chỉ navigate xem ngân sách
                 Navigator.push(
                   context,
                   MaterialPageRoute(
                     builder: (_) => BudgetScreen(
-                      initialWallet: widget.wallet, // truyền id qua
+                      initialWallet: widget.wallet,
+                    ),
+                  ),
+                );
+              },
+              child: const Text(
+                "View related budgets",
+                style: TextStyle(
+                  color: Colors.blueAccent,
+                  decoration: TextDecoration.underline,
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("Cancel"),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              setState(() {
+                _hasViewedBudgets = true;
+              });
+              // Sau khi bấm Delete lần 2 ở dialog này, mới check số dư
+              _checkBalanceAndShowDialog(context);
+            },
+            child: const Text(
+              "Delete",
+              style: TextStyle(color: Colors.red),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _checkBalanceAndShowDialog(BuildContext context) async {
+    // Lưu context trước khi await
+    if (!context.mounted) return;
+
+    // Hiển thị loading dialog
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const AlertDialog(
+        backgroundColor: Colors.black,
+        content: Center(
+          child: CircularProgressIndicator(),
+        ),
+      ),
+    );
+
+    // Lấy preview trước khi xóa
+    final provider = Provider.of<WalletProvider>(context, listen: false);
+    final preview = await provider.getDeletePreview(widget.wallet.id);
+
+    // Đóng loading dialog
+    if (!context.mounted) return;
+    Navigator.pop(context);
+
+    if (preview == null) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Cannot get wallet information')),
+        );
+      }
+      return;
+    }
+
+    // Nếu số dư > 0, hiển thị dialog chuyển tiền
+    if (preview.currentBalance > 0) {
+      if (context.mounted) {
+        _showTransferDialog(context, preview);
+      }
+    } else {
+      // Nếu số dư = 0, hiển thị dialog xác nhận xóa
+      if (context.mounted) {
+        _showDeleteConfirmDialog(context, preview);
+      }
+    }
+  }
+
+  void _showDeleteConfirmDialog(
+      BuildContext context, WalletDeletePreviewResponse preview) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: Colors.black,
+        title: const Text("Delete Wallet"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              "Are you sure you want to delete wallet ${preview.wallet.walletName}?",
+              style: const TextStyle(color: Colors.white),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              "Balance: ${formatVND(preview.currentBalance)}",
+              style: const TextStyle(color: Colors.green),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              "Related budgets: ${preview.relatedBudgets.length}",
+              style: const TextStyle(color: Colors.orange),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              "Related transactions: ${preview.transactionCount}",
+              style: const TextStyle(color: Colors.orange),
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              "If deleted, all related budgets will be affected.",
+              style: TextStyle(color: Colors.redAccent),
+            ),
+            const SizedBox(height: 12),
+            GestureDetector(
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => BudgetScreen(
+                      initialWallet: widget.wallet,
                     ),
                   ),
                 );
@@ -290,17 +412,17 @@ class _WalletDetailScreenState extends State<WalletDetailScreen> {
           TextButton(
             onPressed: () async {
               final provider =
-              Provider.of<WalletProvider>(context, listen: false);
+                  Provider.of<WalletProvider>(context, listen: false);
 
               await provider.deleteWallet(widget.wallet.id);
 
-              // refresh transaction
               if (context.mounted) {
+                // Reload danh sách ví sau khi xóa thành công
+                await provider.loadAll();
                 context.read<TransactionProvider>().refreshSourceItems();
+                Navigator.pop(context);
+                Navigator.pop(context, true);
               }
-
-              Navigator.pop(context);
-              Navigator.pop(context, true);
             },
             child: const Text(
               "Delete",
@@ -308,6 +430,122 @@ class _WalletDetailScreenState extends State<WalletDetailScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  void _showTransferDialog(
+      BuildContext context, WalletDeletePreviewResponse preview) {
+    int? selectedWalletId;
+
+    showDialog(
+      context: context,
+      builder: (_) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          backgroundColor: Colors.black,
+          title: const Text("Transfer money before deletion"),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  "Wallet ${preview.wallet.walletName} has ${formatVND(preview.currentBalance)}",
+                  style: const TextStyle(color: Colors.white, fontSize: 16),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  "You need to transfer all balance to another wallet before deletion.",
+                  style: TextStyle(color: Colors.grey),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  "Select wallet to transfer:",
+                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                if (preview.otherWallets.isEmpty)
+                  const Text(
+                    "No other wallet to transfer",
+                    style: TextStyle(color: Colors.redAccent),
+                  )
+                else
+                  ...preview.otherWallets.map((wallet) {
+                    return RadioListTile<int>(
+                      title: Text(
+                        wallet.walletName,
+                        style: const TextStyle(color: Colors.white),
+                      ),
+                      subtitle: Text(
+                        "Balance: ${formatVND(wallet.balance)}",
+                        style: const TextStyle(color: Colors.grey),
+                      ),
+                      value: wallet.id,
+                      groupValue: selectedWalletId,
+                      onChanged: (value) {
+                        setState(() {
+                          selectedWalletId = value;
+                        });
+                      },
+                      activeColor: Colors.blue,
+                    );
+                  }),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text("Cancel"),
+            ),
+            TextButton(
+              onPressed: selectedWalletId == null
+                  ? null
+                  : () async {
+                      // Transfer money
+                      final provider =
+                          Provider.of<WalletProvider>(context, listen: false);
+                      
+                      final request = TransferRequest(
+                        fromWalletId: widget.wallet.id,
+                        toWalletId: selectedWalletId!,
+                        amount: preview.currentBalance,
+                      );
+
+                      final success = await provider.transferMoney(request);
+
+                      if (context.mounted) {
+                        Navigator.pop(context);
+
+                        if (success) {
+                          // Reload danh sách ví sau khi chuyển tiền thành công
+                          await provider.loadAll();
+
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Transfer money and delete wallet successfully'),
+                              backgroundColor: Colors.green,
+                            ),
+                          );
+                          // Navigate back về màn hình danh sách ví vì ví đã bị xóa
+                          Navigator.pop(context, true);
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Transfer money failed'),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                        }
+                      }
+                    },
+              child: const Text(
+                "Transfer",
+                style: TextStyle(color: Colors.blue),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

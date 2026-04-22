@@ -83,8 +83,8 @@ public class BudgetScheduler {
     // Lý do 8h sáng: User vừa thức dậy, nhận cảnh báo ngân sách đầu ngày để điều chỉnh chi tiêu.
     // ══════════════════════════════════════════════════════════════════════
 
-    @Scheduled(cron = "0 0 8 * * *") // 8:00 AM mỗi ngày
-//    @Scheduled(cron = "0 * * * * *")
+//    @Scheduled(cron = "0 0 8 * * *") // 8:00 AM mỗi ngày
+    @Scheduled(cron = "0 * * * * *")
     public void checkBudgets() {
         // Bước 1: Lấy ngày hiện tại và tìm tất cả ngân sách đang hoạt động (beginDate <= today <= endDate)
         LocalDate today = LocalDate.now(); // Ngày hôm nay
@@ -106,8 +106,8 @@ public class BudgetScheduler {
     // Lý do 1h sáng: Xử lý nền khi hệ thống ít tải, gia hạn trước khi user thức dậy.
     // ══════════════════════════════════════════════════════════════════════
 
-    @Scheduled(cron = "0 0 1 * * *") // 1:00 AM mỗi ngày
-//    @Scheduled(cron = "0 * * * * *")
+//    @Scheduled(cron = "0 0 1 * * *") // 1:00 AM mỗi ngày
+    @Scheduled(cron = "0 * * * * *")
     public void renewRecurringBudgets() {
         // Bước 1: Tìm ngân sách lặp lại đã hết hạn (endDate < today AND repeating = true)
         LocalDate today = LocalDate.now(); // Ngày hôm nay
@@ -203,40 +203,44 @@ public class BudgetScheduler {
             }
         }
 
-        // ── Bước 5: Gợi ý mức chi tiêu theo ngày (tính toán Java thuần — KHÔNG phải AI) ──
-        // Công thức: dailyAllowance = (amount - spent) / daysLeft
+        // ── Bước 5: Gợi ý mức chi tiêu theo ngày (dựa trên logic phân tích 3 tháng gần nhất)
+        // Logic: Query giao dịch 3 tháng gần nhất → phân tích tần suất → tính gợi ý theo budget type
         // Điều kiện: đã chi >= 60% VÀ còn > 5 ngày VÀ remaining > 0
         // → NotificationMessages.budgetDailyAllowance()
         //   Thông báo tạo ra: Title="💡 Gợi ý chi tiêu hôm nay"
         //   Content="Ngân sách Ăn uống còn 300.000 ₫ cho 10 ngày tới. Mỗi ngày bạn chỉ nên chi tối đa 30.000 ₫ để đảm bảo đủ tháng."
         LocalDate today = LocalDate.now(); // Ngày hôm nay
-        long daysLeft = ChronoUnit.DAYS.between(today, budget.getEndDate()); // Tính số ngày còn lại
+        long daysLeft = ChronoUnit.DAYS.between(today, budget.getEndDate()) + 1; // Tính số ngày còn lại (bao gồm cả today)
 
         if (percent >= DAILY_ALLOWANCE_THRESHOLD && daysLeft > MIN_DAYS_FOR_ALLOWANCE) { // Nếu >=60% và còn >5 ngày
             BigDecimal remaining = budget.getAmount().subtract(spent); // Tính tiền còn lại ( số tiền còn lại = hạn mức - đã chi
             if (remaining.compareTo(BigDecimal.ZERO) > 0) {           // Nếu còn tiền mới gợi ý
-                BigDecimal dailyAllowance = remaining.divide(          // Chia đều cho số ngày còn lại
-                        BigDecimal.valueOf(daysLeft), 0, RoundingMode.HALF_UP);
-                NotificationContent dailyMsg = NotificationMessages.budgetDailyAllowance(
-                        budgetLabel, remaining, daysLeft, dailyAllowance); // Tạo msg gợi ý
-                notificationService.createNotification( // Gửi notification
-                        budget.getAccount(),               // Bảo mật: chỉ chủ ngân sách nhận
-                        dailyMsg.title(), dailyMsg.content(),
-                        NotificationType.BUDGET,
-                        Long.valueOf(budget.getId()),
-                        null
-                );
+                // Tính gợi ý dựa trên logic phân tích 3 tháng gần nhất
+                BigDecimal suggestedDailySpend = calculateSuggestedDailySpend(budget);
+                if (suggestedDailySpend.compareTo(BigDecimal.ZERO) > 0) {
+                    // Dùng suggestedDailySpend thay vì chia đều
+                    BigDecimal dailyAllowance = suggestedDailySpend;
+                    NotificationContent dailyMsg = NotificationMessages.budgetDailyAllowance(
+                            budgetLabel, remaining, daysLeft, dailyAllowance); // Tạo msg gợi ý
+                    notificationService.createNotification( // Gửi notification
+                            budget.getAccount(),               // Bảo mật: chỉ chủ ngân sách nhận
+                            dailyMsg.title(), dailyMsg.content(),
+                            NotificationType.BUDGET,
+                            Long.valueOf(budget.getId()),
+                            null
+                    );
+                }
             }
         }
 
         // ── Bước 6: Dự báo ngày cạn ngân sách (tính toán Java thuần — KHÔNG phải AI) ──
         // Công thức: daysUntilOverrun = (amount - spent) / (spent / daysPassed)
-        // Điều kiện: đã chi >= 50% VÀ đã qua > 0 ngày VÀ còn > 0 ngày VÀ forecastDate < endDate
+        // Điều kiện: đã chi >= 50% VÀ đã qua > 0 ngày VÀ còn > 0 ngày VÀ forecastDate < endDate VÀ chưa vượt 100%
         // → NotificationMessages.budgetOverrunForecast()
         //   Thông báo tạo ra: Title="🔮 Dự báo vượt ngân sách"
         //   Content="Với tốc độ chi tiêu hiện tại, ngân sách Ăn uống của bạn sẽ cạn vào khoảng 25/04/2026 (còn 5 ngày). Hãy điều chỉnh chi tiêu ngay hôm nay!"
         long daysPassed = ChronoUnit.DAYS.between(budget.getBeginDate(), today); // Tính số ngày đã qua
-        if (percent >= FORECAST_THRESHOLD && daysPassed > 0 && daysLeft > 0) { // Nếu >=50% và đã qua >0 ngày
+        if (percent >= FORECAST_THRESHOLD && percent < EXCEED_THRESHOLD && daysPassed > 0 && daysLeft > 0) { // Nếu >=50% và <100% và đã qua >0 ngày
             // Tính tốc độ chi trung bình/ngày = spent / daysPassed
             BigDecimal dailyBurnRate = spent.divide(BigDecimal.valueOf(daysPassed), 4, RoundingMode.HALF_UP); // Tính tốc độ chi/ngày
             if (dailyBurnRate.compareTo(BigDecimal.ZERO) > 0) { // Nếu tốc độ > 0 mới tính
@@ -392,8 +396,11 @@ public class BudgetScheduler {
             Set<Integer> existingCategoryIds = budgetRepository.findCategoryIdsByBudgetId(existing.getId()); // Lấy categoryIds existing
             boolean categoryOverlap = categoryIds.stream().anyMatch(existingCategoryIds::contains); // Check overlap
             if (categoryOverlap) { // Nếu có overlap
-                hasConflict = true; // Set conflict = true
-                break; // Break loop
+                // Check thêm budgetType - chỉ conflict nếu cùng type
+                if (existing.getBudgetType() == old.getBudgetType()) {
+                    hasConflict = true; // Set conflict = true
+                    break; // Break loop
+                }
             }
         }
 
@@ -406,11 +413,34 @@ public class BudgetScheduler {
             return; // Return không tạo mới
         }
 
-        // Bước 5: Tạo ngân sách mới (copy toàn bộ cấu hình từ ngân sách cũ)
+        // Bước 5: Tính toán newAmount dựa trên lịch sử chi tiêu thực tế
+        // Logic: nextBudget = (planned + actual) / 2
+        // Nếu kỳ trước vượt quá nhiều, kỳ sau sẽ điều chỉnh xuống mức hợp lý hơn
+        BigDecimal plannedAmount = old.getAmount();
+        Integer walletId = old.getWallet() != null ? old.getWallet().getId() : null;
+
+        BigDecimal actualSpent = transactionRepository.sumExpenseForBudget(
+                old.getAccount().getId(),
+                old.getBeginDate().atStartOfDay(),
+                old.getEndDate().atTime(23, 59, 59),
+                walletId,
+                old.getAllCategories(),
+                categoryIds
+        );
+        if (actualSpent == null) actualSpent = BigDecimal.ZERO;
+
+        // Tính newAmount = (planned + actual) / 2
+        BigDecimal newAmount = plannedAmount.add(actualSpent)
+                .divide(BigDecimal.valueOf(2), 0, RoundingMode.HALF_UP);
+
+        log.info("[BudgetScheduler] Budget renewal id={} → planned={}, actual={}, newAmount={}",
+                old.getId(), plannedAmount, actualSpent, newAmount);
+
+        // Bước 6: Tạo ngân sách mới với amount đã điều chỉnh
         Budget newBudget = Budget.builder() // Tạo budget mới
                 .account(old.getAccount())               // Giữ nguyên chủ sở hữu
                 .wallet(old.getWallet())                 // Giữ nguyên ví liên kết
-                .amount(old.getAmount())                 // Giữ nguyên hạn mức
+                .amount(newAmount)                       // Dùng amount đã điều chỉnh
                 .beginDate(newStart)                     // Kỳ mới bắt đầu
                 .endDate(newEnd)                         // Kỳ mới kết thúc
                 .allCategories(old.getAllCategories())    // Giữ nguyên loại danh mục
@@ -458,5 +488,84 @@ public class BudgetScheduler {
         if (Boolean.TRUE.equals(budget.getAllCategories())) return Set.of(); // Nếu allCategories=true → trả về set rỗng
         // Query trực tiếp từ database để tránh LazyInitializationException trong scheduler
         return new HashSet<>(budgetRepository.findCategoryIdsByBudgetId(budget.getId())); // Query categoryIds và convert sang HashSet
+    }
+
+    /**
+     * Tính toán mức chi/ngày đề xuất dựa trên phân tích 3 tháng gần nhất (logic từ BudgetServiceImpl).
+     */
+    private BigDecimal calculateSuggestedDailySpend(Budget budget) {
+        // Query giao dịch 3 tháng gần nhất
+        LocalDate today = LocalDate.now();
+        LocalDate threeMonthsAgo = today.minusMonths(3);
+
+        LocalDateTime startDate = threeMonthsAgo.atStartOfDay();
+        LocalDateTime endDate = today.atTime(23, 59, 59);
+
+        Integer walletId = budget.getWallet() != null ? budget.getWallet().getId() : null;
+        Set<Integer> categoryIds = resolveCategoryIds(budget);
+
+        // Nếu budgetType là null → không đề xuất
+        if (budget.getBudgetType() == null) {
+            return BigDecimal.ZERO;
+        }
+
+        // Query danh sách giao dịch 3 tháng gần nhất
+        List<fpt.aptech.server.entity.Transaction> transactions = transactionRepository.findTransactionsForBudget(
+                budget.getAccount().getId(),
+                startDate,
+                endDate,
+                walletId,
+                budget.getAllCategories(),
+                categoryIds
+        );
+
+        // Nếu không có giao dịch nào → không đề xuất
+        if (transactions == null || transactions.isEmpty()) {
+            return BigDecimal.ZERO;
+        }
+
+        // Tính tổng chi tiêu và số ngày có giao dịch
+        BigDecimal totalAmount = BigDecimal.ZERO;
+        Set<LocalDate> uniqueDates = new java.util.HashSet<>();
+
+        for (fpt.aptech.server.entity.Transaction t : transactions) {
+            LocalDate date = t.getTransDate().toLocalDate();
+            uniqueDates.add(date);
+            totalAmount = totalAmount.add(t.getAmount());
+        }
+
+        long daysWithTransactions = uniqueDates.size();
+        if (daysWithTransactions == 0) {
+            return BigDecimal.ZERO;
+        }
+
+        // Tính trung bình chi mỗi ngày
+        BigDecimal dailyAverage = totalAmount.divide(
+                BigDecimal.valueOf(daysWithTransactions),
+                2,
+                RoundingMode.HALF_UP);
+
+        // Kiểm tra dữ liệu ít hay nhiều
+        boolean insufficientData = daysWithTransactions < 7;
+
+        // Tính gợi ý theo budget type
+        switch (budget.getBudgetType()) {
+            case WEEKLY:
+                if (insufficientData) {
+                    return dailyAverage;
+                }
+                return dailyAverage;
+            case MONTHLY:
+                if (insufficientData) {
+                    return dailyAverage;
+                }
+                return dailyAverage;
+            case YEARLY:
+                return dailyAverage;
+            case CUSTOM:
+                return dailyAverage;
+            default:
+                return BigDecimal.ZERO;
+        }
     }
 }

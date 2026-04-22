@@ -2,6 +2,9 @@ package fpt.aptech.server.api.wallet;
 
 import fpt.aptech.server.dto.response.ApiResponse;
 import fpt.aptech.server.dto.wallet.TotalBalanceResponse;
+import fpt.aptech.server.dto.wallet.TransferRequest;
+import fpt.aptech.server.dto.wallet.TransferResponse;
+import fpt.aptech.server.dto.wallet.WalletDeletePreviewResponse;
 import fpt.aptech.server.dto.wallet.WalletResponse;
 import fpt.aptech.server.dto.wallet.WalletRequest;
 import fpt.aptech.server.entity.Account;
@@ -102,6 +105,31 @@ public class WalletController {
         TotalBalanceResponse total = walletService.getTotalBalance(currentUser.getId());
         return ResponseEntity.ok(
                 ApiResponse.success(total)
+        );
+    }
+
+    // ================= TRANSFER MONEY =================
+    @PostMapping("/transfer")
+    public ResponseEntity<ApiResponse<TransferResponse>> transferMoney(
+            @Valid @RequestBody TransferRequest request,
+            @AuthenticationPrincipal Account currentUser
+    ) {
+        TransferResponse response = walletService.transferMoney(currentUser.getId(), request);
+        return ResponseEntity.ok(
+                ApiResponse.success(response, "Chuyển tiền thành công")
+        );
+    }
+
+    // ================= DELETE PREVIEW =================
+    @GetMapping("/{walletId}/delete-preview")
+    public ResponseEntity<ApiResponse<WalletDeletePreviewResponse>> getDeletePreview(
+            @PathVariable Integer walletId,
+            @AuthenticationPrincipal Account currentUser
+    ) {
+        WalletDeletePreviewResponse response =
+                walletService.getDeletePreview(currentUser.getId(), walletId);
+        return ResponseEntity.ok(
+                ApiResponse.success(response)
         );
     }
 }
