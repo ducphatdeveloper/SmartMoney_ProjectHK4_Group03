@@ -103,6 +103,10 @@ AND b.endDate >= :beginDate
 
 
     // Lấy danh sách ngân sách hết hạn, fetch wallet luôn để tránh LazyInitializationException
-    @Query("SELECT b FROM Budget b LEFT JOIN FETCH b.wallet w LEFT JOIN FETCH b.categories WHERE b.endDate < CURRENT_DATE AND b.deleted = false")
-    List<Budget> findExpiredBudgets();
+    @Query("SELECT b FROM Budget b LEFT JOIN FETCH b.wallet w LEFT JOIN FETCH b.categories WHERE b.endDate < :today AND b.deleted = false")
+    List<Budget> findExpiredBudgets(@Param("today") LocalDate today);
+
+    // Lấy tất cả ngân sách theo walletId (JOIN FETCH wallet để tránh LazyInitializationException)
+    @Query("SELECT b FROM Budget b LEFT JOIN FETCH b.wallet WHERE b.wallet.id = :walletId AND b.deleted = false")
+    List<Budget> findByWalletId(@Param("walletId") Integer walletId);
 }

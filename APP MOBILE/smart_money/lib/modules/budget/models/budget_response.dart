@@ -28,11 +28,13 @@ class BudgetResponse {
   final double dailyActualSpend;
   final double projectedSpend;
 
+  final double suggestedAmount;      // Ngân sách đề xuất dựa trên lịch sử 3 tháng
+  final double suggestedDailySpend;  // Nên chi hàng ngày theo đề xuất
+  final double overBudgetAmount;     // Số tiền vượt ngân sách = max(0, spent - amount)
+
   final bool exceeded;
   final bool warning;
   final double progress;
-
-  final String? walletImageUrl;
 
   const BudgetResponse({
     required this.id,
@@ -52,11 +54,13 @@ class BudgetResponse {
     this.dailyShouldSpend = 0,
     this.dailyActualSpend = 0,
     this.projectedSpend = 0,
+    this.suggestedAmount = 0,
+    this.suggestedDailySpend = 0,
+    this.overBudgetAmount = 0,
     this.isOther = false,
     this.exceeded = false,
     this.warning = false,
     this.progress = 0,
-    this.walletImageUrl,
     required this.budgetType,
   });
 
@@ -97,6 +101,9 @@ class BudgetResponse {
       primaryCategoryIconUrl: json['primaryCategoryIconUrl'],
       expired: safeBool(json['expired']),
       spentAmount: safeDouble(json['spentAmount']),
+      suggestedAmount: safeDouble(json['suggestedAmount']),
+      suggestedDailySpend: safeDouble(json['suggestedDailySpend']),
+      overBudgetAmount: safeDouble(json['overBudgetAmount']),
       remainingAmount: safeDouble(json['remainingAmount']),
       dailyShouldSpend: safeDouble(json['dailyShouldSpend']),
       dailyActualSpend: safeDouble(json['dailyActualSpend']),
@@ -104,7 +111,6 @@ class BudgetResponse {
       exceeded: safeBool(json['exceeded']),
       warning: safeBool(json['warning']),
       progress: safeDouble(json['progress']),
-      walletImageUrl: json['walletImageUrl'] as String?,
       budgetType: BudgetTypeExtension.fromString(json['budgetType']),
       isOther: false,
     );
@@ -127,11 +133,15 @@ class BudgetResponse {
     double? dailyShouldSpend,
     double? dailyActualSpend,
     double? projectedSpend,
+    double? suggestedAmount,
+    double? suggestedDailySpend,
+    double? overBudgetAmount,
     bool? exceeded,
     bool? warning,
     double? progress,
-    String? walletImageUrl,
-    BudgetType? budgetType, required List<TransactionResponse> transactions,
+    BudgetType? budgetType,
+    bool? isOther,
+
   }) {
     return BudgetResponse(
       id: id,
@@ -151,12 +161,14 @@ class BudgetResponse {
       dailyShouldSpend: dailyShouldSpend ?? this.dailyShouldSpend,
       dailyActualSpend: dailyActualSpend ?? this.dailyActualSpend,
       projectedSpend: projectedSpend ?? this.projectedSpend,
+      suggestedAmount: suggestedAmount ?? this.suggestedAmount,
+      suggestedDailySpend: suggestedDailySpend ?? this.suggestedDailySpend,
+      overBudgetAmount: overBudgetAmount ?? this.overBudgetAmount,
       exceeded: exceeded ?? this.exceeded,
       warning: warning ?? this.warning,
       progress: progress ?? this.progress,
-      walletImageUrl: walletImageUrl ?? this.walletImageUrl,
       budgetType: budgetType ?? this.budgetType,
-      isOther: isOther,
+      isOther: isOther ?? this.isOther,
     );
   }
 }

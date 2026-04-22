@@ -199,7 +199,7 @@ class BudgetProvider extends ChangeNotifier {
         expiredBudgets = response.data ?? [];
       } else {
         expiredBudgets = [];
-        errorMessage = response.message ?? "Có lỗi xảy ra khi tải dữ liệu";
+        errorMessage = response.message ?? "Error loading data";
       }
     } catch (e) {
       expiredBudgets = [];
@@ -253,7 +253,11 @@ class BudgetProvider extends ChangeNotifier {
       isOther: true,
       exceeded: remainingSpent > remainingAmount,
       warning: remainingAmount > 0 && (remainingSpent / remainingAmount) > 0.8,
-      progress: remainingAmount > 0 ? (remainingSpent / remainingAmount).clamp(0.0, 1.0) : 0.0,
+      // 🔥 FIX: Cho phép progress > 1.0 để hiển thị "vượt ngân sách" như backend
+      progress: remainingAmount > 0 ? (remainingSpent / remainingAmount) : 0.0,
+      suggestedAmount: 0, // ── Không tính đề xuất cho ngân sách "Khác"
+      suggestedDailySpend: 0,
+      overBudgetAmount: remainingSpent > remainingAmount ? remainingSpent - remainingAmount : 0,
     );
 
     return [...categoryBudgets, other];

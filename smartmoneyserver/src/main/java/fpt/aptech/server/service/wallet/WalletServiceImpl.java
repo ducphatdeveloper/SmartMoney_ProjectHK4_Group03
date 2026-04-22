@@ -1,6 +1,10 @@
 package fpt.aptech.server.service.wallet;
 
+import fpt.aptech.server.dto.budget.BudgetResponse;
 import fpt.aptech.server.dto.wallet.TotalBalanceResponse;
+import fpt.aptech.server.dto.wallet.TransferRequest;
+import fpt.aptech.server.dto.wallet.TransferResponse;
+import fpt.aptech.server.dto.wallet.WalletDeletePreviewResponse;
 import fpt.aptech.server.dto.wallet.WalletRequest;
 import fpt.aptech.server.dto.wallet.WalletResponse;
 import fpt.aptech.server.entity.*;
@@ -15,8 +19,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -257,20 +263,188 @@ public class WalletServiceImpl implements WalletService {
     }
 
     // =================================================================================
-    // 3. XÓA (DELETE)
+    // 3. CHUYỂN TIỀN (TRANSFER MONEY)
     // =================================================================================
 
     /**
-     * [3.1] Xóa mềm ví.
+     * [3.1] Chuyển tiền từ ví này sang ví khác.
+     * Bước 1 — Validate dữ liệu đầu vào.
+     * Bước 2 — Tìm ví nguồn và ví đích, kiểm tra quyền sở hữu.
+     * Bước 3 — Kiểm tra số dư ví nguồn đủ để chuyển.
+     * Bước 4 — Cập nhật số dư cả 2 ví.
+     * Bước 5 — Tạo giao dịch ghi nhận chuyển tiền.
+     */
+    @Override
+    @Transactional
+    public TransferResponse transferMoney(Integer accountId, TransferRequest request) {
+        // ===== Validate =====
+        if (request.getFromWalletId().equals(request.getToWalletId())) {
+            throw new IllegalArgumentException("Source wallet and destination wallet cannot be the same");
+        }
+
+        // ===== Fetch ví nguồn =====
+        Wallet fromWallet = walletRepository.findById(request.getFromWalletId())
+                .orElseThrow(() -> new IllegalArgumentException("Source wallet does not exist"));
+        if (!fromWallet.getAccount().getId().equals(accountId)) {
+            throw new SecurityException("You do not have permission to transfer money from this wallet");
+        }
+
+        // ===== Fetch ví đích =====
+        Wallet toWallet = walletRepository.findById(request.getToWalletId())
+                .orElseThrow(() -> new IllegalArgumentException("Destination wallet does not exist"));
+        if (!toWallet.getAccount().getId().equals(accountId)) {
+            throw new SecurityException("You do not have permission to transfer money to this wallet");
+        }
+
+        // ===== Kiểm tra số dư =====
+        if (fromWallet.getBalance().compareTo(request.getAmount()) < 0) {
+            throw new IllegalArgumentException("Insufficient balance in source wallet");
+        }
+
+        // ===== Kiểm tra currency =====
+        if (!fromWallet.getCurrency().getCurrencyCode().equals(toWallet.getCurrency().getCurrencyCode())) {
+            throw new IllegalArgumentException("Only transfers between wallets with the same currency are supported");
+        }
+
+        // ===== Cập nhật số dư =====
+        fromWallet.setBalance(fromWallet.getBalance().subtract(request.getAmount()));
+        toWallet.setBalance(toWallet.getBalance().add(request.getAmount()));
+
+        walletRepository.save(fromWallet);
+        walletRepository.save(toWallet);
+
+        // ===== Tạo giao dịch ghi nhận chuyển tiền =====
+        Category transferCategory = categoryRepository.findById(SystemCategory.OTHER_EXPENSE.getId())
+                .orElseThrow(() -> new IllegalArgumentException("System category not found"));
+
+        // Giao dịch từ ví nguồn (chi)
+        Transaction fromTransaction = Transaction.builder()
+                .account(fromWallet.getAccount())
+                .wallet(fromWallet)
+                .category(transferCategory)
+                .amount(request.getAmount())
+                .note(request.getNote() != null ? request.getNote() : "Transfer to wallet " + toWallet.getWalletName())
+                .reportable(true)
+                .transDate(LocalDateTime.now())
+                .build();
+
+        transactionRepository.save(fromTransaction);
+
+        // Giao dịch vào ví đích (thu)
+        Category incomeCategory = categoryRepository.findById(SystemCategory.INCOME_OTHER.getId())
+                .orElseThrow(() -> new IllegalArgumentException("System category not found"));
+
+        Transaction toTransaction = Transaction.builder()
+                .account(toWallet.getAccount())
+                .wallet(toWallet)
+                .category(incomeCategory)
+                .amount(request.getAmount())
+                .note(request.getNote() != null ? request.getNote() : "Receive money from wallet " + fromWallet.getWalletName())
+                .reportable(true)
+                .transDate(LocalDateTime.now())
+                .build();
+
+        transactionRepository.save(toTransaction);
+
+        // ===== Xóa ví nguồn sau khi chuyển tiền =====
+        // Bước 1: Update wallet_id của tất cả transactions thuộc ví nguồn sang ví đích
+        transactionRepository.updateWalletIdByFromWalletId(request.getFromWalletId(), request.getToWalletId());
+
+        // Bước 2: Soft delete ví nguồn (chỉ xóa ví, không xóa transactions, budgets, plannedTransactions, debts, events)
+        fromWallet.setDeleted(true);
+        fromWallet.setDeletedAt(LocalDateTime.now());
+        walletRepository.save(fromWallet);
+
+        return TransferResponse.builder()
+                .message("Transfer money and delete wallet successfully")
+                .transferredAmount(request.getAmount())
+                .fromWalletBalance(fromWallet.getBalance())
+                .toWalletBalance(toWallet.getBalance())
+                .build();
+    }
+
+    // =================================================================================
+    // 4. PREVIEW XÓA VÍ (DELETE PREVIEW)
+    // =================================================================================
+
+    /**
+     * [4.1] Lấy thông tin preview trước khi xóa ví.
      * Bước 1 — Tìm ví và kiểm tra quyền sở hữu.
-     * Bước 2 — Soft delete cascade (ví là NGUỒN TIỀN → xóa toàn bộ dữ liệu liên
+     * Bước 2 — Lấy danh sách ngân sách liên quan.
+     * Bước 3 — Đếm số lượng giao dịch thuộc ví.
+     * Bước 4 — Lấy danh sách ví khác của user.
+     * Bước 5 — Trả về thông tin tổng hợp.
+     */
+    @Override
+    public WalletDeletePreviewResponse getDeletePreview(Integer accountId, Integer walletId) {
+        // ===== Tìm ví và kiểm tra quyền =====
+        Wallet wallet = walletRepository.findById(walletId)
+                .orElseThrow(() -> new IllegalArgumentException("Wallet does not exist"));
+        if (!wallet.getAccount().getId().equals(accountId)) {
+            throw new SecurityException("You do not have permission to view this wallet");
+        }
+
+        // ===== Lấy danh sách ngân sách liên quan =====
+        List<Budget> relatedBudgets = budgetRepository.findByWalletId(walletId);
+        List<BudgetResponse> budgetResponses = relatedBudgets.stream()
+                .map(this::mapToSimpleBudgetResponse)
+                .collect(Collectors.toList());
+
+        // ===== Đếm số lượng giao dịch thuộc ví =====
+        long transactionCount = transactionRepository.countByWalletId(walletId);
+
+        // ===== Lấy danh sách ví khác của user =====
+        List<Wallet> otherWallets = walletRepository.findByAccountId(accountId)
+                .stream()
+                .filter(w -> !w.getId().equals(walletId))
+                .collect(Collectors.toList());
+        List<WalletResponse> otherWalletResponses = otherWallets.stream()
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
+
+        return WalletDeletePreviewResponse.builder()
+                .wallet(mapToResponse(wallet))
+                .relatedBudgets(budgetResponses)
+                .transactionCount(transactionCount)
+                .otherWallets(otherWalletResponses)
+                .currentBalance(wallet.getBalance())
+                .build();
+    }
+
+    /**
+     * [4.2] Chuyển đổi Budget Entity → BudgetResponse DTO (phiên bản đơn giản).
+     * Chỉ lấy thông tin cơ bản, không tính toán chi tiêu.
+     */
+    private BudgetResponse mapToSimpleBudgetResponse(Budget budget) {
+        return BudgetResponse.builder()
+                .id(budget.getId())
+                .amount(budget.getAmount())
+                .beginDate(budget.getBeginDate())
+                .endDate(budget.getEndDate())
+                .walletId(budget.getWallet() != null ? budget.getWallet().getId() : null)
+                .walletName(budget.getWallet() != null ? budget.getWallet().getWalletName() : null)
+                .allCategories(budget.getAllCategories())
+                .repeating(budget.getRepeating())
+                .budgetType(budget.getBudgetType())
+                .build();
+    }
+
+    // =================================================================================
+    // 5. XÓA (DELETE)
+    // =================================================================================
+
+    /**
+     * [5.1] Xóa mềm ví.
+     * Bước 1 — Tìm ví và kiểm tra quyền sở hữu.
+     * Bước 2 — Kiểm tra số dư ví (phải = 0 mới được xóa).
+     * Bước 3 — Soft delete cascade (ví là NGUỒN TIỀN → xóa toàn bộ dữ liệu liên
      * kết):
      * • Transactions thuộc wallet_id
      * • Budgets thuộc wallet_id
      * • PlannedTransactions thuộc wallet_id
      * • Debts có giao dịch trong ví này (qua subquery tTransactions)
      * • Events có giao dịch trong ví này (qua subquery tTransactions)
-     * Bước 3 — Soft delete chính ví.
+     * Bước 4 — Soft delete chính ví.
      */
     @Override
     @Transactional
@@ -282,14 +456,22 @@ public class WalletServiceImpl implements WalletService {
             throw new SecurityException("You do not have permission to delete this wallet");
         }
 
-        // Bước 2: Soft delete cascade — xóa mềm các bản ghi liên kết
+        // Bước 2: Kiểm tra số dư ví (phải = 0 mới được xóa)
+        if (wallet.getBalance().compareTo(BigDecimal.ZERO) > 0) {
+            throw new IllegalArgumentException(
+                    "Wallet still has money. Please transfer money to another wallet before deleting. " +
+                    "Current balance: " + wallet.getBalance() + " " + wallet.getCurrency().getCurrencyCode()
+            );
+        }
+
+        // Bước 3: Soft delete cascade — xóa mềm các bản ghi liên kết
         transactionRepository.softDeleteAllByWalletId(walletId); // Giao dịch thuộc ví
         budgetRepository.softDeleteAllByWalletId(walletId); // Ngân sách thuộc ví
         plannedTransactionRepository.softDeleteAllByWalletId(walletId); // Giao dịch định kỳ/hóa đơn thuộc ví
         debtRepository.softDeleteAllByWalletId(walletId); // Khoản nợ có giao dịch thuộc ví
         eventRepository.softDeleteAllByWalletId(walletId); // Sự kiện có giao dịch thuộc ví
 
-        // Bước 3: Soft delete chính ví
+        // Bước 4: Soft delete chính ví
         wallet.setDeleted(true);
         wallet.setDeletedAt(LocalDateTime.now());
         walletRepository.save(wallet);

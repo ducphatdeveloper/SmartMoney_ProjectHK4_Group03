@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import 'package:smart_money/modules/budget/models/budget_response.dart';
+import 'package:smart_money/modules/budget/enums/budget_type.dart';
 import 'package:smart_money/modules/budget/screens/edit_details_screens.dart';
 import 'package:smart_money/modules/budget/services/budget_service.dart';
 import '../../wallet/models/wallet_response.dart';
@@ -45,7 +46,8 @@ class _BudgetDetailScreenState extends State<BudgetDetailScreen>
 
   double get total => _budget.amount == 0 ? 1 : _budget.amount;
 
-  double get percent => (spent / total).clamp(0.0, 1.0);
+  // 🔥 FIX: Cho phép progress > 1.0 để hiển thị "vượt ngân sách" như backend
+  double get percent => spent / total;
 
   double get remaining => total - spent;
 
@@ -127,6 +129,8 @@ class _BudgetDetailScreenState extends State<BudgetDetailScreen>
                 padding: const EdgeInsets.all(16),
                 children: [
                   _header(),
+                  const SizedBox(height: 16),
+                  _suggestionCard(), // ── Card hiển thị gợi ý dựa trên lịch sử 3 tháng
                   const SizedBox(height: 16),
                   _chart(),
                   const SizedBox(height: 16),
@@ -279,8 +283,8 @@ class _BudgetDetailScreenState extends State<BudgetDetailScreen>
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   _moneyInfo("Spent", spent, crossAlign: CrossAxisAlignment.start),
-                  _moneyInfo("Remaining", remaining,
-                      color: remaining < 0 ? Colors.redAccent : Colors.greenAccent,
+                  _moneyInfo(percent >= 1.0 ? "Over" : "Remaining", percent >= 1.0 ? _budget.overBudgetAmount : remaining,
+                      color: percent >= 1.0 ? Colors.redAccent : Colors.greenAccent,
                       crossAlign: CrossAxisAlignment.end),
                 ],
               ),
@@ -294,11 +298,13 @@ class _BudgetDetailScreenState extends State<BudgetDetailScreen>
                 ),
                 child: FractionallySizedBox(
                   alignment: Alignment.centerLeft,
+                  // 🔥 FIX: Cho phép progress > 1.0 để hiển thị "vượt ngân sách" như backend
+                  // Clamp ở 1.0 cho visual, nhưng percent thực tế có thể > 1.0
                   widthFactor: percent.clamp(0.0, 1.0),
                   child: Container(
                     decoration: BoxDecoration(
                       gradient: LinearGradient(
-                        colors: percent >= 1
+                        colors: percent >= 1.0
                             ? [Colors.redAccent, Colors.red]
                             : percent >= 0.75
                             ? [Colors.orangeAccent, Colors.deepOrange]
@@ -309,6 +315,21 @@ class _BudgetDetailScreenState extends State<BudgetDetailScreen>
                   ),
                 ),
               ),
+              // ── Hiển thị cảnh báo khi sắp vượt ngân sách (80-99%) ────────
+              if (percent >= 0.8 && percent < 1.0)
+                Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.info_outline, color: Colors.orange, size: 12),
+                      const SizedBox(width: 4),
+                      const Text(
+                        "Approaching budget limit",
+                        style: TextStyle(color: Colors.orange, fontSize: 11),
+                      ),
+                    ],
+                  ),
+                ),
             ],
           ),
 
@@ -356,6 +377,96 @@ class _BudgetDetailScreenState extends State<BudgetDetailScreen>
     );
   }
 
+  // ── Card hiển thị gợi ý theo type (tuần/tháng/năm/custom) ─────────────────────────
+  Widget _suggestionCard() {
+    final b = _budget;
+
+    // Chỉ hiển thị nếu có dữ liệu gợi ý và không phải ngân sách "Khác"
+    if (b.suggestedAmount <= 0 && b.suggestedDailySpend <= 0) {
+      return const SizedBox.shrink();
+    }
+
+    if (b.isOther) {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1C1C1E),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.amber.withOpacity(0.3), width: 1),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.lightbulb, color: Colors.amber, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                _getSuggestionTitle(b),
+                style: const TextStyle(
+                  color: Colors.amber,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          _infoRow("Suggested budget", formatMoney(b.suggestedAmount)),
+          const SizedBox(height: 8),
+          _infoRow("Recommended daily spend", formatMoney(b.suggestedDailySpend)),
+          const SizedBox(height: 8),
+          if (b.amount > 0)
+            _infoRow(
+              "Difference from current",
+              formatMoney(b.suggestedAmount - b.amount),
+              color: (b.suggestedAmount - b.amount) >= 0 ? Colors.greenAccent : Colors.redAccent,
+            ),
+        ],
+      ),
+    );
+  }
+
+  // ── Hàm lấy title gợi ý theo type ────────
+  String _getSuggestionTitle(BudgetResponse b) {
+    final formatter = DateFormat('dd/MM');
+    final start = b.beginDate;
+    final end = b.endDate;
+
+    switch (b.budgetType) {
+      case BudgetType.weekly:
+        return "Suggested this week (${formatter.format(start)} - ${formatter.format(end)})";
+      case BudgetType.monthly:
+        return "Suggested this month (${formatter.format(start)} - ${formatter.format(end)})";
+      case BudgetType.yearly:
+        return "Suggested this year (${formatter.format(start)} - ${formatter.format(end)})";
+      case BudgetType.custom:
+        return "Suggested (${formatter.format(start)} - ${formatter.format(end)})";
+    }
+  }
+
+  Widget _infoRow(String label, String value, {Color? color}) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(color: Colors.grey, fontSize: 13),
+        ),
+        Text(
+          value,
+          style: TextStyle(
+            color: color ?? Colors.white,
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
+    );
+  }
 
   Widget _moneyInfo(String title, double value,
       {Color? color, CrossAxisAlignment crossAlign = CrossAxisAlignment.start}) {

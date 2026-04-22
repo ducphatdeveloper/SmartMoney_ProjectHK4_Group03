@@ -246,7 +246,8 @@ class _BudgetScreenState extends State<BudgetScreen>
   // ================= HELPERS =================
   double percent(double spent, double total) {
     if (total <= 0) return 0;
-    return (spent / total).clamp(0.0, 1.0);
+    // 🔥 FIX: Cho phép progress > 1.0 để hiển thị "vượt ngân sách" như backend
+    return spent / total;  //.clamp(0.0, 1.0);
   }
 
   Color getColor(double p) {
@@ -272,6 +273,24 @@ class _BudgetScreenState extends State<BudgetScreen>
         final start = b.beginDate;
         final end = b.endDate;
         return "${start.day}/${start.month} - ${end.day}/${end.month}";
+    }
+  }
+
+  // ── Hàm lấy text gợi ý theo type (tuần/tháng/năm/custom) ────────
+  String _getSuggestionText(BudgetResponse b) {
+    final formatter = DateFormat('dd/MM');
+    final start = b.beginDate;
+    final end = b.endDate;
+
+    switch (b.budgetType) {
+      case BudgetType.weekly:
+        return "Suggested this week (${formatter.format(start)} - ${formatter.format(end)}): ${formatMoney(b.suggestedAmount)}";
+      case BudgetType.monthly:
+        return "Suggested this month (${formatter.format(start)} - ${formatter.format(end)}): ${formatMoney(b.suggestedAmount)}";
+      case BudgetType.yearly:
+        return "Suggested this year (${formatter.format(start)} - ${formatter.format(end)}): ${formatMoney(b.suggestedAmount)}";
+      case BudgetType.custom:
+        return "Suggested (${formatter.format(start)} - ${formatter.format(end)}): ${formatMoney(b.suggestedAmount)}";
     }
   }
 
@@ -554,7 +573,8 @@ class _BudgetScreenState extends State<BudgetScreen>
   // ================= ITEM =================
   Widget _budgetItem(BudgetResponse b) {
     final provider = context.watch<BudgetProvider>();
-    final p = (b.spentAmount / (b.amount == 0 ? 1 : b.amount)).clamp(0.0, 1.0);
+    // 🔥 FIX: Cho phép progress > 1.0 để hiển thị "vượt ngân sách" như backend
+    final p = b.spentAmount / (b.amount == 0 ? 1 : b.amount); //.clamp(0.0, 1.0);
     final left = b.amount - b.spentAmount;
 
     // 👉 Xác định icon và tên hiển thị
@@ -627,6 +647,25 @@ class _BudgetScreenState extends State<BudgetScreen>
                               fontSize: 12,
                             ),
                           ),
+                          // ── Hiển thị gợi ý theo type (tuần/tháng/năm/custom) ────────
+                          if (!b.isOther && b.suggestedAmount > 0)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 4),
+                              child: Row(
+                                children: [
+                                  const Icon(Icons.lightbulb_outline,
+                                    color: Colors.amber, size: 12),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    _getSuggestionText(b),
+                                    style: const TextStyle(
+                                      color: Colors.amber,
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
                         ],
                       ),
                     ),
@@ -645,21 +684,7 @@ class _BudgetScreenState extends State<BudgetScreen>
                   backgroundColor: Colors.grey.shade800,
                 ),
                 const SizedBox(height: 8),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text("${formatMoney(b.spentAmount)} / ${formatMoney(b.amount)}",
-                        style: const TextStyle(color: Colors.grey)),
-                    Text(
-                      left >= 0
-                          ? "Remaining ${formatMoney(left)}"
-                          : "⚠️ Over ${formatMoney(left.abs())}",
-                      style: TextStyle(
-                          color: left >= 0 ? Colors.green : Colors.red,
-                          fontWeight: FontWeight.w500),
-                    ),
-                  ],
-                ),
+                _budgetInfoRow(b),
               ],
             ),
           ),
@@ -668,12 +693,59 @@ class _BudgetScreenState extends State<BudgetScreen>
     );
   }
 
+  // ── Widget hiển thị thông tin ngân sách (spent/amount, overBudgetAmount, warning) ────────
+  Widget _budgetInfoRow(BudgetResponse b) {
+    final remaining = b.amount - b.spentAmount;
+    final p = b.spentAmount / (b.amount == 0 ? 1 : b.amount);
+    // 🔥 FIX: Khớp với scheduler logic - >= 100% là vượt, 80-99% là warning
+    final isOverBudget = p >= 1.0;
+    final isWarning = p >= 0.7 && p < 1.0;
 
+    return Column(
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text("${formatMoney(b.spentAmount)} / ${formatMoney(b.amount)}",
+                style: const TextStyle(color: Colors.grey)),
+            Text(
+              isOverBudget
+                  ? "⚠️ Over: ${formatMoney(b.overBudgetAmount)}"
+                  : "Remaining ${formatMoney(remaining)}",
+              style: TextStyle(
+                  color: isOverBudget ? Colors.red : Colors.green,
+                  fontWeight: FontWeight.w500),
+            ),
+          ],
+        ),
+        // ── Hiển thị cảnh báo warning khi sắp vượt ngân sách (80-99%) ────────
+        if (isWarning)
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Row(
+              children: [
+                const Icon(Icons.info_outline,
+                  color: Colors.orange, size: 12),
+                const SizedBox(width: 4),
+                const Text(
+                  "Approaching budget limit",
+                  style: TextStyle(
+                    color: Colors.orange,
+                    fontSize: 11,
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
 
   // ================= OVERVIEW =================
   Widget _overview(double totalBudget, double totalSpent) {
     final remain = (totalBudget - totalSpent).clamp(-double.infinity, double.infinity);
-    final p = totalBudget <= 0 ? 0.0 : (totalSpent / totalBudget).clamp(0.0, 1.0);
+    // 🔥 FIX: Cho phép progress > 1.0 để hiển thị "vượt ngân sách" như backend
+    final p = totalBudget <= 0 ? 0.0 : totalSpent / totalBudget;
 
     return Container(
       padding: const EdgeInsets.all(20),

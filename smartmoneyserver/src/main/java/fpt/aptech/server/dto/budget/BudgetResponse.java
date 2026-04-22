@@ -45,5 +45,10 @@ public class BudgetResponse {
     private BigDecimal dailyActualSpend;  // Thực tế chi hàng ngày = spentAmount / daysElapsed
     private BigDecimal projectedSpend;    // Dự kiến chi tiêu = dailyActual * totalDays
 
+    // ── Đề xuất dựa trên lịch sử 3 tháng ───────────────────────────────────────
+    private BigDecimal suggestedAmount;   // Ngân sách đề xuất dựa trên lịch sử chi tiêu 3 tháng gần nhất và tần suất giao dịch
+    private BigDecimal suggestedDailySpend; // Nên chi hàng ngày theo đề xuất = suggestedAmount / totalDays
     private BudgetType budgetType;
+    private BigDecimal overBudgetAmount;   // Số tiền vượt ngân sách = max(0, spentAmount - amount)
 }
+

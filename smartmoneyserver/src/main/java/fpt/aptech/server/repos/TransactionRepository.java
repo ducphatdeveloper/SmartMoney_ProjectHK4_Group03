@@ -433,6 +433,15 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
     @Query("UPDATE Transaction t SET t.deleted = true, t.deletedAt = CURRENT_TIMESTAMP WHERE t.wallet.id = :walletId")
     void softDeleteAllByWalletId(@Param("walletId") Integer walletId);
 
+    // Đếm số lượng giao dịch theo walletId
+    @Query("SELECT COUNT(t) FROM Transaction t WHERE t.wallet.id = :walletId AND t.deleted = false")
+    long countByWalletId(@Param("walletId") Integer walletId);
+
+    // Update wallet_id của tất cả transactions từ ví nguồn sang ví đích
+    @Modifying
+    @Query("UPDATE Transaction t SET t.wallet.id = :toWalletId WHERE t.wallet.id = :fromWalletId")
+    void updateWalletIdByFromWalletId(@Param("fromWalletId") Integer fromWalletId, @Param("toWalletId") Integer toWalletId);
+
     @Modifying
     @Query("UPDATE Transaction t SET t.deleted = true, t.deletedAt = CURRENT_TIMESTAMP WHERE t.savingGoal.id = :goalId")
     void softDeleteAllBySavingGoalId(@Param("goalId") Integer goalId);
@@ -545,4 +554,40 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
            "HAVING COUNT(t) > :threshold")
     List<Object[]> findAbnormalExpenseWallets(@Param("since") LocalDateTime since,
                                               @Param("threshold") long threshold);
+
+    // =================================================================================
+    // 16. CÁC HÀM CHO BUDGET SUGGESTION — Tính toán đề xuất ngân sách dựa trên lịch sử
+    // =================================================================================
+
+    /**
+     * Lấy tổng chi tiêu từng tháng trong 3 tháng gần nhất để tính weighted average
+     *
+     * @param accountId - ID tài khoản
+     * @param startDate - Ngày bắt đầu (3 tháng trước)
+     * @param endDate - Ngày kết thúc (hôm nay)
+     * @param walletId - ID ví (null = tất cả ví)
+     * @param allCategories - true = tất cả danh mục, false = chỉ categories đã chọn
+     * @param categoryIds - Danh sách ID danh mục
+     * @return List<Object[]> - Mỗi phần tử chứa [YearMonth, TotalAmount]
+     */
+    @Query("SELECT FUNCTION('YEAR', t.transDate) as year, FUNCTION('MONTH', t.transDate) as month, SUM(t.amount) " +
+           "FROM Transaction t " +
+           "JOIN t.category c " +
+           "WHERE t.account.id = :accountId " +
+           "  AND t.transDate BETWEEN :startDate AND :endDate " +
+           "  AND c.ctgType = false " + // Chỉ tính khoản CHI
+           "  AND (:walletId IS NULL OR t.wallet.id = :walletId) " +
+           "  AND (:allCategories = true OR c.id IN :categoryIds) " +
+           "  AND t.deleted = false " +
+           "GROUP BY FUNCTION('YEAR', t.transDate), FUNCTION('MONTH', t.transDate) " +
+           "HAVING SUM(t.amount) > 0 " + // Chỉ trả về các tháng có giao dịch thực tế
+           "ORDER BY FUNCTION('YEAR', t.transDate) DESC, FUNCTION('MONTH', t.transDate) DESC")
+    List<Object[]> sumExpenseByMonth(
+            @Param("accountId") Integer accountId,
+            @Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate,
+            @Param("walletId") Integer walletId,
+            @Param("allCategories") Boolean allCategories,
+            @Param("categoryIds") Set<Integer> categoryIds
+    );
 }

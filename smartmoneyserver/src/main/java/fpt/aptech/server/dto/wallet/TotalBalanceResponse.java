@@ -1,10 +1,10 @@
-package fpt.aptech.server.dto.wallet;
+    package fpt.aptech.server.dto.wallet;
 
-import lombok.Builder;
+    import lombok.Builder;
 
-import java.math.BigDecimal;
+    import java.math.BigDecimal;
 
-@Builder
-public record TotalBalanceResponse(
-    BigDecimal totalBalance
-) {}
+    @Builder
+    public record TotalBalanceResponse(
+        BigDecimal totalBalance
+    ) {}

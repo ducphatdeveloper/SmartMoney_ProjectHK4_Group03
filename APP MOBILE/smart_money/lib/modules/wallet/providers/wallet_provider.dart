@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../models/wallet_request.dart';
 import '../models/wallet_response.dart';
+import '../models/transfer_request.dart';
+import '../models/wallet_delete_preview_response.dart';
 import '../services/wallet_service.dart';
 
 class WalletProvider with ChangeNotifier {
@@ -71,6 +73,42 @@ class WalletProvider with ChangeNotifier {
     } catch (e) {
       error = e.toString();
       notifyListeners();
+    }
+  }
+
+  // ================= TRANSFER =================
+  Future<bool> transferMoney(TransferRequest request) async {
+    try {
+      await _service.transferMoney(request);
+      // Reload all data để cập nhật số dư mới
+      await loadAll();
+      return true;
+    } catch (e) {
+      error = e.toString();
+      notifyListeners();
+      return false;
+    }
+  }
+
+  // ================= DELETE PREVIEW =================
+  Future<WalletDeletePreviewResponse?> getDeletePreview(int walletId) async {
+    try {
+      return await _service.getDeletePreview(walletId);
+    } catch (e) {
+      error = e.toString();
+      notifyListeners();
+      return null;
+    }
+  }
+
+  // ================= GET DETAIL =================
+  Future<WalletResponse?> getWalletDetail(int walletId) async {
+    try {
+      return await _service.getWalletDetail(walletId);
+    } catch (e) {
+      error = e.toString();
+      notifyListeners();
+      return null;
     }
   }
 }

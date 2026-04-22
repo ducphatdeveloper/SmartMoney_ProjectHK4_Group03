@@ -268,9 +268,9 @@ public final class NotificationMessages {
                                                     int percent,
                                                     BigDecimal spent,
                                                     BigDecimal total) {
-        String title = "Cảnh báo ngân sách 🔔";
+        String title = "Budget Alert 🔔";
         String content = String.format(
-                "Bạn đã chi %d%% ngân sách %s (%s/%s). Hãy cân nhắc chi tiêu!",
+                "You have spent %d%% of your %s budget (%s/%s). Please consider your spending!",
                 percent, budgetLabel, CurrencyUtils.formatVND(spent), CurrencyUtils.formatVND(total));
         return new NotificationContent(title, content);
     }
@@ -283,9 +283,9 @@ public final class NotificationMessages {
                                                      int percent,
                                                      BigDecimal spent,
                                                      BigDecimal total) {
-        String title = "Vượt ngân sách! 🚨";
+        String title = "Budget Exceeded! 🚨";
         String content = String.format(
-                "Bạn đã vượt %d%% ngân sách %s. Tổng chi: %s / hạn mức %s.",
+                "You have exceeded %d%% of your %s budget. Total spent: %s / limit %s.",
                 percent, budgetLabel, CurrencyUtils.formatVND(spent), CurrencyUtils.formatVND(total));
         return new NotificationContent(title, content);
     }
@@ -297,9 +297,9 @@ public final class NotificationMessages {
     public static NotificationContent budgetRenewed(LocalDate oldBeginDate, LocalDate oldEndDate,
                                                    LocalDate newBeginDate, LocalDate newEndDate,
                                                    String categoryNames, BigDecimal amount) {
-        String title = "Ngân sách đã được gia hạn 🔄";
+        String title = "Budget Renewed 🔄";
         String content = String.format(
-                "Ngân sách %s (%s) đã được gia hạn từ kỳ %s - %s sang kỳ mới %s - %s.",
+                "Your %s budget (%s) has been renewed from %s - %s to new period %s - %s.",
                 categoryNames, CurrencyUtils.formatVND(amount),
                 oldBeginDate.format(VN_DATE), oldEndDate.format(VN_DATE),
                 newBeginDate.format(VN_DATE), newEndDate.format(VN_DATE));
@@ -315,9 +315,9 @@ public final class NotificationMessages {
                                                            BigDecimal remaining,
                                                            long daysLeft,
                                                            BigDecimal dailyAllowance) {
-        String title = "💡 Phân tích chi tiêu hôm nay";
+        String title = "💡 Daily Spending Analysis";
         String content = String.format(
-                "Ngân sách %s còn %s cho %d ngày tới. Mỗi ngày bạn chỉ nên chi tối đa %s để đảm bảo đủ tháng.",
+                "Your %s budget has %s left for the next %d days. You should spend no more than %s per day to stay on track.",
                 label, CurrencyUtils.formatVND(remaining),
                 daysLeft, CurrencyUtils.formatVND(dailyAllowance));
         return new NotificationContent(title, content);
@@ -331,10 +331,10 @@ public final class NotificationMessages {
     public static NotificationContent budgetOverrunForecast(String label,
                                                             LocalDate forecastDate,
                                                             long daysUntilOverrun) {
-        String title = "🔮 Dự báo vượt ngân sách";
+        String title = "🔮 Budget Overrun Forecast";
         String content = String.format(
-                "Với tốc độ chi tiêu hiện tại, ngân sách %s của bạn sẽ cạn vào khoảng %s (còn %d ngày). " +
-                "Hãy điều chỉnh chi tiêu ngay hôm nay!",
+                "At your current spending rate, your %s budget will run out around %s (%d days left). " +
+                "Adjust your spending today!",
                 label, forecastDate.format(VN_DATE), daysUntilOverrun);
         return new NotificationContent(title, content);
     }
@@ -347,10 +347,10 @@ public final class NotificationMessages {
     public static NotificationContent budgetComparedToLastMonth(String label,
                                                                 int increasePercent,
                                                                 BigDecimal lastMonthAmount) {
-        String title = "📈 Chi tiêu tăng so với tháng trước";
+        String title = "📈 Spending Increased vs Last Month";
         String content = String.format(
-                "Bạn đang chi %s nhiều hơn %d%% so với cùng kỳ tháng trước (%s). " +
-                "Hãy kiểm tra lại thói quen chi tiêu!",
+                "Your %s spending is %d%% higher compared to the same period last month (%s). " +
+                "Review your spending habits!",
                 label, increasePercent, CurrencyUtils.formatVND(lastMonthAmount));
         return new NotificationContent(title, content);
     }
