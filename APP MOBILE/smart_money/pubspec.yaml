@@ -62,6 +62,14 @@ dependencies:
   # ✅ [UPGRADE] Sử dụng phiên bản mới nhất để tương thích intl 0.20.2
   local_auth: ^2.3.0
 
+  # --- VOICE RECOGNITION ---
+  # Chuyển giọng nói thành văn bản cho AI Chat
+  speech_to_text: ^7.0.0
+
+  # --- IMAGE PICKER ---
+  # Chọn ảnh từ gallery để upload hóa đơn OCR
+  #image_picker: đã có
+
   # --- AUTHENTICATION & NOTIFICATION ---
   # Giải mã JWT token để đọc thông tin role/userId mà không cần gọi API
   jwt_decoder: ^2.0.1

@@ -73,6 +73,9 @@ public class AIConversation {
     @Column(name = "attachment_type")
     private Integer attachmentType;
 
+    // Params JSON cho action (create_transaction, remind_task, v.v.) - lưu riêng để parse lại
+    @Column(name = "action_params", columnDefinition = "NVARCHAR(MAX)")
+    private String actionParams;
 
     @CreationTimestamp //Tự động sinh ngày giờ hiện tại.
     @Column(name = "created_at", nullable = false)

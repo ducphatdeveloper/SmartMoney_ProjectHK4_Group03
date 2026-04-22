@@ -116,6 +116,48 @@ class ApiHandler {
   }
 
   // =============================================
+  // UPLOAD MULTIPART FILE — Upload ảnh/voice lên server
+  // =============================================
+  static Future<ApiResponse<T>> uploadMultipartFile<T>(
+      String url, {
+        required String filePath, // Đường dẫn file local
+        required String fieldKey, // Tên field backend nhận (VD: 'image', 'voice')
+        Map<String, dynamic>? queryParams, // Query params thêm vào URL
+        T Function(dynamic)? fromJson,
+      }) async {
+    try {
+      // Bước 1: Build URL với query params
+      String finalUrl = url;
+      if (queryParams != null && queryParams.isNotEmpty) {
+        final params = queryParams.entries
+            .map((e) => '${e.key}=${Uri.encodeComponent(e.value.toString())}')
+            .join('&');
+        finalUrl = '$url?$params';
+      }
+
+      // Bước 2: Tạo multipart request
+      final request = http.MultipartRequest('POST', Uri.parse(finalUrl));
+      
+      // Bước 3: Gắn headers (bao gồm Authorization token)
+      final token = await TokenHelper.getAccessToken();
+      request.headers['Authorization'] = 'Bearer ${token ?? ''}';
+      
+      // Bước 4: Gắn file vào request
+      final file = await http.MultipartFile.fromPath(fieldKey, filePath);
+      request.files.add(file);
+
+      // Bước 5: Gửi request
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
+
+      // Bước 6: Xử lý response
+      return _handleResponse<T>(response, fromJson);
+    } catch (e) {
+      return _networkError();
+    }
+  }
+
+  // =============================================
   // XỬ LÝ RESPONSE CHUNG
   // =============================================
   static ApiResponse<T> _handleResponse<T>(

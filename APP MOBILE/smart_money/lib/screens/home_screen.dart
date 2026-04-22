@@ -284,6 +284,14 @@ class _HomeScreenState extends State<HomeScreen> {
                 );
               },
             ),
+            // Bước 1: Thêm nút AI Chat
+            IconButton(
+              icon: const Icon(Icons.smart_toy_outlined, size: 20),
+              onPressed: () {
+                context.push('/ai-chat');
+              },
+              tooltip: 'AI Assistant',
+            ),
             Consumer<NotificationProvider>(
               builder: (context, provider, child) {
                 final unreadCount = provider.unreadCount;

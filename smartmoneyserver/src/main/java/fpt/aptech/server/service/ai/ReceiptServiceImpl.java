@@ -73,11 +73,11 @@ public class ReceiptServiceImpl implements ReceiptService {
         - TUYỆT ĐỐI không bịa đặt tên công ty nếu chữ viết tay quá mờ, chỉ ghi hành động.
         - CÁCH ĐIỀN:
           + [Hành động]: Tự động thêm các động từ như 'Mua', 'Xem phim', 'Đóng tiền', 'Thanh toán', 'Ăn uống' sao cho hợp lý với nội dung hóa đơn.
-          + [dd/MM/yyyy]: Quét tìm ngày/tháng/năm in trên hóa đơn để ghi vào. Nếu trên ảnh hoàn toàn không có ngày, có thể bỏ qua cụm từ "ngày...".
+          + [dd/MM/yyyy]: Quét tìm ngày/tháng/năm in trên hóa đơn để ghi vào không bịa đặt ngày phải khớp với hóa đơn quét ra chỉ lấy ngày thanh toán trong hóa đơn. Nếu trên ảnh hoàn toàn không có ngày, có thể bỏ qua cụm từ "ngày...".
         - VÍ DỤ CHUẨN:
           + Hóa đơn điện -> "Đóng tiền điện cho Công ty Điện lực Nghệ An ngày 15/04/2026"
           + Vé xem phim -> "Xem phim Bleeding Steel tại CINEMA 3 ngày 20/12/2025"
-          + Hóa đơn thú cưng -> "Mua chó Pug của A. Cường ngày 21/04/2026"
+          + Hóa đơn thú cưng -> "Mua chó Pug của A. Cường ngày 15/05/2025"
     {
        "amount": number,
        "category": string,
@@ -159,6 +159,7 @@ public class ReceiptServiceImpl implements ReceiptService {
             BigDecimal amount = new BigDecimal(parsedJson.path("amount").asText("0"));
             String catName = parsedJson.path("category").asText("Khác");
             String note = parsedJson.path("note").asText("Hóa đơn: " + parsedJson.path("store").asText(""));
+            String date = parsedJson.path("date").asText(null); // Parse date từ JSON
 
             // Map category từ text sang categoryId dùng CategoryMappingService
             int categoryId = categoryMappingService.mapCategoryFromText(catName + " " + note);
@@ -224,19 +225,30 @@ public class ReceiptServiceImpl implements ReceiptService {
             Map<String, Object> params = new HashMap<>();
             params.put("amount", amount);
             params.put("categoryId", categoryId);
-            params.put("note", note);
+            params.put("note", note); // Note từ AI Vision (có thể chưa có date)
             params.put("isIncome", false);
             params.put("walletId", walletId); // Truyền walletId để chat xử lý
             params.put("receiptId", receipt.getId()); // Truyền receiptId để set source_type = 4
+            params.put("ocrDate", date); // Truyền date từ OCR để dùng khi thêm vào note
 
             // OCR chỉ gửi text, chat sẽ xử lý intent 1 để tạo transaction với source_type = 4
             String reply;
             if (walletId != null) {
                 Wallet wallet = walletRepo.findById(walletId).orElse(null);
                 String walletName = wallet != null ? wallet.getWalletName() : "";
-                reply = String.format("Tôi đọc được hóa đơn này: %,.0f đ (Mục: %s) từ ví '%s'. Bạn muốn lưu giao dịch không?", amount.doubleValue(), catName, walletName);
+                // Hiển thị note, category name và date
+                if (date != null && !date.isEmpty()) {
+                    reply = String.format("Tôi đọc được hóa đơn này: %s\nSố tiền: %,.0f đ\nDanh mục: %s\nNgày: %s\nTừ ví: '%s'\nBạn muốn lưu giao dịch không?", note, amount.doubleValue(), catName, date, walletName);
+                } else {
+                    reply = String.format("Tôi đọc được hóa đơn này: %s\nSố tiền: %,.0f đ\nDanh mục: %s\nTừ ví: '%s'\nBạn muốn lưu giao dịch không?", note, amount.doubleValue(), catName, walletName);
+                }
             } else {
-                reply = String.format("Tôi đọc được hóa đơn này: %,.0f đ (Mục: %s). Bạn muốn lưu giao dịch không?", amount.doubleValue(), catName);
+                // Hiển thị note, category name và date (không có wallet)
+                if (date != null && !date.isEmpty()) {
+                    reply = String.format("Tôi đọc được hóa đơn này: %s\nSố tiền: %,.0f đ\nDanh mục: %s\nNgày: %s\nBạn muốn lưu giao dịch không?", note, amount.doubleValue(), catName, date);
+                } else {
+                    reply = String.format("Tôi đọc được hóa đơn này: %s\nSố tiền: %,.0f đ\nDanh mục: %s\nBạn muốn lưu giao dịch không?", note, amount.doubleValue(), catName);
+                }
             }
 
             AiChatResponse.AiAction action = new AiChatResponse.AiAction("create_transaction", false, params, List.of("Lưu giao dịch", "Hủy"));
@@ -261,29 +273,30 @@ public class ReceiptServiceImpl implements ReceiptService {
 
     /**
      * [HELPER] Tạo phản hồi của AI lưu vào CSDL (Mặc định Intent = ADD_TRANSACTION).
-     * Nhúng ACTION_PARAMS vào messageContent để checkPendingAction có thể parse lại.
+     * Lưu messageContent text hiển thị cho user, lưu actionParams riêng để parse lại.
      */
     private AIConversation createAiReply(Account account, String message, Map<String, Object> params) {
         try {
             // Bước 1: Chuẩn hóa ký tự xuống dòng: thay thế \n\n thành \n
             String normalizedMessage = normalizeLineBreaks(message);
-            
-            // Bước 2: Chuyển params sang JSON string
-            String paramsJson = objectMapper.writeValueAsString(params);
-            
-            // Bước 3: Nhúng ACTION_PARAMS vào cuối messageContent
-            String messageWithParams = normalizedMessage + "\n\nACTION_PARAMS:" + paramsJson;
-            
-            // Bước 4: Tạo AI conversation với message có params
+
+            // Bước 2: Chuyển params sang JSON string nếu có params
+            String paramsJson = null;
+            if (params != null && !params.isEmpty()) {
+                paramsJson = objectMapper.writeValueAsString(params);
+            }
+
+            // Bước 3: Tạo AI conversation với message text đẹp + params riêng
             AIConversation aiMsg = AIConversation.builder()
                     .account(account)
-                    .messageContent(messageWithParams)
+                    .messageContent(normalizedMessage)
+                    .actionParams(paramsJson) // Lưu params riêng
                     .senderType(true)
                     .intent(AiIntent.ADD_TRANSACTION.getValue())
                     .build();
             return aiRepo.save(aiMsg);
         } catch (Exception e) {
-            log.error("[OCR] Lỗi khi nhúng ACTION_PARAMS vào message: ", e);
+            log.error("[OCR] Lỗi khi lưu message AI: ", e);
             // Fallback: lưu message gốc không có params
             AIConversation aiMsg = AIConversation.builder()
                     .account(account)
