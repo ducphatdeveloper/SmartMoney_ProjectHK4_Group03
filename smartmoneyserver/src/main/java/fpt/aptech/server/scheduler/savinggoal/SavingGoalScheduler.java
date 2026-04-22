@@ -75,6 +75,7 @@ public class SavingGoalScheduler {
      *   Content="Mục tiêu tiết kiệm \"Mua xe máy SH\" đã quá hạn nhưng vẫn còn thiếu 45.000.000 ₫. Bạn có muốn gia hạn?"
      */
     @Scheduled(cron = "0 0 1 * * ?") // 1:00 AM mỗi ngày
+    //@Scheduled(cron = "0 * * * * *")
     public void checkOverdueGoals() {
         log.info("[SavingGoalScheduler] Kiểm tra mục tiêu quá hạn...");
 
@@ -149,6 +150,7 @@ public class SavingGoalScheduler {
      *   Content="Mục tiêu \"Mua nhẫn cưới\" sắp đến hạn (30/11/2026). Còn 5 ngày và 15.000.000 ₫ nữa để hoàn thành!"
      */
     @Scheduled(cron = "0 0 8 * * ?") // 8:00 AM mỗi ngày
+    //@Scheduled(cron = "0 * * * * *")
     public void remindNearDeadlineGoals() {
         log.info("[SavingGoalScheduler] Kiểm tra mục tiêu sắp đến hạn...");
 

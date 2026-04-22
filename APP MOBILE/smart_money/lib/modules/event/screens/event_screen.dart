@@ -34,6 +34,7 @@ class EventScreenState extends State<EventScreen> {
     Provider.of<EventProvider>(context, listen: false).loadEvents(_isFinished);
   }
 
+  // Hàm chuyển tab có thể gọi từ bên ngoài hoặc nội bộ
   void _changeTab(bool value) {
     if (_isFinished == value) return;
     setState(() => _isFinished = value);
@@ -47,13 +48,15 @@ class EventScreenState extends State<EventScreen> {
       appBar: AppBar(
         backgroundColor: Colors.black,
         elevation: 0,
-        title: const Text("My Events", style: TextStyle(fontWeight: FontWeight.w900, fontSize: 24, color: Colors.white)),
+        title: const Text("My Events",
+            style: TextStyle(fontWeight: FontWeight.w900, fontSize: 24, color: Colors.white)),
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 12),
             child: IconButton(
               onPressed: () async {
-                final res = await Navigator.push(context, MaterialPageRoute(builder: (_) => const AddEventScreen()));
+                final res = await Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => const AddEventScreen()));
                 if (res == true) _refreshData();
               },
               icon: const Icon(Icons.add_circle, color: Colors.greenAccent, size: 32),
@@ -67,7 +70,10 @@ class EventScreenState extends State<EventScreen> {
           Expanded(
             child: (_accessToken == null)
                 ? const Center(child: CircularProgressIndicator(color: Colors.greenAccent))
-                : EventListView(accessToken: _accessToken),
+                : EventListView(
+              accessToken: _accessToken,
+              onTabChanged: _changeTab, // Truyền hàm chuyển tab xuống con
+            ),
           ),
         ],
       ),
@@ -99,7 +105,11 @@ class EventScreenState extends State<EventScreen> {
             color: isActive ? const Color(0xFF2C2C2E) : Colors.transparent,
           ),
           alignment: Alignment.center,
-          child: Text(title, style: TextStyle(color: isActive ? Colors.greenAccent : Colors.grey, fontWeight: isActive ? FontWeight.w900 : FontWeight.w500)),
+          child: Text(title,
+              style: TextStyle(
+                  color: isActive ? Colors.greenAccent : Colors.grey,
+                  fontWeight: isActive ? FontWeight.w900 : FontWeight.w500
+              )),
         ),
       ),
     );

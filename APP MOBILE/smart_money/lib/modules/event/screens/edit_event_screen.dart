@@ -26,7 +26,7 @@ class EditEventScreenState extends State<EditEventScreen> {
   final String _currency = 'VND';
   bool _isSaving = false;
 
-  /// URL dùng để hiển thị preview và gửi về server (đồng bộ với SavingGoal)
+  /// URL for preview and server sync
   String? _selectedIconUrl;
 
   @override
@@ -35,7 +35,7 @@ class EditEventScreenState extends State<EditEventScreen> {
     _nameController = TextEditingController(text: widget.event.eventName);
     _endDate = widget.event.endDate;
 
-    /// Khởi tạo giá trị icon từ dữ liệu hiện có của sự kiện
+    /// Initialize icon from existing event data
     _selectedIconUrl = widget.event.eventIconUrl;
   }
 
@@ -45,7 +45,7 @@ class EditEventScreenState extends State<EditEventScreen> {
     super.dispose();
   }
 
-  // ================= ICON PICKER LOGIC (Giống SavingGoal) =================
+  // ================= ICON PICKER LOGIC =================
   void _openIconPicker() async {
     final result = await Navigator.push(
       context,
@@ -56,7 +56,6 @@ class EditEventScreenState extends State<EditEventScreen> {
 
     if (result != null && mounted) {
       setState(() {
-        // Nhận trực tiếp URL từ IconPicker giống SavingGoal
         _selectedIconUrl = result.url;
       });
     }
@@ -90,23 +89,22 @@ class EditEventScreenState extends State<EditEventScreen> {
   Future<void> _update() async {
     final name = _nameController.text.trim();
     if (name.isEmpty) {
-      _showError("Tên sự kiện không được để trống");
+      _showError("Event name cannot be empty");
       return;
     }
     if (_endDate == null) {
-      _showError("Vui lòng chọn ngày kết thúc");
+      _showError("Please select an end date");
       return;
     }
     if (_isSaving) return;
 
     setState(() => _isSaving = true);
 
-    // Đóng gói dữ liệu gửi về Server
     final request = EventUpdateRequest(
       eventName: name,
       endDate: _endDate!,
       currencyCode: _currency,
-      eventIconUrl: _selectedIconUrl, // Gửi Full URL Cloudinary
+      eventIconUrl: _selectedIconUrl,
     );
 
     final provider = Provider.of<EventProvider>(context, listen: false);
@@ -169,7 +167,7 @@ class EditEventScreenState extends State<EditEventScreen> {
           children: [
             const SizedBox(height: 24),
 
-            // --- ICON PICKER PREVIEW (Đã đồng bộ dùng IconHelper) ---
+            // --- ICON PICKER PREVIEW ---
             Center(
               child: GestureDetector(
                 onTap: _openIconPicker,
@@ -227,7 +225,7 @@ class EditEventScreenState extends State<EditEventScreen> {
                     title: "End Date",
                     trailing: Text(
                       _endDate == null
-                          ? "Select"
+                          ? "Select Date"
                           : DateFormat('dd/MM/yyyy').format(_endDate!),
                       style: const TextStyle(color: Colors.white, fontSize: 16),
                     ),
@@ -241,14 +239,14 @@ class EditEventScreenState extends State<EditEventScreen> {
                     title: "Currency",
                     trailing: Text(_currency,
                         style: const TextStyle(color: Colors.grey, fontSize: 16)),
-                    onTap: null,
+                    onTap: null, // Read-only as per logic
                   ),
                 ],
               ),
             ),
             const SizedBox(height: 12),
             Text(
-              "Created at: ${widget.event.beginDate != null ? DateFormat('dd/MM/yyyy').format(widget.event.beginDate!) : 'Unknown'}",
+              "Created on: ${widget.event.beginDate != null ? DateFormat('MMMM dd, yyyy').format(widget.event.beginDate!) : 'Unknown'}",
               style: TextStyle(color: Colors.white.withOpacity(0.3), fontSize: 12),
             ),
           ],

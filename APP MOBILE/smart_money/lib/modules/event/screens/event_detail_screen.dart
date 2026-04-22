@@ -1,237 +1,245 @@
 import 'package:flutter/material.dart';
+
 import 'package:provider/provider.dart';
+
 import 'package:intl/intl.dart';
+
 import 'package:cached_network_image/cached_network_image.dart';
+
 import '../../../core/constants/app_constants.dart';
+
 import '../../../modules/transaction/screens/common_transaction_list_screen.dart';
+
 import '../models/event_response.dart';
+
 import '../providers/event_provider.dart';
+
 import 'edit_event_screen.dart';
 
 class EventDetailScreen extends StatelessWidget {
   final EventResponse event;
 
-  const EventDetailScreen({super.key, required this.event});
+  final Function(bool)? onTabChanged;
 
-  // 🔥 Helper xử lý URL ảnh
+  const EventDetailScreen({super.key, required this.event, this.onTabChanged});
+
+  // --- Logic Helpers ---
+
   String _fixUrl(String? url) {
     if (url == null || url.isEmpty) return "";
+
     final base = AppConstants.baseUrl.replaceAll("/api", "");
-    if (url.startsWith("http://") || url.startsWith("https://")) {
-      if (url.contains(":8080") && !url.contains(":8080/")) {
-        return url.replaceFirst(":8080", ":8080/");
-      }
-      return url;
-    }
+
+    if (url.startsWith("http")) return url;
+
     return "$base/images/$url";
   }
 
-  String _getDaysLeft(DateTime? endDate) {
-    if (endDate == null) return "";
-    final now = DateTime.now();
-    final difference = endDate.difference(now).inDays;
-    if (difference < 0) return "Expired";
-    if (difference == 0) return "Ends today";
-    return "Ends in $difference days";
+  // Định dạng số tiền: 1.000.000.000.000 VND
+
+  String _formatFullVND(double amount) {
+    final formatter = NumberFormat("#,###", "vi_VN");
+
+    return "${formatter.format(amount)} VND";
   }
 
   @override
   Widget build(BuildContext context) {
-    final currencyFormat = NumberFormat.currency(
-      locale: 'vi_VN',
-      symbol: event.currencyCode ?? 'VND',
-      decimalDigits: 0,
-    );
+    // Ngân sách giả định để tính tỷ lệ biểu đồ
 
-    final String startDate = event.beginDate != null
-        ? DateFormat('dd/MM/yyyy').format(event.beginDate!)
-        : "N/A";
-    final String endDate = DateFormat('dd/MM/yyyy').format(event.endDate);
-    final iconUrl = _fixUrl(event.eventIconUrl);
+    double budget = event.totalIncome > 0
+        ? event.totalIncome
+        : (event.totalExpense * 1.5);
+
+    if (budget == 0) budget = 100000;
+
+    double spendingRatio = event.totalExpense / budget;
+
+    bool isOverBudget = spendingRatio > 1.0;
 
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: const Color(0xFF0F0F0F),
+
       appBar: AppBar(
-        backgroundColor: Colors.black,
+        backgroundColor: Colors.transparent,
+
         elevation: 0,
+
+        centerTitle: true,
+
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios, color: Colors.white, size: 20),
+          icon: const Icon(
+            Icons.arrow_back_ios_new,
+            color: Colors.white,
+            size: 20,
+          ),
+
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text("Event Detail",
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-        centerTitle: true,
+
+        title: const Text(
+          "Spending Analysis",
+
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+
         actions: [
-          TextButton(
+          IconButton(
             onPressed: () async {
               final result = await Navigator.push(
                 context,
-                MaterialPageRoute(builder: (_) => EditEventScreen(event: event)),
+
+                MaterialPageRoute(
+                  builder: (_) => EditEventScreen(event: event),
+                ),
               );
-              if (result == true) {
+
+              if (result == true && context.mounted)
                 Navigator.pop(context, true);
-              }
             },
-            child: const Text("Edit",
-                style: TextStyle(
-                    color: Colors.greenAccent,
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold)),
+
+            icon: const Icon(Icons.edit_note, color: Colors.greenAccent),
           ),
         ],
       ),
+
       body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 16),
+        padding: const EdgeInsets.all(16),
+
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+
           children: [
-            const SizedBox(height: 20),
+            _buildHeaderSection(event),
 
-            // --- 🔥 EVENT INFO CARD ---
+            const SizedBox(height: 24),
+
+            _buildSectionTitle("Budget Health"),
+
+            _buildBudgetProgressCard(spendingRatio, isOverBudget),
+
+            const SizedBox(height: 24),
+
+            _buildSectionTitle("Financial Distribution"),
+
             Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(24),
+              padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 8),
+
               decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [Color(0xFF2C2C2E), Color(0xFF1C1C1E)],
-                ),
+                color: const Color(0xFF1C1C1E),
+
                 borderRadius: BorderRadius.circular(24),
+
                 border: Border.all(color: Colors.white.withOpacity(0.05)),
-                boxShadow: [
-                  BoxShadow(
-                      color: Colors.black.withOpacity(0.3),
-                      blurRadius: 20,
-                      offset: const Offset(0, 10))
-                ],
               ),
-              child: Column(
+
+              child: Row(
                 children: [
-                  Container(
-                    width: 80,
-                    height: 80,
-                    padding: const EdgeInsets.all(3),
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: LinearGradient(
-                        colors: event.finished == true
-                            ? [Colors.blueAccent, Colors.tealAccent]
-                            : [Colors.greenAccent, Colors.blueAccent],
-                      ),
+                  Expanded(
+                    child: _buildAnalysisCircle(
+                      label: "Income",
+
+                      amount: event.totalIncome,
+
+                      total: budget,
+
+                      color: Colors.greenAccent,
                     ),
-                    child: Container(
-                      decoration: const BoxDecoration(
-                          color: Color(0xFF1C1C1E), shape: BoxShape.circle),
-                      child: ClipOval(
-                        child: iconUrl.isNotEmpty
-                            ? CachedNetworkImage(
-                          imageUrl: iconUrl,
-                          fit: BoxFit.cover,
-                          errorWidget: (_, __, ___) => const Icon(
-                              Icons.event,
-                              color: Colors.greenAccent,
-                              size: 40),
-                        )
-                            : const Icon(Icons.event,
-                            color: Colors.greenAccent, size: 40),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  Text(
-                    event.eventName,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 0.5),
-                  ),
-                  const SizedBox(height: 8),
-                  Container(
-                    padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: (event.finished == true ? Colors.blue : Colors.green)
-                          .withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      event.finished == true ? "FINISHED" : "ACTIVE",
-                      style: TextStyle(
-                          color: event.finished == true
-                              ? Colors.blueAccent
-                              : Colors.greenAccent,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 12),
-                    ),
-                  ),
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 24),
-                    child: Divider(color: Color(0xFF3A3A3C), thickness: 1),
                   ),
 
-                  // Hiển thị thời gian
-                  _buildDetailRow(
-                    Icons.calendar_today_rounded,
-                    "Timeline",
-                    "$startDate - $endDate",
-                    rightLabel: _getDaysLeft(event.endDate),
-                  ),
+                  Expanded(
+                    child: _buildAnalysisCircle(
+                      label: "Expense",
 
-                  const SizedBox(height: 20),
+                      amount: event.totalExpense,
 
-                  // --- FINANCIAL DATA SECTION ---
-                  Row(
-                    children: [
-                      _buildFinanceBox("Income", event.totalIncome, Colors.greenAccent, currencyFormat),
-                      const SizedBox(width: 12),
-                      _buildFinanceBox("Expense", event.totalExpense, Colors.redAccent, currencyFormat),
-                    ],
+                      total: budget,
+
+                      color: Colors.redAccent,
+                    ),
                   ),
-                  const SizedBox(height: 12),
-                  _buildFinanceBox("Net Balance", event.netAmount, Colors.orangeAccent, currencyFormat, isFullWidth: true),
                 ],
               ),
             ),
 
-            const SizedBox(height: 30),
+            const SizedBox(height: 24),
 
-            // --- ACTION BUTTONS ---
-            _buildActionGroup([
-              _buildActionItem(
-                  event.finished == true ? "Re-open Event" : "Mark as finished",
-                  event.finished == true ? Icons.history : Icons.check_circle_outline,
-                  event.finished == true ? Colors.blueAccent : Colors.greenAccent,
-                      () {
-                    Provider.of<EventProvider>(context, listen: false).toggleStatus(event.id);
-                    Navigator.pop(context, true);
-                  }),
-              _buildActionItem(
-                  "Transaction History",
-                  Icons.receipt_long_rounded,
-                  Colors.white,
-                      () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => CommonTransactionListScreen(
-                          title: event.eventName,
-                          filters: {'eventId': event.id.toString()},
-                        ),
-                      ),
-                    );
-                  }),
-            ]),
+            _buildSectionTitle("Key Metrics"),
 
-            const SizedBox(height: 20),
+            _buildMetricsRow(event),
 
-            _buildActionItem(
-                "Delete Event",
-                Icons.delete_outline_rounded,
-                Colors.redAccent,
-                    () => _showDeleteConfirm(context),
-                isSingle: true),
+            const SizedBox(height: 24),
+
+            _buildSectionTitle("Operations"),
+
+            _buildActionTile(
+              title: "View Transactions",
+
+              subtitle: "Deep dive into every record",
+
+              icon: Icons.analytics_outlined,
+
+              color: Colors.blueAccent,
+
+              onTap: () => Navigator.push(
+                context,
+
+                MaterialPageRoute(
+                  builder: (_) => CommonTransactionListScreen(
+                    title: event.eventName,
+
+                    filters: {'eventId': event.id.toString()},
+                  ),
+                ),
+              ),
+            ),
+
+            _buildActionTile(
+              title: event.finished == true
+                  ? "Re-open Event"
+                  : "Complete Event",
+
+              subtitle: event.finished == true
+                  ? "Restore to active status"
+                  : "Archive this analysis",
+
+              icon: event.finished == true
+                  ? Icons.refresh
+                  : Icons.check_circle_outline,
+
+              color: Colors.tealAccent,
+
+              onTap: () async {
+                final provider = Provider.of<EventProvider>(
+                  context,
+                  listen: false,
+                );
+
+                await provider.toggleStatus(event.id);
+
+                if (onTabChanged != null)
+                  onTabChanged!(!(event.finished ?? false));
+
+                if (context.mounted) Navigator.pop(context, true);
+              },
+            ),
+
+            _buildActionTile(
+              title: "Delete Analysis",
+
+              subtitle: "Permanently remove event data",
+
+              icon: Icons.delete_sweep_outlined,
+
+              color: Colors.redAccent,
+
+              onTap: () => _showDeleteConfirm(context),
+            ),
+
             const SizedBox(height: 40),
           ],
         ),
@@ -239,122 +247,455 @@ class EventDetailScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildDetailRow(IconData icon, String title, String subTitle, {String? rightLabel}) {
-    return Row(
+  // --- WIDGET COMPONENTS ---
+
+  Widget _buildAnalysisCircle({
+    required String label,
+
+    required double amount,
+
+    required double total,
+
+    required Color color,
+  }) {
+    double percent = total > 0 ? (amount / total) : 0;
+
+    return Column(
       children: [
-        Icon(icon, color: Colors.white.withOpacity(0.5), size: 22),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(title, style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 13)),
-              const SizedBox(height: 2),
-              Text(subTitle, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
-            ],
+        Stack(
+          alignment: Alignment.center,
+
+          children: [
+            SizedBox(
+              width: 90,
+              height: 90,
+
+              child: CircularProgressIndicator(
+                value: 1.0,
+
+                strokeWidth: 6,
+
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  Colors.white.withOpacity(0.05),
+                ),
+              ),
+            ),
+
+            SizedBox(
+              width: 90,
+              height: 90,
+
+              child: CircularProgressIndicator(
+                value: percent.clamp(0.0, 1.0),
+
+                strokeWidth: 7,
+
+                strokeCap: StrokeCap.round,
+
+                valueColor: AlwaysStoppedAnimation<Color>(color),
+              ),
+            ),
+
+            Column(
+              mainAxisSize: MainAxisSize.min,
+
+              children: [
+                Text(
+                  "${(percent * 100).toInt()}%",
+
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+
+                Text(
+                  label.toUpperCase(),
+
+                  style: TextStyle(
+                    color: color,
+                    fontSize: 8,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+
+        const SizedBox(height: 12),
+
+        // Chống tràn layout cho số tiền cực lớn
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+
+            child: Text(
+              _formatFullVND(amount),
+
+              textAlign: TextAlign.center,
+
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ),
         ),
-        if (rightLabel != null)
-          Text(rightLabel, style: const TextStyle(color: Colors.orangeAccent, fontSize: 12, fontWeight: FontWeight.bold)),
       ],
     );
   }
 
-  Widget _buildFinanceBox(String label, double amount, Color color, NumberFormat format, {bool isFullWidth = false}) {
-    return Expanded(
-      flex: isFullWidth ? 0 : 1,
-      child: Container(
-        width: isFullWidth ? double.infinity : null,
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: color.withOpacity(0.05),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: color.withOpacity(0.1)),
+  Widget _buildMetricsRow(EventResponse event) {
+    return Row(
+      children: [
+        Expanded(
+          child: _buildMetricCard(
+            "Net Balance",
+
+            _formatFullVND(event.netAmount),
+
+            event.netAmount >= 0 ? Colors.blueAccent : Colors.orangeAccent,
+
+            Icons.account_balance_wallet_outlined,
+          ),
         ),
-        child: Column(
-          crossAxisAlignment: isFullWidth ? CrossAxisAlignment.center : CrossAxisAlignment.start,
-          children: [
-            Text(label, style: TextStyle(color: Colors.white.withOpacity(0.5), fontSize: 12)),
-            const SizedBox(height: 4),
-            Text(
-              format.format(amount),
-              style: TextStyle(color: color, fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-          ],
+
+        const SizedBox(width: 12),
+
+        Expanded(
+          child: _buildMetricCard(
+            "Days Left",
+
+            _getDaysLeft(event.endDate),
+
+            Colors.purpleAccent,
+
+            Icons.timer_outlined,
+          ),
         ),
-      ),
+      ],
     );
   }
 
-  Widget _buildActionGroup(List<Widget> children) {
+  Widget _buildMetricCard(
+    String label,
+    String value,
+    Color color,
+    IconData icon,
+  ) {
     return Container(
+      padding: const EdgeInsets.all(16),
+
       decoration: BoxDecoration(
         color: const Color(0xFF1C1C1E),
+
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withOpacity(0.05)),
       ),
-      child: Column(children: children),
+
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+
+        children: [
+          Icon(icon, color: color, size: 20),
+
+          const SizedBox(height: 10),
+
+          Text(
+            label,
+            style: const TextStyle(color: Colors.white54, fontSize: 11),
+          ),
+
+          const SizedBox(height: 4),
+
+          // Scale số tiền xuống nếu quá dài để không nhảy dòng hoặc vỡ box
+          SizedBox(
+            width: double.infinity,
+
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+
+              alignment: Alignment.centerLeft,
+
+              child: Text(
+                value,
+
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
-  Widget _buildActionItem(String title, IconData icon, Color color, VoidCallback onTap, {bool isSingle = false}) {
-    final content = InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(20),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 20),
-        child: Row(
-          children: [
-            Icon(icon, color: color, size: 22),
-            const SizedBox(width: 16),
-            Text(title, style: TextStyle(color: color, fontSize: 17, fontWeight: FontWeight.w600)),
-            const Spacer(),
-            Icon(Icons.chevron_right, color: Colors.white.withOpacity(0.2), size: 20),
-          ],
+  // --- CÁC WIDGET CƠ BẢN ---
+
+  Widget _buildHeaderSection(EventResponse event) {
+    return Row(
+      children: [
+        CircleAvatar(
+          radius: 28,
+
+          backgroundColor: Colors.white10,
+
+          backgroundImage: _fixUrl(event.eventIconUrl).isNotEmpty
+              ? CachedNetworkImageProvider(_fixUrl(event.eventIconUrl))
+              : null,
+
+          child: _fixUrl(event.eventIconUrl).isEmpty
+              ? const Icon(Icons.event, color: Colors.greenAccent)
+              : null,
+        ),
+
+        const SizedBox(width: 12),
+
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+
+            children: [
+              Text(
+                event.eventName,
+
+                maxLines: 1,
+
+                overflow: TextOverflow.ellipsis,
+
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+
+              const SizedBox(height: 2),
+
+              Text(
+                "${DateFormat('dd/MM').format(event.beginDate ?? DateTime.now())} - ${DateFormat('dd/MM/yyyy').format(event.endDate)}",
+
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.5),
+                  fontSize: 12,
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        _buildStatusBadge(event.finished ?? false),
+      ],
+    );
+  }
+
+  Widget _buildBudgetProgressCard(double ratio, bool isOver) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+
+      decoration: BoxDecoration(
+        color: const Color(0xFF1C1C1E),
+
+        borderRadius: BorderRadius.circular(20),
+      ),
+
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+
+            children: [
+              const Text(
+                "Spending Progress",
+                style: TextStyle(color: Colors.white70, fontSize: 13),
+              ),
+
+              Text(
+                "${(ratio * 100).toStringAsFixed(1)}%",
+
+                style: TextStyle(
+                  color: isOver ? Colors.redAccent : Colors.greenAccent,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 10),
+
+          ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+
+            child: LinearProgressIndicator(
+              value: ratio.clamp(0.0, 1.0),
+
+              minHeight: 6,
+
+              backgroundColor: Colors.white10,
+
+              color: isOver ? Colors.redAccent : Colors.greenAccent,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildActionTile({
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+
+      child: ListTile(
+        onTap: onTap,
+
+        tileColor: const Color(0xFF1C1C1E),
+
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+
+        leading: Container(
+          padding: const EdgeInsets.all(8),
+
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(12),
+          ),
+
+          child: Icon(icon, color: color, size: 22),
+        ),
+
+        title: Text(
+          title,
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+            fontSize: 14,
+          ),
+        ),
+
+        subtitle: Text(
+          subtitle,
+          style: const TextStyle(color: Colors.white54, fontSize: 11),
+        ),
+
+        trailing: const Icon(
+          Icons.chevron_right,
+          color: Colors.white24,
+          size: 18,
         ),
       ),
     );
+  }
 
-    if (isSingle) {
-      return Container(
-        decoration: BoxDecoration(
-          color: const Color(0xFF1C1C1E),
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.white.withOpacity(0.05)),
+  Widget _buildSectionTitle(String title) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 4, bottom: 10),
+
+      child: Text(
+        title.toUpperCase(),
+
+        style: const TextStyle(
+          color: Colors.white38,
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
+          letterSpacing: 1.1,
         ),
-        child: content,
-      );
-    }
-    return content;
+      ),
+    );
+  }
+
+  Widget _buildStatusBadge(bool finished) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+
+      decoration: BoxDecoration(
+        color: finished
+            ? Colors.blue.withOpacity(0.1)
+            : Colors.green.withOpacity(0.1),
+
+        borderRadius: BorderRadius.circular(6),
+
+        border: Border.all(
+          color: finished
+              ? Colors.blueAccent.withOpacity(0.4)
+              : Colors.greenAccent.withOpacity(0.4),
+        ),
+      ),
+
+      child: Text(
+        finished ? "FINISHED" : "ACTIVE",
+
+        style: TextStyle(
+          color: finished ? Colors.blueAccent : Colors.greenAccent,
+          fontSize: 9,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+  }
+
+  String _getDaysLeft(DateTime endDate) {
+    final diff = endDate.difference(DateTime.now()).inDays;
+
+    return diff < 0 ? "Expired" : "$diff Days";
   }
 
   void _showDeleteConfirm(BuildContext context) {
     showDialog(
       context: context,
+
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF1C1C1E),
-        shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-            side: BorderSide(color: Colors.white.withOpacity(0.1))),
-        title: const Text("Delete Event",
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+
+        title: const Text(
+          "Delete Analysis?",
+          style: TextStyle(color: Colors.white),
+        ),
+
         content: const Text(
-            "All data related to this event will be permanently removed.",
-            style: TextStyle(color: Colors.grey)),
+          "All event data will be removed. This cannot be undone.",
+
+          style: TextStyle(color: Colors.white70),
+        ),
+
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text("Cancel",
-                  style: TextStyle(color: Colors.blueAccent))),
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text("Cancel"),
+          ),
+
           TextButton(
             onPressed: () {
-              Provider.of<EventProvider>(context, listen: false).delete(event.id);
+              Provider.of<EventProvider>(
+                context,
+                listen: false,
+              ).delete(event.id);
+
               Navigator.pop(ctx);
+
               Navigator.pop(context, true);
             },
-            child: const Text("Delete",
-                style: TextStyle(
-                    color: Colors.redAccent, fontWeight: FontWeight.bold)),
+
+            child: const Text(
+              "Delete",
+              style: TextStyle(color: Colors.redAccent),
+            ),
           ),
         ],
       ),

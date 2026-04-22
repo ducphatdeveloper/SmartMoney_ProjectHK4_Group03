@@ -6,7 +6,7 @@ import 'package:smart_money/core/helpers/icon_helper.dart';
 import '../providers/event_provider.dart';
 import '../models/event_create_request.dart';
 
-// Import IconPicker và DTO
+// Import IconPicker and DTO
 import '../../category/models/icon_dto.dart';
 import '../../category/screens/icon_picker_screen.dart';
 
@@ -23,8 +23,8 @@ class AddEventScreenState extends State<AddEventScreen> {
   final String _currency = 'VND';
   bool _isSaving = false;
 
-  /// 🔥 SỬ DỤNG LINK CLOUD TRỰC TIẾP
-  /// Gán một icon mặc định từ Cloudinary/Server của bạn
+  /// 🔥 DIRECT CLOUD LINK USAGE
+  /// Default icon from Cloudinary
   String? _selectedIconUrl = "https://res.cloudinary.com/drd2hsocc/image/upload/v1774385006/icon_basic_wallet.png";
 
   @override
@@ -40,13 +40,13 @@ class AddEventScreenState extends State<AddEventScreen> {
     final result = await Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => const IconPickerScreen(), // Không cần truyền fileName cũ nếu dùng URL
+        builder: (_) => const IconPickerScreen(),
       ),
     );
 
     if (result != null && result is IconDto && mounted) {
       setState(() {
-        // Lấy trực tiếp URL từ Cloud để hiển thị và lưu trữ
+        // Retrieve cloud URL directly for display and storage
         _selectedIconUrl = result.url;
       });
     }
@@ -80,29 +80,29 @@ class AddEventScreenState extends State<AddEventScreen> {
   }
 
   // ===============================
-  // 🎯 SAVE ACTION (Gửi Link Cloud)
+  // 🎯 SAVE ACTION
   // ===============================
   Future<void> _save() async {
     final name = _nameController.text.trim();
 
     if (name.isEmpty) {
-      _showError("Tên sự kiện không được để trống");
+      _showError("Event name cannot be empty");
       return;
     }
     if (_endDate == null) {
-      _showError("Vui lòng nhập ngày kết thúc");
+      _showError("Please select an end date");
       return;
     }
     if (_isSaving) return;
 
     setState(() => _isSaving = true);
 
-    // 🔥 GỬI FULL URL LÊN SERVER
+    // 🔥 SEND FULL URL TO SERVER
     final request = EventCreateRequest(
       eventName: name,
       endDate: _endDate!,
       currencyCode: _currency,
-      eventIconUrl: _selectedIconUrl, // Sử dụng biến chứa link cloud
+      eventIconUrl: _selectedIconUrl,
     );
 
     final provider = Provider.of<EventProvider>(context, listen: false);
@@ -114,7 +114,7 @@ class AddEventScreenState extends State<AddEventScreen> {
     if (success) {
       Navigator.pop(context, true);
     } else {
-      _showError(provider.errorMessage ?? "Không thể tạo sự kiện");
+      _showError(provider.errorMessage ?? "Failed to create event");
     }
   }
 
@@ -176,7 +176,7 @@ class AddEventScreenState extends State<AddEventScreen> {
                       alignment: Alignment.bottomRight,
                       children: [
                         IconHelper.buildCircleAvatar(
-                          iconUrl: _selectedIconUrl, // Hiển thị từ link cloud
+                          iconUrl: _selectedIconUrl,
                           radius: 45,
                           backgroundColor: const Color(0xFF1C1C1E),
                         ),
