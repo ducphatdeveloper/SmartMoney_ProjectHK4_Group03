@@ -7,7 +7,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'core/routing/app_router.dart';
 import 'modules/auth/providers/auth_provider.dart';
 import 'modules/budget/providers/budget_provider.dart';
-import 'firebase_options.dart'; 
+import 'firebase_options.dart';
 import 'modules/wallet/providers/wallet_provider.dart';
 import 'modules/transaction/providers/transaction_provider.dart';
 import 'modules/category/providers/category_provider.dart';
@@ -19,6 +19,7 @@ import 'package:smart_money/modules/saving_goal/providers/saving_goal_provider.d
 import 'modules/debt/providers/debt_provider.dart';
 import 'package:smart_money/modules/notification/providers/notification_provider.dart';
 import 'package:smart_money/modules/contact/providers/contact_provider.dart';
+import 'package:smart_money/modules/ai/providers/ai_provider.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
@@ -133,6 +134,7 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => DebtProvider()),
         ChangeNotifierProvider(create: (_) => NotificationProvider()),
         ChangeNotifierProvider(create: (_) => ContactProvider()),
+        ChangeNotifierProvider(create: (_) => AiProvider()),
       ],
       child: const SmartMoneyApp(),
     );

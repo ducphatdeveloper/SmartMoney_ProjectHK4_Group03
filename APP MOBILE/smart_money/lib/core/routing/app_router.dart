@@ -11,6 +11,7 @@ import '../../modules/auth/screens/forgot_password_screen.dart';
 import '../../modules/wallet/screens/wallet_screen.dart';
 import '../../modules/category/screens/category_list_screen.dart';
 import '../../modules/category/screens/category_create_screen.dart';
+import '../../modules/ai/screens/ai_chat_screen.dart';
 
 class AppRouter {
 
@@ -89,6 +90,10 @@ class AppRouter {
           final defaultType = state.extra as bool? ?? false;
           return CategoryCreateScreen(defaultCtgType: defaultType);
         },
+      ),
+      GoRoute(
+        path: '/ai-chat',
+        builder: (context, state) => const AiChatScreen(),
       ),
     ],
   );

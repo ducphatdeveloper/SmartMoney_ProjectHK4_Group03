@@ -39,6 +39,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -587,15 +588,33 @@ Categories (id:name): %s
     // =================================================================================
 
     /**
-     * [6.1] Tạo và lưu Reply của AI xuống DB.
+     * [6.1] Tạo và lưu Reply của AI xuống DB (không có params).
      */
     private AIConversation createAiReply(Account account, String message, AiIntent intent) {
+        return createAiReply(account, message, intent, null);
+    }
+
+    /**
+     * [6.1.1] Tạo và lưu Reply của AI xuống DB (có params).
+     */
+    private AIConversation createAiReply(Account account, String message, AiIntent intent, Map<String, Object> params) {
         // Chuẩn hóa ký tự xuống dòng: thay thế \n\n thành \n
         String normalizedMessage = normalizeLineBreaks(message);
-        
+
+        // Chuyển params sang JSON string nếu có params
+        String paramsJson = null;
+        if (params != null && !params.isEmpty()) {
+            try {
+                paramsJson = objectMapper.writeValueAsString(params);
+            } catch (Exception e) {
+                log.error("[AI] Lỗi khi serialize params: {}", e.getMessage());
+            }
+        }
+
         AIConversation aiMsg = AIConversation.builder()
                 .account(account)
                 .messageContent(normalizedMessage)
+                .actionParams(paramsJson) // Lưu params riêng
                 .senderType(true)
                 .intent(intent.getValue())
                 .build();
@@ -1681,8 +1700,8 @@ Categories (id:name): %s
                         isIncome ? "Khoản thu" : "Khoản chi", // Loại giao dịch
                         amount.doubleValue(), categoryName); // Số tiền, category
                 }
-                // reply lưu DB = displayReply + ACTION_PARAMS (để checkPendingAction parse lại)
-                reply = displayReply + "\n\nACTION_PARAMS:" + paramsJson; // Ghép reply + params JSON
+                // reply lưu DB = displayReply text đẹp (không nhùng JSON params)
+                reply = displayReply;
 
                 action = new AiChatResponse.AiAction("create_transaction", false, params, List.of("Xác nhận", "Hủy")); // Tạo action
             }
@@ -1735,8 +1754,8 @@ Categories (id:name): %s
             }
         }
 
-        // Bước 2: Lưu reply (có ACTION_PARAMS) vào DB để checkPendingAction dùng
-        AIConversation aiMsg = createAiReply(account, reply, intent);
+        // Bước 2: Lưu reply với params riêng vào DB
+        AIConversation aiMsg = createAiReply(account, reply, intent, (intent == AiIntent.ADD_TRANSACTION && action != null) ? action.params() : null);
 
         // Bước 3: Trả displayReply sạch cho Flutter (không lộ JSON)
         return new AiChatResponse(
@@ -2245,14 +2264,7 @@ Categories (id:name): %s
             return null; // Trả null (không phải action chờ confirm)
         }
 
-        // Bước 3: Kiểm tra AI message có nhúng ACTION_PARAMS không (chỉ check pattern nếu có params)
-        String messageContent = lastAiMsg.getMessageContent(); // Lấy nội dung tin nhắn AI
-        if (!messageContent.contains("ACTION_PARAMS:")) { // Nếu không chứa ACTION_PARAMS
-            log.debug("[AI] AI message không chứa ACTION_PARAMS - không phải đang chờ confirm");
-            return null; // Trả null (không phải action chờ confirm)
-        }
-
-        // Bước 4: Chuẩn hóa user message và kiểm tra xem user có trả lời confirm không
+        // Bước 3: Chuẩn hóa user message và kiểm tra xem user có trả lời confirm không
         String normalized = normalizeMessage(userMessage); // Chuẩn hóa message (lowercase)
         log.info("[AI] Normalized message: '{}'", normalized);
 
@@ -2269,11 +2281,16 @@ Categories (id:name): %s
             return null; // Trả null (không phải trả lời confirm)
         }
 
-        try { // Thử parse JSON params
-            // Parse JSON từ messageContent
-            String jsonStr = messageContent.substring(messageContent.indexOf("ACTION_PARAMS:") + "ACTION_PARAMS:".length()).trim(); // Cắt chuỗi JSON
-            log.info("[AI] JSON params: {}", jsonStr);
-            JsonNode paramsJson = objectMapper.readTree(jsonStr); // Parse JSON
+        // Bước 4: Đọc params từ actionParams field thay vì parse từ messageContent
+        String actionParams = lastAiMsg.getActionParams();
+        if (actionParams == null || actionParams.trim().isEmpty()) {
+            log.warn("[AI] AI message không có actionParams - không phải đang chờ confirm");
+            return null; // Trả null (không phải action chờ confirm)
+        }
+
+        try { // Thử parse JSON params từ actionParams
+            log.info("[AI] JSON params từ actionParams: {}", actionParams);
+            JsonNode paramsJson = objectMapper.readTree(actionParams); // Parse JSON
 
             Map<String, Object> params = new HashMap<>(); // Map lưu params
             // Parse amount từ text sang BigDecimal để tránh scientific notation
@@ -2298,7 +2315,7 @@ Categories (id:name): %s
             log.info("[AI] Trả về PendingAction - actionType: create_transaction, isConfirm: {}", isConfirm);
             return new PendingAction("create_transaction", params, isConfirm); // Trả PendingAction
         } catch (Exception e) { // Nếu lỗi parse JSON
-            log.error("[AI] Lỗi khi parse ACTION_PARAMS: {}", e.getMessage());
+            log.error("[AI] Lỗi khi parse actionParams: {}", e.getMessage());
             return null; // Trả null (lỗi)
         }
     }
@@ -2343,6 +2360,32 @@ Categories (id:name): %s
                     ? new BigDecimal(params.get("amount").toString()) : null; // Chuyển sang BigDecimal
             Integer categoryId = getIntParam(params, "categoryId"); // Lấy category ID an toàn
             String note = (String) params.get("note"); // Lấy note
+
+            // Bước 1.5: Nếu là OCR (có receiptId) → thêm ngày vào note nếu chưa có date
+            Integer checkReceiptId = getIntParam(params, "receiptId");
+            if (checkReceiptId != null && note != null && !note.isEmpty()) {
+                // Kiểm tra note đã có date chưa (pattern dd/MM/yyyy hoặc yyyy-MM-dd)
+                boolean hasDate = note.matches(".*(\\d{2}/\\d{2}/\\d{4}|\\d{4}-\\d{2}-\\d{2}).*");
+                if (!hasDate) {
+                    // Ưu tiên dùng date từ OCR nếu có, ngược lại dùng ngày hiện tại
+                    String ocrDateStr = (String) params.get("ocrDate");
+                    String dateToAdd;
+                    if (ocrDateStr != null && !ocrDateStr.isEmpty()) {
+                        // Parse date từ OCR (format yyyy-MM-dd) sang dd/MM/yyyy
+                        try {
+                            LocalDate ocrDate = LocalDate.parse(ocrDateStr);
+                            dateToAdd = ocrDate.format(DateTimeFormatter.ofPattern("dd/MM/yyyy"));
+                        } catch (Exception e) {
+                            log.warn("[AI] Không thể parse ocrDate: {}, dùng ngày hiện tại", ocrDateStr);
+                            dateToAdd = LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"));
+                        }
+                    } else {
+                        // Dùng ngày hiện tại
+                        dateToAdd = LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"));
+                    }
+                    note = note + " ngày " + dateToAdd;
+                }
+            }
 
             // Bước 2: Đọc các ID bằng getIntParam an toàn
             Integer walletId = getIntParam(params, "walletId"); // Lấy wallet ID an toàn

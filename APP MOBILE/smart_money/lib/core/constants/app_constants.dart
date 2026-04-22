@@ -50,7 +50,7 @@ class AppConstants {
       // 192.168.x.x (IP máy tính) là dành cho máy thật.
 
       // Gán ip máy tính thật để test
-      String computerIp = "192.168.100.74"; // <--- THAY BẰNG IP MÁY TÍNH (Gõ ipconfig để lấy)
+      String computerIp = "192.168.1.168"; // <--- THAY BẰNG IP MÁY TÍNH (Gõ ipconfig để lấy)
 
       return "http://$computerIp:9999/api";
     }
@@ -141,4 +141,12 @@ class AppConstants {
   // --- Contact Request ---
   static String get contactRequestsBase => "$baseUrl/contact-requests";
   static String get myContactRequests   => "$baseUrl/contact-requests/my";
+
+  // --- AI Chat & OCR ---
+  static String get aiBase              => "$baseUrl/ai";
+  static String get aiChat             => "$baseUrl/ai/chat";
+  static String get aiUploadReceipt    => "$baseUrl/ai/upload-receipt";
+  static String get aiHistory          => "$baseUrl/ai/history";
+  static String get aiExecute          => "$baseUrl/ai/execute";
+  static String aiDeleteConversation(int id) => "$baseUrl/ai/history/$id";
 }

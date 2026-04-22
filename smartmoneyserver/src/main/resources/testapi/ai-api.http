@@ -377,7 +377,7 @@ Content-Type: application/json
 
 ### ══════════════════════════════════════════
 ### 7. THỰC THI HÀNH ĐỘNG (THỦ CÔNG QUA NÚT BẤM UI)
-### ══════════════════════════════════════════
+### ══════════════════════════════════════════lib
 
 ### [7.1] Execute - Xác nhận tạo giao dịch
 # Kỳ vọng: 200 OK, tạo thành công giao dịch 50k từ chat [1.1]
