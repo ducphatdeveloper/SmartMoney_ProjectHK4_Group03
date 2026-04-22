@@ -116,7 +116,7 @@ Authorization: Bearer {{auth_token}}
 Content-Type: application/json
 
 {
-  "message": "nhắc tôi trả nợ anh Phát 900k vào lúc 10h54 tối ngày 20/4/2026"
+  "message": "nhắc tôi trả nợ anh Phát 900k vào lúc 7h37 sáng ngày 22/4/2026"
 }
 
 ### [2.4] Chat - Tư vấn tài chính (Advisory)
@@ -418,7 +418,7 @@ Content-Type: multipart/form-data; boundary=boundary
 --boundary
 Content-Disposition: form-data; name="image"; filename="receipt2.png"
 
-< C:\Users\ducph\Desktop\image\Hoa-Don-Tien-Nuoc.jpg
+< C:\Users\ducph\Desktop\image\thu-cung-2.jpg
 --boundary--
 
 ### ══════════════════════════════════════════
@@ -445,20 +445,3 @@ Authorization: Bearer {{auth_token}}
 # Kỳ vọng: 200 OK, trả về danh sách (có thể rỗng nếu xóa toàn bộ)
 GET http://localhost:9999/api/ai/history?page=0&size=10
 Authorization: Bearer {{auth_token}}
-
-### ══════════════════════════════════════════
-### 6. UPLOAD ẢNH ĐÍNH KÈM (KHÔNG OCR)
-### ══════════════════════════════════════════
-
-### [6.1] Tải ảnh đính kèm
-# Kỳ vọng: 200 OK, trả về URL ảnh trên Cloudinary
-# THAY ĐỔI: Thay đổi đường dẫn file bên dưới.
-POST http://localhost:9999/api/ai/upload-image
-Authorization: Bearer {{auth_token}}
-Content-Type: multipart/form-data; boundary=boundary
-
---boundary
-Content-Disposition: form-data; name="image"; filename="attachment.png"
-
-< C:\Users\ducph\Desktop\image\attachment.png
---boundary--

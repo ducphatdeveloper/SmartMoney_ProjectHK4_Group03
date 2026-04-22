@@ -27,28 +27,20 @@ public interface AIConversationService {
     AiChatResponse chat(Account account, AiChatRequest request);
 
     /**
-     * [1.2] Upload ảnh hóa đơn để AI phân tích (OCR).
-     * Lưu ảnh lên Cloudinary, gọi Vision AI đọc thông tin hóa đơn.
+     * [1.2] Upload ảnh để AI phân tích (OCR) hoặc lưu ảnh thường.
+     * Lưu ảnh lên Cloudinary, gọi Vision AI đọc thông tin.
+     * Nếu không phải hóa đơn → chỉ lưu vào tAIConversations.attachment_url
+     * Nếu là hóa đơn → lưu vào cả tReceipts.image_url và tAIConversations.attachment_url
      *
      * @param account Tài khoản người dùng
-     * @param imageFile File ảnh hóa đơn
+     * @param imageFile File ảnh
      * @param walletId ID ví (tùy chọn) để tạo giao dịch ngay
-     * @return Phản hồi AI với thông tin hóa đơn đọc được
+     * @return Phản hồi AI với thông tin hóa đơn đọc được hoặc thông báo lưu ảnh thành công
      */
     AiChatResponse uploadReceipt(Account account, MultipartFile imageFile, Integer walletId);
 
     /**
-     * [1.3] Upload ảnh đính kèm trong cuộc trò chuyện.
-     * Lưu ảnh lên Cloudinary và trả về URL để hiển thị.
-     *
-     * @param account Tài khoản người dùng
-     * @param imageFile File ảnh đính kèm
-     * @return URL ảnh trên Cloudinary
-     */
-    String uploadChatImage(Account account, MultipartFile imageFile);
-
-    /**
-     * [1.4] Lấy lịch sử trò chuyện của người dùng (có phân trang).
+     * [1.3] Lấy lịch sử trò chuyện của người dùng (có phân trang).
      *
      * @param account Tài khoản người dùng
      * @param page Số trang (bắt đầu từ 0)

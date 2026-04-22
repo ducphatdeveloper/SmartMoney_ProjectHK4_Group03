@@ -253,13 +253,13 @@ EXAMPLES:
 "tình trạng ngân sách" → {"intent":3,"reply":"Đang kiểm tra tình trạng ngân sách."}
 "đã vượt ngân sách chưa" → {"intent":3,"reply":"Đang kiểm tra xem có vượt ngân sách không."}
 "còn lại bao nhiêu" → {"intent":3,"reply":"Đang kiểm tra số tiền còn lại trong ngân sách."}
-"lương 5tr sống sao" → {"intent":4,"reply":"5tr/tháng: thiết yếu 3tr (trọ 1tr, ăn 1.2tr, đi lại 400k, hóa đơn 400k), quỹ khẩn cấp 500k, học kỹ năng 500k, linh hoạt 1tr. Mua BHYT 55k/tháng. Ưu tiên tăng thu lên 8-10tr trong 6-12 tháng qua freelance/IT."}
+"lương 5tr sống sao" → {"intent":4,"reply":"Với 5tr/tháng, bạn có thể áp dụng kế hoạch tài chính thông minh: (1) Thiết yếu 3tr (60%%): nấu ăn tại nhà 1.2tr (~35-40k/ngày), trọ ghép 800-1tr, xăng xe 300-400k, điện-nước-internet 400-500k. (2) Quỹ khẩn cấp 500k (10%%): chuyển đầu tháng sang tài khoản riêng, mục tiêu 15tr trong 2.5 năm. (3) Đầu tư bản thân 500k (10%%): Học kỹ năng mới (IT, freelance, ngoại ngữ) để phát triển thu nhập lên 8-10tr trong 6-12 tháng. (4) Linh hoạt 1tr (20%%): Tối ưu hóa chi tiêu, cắt giảm giải trí không cần thiết. Gợi ý: Mua BHYT 55k/tháng để bảo vệ sức khỏe — mỗi đồng tiết kiệm đều là bước tiến tốt."}
 "nhắc tôi trả nợ" → {"intent":5,"reply":"Bạn muốn nhắc nhở vào lúc nào?"}
-"lương 8tr gợi ý kế hoạch" → {"intent":4,"reply":"8tr → 50/30/20: thiết yếu 4tr (trọ 1.5tr, ăn 1.5tr, hóa đơn 400k, đi lại 400k), linh hoạt 2.4tr, tiết kiệm+đầu tư 1.6tr (1tr quỹ khẩn cấp, 600k DCA quỹ mở). Mục tiêu 6 tháng: quỹ khẩn cấp 12tr + BHYT. Dài hạn: tăng thu 15-20tr qua kỹ năng mới."}
-"lương 20tr lập trình viên burnout" → {"intent":4,"reply":"20tr: thiết yếu 8tr, sinh hoạt 4tr, đầu tư 5tr (DCA quỹ mở ~1.2 tỷ sau 15 năm), dự phòng 3tr. Về burnout: cắt dự án phụ, đàm phán giờ làm, tránh lifestyle creep. Hướng FIRE 10-20 năm."}
+"lương 8tr gợi ý kế hoạch" → {"intent":4,"reply":"Với lương 8tr/tháng bạn hoàn toàn xây được nền tảng tài chính vững. Phân bổ gợi ý theo 50/30/20:\\n(1) Thiết yếu 4tr (50%%): Trọ 1.5tr, ăn 1.5tr (~50k/ngày), điện-nước-internet 400k, xăng xe 400k, BHYT 55k.\\n(2) Linh hoạt 2.4tr (30%%): giải trí, hẹn hò, mua sắm, quay càphê.\\n(3) Tiết kiệm + Đầu tư 1.6tr (20%%): 1tr quỹ khẩn cấp (mục tiêu 24tr trong 2 năm), 600k DCA quỹ mở hoặc gửi tiết kiệm.\\nNGẮN HẠN (6 tháng): Hoàn thành quỹ khẩn cấp 12tr, mua BHYT.\\nDÀI HẠN (5-10 năm): Tăng thu nhập lên 15-20tr qua kỹ năng (IT/freelance/ngoại ngữ), DCA quỹ mở đều đặn 600k x 10 năm ~200tr, hướng tới mua nhà nhỏ/xe.\\nCảnh báo: Tránh trà sữa/càphê hàng ngày (1.5-3tr/tháng), tránh vay tiêu dùng lãi cao. Tài chính là marathon, không phải sprint."}          
+"lương 20tr lập trình viên burnout" → {"intent":4,"reply":"Lương 20tr/tháng là nền tảng tốt để hướng tới tự do tài chính. Phân bổ:\\n(1) Thiết yếu 8tr (40%%), Sinh hoạt 4tr (20%%), Đầu tư 5tr (25%%), Dự phòng 3tr (15%%).\\n(2) Quỹ khẩn cấp 6-12 tháng (70-150tr).\\n(3) DCA quỹ mở 3tr/tháng x 15 năm ~1.2 tỷ (@10%%/năm).\\n(4) Về burnout: Cắt 1 dự án phụ khi đang mệt, đàm phán giờ làm, tránh 'lifestyle creep' lương tăng → chi tăng.\\n(5) DÀI HẠN 10-20 năm: Hướng FIRE (25x chi phí năm), thu nhập thụ động từ đầu tư, xây thương hiệu cá nhân GitHub/LinkedIn để freelance thụ động.\\nKiên trì + kỷ luật = tự do tài chính."}
 
 QUY TẮC REPLY QUAN TRỌNG:
-- Tối đa 3-5 dòng cho I4. KHÔNG viết quá dài.
+- Tối đa 3-9 dòng cho I4. KHÔNG viết quá dài nhưng phải tư vấn tài chính hợp lý.
 - Mỗi reply phải KHÁC BIỆT về cấu trúc và câu chữ so với reply trước.
 - KHÔNG bắt đầu reply bằng cùng 1 mẫu (VD: luôn bắt đầu "Với X tr/tháng...").
 - Dùng số liệu cụ thể, không nói chung chung.
@@ -449,29 +449,12 @@ Categories (id:name): %s
     // =================================================================================
 
     /**
-     * [3.1] Phân tích hóa đơn OCR thông qua ReceiptService.
+     * [3.1] Phân tích hóa đơn OCR hoặc lưu ảnh thường thông qua ReceiptService.
      */
     @Override
     public AiChatResponse uploadReceipt(Account account, MultipartFile imageFile, Integer walletId) {
         // Bước 1: Chuyển tiếp công việc cho ReceiptService xử lý
         return receiptService.processReceipt(account, imageFile, walletId);
-    }
-
-    /**
-     * [3.2] Tải ảnh đính kèm chat lên Cloudinary.
-     */
-    @Override
-    @Transactional
-    public String uploadChatImage(Account account, MultipartFile imageFile) {
-        log.info("[AI] Đang upload ảnh đính kèm từ user id = {}", account.getId());
-        try {
-            // Bước 1: Upload lên Cloudinary
-            return cloudinaryService.uploadImage(imageFile, "smartmoney/ai");
-        } catch (Exception e) {
-            log.error("[AI] Lỗi upload ảnh: ", e);
-            // Bước 2 (Lỗi): Quăng ngoại lệ nếu thất bại
-            throw new RuntimeException("Tải ảnh thất bại.", e);
-        }
     }
 
     // =================================================================================
@@ -607,13 +590,27 @@ Categories (id:name): %s
      * [6.1] Tạo và lưu Reply của AI xuống DB.
      */
     private AIConversation createAiReply(Account account, String message, AiIntent intent) {
+        // Chuẩn hóa ký tự xuống dòng: thay thế \n\n thành \n
+        String normalizedMessage = normalizeLineBreaks(message);
+        
         AIConversation aiMsg = AIConversation.builder()
                 .account(account)
-                .messageContent(message)
+                .messageContent(normalizedMessage)
                 .senderType(true)
                 .intent(intent.getValue())
                 .build();
         return aiRepo.save(aiMsg);
+    }
+
+    /**
+     * [6.1.1] Chuẩn hóa ký tự xuống dòng: thay thế \n\n thành \n để đồng nhất format.
+     */
+    private String normalizeLineBreaks(String message) {
+        if (message == null || message.isEmpty()) {
+            return message;
+        }
+        // Thay thế tất cả \n\n thành \n
+        return message.replaceAll("\n\n", "\n");
     }
 
     /**
@@ -893,9 +890,9 @@ Categories (id:name): %s
      * VD: "ngân sách tháng này", "tình trạng ngân sách", "đã vượt ngân sách chưa", "còn lại bao nhiêu"
      */
     private boolean hasBudgetKeyword(String msg) {
-        // Bước 1: Từ khóa ngân sách/hạn mức
+        // Bước 1: Từ khóa ngân sách/hạn mức (tránh từ khóa dễ lẫn lộn)
         String[] budgetWords = {
-            "ngân sách", "vượt ngân sách", "còn lại", "hạn mức", "budget",
+            "ngân sách", "vượt ngân sách", "hạn mức", "budget",
             "tình trạng ngân sách", "đã vượt ngân sách", "ngân sách tháng này", "ngân sách tuần này"
         };
         for (String w : budgetWords) {
@@ -921,9 +918,13 @@ Categories (id:name): %s
     // Regex cho parseDateRangeFromMessage: khoảng tương đối, ngày VN, quý, tháng/năm, tháng, năm
     private static final Pattern RELATIVE_PATTERN = Pattern.compile("(?<!thứ )(\\d+)\\s*(tháng|tuần|năm|ngày)\\s*(gần nhất|gần đây|qua|trước|vừa rồi|nay|gần)", Pattern.CASE_INSENSITIVE);
     private static final Pattern VN_DATE_PATTERN = Pattern.compile("(?:ngày\\s+)?(\\d{1,2})\\s+tháng\\s+(\\d{1,2})(?:\\s+(\\d{4}))?");
+    // Regex hỗ trợ format "ngày X tháng Y năm Z" (VD: ngày 15 tháng 2 năm 2026)
+    private static final Pattern DATE_YEAR_VN_PATTERN = Pattern.compile("(?:ngày\\s+)?(\\d{1,2})\\s+tháng\\s+(\\d{1,2})\\s+năm\\s+(20\\d{2})");
     private static final Pattern QUARTER_PATTERN = Pattern.compile("(?:qu[ýy]|quarter|q)\\s*(\\d)(?:[/\\-\\s](\\d{4}))?", Pattern.CASE_INSENSITIVE);
     private static final Pattern MONTH_YEAR_PATTERN = Pattern.compile("(?:^|\\s)(\\d{1,2})/(\\d{4})(?:\\s|$|[^/])");
     private static final Pattern MONTH_PATTERN = Pattern.compile("(?:tháng|month)\\s+(\\d{1,2})(?:[/\\-\\s](\\d{4}))?", Pattern.CASE_INSENSITIVE);
+    // Regex hỗ trợ format "tháng X năm Y" (VD: tháng 2 năm 2026)
+    private static final Pattern MONTH_YEAR_VN_PATTERN = Pattern.compile("(?:tháng|month)\\s+(\\d{1,2})\\s+năm\\s+(20\\d{2})", Pattern.CASE_INSENSITIVE);
     private static final Pattern YEAR_PATTERN = Pattern.compile("(?:năm\\s+)?(20\\d{2})");
     private static final Pattern MONTH_PATTERN_ADVISORY = Pattern.compile("(\\d+)\\s*tháng");
 
@@ -1009,7 +1010,22 @@ Categories (id:name): %s
             return new LocalDateTime[]{DateUtils.getStartOfDay(start), DateUtils.getEndOfToday()};
         }
 
-        // Bước 4: Ngày tiếng Việt: "ngày 1 tháng 4", "1 tháng 4", "1 tháng 4 2025"
+        // Bước 4: Ngày tiếng Việt
+        // 4.1: Ưu tiên format "ngày X tháng Y năm Z" (VD: ngày 15 tháng 2 năm 2026)
+        Matcher dvnMatcher = DATE_YEAR_VN_PATTERN.matcher(msg);
+        if (dvnMatcher.find()) {
+            try {
+                int day = Integer.parseInt(dvnMatcher.group(1));
+                int month = Integer.parseInt(dvnMatcher.group(2));
+                int year = Integer.parseInt(dvnMatcher.group(3));
+                java.time.LocalDate date = java.time.LocalDate.of(year, month, day);
+                return new LocalDateTime[]{DateUtils.getStartOfDay(date), DateUtils.getEndOfDay(date)};
+            } catch (Exception e) {
+                log.warn("[AI] Không parse được ngày tiếng Việt (có năm): {}", msg);
+            }
+        }
+
+        // 4.2: Hỗ trợ format "ngày 1 tháng 4", "1 tháng 4", "1 tháng 4 2025"
         // Phải check TRƯỚC "tháng X" vì "1 tháng 4" cũng chứa "tháng 4"
         Matcher vnDateMatcher = VN_DATE_PATTERN.matcher(msg);
         if (vnDateMatcher.find()) {
@@ -1079,7 +1095,15 @@ Categories (id:name): %s
         }
 
         // Bước 8: Tháng cụ thể "tháng 3", "tháng 12/2024", "tháng 12 2025", "month 11/2026"
-        // Hỗ trợ cả space, /, - giữa tháng và năm
+        // 8.1: Ưu tiên format "tháng X năm Y" (VD: tháng 2 năm 2026)
+        Matcher mvnMatcher = MONTH_YEAR_VN_PATTERN.matcher(msg);
+        if (mvnMatcher.find()) {
+            int month = Integer.parseInt(mvnMatcher.group(1));
+            int year = Integer.parseInt(mvnMatcher.group(2));
+            if (month >= 1 && month <= 12) return DateUtils.getSpecificMonth(month, year);
+        }
+
+        // 8.2: Hỗ trợ format "tháng X", "tháng X/YYYY", "tháng X-YYYY", "tháng X YYYY"
         Matcher mMatcher = MONTH_PATTERN.matcher(msg);
         if (mMatcher.find()) {
             int month = Integer.parseInt(mMatcher.group(1));
@@ -1138,7 +1162,14 @@ Categories (id:name): %s
             LocalDateTime startDate = dates[0];
             LocalDateTime endDate = dates[1];
 
-            // Bước 1: Query tổng thu/chi trong khoảng thời gian
+            // Bước 1: Nếu user hỏi có từ khóa ngân sách → luôn gọi buildBudgetReply
+            // để trả về theo ngân sách category thay vì tổng toàn bộ
+            if (hasBudgetKeyword(msg)) {
+                log.info("[AI] Phát hiện từ khóa ngân sách trong message, gọi buildBudgetReply");
+                return buildBudgetReply(account, userMessage);
+            }
+
+            // Bước 2: Không có từ khóa ngân sách → Query tổng thu/chi trong khoảng thời gian
             List<CategoryReportDTO> catReports =
                     transactionService.getCategoryReport(account.getId(), startDate, endDate, null, null);
 
@@ -1212,7 +1243,7 @@ Categories (id:name): %s
     private String buildBudgetReply(Account account, String userMessage) {
         try {
             log.info("[AI] buildBudgetReply - userMessage: {}", userMessage);
-            
+
             // Bước 1: Parse thời gian từ message
             String msg = userMessage.toLowerCase().trim();
             LocalDateTime[] dates = parseDateRangeFromMessage(msg);
@@ -1220,9 +1251,24 @@ Categories (id:name): %s
             LocalDateTime endDate = dates[1];
             log.info("[AI] Parsed date range: {} - {}", startDate, endDate);
 
+            // Bước 1.5: Parse budgetType từ message
+            final fpt.aptech.server.enums.budget.BudgetType budgetTypeFilter;
+            if (msg.contains("tuần") || msg.contains("week")) {
+                budgetTypeFilter = fpt.aptech.server.enums.budget.BudgetType.WEEKLY;
+                log.info("[AI] Detected budgetType: WEEKLY");
+            } else if (msg.contains("tháng") || msg.contains("month")) {
+                budgetTypeFilter = fpt.aptech.server.enums.budget.BudgetType.MONTHLY;
+                log.info("[AI] Detected budgetType: MONTHLY");
+            } else if (msg.contains("năm") || msg.contains("year")) {
+                budgetTypeFilter = fpt.aptech.server.enums.budget.BudgetType.YEARLY;
+                log.info("[AI] Detected budgetType: YEARLY");
+            } else {
+                budgetTypeFilter = null; // Nếu không có từ khóa → không filter theo budgetType (lấy tất cả)
+            }
+
             // Bước 2: Lấy ngân sách active của user trong khoảng thời gian
             // Query trực tiếp từ repository (bypass check walletId của BudgetService)
-            List<fpt.aptech.server.entity.Budget> budgetEntities = 
+            List<fpt.aptech.server.entity.Budget> budgetEntities =
                 budgetRepo.getBudgets(account.getId().longValue(), startDate.toLocalDate(), null);
             log.info("[AI] Total budgets: {}", budgetEntities.size());
 
@@ -1232,7 +1278,12 @@ Categories (id:name): %s
             List<fpt.aptech.server.entity.Budget> filteredBudgets = budgetEntities.stream()
                 .filter(b -> {
                     try {
-                        return !b.getBeginDate().isAfter(endLocal) && !b.getEndDate().isBefore(startLocal);
+                        boolean timeMatch = !b.getBeginDate().isAfter(endLocal) && !b.getEndDate().isBefore(startLocal);
+                        // Filter thêm theo budgetType nếu có
+                        // Cho phép ngân sách có budgetType = NULL match với bất kỳ budgetTypeFilter nào
+                        // (vì ngân sách cũ không có budgetType được set)
+                        boolean typeMatch = budgetTypeFilter == null || b.getBudgetType() == null || b.getBudgetType() == budgetTypeFilter;
+                        return timeMatch && typeMatch;
                     } catch (Exception e) {
                         log.error("[AI] Lỗi filter budget: {}", e.getMessage());
                         return false;
@@ -1270,35 +1321,48 @@ Categories (id:name): %s
                     
                     BigDecimal dailyShould = budget.getDailyShouldSpend();
                     BigDecimal dailyActual = budget.getDailyActualSpend();
+                    BigDecimal projected = budget.getProjectedSpend();
+
+                    // Bước 3.2: Kiểm tra ngân sách quá khứ vs hiện tại/tương lai
+                    boolean isExpiredBudget = budget.getEndDate().isBefore(java.time.LocalDate.now());
 
                     // Bước 3.3: Build reply cho ngân sách này
                     String categoryLabel = budget.getAllCategories() ? "Tất cả danh mục" :
                         budget.getCategories().stream()
                             .map(c -> c.ctgName())
                             .collect(java.util.stream.Collectors.joining(", "));
-                    
-                    sb.append(String.format("\n📌 %s (%s):\n", 
+
+                    sb.append(String.format("\n📌 %s (%s) [%s]:\n",
                         budget.getWalletName() != null ? budget.getWalletName() : "Tất cả ví",
-                        categoryLabel));
+                        categoryLabel,
+                        budget.getBudgetType() != null ? budget.getBudgetType().name() : "CUSTOM"));
                     sb.append(String.format("• Ngân sách: %,.0f đ\n", budget.getAmount()));
                     sb.append(String.format("• Đã chi: %,.0f đ (%.0f%%)\n", spent, progress.multiply(BigDecimal.valueOf(100))));
                     sb.append(String.format("• Còn lại: %,.0f đ\n", remaining));
+                    sb.append(String.format("• Chi trung bình/ngày: %,.0f đ\n", dailyActual));
+
+                    // Chỉ hiển thị dự kiến chi tiêu và gợi ý nếu ngân sách chưa hết hạn
+                    if (!isExpiredBudget) {
+                        sb.append(String.format("• Dự kiến chi tiêu hết kỳ: %,.0f đ\n", projected));
+                    }
 
                     // Bước 3.4: Tư vấn dựa trên tình trạng ngân sách
                     if (exceeded) {
-                        sb.append(String.format("⚠️ Đã vượt ngân sách %,.0f đ! Cần cắt giảm chi tiêu ngay.\n", 
+                        sb.append(String.format("⚠️ Đã vượt ngân sách %,.0f đ! Cần cắt giảm chi tiêu ngay.\n",
                             spent.subtract(budget.getAmount())));
                     } else if (warning) {
-                        sb.append(String.format("⚠️ Có nguy cơ vượt ngân sách! Nếu tiếp tục chi như hiện tại (%,.0f đ/ngày), bạn sẽ vượt ngân sách.\n", 
+                        sb.append(String.format("⚠️ Có nguy cơ vượt ngân sách! Nếu tiếp tục chi như hiện tại (%,.0f đ/ngày), bạn sẽ vượt ngân sách.\n",
                             dailyActual));
-                        if (daysLeft > 0) {
-                            sb.append(String.format("💡 Gợi ý: Chỉ nên chi tối đa %,.0f đ/ngày trong %d ngày còn lại.\n", 
+                        // Chỉ hiển thị gợi ý nếu ngân sách chưa hết hạn
+                        if (!isExpiredBudget && daysLeft > 0) {
+                            sb.append(String.format("💡 Gợi ý: Chỉ nên chi tối đa %,.0f đ/ngày trong %d ngày còn lại.\n",
                                 dailyShould, daysLeft));
                         }
                     } else {
                         sb.append("✅ Chi tiêu trong tầm kiểm soát.\n");
-                        if (daysLeft > 0 && remaining.compareTo(BigDecimal.ZERO) > 0) {
-                            sb.append(String.format("💡 Gợi ý: Bạn có thể chi tối đa %,.0f đ/ngày trong %d ngày còn lại.\n", 
+                        // Chỉ hiển thị gợi ý nếu ngân sách chưa hết hạn
+                        if (!isExpiredBudget && daysLeft > 0 && remaining.compareTo(BigDecimal.ZERO) > 0) {
+                            sb.append(String.format("💡 Gợi ý: Bạn có thể chi tối đa %,.0f đ/ngày trong %d ngày còn lại.\n",
                                 dailyShould, daysLeft));
                         }
                     }
@@ -2181,7 +2245,14 @@ Categories (id:name): %s
             return null; // Trả null (không phải action chờ confirm)
         }
 
-        // Bước 3: Chuẩn hóa user message và kiểm tra xem user có trả lời confirm không
+        // Bước 3: Kiểm tra AI message có nhúng ACTION_PARAMS không (chỉ check pattern nếu có params)
+        String messageContent = lastAiMsg.getMessageContent(); // Lấy nội dung tin nhắn AI
+        if (!messageContent.contains("ACTION_PARAMS:")) { // Nếu không chứa ACTION_PARAMS
+            log.debug("[AI] AI message không chứa ACTION_PARAMS - không phải đang chờ confirm");
+            return null; // Trả null (không phải action chờ confirm)
+        }
+
+        // Bước 4: Chuẩn hóa user message và kiểm tra xem user có trả lời confirm không
         String normalized = normalizeMessage(userMessage); // Chuẩn hóa message (lowercase)
         log.info("[AI] Normalized message: '{}'", normalized);
 
@@ -2198,13 +2269,6 @@ Categories (id:name): %s
             return null; // Trả null (không phải trả lời confirm)
         }
 
-        // Bước 4: Lấy action params từ messageContent của AI message (đã lưu ở format: "ACTION_PARAMS:JSON")
-        String messageContent = lastAiMsg.getMessageContent(); // Lấy nội dung tin nhắn AI
-        if (!messageContent.contains("ACTION_PARAMS:")) { // Nếu không chứa ACTION_PARAMS
-            log.warn("[AI] AI message không chứa ACTION_PARAMS");
-            return null; // Trả null (không có params)
-        }
-
         try { // Thử parse JSON params
             // Parse JSON từ messageContent
             String jsonStr = messageContent.substring(messageContent.indexOf("ACTION_PARAMS:") + "ACTION_PARAMS:".length()).trim(); // Cắt chuỗi JSON
@@ -2212,13 +2276,20 @@ Categories (id:name): %s
             JsonNode paramsJson = objectMapper.readTree(jsonStr); // Parse JSON
 
             Map<String, Object> params = new HashMap<>(); // Map lưu params
-            params.put("amount", paramsJson.path("amount").asDouble()); // Lấy số tiền
+            // Parse amount từ text sang BigDecimal để tránh scientific notation
+            params.put("amount", new BigDecimal(paramsJson.path("amount").asText("0"))); // Lấy số tiền
             params.put("categoryId", paramsJson.path("categoryId").asInt(3)); // Lấy category ID (default 3)
             params.put("note", paramsJson.path("note").asText("")); // Lấy note
             params.put("isIncome", paramsJson.path("isIncome").asBoolean(false)); // Lấy isIncome
 
+            // Parse walletId nếu có
             if (paramsJson.has("walletId") && !paramsJson.get("walletId").isNull()) { // Nếu có wallet ID
                  params.put("walletId", paramsJson.path("walletId").asInt()); // Lấy wallet ID
+            }
+
+            // Parse receiptId nếu có (để set source_type = 4)
+            if (paramsJson.has("receiptId") && !paramsJson.get("receiptId").isNull()) {
+                params.put("receiptId", paramsJson.path("receiptId").asInt());
             }
 
             // Bước 5: Thêm ai_chat_id để thỏa mãn constraint CHK_Transaction_Integrity

@@ -81,29 +81,6 @@ public class AiChatController {
         return ResponseEntity.ok(ApiResponse.success(response, "Receipt processed successfully"));
     }
 
-    /**
-     * [1.3] Tải lên ảnh đính kèm trong cuộc trò chuyện (không OCR).
-     * <p>
-     * <b>Cách dùng:</b><br>
-     * 1. Gửi file ảnh đính kèm qua form-data.<br>
-     * 2. Trả về URL ảnh trên Cloudinary để hiển thị trong chat.
-     */
-    @PostMapping("/upload-image")
-    @PreAuthorize("hasAuthority('USER_STANDARD_MANAGE')")
-    public ResponseEntity<ApiResponse<String>> uploadChatImage(
-            @RequestParam("image") MultipartFile image,
-            @AuthenticationPrincipal Account currentUser) {
-
-        // Bước 1: Ghi log request
-        log.info("[AI Controller] User id={} tải lên ảnh đính kèm chat", currentUser.getId());
-        
-        // Bước 2: Gọi Service upload ảnh lên Cloudinary
-        String imageUrl = aiService.uploadChatImage(currentUser, image);
-
-        // Bước 3: Trả về URL ảnh (thông báo tiếng Anh)
-        return ResponseEntity.ok(ApiResponse.success(imageUrl, "Attachment uploaded successfully"));
-    }
-
     // =========================================================================
     // NHÓM API QUẢN LÝ LỊCH SỬ TRÒ CHUYỆN
     // =========================================================================

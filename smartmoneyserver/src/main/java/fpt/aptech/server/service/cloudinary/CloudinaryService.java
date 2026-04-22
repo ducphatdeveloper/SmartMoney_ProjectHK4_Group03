@@ -14,10 +14,15 @@ import java.util.Map;
  * Service upload & xóa hình ảnh trên Cloudinary.
  *
  * Folder trên Cloudinary:
- *   - smartmoney/icons      → Icon danh mục, ví, sự kiện, mục tiêu tiết kiệm
- *   - smartmoney/avatars    → Avatar người dùng
- *   - smartmoney/receipts   → Hóa đơn (OCR)
- *   - smartmoney/ai         → File đính kèm từ AI chat
+ *   - avatars                → Avatar người dùng (UserService.updateAvatar)
+ *   - smartmoney/receipts   → Hóa đơn (OCR) - ảnh upload qua /api/ai/upload-receipt
+ *   - smartmoney/icons      → Icon danh mục, ví, sự kiện, mục tiêu tiết kiệm (UploadController - chưa sử dụng)
+ *   - smartmoney/avatars    → Avatar người dùng (UploadController - chưa sử dụng)
+ *   - smartmoney/ai         → File đính kèm từ AI chat (UploadController - chưa sử dụng, đã xóa API)
+ *
+ * Lưu ý:
+ *   - Icon danh mục (Category) được hardcode filename trong DB, không upload lên Cloudinary
+ *   - Avatar người dùng được upload trực tiếp vào folder "avatars" (không có prefix smartmoney/)
  *
  * Phương thức:
  *   1. uploadImage(file, folder)  — Upload file → trả về URL HTTPS
