@@ -27,7 +27,7 @@ dependencies:
   # Vẽ biểu đồ tròn, cột, đường trong màn hình Báo cáo/Thống kê
   fl_chart: ^0.66.2
   animations: ^2.0.11
-  # Format tiền "1.000.000 đ" và ngày "12/03/2025" (dùng trong format_helper.dart)
+  # ✅ [RESTORE] Giữ nguyên theo Flutter SDK để không bị lỗi ghim phiên bản
   intl: ^0.20.2
   # Hiện popup nhỏ phản hồi thao tác: "Tạo ví thành công", "Xóa thất bại"...
   fluttertoast: ^8.2.4
@@ -57,6 +57,10 @@ dependencies:
   flutter_secure_storage: ^9.0.0
   # Lưu cài đặt đơn giản: chế độ sáng/tối, ngôn ngữ, lần đầu mở app
   shared_preferences: ^2.2.2
+
+  # --- BIOMETRIC AUTHENTICATION ---
+  # ✅ [UPGRADE] Sử dụng phiên bản mới nhất để tương thích intl 0.20.2
+  local_auth: ^2.3.0
 
   # --- AUTHENTICATION & NOTIFICATION ---
   # Giải mã JWT token để đọc thông tin role/userId mà không cần gọi API
