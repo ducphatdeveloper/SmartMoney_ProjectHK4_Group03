@@ -310,13 +310,13 @@ class _DetailSavingGoalScreenState extends State<DetailSavingGoalScreen> {
             const SizedBox(height: 10),
             _buildMainGoalCard(goal, (goal.progressPercent ?? 0) / 100, currencyStr),
             const SizedBox(height: 30),
-            _buildSectionTitle("Smart Simulation"),
-            const SizedBox(height: 12),
-            _buildSmartSimulator(currencyStr),
-            const SizedBox(height: 30),
             _buildSectionTitle("Saving Strategy"),
             const SizedBox(height: 12),
             _buildStrategyGrid(currencyStr, goal),
+            const SizedBox(height: 30),
+            _buildSectionTitle("Smart Simulation"),
+            const SizedBox(height: 12),
+            _buildSmartSimulator(currencyStr),
             const SizedBox(height: 30),
             if (!isFinished) _buildActionButtons(),
             const SizedBox(height: 50),
@@ -453,31 +453,178 @@ class _DetailSavingGoalScreenState extends State<DetailSavingGoalScreen> {
 
   Widget _buildMainGoalCard(SavingGoalResponse goal, double progress, String currency) {
     return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(color: const Color(0xFF1C1C1E), borderRadius: BorderRadius.circular(30)),
-      child: Column(children: [
-        Row(children: [
-          IconHelper.buildCircleAvatar(iconUrl: goal.imageUrl, radius: 28),
-          const SizedBox(width: 16),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(goal.goalName, style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-            Text("Target: ${fmt.format(goal.targetAmount)} $currency", style: const TextStyle(color: Colors.grey, fontSize: 12)),
-          ])),
-          if (!isFinished) IconButton(
-              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => EditSavingGoalScreen(goal: goal))),
-              icon: const Icon(Icons.edit, color: Colors.blueAccent, size: 18)
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1C1C1E),
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+
+          /// 🔹 HEADER
+          Row(
+            children: [
+              IconHelper.buildCircleAvatar(iconUrl: goal.imageUrl, radius: 24),
+              const SizedBox(width: 12),
+
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      goal.goalName,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    _buildStatusBadge(),
+                  ],
+                ),
+              ),
+
+              if (!isFinished)
+                IconButton(
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => EditSavingGoalScreen(goal: goal),
+                    ),
+                  ),
+                  icon: const Icon(Icons.edit, color: Colors.blueAccent, size: 18),
+                ),
+            ],
           ),
-        ]),
-        const SizedBox(height: 20),
-        Stack(alignment: Alignment.center, children: [
-          SizedBox(width: 120, height: 120, child: CircularProgressIndicator(value: progress.clamp(0.0, 1.0), strokeWidth: 10, backgroundColor: Colors.white.withOpacity(0.05), color: progress >= 1.0 ? Colors.greenAccent : Colors.orangeAccent)),
-          Text("${(progress * 100).toStringAsFixed(1)}%", style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w900)),
-        ]),
-        const SizedBox(height: 20),
-        Text("Deadline: ${dateFmt.format(goal.endDate)}", style: const TextStyle(color: Colors.grey, fontSize: 12)),
-      ]),
+
+          const SizedBox(height: 20),
+
+          /// 🔹 PROGRESS BAR
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: LinearProgressIndicator(
+                  value: progress.clamp(0.0, 1.0),
+                  minHeight: 10,
+                  backgroundColor: Colors.white10,
+                  valueColor: AlwaysStoppedAnimation(
+                    progress >= 1 ? Colors.greenAccent : Colors.orangeAccent,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    "${(progress * 100).toStringAsFixed(1)}%",
+                    style: const TextStyle(color: Colors.white70, fontSize: 12),
+                  ),
+                  Text(
+                    "Deadline: ${dateFmt.format(goal.endDate)}",
+                    style: const TextStyle(color: Colors.white38, fontSize: 11),
+                  ),
+                ],
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 20),
+
+          /// 🔹 TARGET / SAVED
+          Row(
+            children: [
+              _buildMoneyColumn(
+                "Saved",
+                goal.currentAmount,
+                currency,
+                Colors.greenAccent,
+              ),
+              const SizedBox(width: 20),
+              _buildMoneyColumn(
+                "Target",
+                goal.targetAmount,
+                currency,
+                Colors.white,
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
+
+  Widget _buildMoneyColumn(
+      String label,
+      double value,
+      String currency,
+      Color color,
+      ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: const TextStyle(color: Colors.white38, fontSize: 11)),
+        const SizedBox(height: 4),
+        Text(
+          "${fmt.format(value)} $currency",
+          style: TextStyle(
+            color: color,
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStatusBadge() {
+    String text;
+    Color color;
+
+    switch (widget.goal.goalStatus) {
+      case 1:
+        text = "In Progress";
+        color = Colors.blueAccent;
+        break;
+      case 2:
+        text = "Completed";
+        color = Colors.greenAccent;
+        break;
+      case 3:
+        text = "Canceled";
+        color = Colors.grey;
+        break;
+      case 4:
+        text = "Overdue";
+        color = Colors.redAccent;
+        break;
+      default:
+        text = "Unknown";
+        color = Colors.white38;
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.15),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          color: color,
+          fontSize: 11,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
+  }
+
 
   Widget _buildEmergencySwitch() {
     return Column(children: [
