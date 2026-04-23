@@ -74,8 +74,8 @@ public class SavingGoalScheduler {
      *   Thông báo tạo ra: Title="Mục tiêu quá hạn ⚠️"
      *   Content="Mục tiêu tiết kiệm \"Mua xe máy SH\" đã quá hạn nhưng vẫn còn thiếu 45.000.000 ₫. Bạn có muốn gia hạn?"
      */
-    @Scheduled(cron = "0 0 1 * * ?") // 1:00 AM mỗi ngày
-    //@Scheduled(cron = "0 * * * * *")
+    //@Scheduled(cron = "0 0 1 * * ?") // 1:00 AM mỗi ngày
+    @Scheduled(cron = "0 * * * * *")
     public void checkOverdueGoals() {
         log.info("[SavingGoalScheduler] Checking overdue goals...");
 
