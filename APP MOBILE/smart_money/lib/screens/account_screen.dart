@@ -164,7 +164,7 @@ class _AccountScreenState extends State<AccountScreen> {
             if (_canBiometric)
               SwitchListTile(
                 title: const Text("Biometric Login", style: TextStyle(color: Colors.white)),
-                subtitle: const Text("Fingerprint / FaceID", style: TextStyle(color: Colors.grey, fontSize: 12)),
+                subtitle: const Text("Fingerprint", style: TextStyle(color: Colors.grey, fontSize: 12)),
                 secondary: const Icon(Icons.fingerprint, color: Colors.white),
                 value: _biometricEnabled,
                 activeColor: Colors.green,

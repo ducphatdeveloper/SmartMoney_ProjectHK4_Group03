@@ -47,13 +47,13 @@ class BiometricService {
         authMessages: const <AuthMessages>[
           AndroidAuthMessages(
             signInTitle: 'Biometric Authentication',
-            biometricHint: 'Scan face or fingerprint',
+            biometricHint: 'Scan fingerprint',
             cancelButton: 'Cancel',
           ),
         ],
         options: const AuthenticationOptions(
           stickyAuth: true,
-          biometricOnly: false,
+          biometricOnly: true,
           useErrorDialogs: true,
         ),
       );

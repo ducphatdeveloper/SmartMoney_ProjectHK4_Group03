@@ -55,7 +55,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> _handleBiometricLogin({bool auto = false}) async {
     final authProvider = context.read<AuthProvider>();
-    String msg = 'Authenticate with face or fingerprint to login';
+    String msg = 'Authenticate with fingerprint to login';
     
     final status = await authProvider.loginWithBiometric(context, customMessage: msg);
     
@@ -89,7 +89,7 @@ class _LoginScreenState extends State<LoginScreen> {
       builder: (context) => AlertDialog(
         title: const Text('Biometric Setup Required'),
         content: const Text(
-          'You have not set up any biometrics (Face or Fingerprint) on this device. '
+          'You have not set up fingerprint on this device. '
           'Would you like to go to settings to set it up now?'
         ),
         actions: [
@@ -123,12 +123,6 @@ class _LoginScreenState extends State<LoginScreen> {
     final authProvider = Provider.of<AuthProvider>(context);
 
     IconData bioIcon = Icons.fingerprint;
-    // Fix crash on Web: Platform.isAndroid cannot be accessed from web
-    if (!kIsWeb && Platform.isAndroid) {
-      bioIcon = Icons.face_unlock_outlined; 
-    } else if (_availableTypes.contains(BiometricType.face)) {
-      bioIcon = Icons.face;
-    }
 
     return Scaffold(
       body: Container(
