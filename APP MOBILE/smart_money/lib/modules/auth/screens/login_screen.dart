@@ -32,7 +32,10 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   void initState() {
     super.initState();
-    _checkBiometricSupport();
+    // [1] Chỉ kiểm tra biometric trên mobile, web không cần
+    if (!kIsWeb) {
+      _checkBiometricSupport();
+    }
   }
 
   Future<void> _checkBiometricSupport() async {

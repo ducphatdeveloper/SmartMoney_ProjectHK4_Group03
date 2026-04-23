@@ -33,7 +33,7 @@ enum BiometricLoginStatus {
 
 class AuthProvider extends ChangeNotifier {
   final AuthService _authService = getIt<AuthService>();
-  final GoogleAuthService _googleAuthService = getIt<GoogleAuthService>();
+  final GoogleAuthService? _googleAuthService = getIt.isRegistered<GoogleAuthService>() ? getIt<GoogleAuthService>() : null;
   final BiometricService _biometricService = getIt<BiometricService>();
   
   UserModel? _currentUser;
@@ -82,10 +82,13 @@ class AuthProvider extends ChangeNotifier {
     String? deviceType = "ANDROID";
     String? deviceName = "Unknown";
 
-    try {
-      deviceToken = await FirebaseMessaging.instance.getToken();
-    } catch (e) {
-      debugPrint("FCM Token Error: $e");
+    // [1] Chỉ lấy FCM token trên mobile, web không hỗ trợ tốt
+    if (!kIsWeb) {
+      try {
+        deviceToken = await FirebaseMessaging.instance.getToken();
+      } catch (e) {
+        debugPrint("FCM Token Error: $e");
+      }
     }
 
     try {
@@ -150,12 +153,19 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<bool> loginWithGoogle(BuildContext context) async {
+    // [2] Kiểm tra Google Sign-In có available không
+    if (_googleAuthService == null) {
+      _errorMessage = "Google Sign-In is not available on this platform.";
+      notifyListeners();
+      return false;
+    }
+
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
 
     try {
-      final googleAuth = await _googleAuthService.signInWithGoogle();
+      final googleAuth = await _googleAuthService!.signInWithGoogle();
       if (googleAuth == null || googleAuth.idToken == null) {
         _errorMessage = "Login was cancelled or could not connect to Google.";
         _isLoading = false;
@@ -276,12 +286,23 @@ class AuthProvider extends ChangeNotifier {
   Future<void> logout(BuildContext context) async {
     _setLoading(true);
     try {
-      String? deviceToken = await FirebaseMessaging.instance.getToken();
+      // [2] Chỉ lấy FCM token trên mobile
+      String? deviceToken;
+      if (!kIsWeb) {
+        try {
+          deviceToken = await FirebaseMessaging.instance.getToken();
+        } catch (e) {
+          debugPrint("FCM Token Error: $e");
+        }
+      }
       await _authService.logout(deviceToken: deviceToken ?? "");
     } catch (_) {} finally {
       _currentUser = null;
       await TokenHelper.clearTokens();
-      await _googleAuthService.signOutGoogle();
+      // [3] Chỉ signOut Google nếu service available
+      if (_googleAuthService != null) {
+        await _googleAuthService!.signOutGoogle();
+      }
       _setLoading(false);
       notifyListeners();
       if (context.mounted) context.go("/login");
