@@ -71,7 +71,7 @@ class FormatHelper {
   // =============================================
 
   // Format ngày thân thiện kiểu app thu chi
-  // VD: "Hôm nay", "Hôm qua", "Thứ Sáu, 14/03"
+  // VD: "Today", "Yesterday", "Friday, 14/03"
   // Mirror: DateUtils.formatDisplayDate()
   static String formatDisplayDate(DateTime date) {
     final today    = DateTime.now();
@@ -82,8 +82,8 @@ class FormatHelper {
     if (targetDate == todayDate)   return "Today";
     if (targetDate == yesterday)   return "Yesterday";
 
-    // Thứ Sáu, 14/03 — dùng intl cho tiếng Việt
-    return DateFormat('EEEE, dd/MM', 'vi_VN').format(date);
+    // Friday, 14/03 — dùng intl cho tiếng Anh
+    return DateFormat('EEEE, dd/MM', 'en_US').format(date);
   }
 
   // Format tháng/năm cho label báo cáo
