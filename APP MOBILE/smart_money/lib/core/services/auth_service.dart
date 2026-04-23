@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/http.dart';
 import 'package:http_parser/http_parser.dart';
@@ -36,11 +37,17 @@ class AuthService {
   // =============================================
   Future<ApiResponse<AuthResponse>> login(LoginRequest request) async {
     try {
+      debugPrint("🔍 [AuthService] Bắt đầu gọi login API: ${AppConstants.authLogin}");
+      debugPrint("🔍 [AuthService] Request body: ${jsonEncode(request.toJson())}");
+      
       final response = await http.post(
         Uri.parse(AppConstants.authLogin),
         headers: {"Content-Type": "application/json"},
         body: jsonEncode(request.toJson()),
       );
+
+      debugPrint("🔍 [AuthService] Response status: ${response.statusCode}");
+      debugPrint("🔍 [AuthService] Response body: ${response.body}");
 
       final json = jsonDecode(utf8.decode(response.bodyBytes));
       final apiResponse = ApiResponse<AuthResponse>.fromJson(
@@ -57,6 +64,7 @@ class AuthService {
 
       return apiResponse;
     } catch (e) {
+      debugPrint("❌ [AuthService] Login error: $e");
       return ApiResponse<AuthResponse>(
         success: false,
         message: "Cannot connect to server. Please check your network.",

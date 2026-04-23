@@ -1,4 +1,5 @@
 import 'package:get_it/get_it.dart';
+import 'package:flutter/foundation.dart';
 import '../services/auth_service.dart';
 import '../services/biometric_service.dart';
 import '../services/google_auth_service.dart';
@@ -18,7 +19,12 @@ void setupDependencies() {
 
   // Auth — dùng AuthService từ core/services/ theo blueprint
   getIt.registerLazySingleton<AuthService>(() => AuthService());
-  getIt.registerLazySingleton<GoogleAuthService>(() => GoogleAuthService());
+  
+  // [1] Google Sign-In: Chỉ đăng ký trên Android/iOS, không đăng ký trên web
+  if (!kIsWeb) {
+    getIt.registerLazySingleton<GoogleAuthService>(() => GoogleAuthService());
+  }
+  
   getIt.registerLazySingleton<BiometricService>(() => BiometricService());
 
   // Category — gọi API CRUD danh mục
