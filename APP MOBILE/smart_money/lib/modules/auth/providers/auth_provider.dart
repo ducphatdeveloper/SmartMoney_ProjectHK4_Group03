@@ -24,6 +24,7 @@ enum BiometricLoginStatus {
   success,
   notAvailable,
   notEnabled,
+  notEnrolled, // MỚI: Đã có phần cứng nhưng chưa cài đặt khuôn mặt/vân tay
   authFailed,
   noCredentials,
   loginApiFailed,
@@ -62,12 +63,17 @@ class AuthProvider extends ChangeNotifier {
 
   Future<void> _loadCurrentUser() async {
     _setLoading(true);
-    final accessToken = await TokenHelper.getAccessToken();
-    if (accessToken != null && !JwtDecoder.isExpired(accessToken)) {
-      final decodedToken = JwtDecoder.decode(accessToken);
-      _currentUser = _fromDecodedToken(decodedToken);
+    try {
+      final accessToken = await TokenHelper.getAccessToken();
+      if (accessToken != null && !JwtDecoder.isExpired(accessToken)) {
+        final decodedToken = JwtDecoder.decode(accessToken);
+        _currentUser = _fromDecodedToken(decodedToken);
+        await getProfile();
+      }
+    } catch (_) {
+    } finally {
+      _setLoading(false);
     }
-    _setLoading(false);
   }
 
   Future<Map<String, String?>> _getDeviceInfo() async {
@@ -124,10 +130,9 @@ class AuthProvider extends ChangeNotifier {
       final response = await _authService.login(request);
       if (response.success && response.data != null) {
         _currentUser = UserModel.fromAuthResponse(response.data!);
+        await getProfile();
         if (context.mounted) context.read<NotificationProvider>().fetchNotifications();
-        
         await TokenHelper.saveCredentials(username, password);
-        
         _isLoading = false;
         notifyListeners();
         return true;
@@ -166,6 +171,7 @@ class AuthProvider extends ChangeNotifier {
       );
       if (response.success && response.data != null) {
         _currentUser = UserModel.fromAuthResponse(response.data!);
+        await getProfile();
         if (context.mounted) context.read<NotificationProvider>().fetchNotifications();
         _isLoading = false;
         notifyListeners();
@@ -183,22 +189,24 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  // =============================================
-  // BIOMETRIC LOGIN (THỰC SỰ GỌI LOGIN API)
-  // =============================================
   Future<BiometricLoginStatus> loginWithBiometric(BuildContext context, {String? customMessage}) async {
     try {
+      // 1. Kiểm tra phần cứng có hỗ trợ không
       final isAvailable = await _biometricService.isBiometricAvailable();
       if (!isAvailable) return BiometricLoginStatus.notAvailable;
 
+      // 2. Kiểm tra người dùng đã setup khuôn mặt/vân tay trong cài đặt máy chưa
+      final isEnrolled = await _biometricService.isBiometricEnrolled();
+      if (!isEnrolled) return BiometricLoginStatus.notEnrolled;
+
+      // 3. Kiểm tra tính năng này đã được bật trong App chưa
       final isEnabled = await TokenHelper.isBiometricEnabled();
       if (!isEnabled) return BiometricLoginStatus.notEnabled;
 
-      // 1. Quét sinh trắc học với tin nhắn tùy chỉnh
+      // 4. Thực hiện xác thực
       final authenticated = await _biometricService.authenticate(customMessage: customMessage);
       if (!authenticated) return BiometricLoginStatus.authFailed;
 
-      // 2. Lấy credentials đã lưu trong "Két sắt"
       final creds = await TokenHelper.getCredentials();
       final username = creds['username'];
       final password = creds['password'];
@@ -211,6 +219,7 @@ class AuthProvider extends ChangeNotifier {
         if (accessToken != null && !JwtDecoder.isExpired(accessToken)) {
           final decodedToken = JwtDecoder.decode(accessToken);
           _currentUser = _fromDecodedToken(decodedToken);
+          await getProfile();
           if (context.mounted) context.read<NotificationProvider>().fetchNotifications();
           notifyListeners();
           return BiometricLoginStatus.success;
@@ -239,9 +248,6 @@ class AuthProvider extends ChangeNotifier {
     return await TokenHelper.isBiometricEnabled();
   }
 
-  // --- Các hàm khác giữ nguyên ---
-  // ...
-  
   Future<bool> register(String? email, String? phone, String password, String confirmPassword) async {
     _isLoading = true;
     _errorMessage = null;
@@ -277,6 +283,7 @@ class AuthProvider extends ChangeNotifier {
       await TokenHelper.clearTokens();
       await _googleAuthService.signOutGoogle();
       _setLoading(false);
+      notifyListeners();
       if (context.mounted) context.go("/login");
     }
   }
@@ -298,13 +305,15 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<void> getProfile() async {
-    _setLoading(true);
     try {
       final response = await _authService.getProfile();
       if (response.success == true && response.data != null) {
         _currentUser = UserModel.fromAuthResponse(response.data!);
+        notifyListeners();
       }
-    } catch (_) {} finally { _setLoading(false); }
+    } catch (e) {
+      debugPrint("Get Profile Error: $e");
+    }
   }
 
   Future<String?> updateAvatar(String filePath) async {

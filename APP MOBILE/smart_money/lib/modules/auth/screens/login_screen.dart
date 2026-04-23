@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:local_auth/local_auth.dart';
 import 'dart:io' show Platform;
+import 'package:app_settings/app_settings.dart';
 import '../providers/auth_provider.dart';
 import '../../contact/screens/contact_support_screen.dart';
 import '../../../core/di/setup_dependencies.dart';
@@ -50,7 +51,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Future<void> _handleBiometricLogin({bool auto = false}) async {
     final authProvider = context.read<AuthProvider>();
-    // Hướng dẫn tổng hợp cho cả 2 phương thức
     String msg = 'Authenticate with face or fingerprint to login';
     
     final status = await authProvider.loginWithBiometric(context, customMessage: msg);
@@ -61,6 +61,9 @@ class _LoginScreenState extends State<LoginScreen> {
       case BiometricLoginStatus.success:
         _showSnackBar('Biometric login successful!', isError: false);
         context.go("/main");
+        break;
+      case BiometricLoginStatus.notEnrolled:
+        _showSetupDialog();
         break;
       case BiometricLoginStatus.authFailed:
         _showSnackBar('Biometric authentication failed.');
@@ -76,6 +79,33 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  void _showSetupDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Biometric Setup Required'),
+        content: const Text(
+          'You have not set up any biometrics (Face or Fingerprint) on this device. '
+          'Would you like to go to settings to set it up now?'
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('CANCEL', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              AppSettings.openAppSettings(type: AppSettingsType.security);
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
+            child: const Text('GO TO SETTINGS', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showSnackBar(String message, {bool isError = true}) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(message),
@@ -88,12 +118,11 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget build(BuildContext context) {
     final authProvider = Provider.of<AuthProvider>(context);
 
-    // Quyết định Icon hiển thị (Gộp lại)
     IconData bioIcon = Icons.fingerprint;
     if (Platform.isAndroid) {
-      bioIcon = Icons.face_unlock_outlined; // Android dùng icon tổng hợp
+      bioIcon = Icons.face_unlock_outlined; 
     } else if (_availableTypes.contains(BiometricType.face)) {
-      bioIcon = Icons.face; // iOS có FaceID
+      bioIcon = Icons.face;
     }
 
     return Scaffold(
