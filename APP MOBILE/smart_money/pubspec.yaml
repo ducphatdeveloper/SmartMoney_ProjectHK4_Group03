@@ -61,6 +61,8 @@ dependencies:
   # --- BIOMETRIC AUTHENTICATION ---
   # ✅ [UPGRADE] Sử dụng phiên bản mới nhất để tương thích intl 0.20.2
   local_auth: ^2.3.0
+  local_auth_android: ^1.0.39
+  local_auth_darwin: ^1.1.0
 
   # --- VOICE RECOGNITION ---
   # Chuyển giọng nói thành văn bản cho AI Chat
@@ -94,6 +96,7 @@ dependencies:
   # Kiểm tra có Wifi/4G không trước khi gọi API
   # Mất mạng → báo ngay "Không có kết nối" thay vì chờ 30 giây rồi crash
   connectivity_plus: ^6.0.3
+  app_settings: ^5.1.1 # Hoặc phiên bản mới nhất
 
   # --- NAVIGATION ---
   # Điều hướng giữa các màn hình, khớp với core/routing/app_router.dart

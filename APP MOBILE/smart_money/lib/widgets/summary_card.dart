@@ -9,7 +9,8 @@ class SummaryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<TransactionProvider>();
-    final currencyFormat = NumberFormat.currency(locale: 'en_US', symbol: '\$');
+    // Đổi sang đơn vị ₫ (vi_VN)
+    final currencyFormat = NumberFormat.currency(locale: 'vi_VN', symbol: '₫');
 
     return Container(
       padding: const EdgeInsets.all(20),

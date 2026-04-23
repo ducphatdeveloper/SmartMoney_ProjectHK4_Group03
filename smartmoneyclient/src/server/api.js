@@ -90,108 +90,140 @@ export const CATEGORY_TRANSLATIONS = {
 
 /**
  * Hàm lấy tên danh mục theo ngôn ngữ.
- * Identifier có thể là tên danh mục gốc (Tiếng Anh/Tiếng Việt) hoặc slug.
  */
 export const getCategoryName = (identifier, lang = 'vi') => {
     if (!identifier) return '';
-    
-    // Nếu chọn Tiếng Anh -> Trả về identifier (hoặc slugify nếu cần chuẩn hóa)
     if (lang === 'en') return identifier;
-
-    // Nếu chọn Tiếng Việt -> Tra cứu trong CATEGORY_TRANSLATIONS dựa trên slug
     const slug = slugify(identifier);
     return CATEGORY_TRANSLATIONS[slug] || identifier;
 };
 
 /**
- * Mapping từ tên danh mục (tiếng Việt hoặc English slug) sang filename icon trên Cloudinary.
+ * Mapping từ tên danh mục sang filename icon trên Cloudinary.
+ * Cập nhật: Danh mục con sẽ dùng chung icon với danh mục cha.
  */
 const ICON_MAPPING = {
-    // --- ENGLISH SLUGS (Khớp với SQL DB System) ---
+    // --- 1. ĂN UỐNG ---
     "food-beverage": "icon_food.png",
-    "transportation": "icon_transport.png",
-    "shopping": "icon_shopping.png",
-    "salary": "icon_salary.png",
-    "investment": "icon_invest.png",
-    "education": "icon_education.png",
-    "health-fitness": "icon_health.png",
-    "entertainment": "icon_entertainment.png",
-    "family": "icon_family.png",
-    "gifts-donations": "icon_gift.png",
-    "insurance": "icon_insurance.png",
-    "borrowing": "icon_loan_in.png",
-    "lending": "icon_loan_out.png",
-    "debt-repayment": "icon_debt_repayment.png",
-    "debt-collection": "icon_debt_collection.png",
-    "phone-bill": "icon_phone_bill.png",
-    "electricity-bill": "icon_electricity.png",
-    "water-bill": "icon_water.png",
-    "internet-bill": "icon_internet.png",
-    "gas-bill": "icon_gas.png",
-    "television-bill": "icon_tv.png",
-    "bills-utilities": "icon_utilities.png",
-    "other-utility-bills": "icon_other_bill.png",
-    "rent": "icon_rent.png",
-    "beauty": "icon_beauty.png",
-    "sports": "icon_sport.png",
-    "medical-checkup": "icon_medical.png",
-    "personal-items": "icon_personal_item.png",
-    "home-appliances": "icon_home_appliance.png",
-    "pets": "icon_pets.png",
-    "vehicle-maintenance": "icon_car_repair.png",
-    "online-services": "icon_online_service.png",
-    "home-services": "icon_home_service.png",
-    "home-renovation": "icon_home_decor.png",
-    "incoming-transfer": "icon_transfer_in.png",
-    "outgoing-transfer": "icon_transfer_out.png",
-    "interest-received": "icon_interest_receive.png",
-    "interest-paid": "icon_interest_pay.png",
-    "other-income": "icon_other_income.png",
-    "other-expenses": "icon_other_expense.png",
-    "travel-leisure": "icon_travel.png",
-
-    // --- VIETNAMESE SLUGS (Hỗ trợ fallback) ---
     "an-uong": "icon_food.png",
-    "di-chuyen": "icon_transport.png",
-    "mua-sam": "icon_shopping.png",
-    "luong": "icon_salary.png",
-    "dau-tu": "icon_invest.png",
-    "giao-duc": "icon_education.png",
-    "suc-khoe": "icon_health.png",
-    "giai-tri": "icon_entertainment.png",
-    "gia-dinh": "icon_family.png",
-    "qua-tang-quyen-gop": "icon_gift.png",
+
+    // --- 2. BẢO HIỂM ---
+    "insurance": "icon_insurance.png",
     "bao-hiem": "icon_insurance.png",
-    "di-vay": "icon_loan_in.png",
-    "cho-vay": "icon_loan_out.png",
-    "tra-no": "icon_debt_repayment.png",
-    "thu-no": "icon_debt_collection.png",
-    "hoa-don-dien-thoai": "icon_phone_bill.png",
-    "hoa-don-dien": "icon_electricity.png",
-    "hoa-don-nuoc": "icon_water.png",
-    "hoa-don-internet": "icon_internet.png",
-    "hoa-don-gas": "icon_gas.png",
-    "hoa-don-tv": "icon_tv.png",
+
+    // --- 3. CHI PHÍ KHÁC ---
+    "other-expenses": "icon_other_expense.png",
+    "các-chi-phi-khac": "icon_other_expense.png",
+
+    // --- 4. ĐẦU TƯ ---
+    "investment": "icon_invest.png",
+    "dau-tu": "icon_invest.png",
+
+    // --- 5. DI CHUYỂN & BẢO DƯỠNG ---
+    "transportation": "icon_transport.png",
+    "di-chuyen": "icon_transport.png",
+    "vehicle-maintenance": "icon_transport.png",
+    "bao-duong-xe": "icon_transport.png",
+
+    // --- 6. GIA ĐÌNH & DỊCH VỤ NHÀ CỬA ---
+    "family": "icon_family.png",
+    "gia-dinh": "icon_family.png",
+    "home-services": "icon_family.png",
+    "dich-vu-gia-dinh": "icon_family.png",
+    "home-renovation": "icon_family.png",
+    "sua-trang-tri-nha": "icon_family.png",
+    "home-repair-decor": "icon_family.png",
+    "pets": "icon_family.png",
+    "vat-nuoi": "icon_family.png",
+
+    // --- 7. GIẢI TRÍ & VUI CHƠI ---
+    "entertainment": "icon_entertainment.png",
+    "giai-tri": "icon_entertainment.png",
+    "online-services": "icon_entertainment.png",
+    "dich-vu-truc-tuyen": "icon_entertainment.png",
+    "travel-leisure": "icon_entertainment.png",
+    "vui-choi": "icon_entertainment.png",
+
+    // --- 8. GIÁO DỤC ---
+    "education": "icon_education.png",
+    "giao-duc": "icon_education.png",
+
+    // --- 9. HÓA ĐƠN & TIỆN ÍCH (Sub-categories use parent icon) ---
+    "bills-utilities": "icon_utilities.png",
     "hoa-don-tien-ich": "icon_utilities.png",
-    "hoa-don-tien-ich-khac": "icon_other_bill.png",
-    "thue-nha": "icon_rent.png",
-    "lam-dep": "icon_beauty.png",
-    "the-duc-the-thao": "icon_sport.png",
-    "kham-suc-khoe": "icon_medical.png",
-    "do-dung-ca-nhan": "icon_personal_item.png",
-    "do-gia-dung": "icon_home_appliance.png",
-    "vat-nuoi": "icon_pets.png",
-    "bao-duong-xe": "icon_car_repair.png",
-    "dich-vu-truc-tuyen": "icon_online_service.png",
-    "dich-vu-gia-dinh": "icon_home_service.png",
-    "sua-trang-tri-nha": "icon_home_decor.png",
-    "tien-chuyen-den": "icon_transfer_in.png",
+    "electricity-bill": "icon_utilities.png",
+    "hoa-don-dien": "icon_utilities.png",
+    "phone-bill": "icon_utilities.png",
+    "hoa-don-dien-thoai": "icon_utilities.png",
+    "gas-bill": "icon_utilities.png",
+    "hoa-don-gas": "icon_utilities.png",
+    "internet-bill": "icon_utilities.png",
+    "hoa-don-internet": "icon_utilities.png",
+    "water-bill": "icon_utilities.png",
+    "hoa-don-nuoc": "icon_utilities.png",
+    "television-bill": "icon_utilities.png",
+    "tv-bill": "icon_utilities.png",
+    "hoa-don-tv": "icon_utilities.png",
+    "rent": "icon_utilities.png",
+    "thue-nha": "icon_utilities.png",
+    "other-utility-bills": "icon_utilities.png",
+    "hoa-don-tien-ich-khac": "icon_utilities.png",
+
+    // --- 10. MUA SẮM ---
+    "shopping": "icon_shopping.png",
+    "mua-sam": "icon_shopping.png",
+    "personal-items": "icon_shopping.png",
+    "do-dung-ca-nhan": "icon_shopping.png",
+    "home-appliances": "icon_shopping.png",
+    "do-gia-dung": "icon_shopping.png",
+    "beauty": "icon_shopping.png",
+    "lam-dep": "icon_shopping.png",
+
+    // --- 11. QUÀ TẶNG & QUYÊN GÓP ---
+    "gifts-donations": "icon_gift.png",
+    "qua-tang-quyen-gop": "icon_gift.png",
+
+    // --- 12. SỨC KHỎE & THỂ THAO ---
+    "health": "icon_health.png",
+    "suc-khoe": "icon_health.png",
+    "health-fitness": "icon_health.png",
+    "medical-checkup": "icon_health.png",
+    "medical-check-up": "icon_health.png",
+    "kham-suc-khoe": "icon_health.png",
+    "sports": "icon_health.png",
+    "the-duc-the-thao": "icon_health.png",
+    "sports-fitness": "icon_health.png",
+
+    // --- 13. TIỀN CHUYỂN ĐI/ĐẾN ---
+    "outgoing-transfer": "icon_transfer_out.png",
     "tien-chuyen-di": "icon_transfer_out.png",
-    "thu-lai": "icon_interest_receive.png",
+    "incoming-transfer": "icon_transfer_in.png",
+    "tien-chuyen-den": "icon_transfer_in.png",
+
+    // --- 14. TRẢ LÃI / THU LÃI ---
+    "interest-paid": "icon_interest_pay.png",
+    "interest-pay": "icon_interest_pay.png",
+    "interest-payment": "icon_interest_pay.png",
     "tra-lai": "icon_interest_pay.png",
+    "interest-received": "icon_interest_receive.png",
+    "interest-receive": "icon_interest_receive.png",
+    "thu-lai": "icon_interest_receive.png",
+
+    // --- 15. LƯƠNG & THU NHẬP KHÁC ---
+    "salary": "icon_salary.png",
+    "luong": "icon_salary.png",
+    "other-income": "icon_other_income.png",
     "thu-nhap-khac": "icon_other_income.png",
-    "cac-chi-phi-khac": "icon_other_expense.png",
-    "vui-choi": "icon_travel.png"
+
+    // --- 16. VAY & NỢ ---
+    "lending": "icon_loan_out.png",
+    "cho-vay": "icon_loan_out.png",
+    "borrowing": "icon_loan_in.png",
+    "di-vay": "icon_loan_in.png",
+    "debt-collection": "icon_debt_collection.png",
+    "thu-no": "icon_debt_collection.png",
+    "debt-repayment": "icon_debt_repayment.png",
+    "tra-no": "icon_debt_repayment.png"
 };
 
 /**
@@ -200,29 +232,21 @@ const ICON_MAPPING = {
 export const getIconUrl = (identifier) => {
     if (!identifier) return null;
 
-    // 1. Nếu đã là URL đầy đủ (startsWith 'http') -> giữ nguyên
     if (identifier.startsWith('http')) return identifier;
 
     let publicId;
-    
-    // 2. Nếu identifier chứa dấu chấm (e.g., 'icon_beauty.png', 'bill.png') -> dùng trực tiếp làm publicId
     if (identifier.includes('.')) {
         publicId = identifier;
     } else {
-        // 3. Xử lý logic mapping tên tiếng Việt/Anh
         const slug = slugify(identifier);
-        
-        // Thử tìm trong mapping
         if (ICON_MAPPING[slug]) {
             publicId = ICON_MAPPING[slug];
         } else {
-            // Fallback: icon_[slug].png (thay '-' bằng '_' để khớp với convention Cloudinary)
             const underscoreSlug = slug.replace(/-/g, '_');
             publicId = `icon_${underscoreSlug}.png`;
         }
     }
 
-    // Nối với base URL (có transformations f_auto,q_auto)
     return `${CLOUDINARY_BASE}/${publicId}`;
 };
 

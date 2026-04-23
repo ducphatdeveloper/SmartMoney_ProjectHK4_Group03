@@ -17,7 +17,8 @@ class ChartCard extends StatefulWidget {
 class _ChartCardState extends State<ChartCard> {
   final PageController _pageController = PageController();
   int _currentPage = 0;
-  final currencyFormat = NumberFormat.currency(locale: 'en_US', symbol: '\$');
+  // Đổi sang đơn vị ₫ (vi_VN)
+  final currencyFormat = NumberFormat.currency(locale: 'vi_VN', symbol: '₫');
 
   List<DailyTrendDTO> _currentTrend = [];
   bool _isLoading = false;

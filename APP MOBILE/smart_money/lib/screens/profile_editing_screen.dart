@@ -83,7 +83,7 @@ class _ProfileEditingScreenState extends State<ProfileEditingScreen> {
 
       final request = UpdateProfileRequest(
         fullname: _fullnameController.text,
-        // Đã loại bỏ identityCard
+        accPhone: _phoneController.text, // Thêm số điện thoại vào request
         address: _addressController.text,
         gender: genderToSave,
         dateofbirth: _selectedDate != null 
@@ -124,11 +124,21 @@ class _ProfileEditingScreenState extends State<ProfileEditingScreen> {
                 validator: (value) {
                   if (value == null || value.isEmpty) return "Please enter full name";
                   if (value.trim().length < 2) return "Name must be at least 2 characters";
-                  if (RegExp(r'[0-9]').hasMatch(value)) return "Name cannot contain numbers";
                   return null;
                 },
               ),
-              _buildTextField(_phoneController, "Phone Number", Icons.phone, enabled: false), 
+              _buildTextField(
+                _phoneController, 
+                "Phone Number", 
+                Icons.phone, 
+                enabled: true, // Đã bật cho phép chỉnh sửa
+                keyboardType: TextInputType.phone,
+                validator: (value) {
+                  if (value == null || value.isEmpty) return "Please enter phone number";
+                  if (!RegExp(r'^\d{10,11}$').hasMatch(value)) return "Invalid phone number (10-11 digits)";
+                  return null;
+                },
+              ), 
               _buildTextField(_addressController, "Address", Icons.location_on, validator: null),
               
               const SizedBox(height: 16),
@@ -180,12 +190,20 @@ class _ProfileEditingScreenState extends State<ProfileEditingScreen> {
     );
   }
 
-  Widget _buildTextField(TextEditingController controller, String label, IconData icon, {bool enabled = true, String? Function(String?)? validator}) {
+  Widget _buildTextField(
+    TextEditingController controller, 
+    String label, 
+    IconData icon, 
+    {bool enabled = true, 
+    TextInputType keyboardType = TextInputType.text,
+    String? Function(String?)? validator}
+  ) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: TextFormField(
         controller: controller,
         enabled: enabled,
+        keyboardType: keyboardType,
         style: const TextStyle(color: Colors.white),
         decoration: _inputDecoration(label, icon),
         validator: validator,
