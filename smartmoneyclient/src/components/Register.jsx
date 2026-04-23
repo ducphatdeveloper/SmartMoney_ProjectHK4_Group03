@@ -21,28 +21,28 @@ const Register = () => {
 
         // 1. Validate Identity (Phải có ít nhất Phone hoặc Email)
         if (!accPhone?.trim() && !accEmail?.trim()) {
-            newErrors.identity = "Vui lòng cung cấp ít nhất Số điện thoại hoặc Email";
+            newErrors.identity = "Please provide at least Phone number or Email";
         }
 
         // 2. Validate Phone Regex (Nếu có nhập)
         // ^(0\d{9,10})?$ : Bắt đầu bằng 0, theo sau là 9-10 chữ số
         if (accPhone && !/^(0\d{9,10})?$/.test(accPhone)) {
-            newErrors.accPhone = "Số điện thoại phải bắt đầu bằng 0 và có 10-11 chữ số";
+            newErrors.accPhone = "Phone number must start with 0 and have 10-11 digits";
         }
 
         // 3. Validate Email (Nếu có nhập)
         if (accEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(accEmail)) {
-            newErrors.accEmail = "Địa chỉ Email không hợp lệ";
+            newErrors.accEmail = "Invalid email address";
         }
 
         // 4. Validate Password Length (6-50 chars)
         if (!password || password.length < 6 || password.length > 50) {
-            newErrors.password = "Mật khẩu phải từ 6 đến 50 ký tự";
+            newErrors.password = "Password must be between 6 and 50 characters;"
         }
 
         // 5. Validate Confirm Password
         if (password !== confirmPassword) {
-            newErrors.confirmPassword = "Mật khẩu xác nhận không khớp";
+            newErrors.confirmPassword = "Passwords do not match";
         }
 
         return newErrors;
@@ -62,10 +62,10 @@ const Register = () => {
         setIsLoading(true);
         try {
             await authApi.register(formData);
-            alert("Đăng ký thành công! Vui lòng đăng nhập.");
+            alert("Registration successful! Please log in.");
             navigate('/login');
         } catch (err) {
-            setGeneralError(err.response?.data?.message || 'Đăng ký thất bại. Vui lòng thử lại.');
+            setGeneralError(err.response?.data?.message || 'Registration failed. Please try again.');
         } finally {
             setIsLoading(false);
         }
@@ -134,8 +134,8 @@ const Register = () => {
                     <div className="d-inline-block p-3 rounded-circle bg-primary bg-opacity-10 mb-3">
                         <i className="bi bi-person-plus fs-1 text-primary"></i>
                     </div>
-                    <h3 className="fw-bold text-dark">Tạo tài khoản</h3>
-                    <p className="text-muted small">Khởi đầu quản lý tài chính thông minh cùng SmartMoney</p>
+                    <h3 className="fw-bold text-dark">Create account</h3>
+                    <p className="text-muted small">Start managing your finances smartly with SmartMoney</p>
                 </div>
 
                 {generalError && <div className="alert alert-danger border-0 small text-center py-2 rounded-3 mb-3">{generalError}</div>}
@@ -150,7 +150,7 @@ const Register = () => {
                         <i className="bi bi-telephone input-group-icon"></i>
                         <input type="text" name="accPhone" 
                             className={`form-control ${errors.accPhone ? 'is-invalid' : ''}`} 
-                            value={formData.accPhone} onChange={handleChange} placeholder="Số điện thoại" />
+                            value={formData.accPhone} onChange={handleChange} placeholder="Phone number" />
                         {errors.accPhone && <div className="invalid-feedback">{errors.accPhone}</div>}
                     </div>
 
@@ -158,7 +158,7 @@ const Register = () => {
                         <i className="bi bi-envelope input-group-icon"></i>
                         <input type="email" name="accEmail" 
                             className={`form-control ${errors.accEmail ? 'is-invalid' : ''}`} 
-                            value={formData.accEmail} onChange={handleChange} placeholder="Địa chỉ Email" />
+                            value={formData.accEmail} onChange={handleChange} placeholder="Email address" />
                         {errors.accEmail && <div className="invalid-feedback">{errors.accEmail}</div>}
                     </div>
 
@@ -166,7 +166,7 @@ const Register = () => {
                         <i className="bi bi-lock input-group-icon"></i>
                         <input type="password" name="password" 
                             className={`form-control ${errors.password ? 'is-invalid' : ''}`} 
-                            value={formData.password} onChange={handleChange} placeholder="Mật khẩu (tối thiểu 6 ký tự)" />
+                            value={formData.password} onChange={handleChange} placeholder="Password (minimum 6 characters)" />
                         {errors.password && <div className="invalid-feedback">{errors.password}</div>}
                     </div>
 
@@ -174,17 +174,17 @@ const Register = () => {
                         <i className="bi bi-shield-check input-group-icon"></i>
                         <input type="password" name="confirmPassword" 
                             className={`form-control ${errors.confirmPassword ? 'is-invalid' : ''}`} 
-                            value={formData.confirmPassword} onChange={handleChange} placeholder="Xác nhận mật khẩu" />
+                            value={formData.confirmPassword} onChange={handleChange} placeholder="Confirm password" />
                         {errors.confirmPassword && <div className="invalid-feedback">{errors.confirmPassword}</div>}
                     </div>
 
                     <button type="submit" className="btn btn-primary btn-register w-100 fw-bold text-white shadow-sm" disabled={isLoading}>
-                        {isLoading ? <span><span className="spinner-border spinner-border-sm me-2"></span>Xử lý...</span> : "ĐĂNG KÝ NGAY"}
+                        {isLoading ? <span><span className="spinner-border spinner-border-sm me-2"></span>Processing...</span> : "SIGN UP NOW"}
                     </button>
                     
                     <div className="text-center mt-4 small">
-                        <span className="text-muted">Đã có tài khoản?</span>{" "}
-                        <Link to="/login" className="text-decoration-none fw-bold text-primary">Đăng nhập ngay</Link>
+                        <span className="text-muted">Already have an account?</span>{" "}
+                        <Link to="/login" className="text-decoration-none fw-bold text-primary">Log in now</Link>
                     </div>
                 </form>
             </div>

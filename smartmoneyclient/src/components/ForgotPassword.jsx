@@ -15,20 +15,20 @@ const ForgotPassword = () => {
         setError('');
 
         if (!email) {
-            setError('Vui lòng nhập email');
+            setError('Please enter email');
             return;
         }
 
         setIsLoading(true);
         try {
             await authApi.forgotPassword({ email });
-            setMessage('Mã xác thực đã được gửi đến email của bạn.');
+            setMessage('Verification code has been sent to your email.');
             // Chuyển hướng sang trang ResetPassword sau 2 giây
             setTimeout(() => {
                 navigate('/reset-password', { state: { email } });
             }, 2000);
         } catch (err) {
-            setError(err.response?.data?.message || 'Có lỗi xảy ra. Vui lòng thử lại.');
+            setError(err.response?.data?.message || 'An error occurred. Please try again.');
         } finally {
             setIsLoading(false);
         }
@@ -37,7 +37,7 @@ const ForgotPassword = () => {
     return (
         <div className="container d-flex justify-content-center align-items-center vh-100">
             <div className="card shadow-lg p-4 border-0" style={{ width: '400px', borderRadius: '1rem' }}>
-                <h4 className="fw-bold text-center mb-4">Quên Mật Khẩu</h4>
+                <h4 className="fw-bold text-center mb-4">Forgot Password</h4>
 
                 {message && <div className="alert alert-success small text-center">{message}</div>}
                 {error && <div className="alert alert-danger small text-center">{error}</div>}
@@ -50,20 +50,20 @@ const ForgotPassword = () => {
                             className="form-control"
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
-                            placeholder="Nhập email của bạn"
+                            placeholder="Enter your email"
                         />
                     </div>
 
                     <button type="submit" className="btn btn-primary w-100 py-2 fw-bold" disabled={isLoading}>
                         {isLoading ? (
-                            <span><span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Đang xử lý...</span>
+                            <span><span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Processing...</span>
                         ) : (
-                            "GỬI MÃ XÁC THỰC"
+                            "SEND VERIFICATION CODE"
                         )}
                     </button>
 
                     <div className="text-center mt-3 small">
-                        <Link to="/login" className="text-decoration-none">Quay lại đăng nhập</Link>
+                        <Link to="/login" className="text-decoration-none">Back to login</Link>
                     </div>
                 </form>
             </div>

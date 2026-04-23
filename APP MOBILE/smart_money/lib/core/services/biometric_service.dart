@@ -6,7 +6,7 @@ import '../helpers/token_helper.dart';
 class BiometricService {
   final LocalAuthentication _auth = LocalAuthentication();
 
-  /// Kiểm tra phần cứng thiết bị có hỗ trợ sinh trắc học không
+  /// Check if the device hardware supports biometrics
   Future<bool> isBiometricAvailable() async {
     try {
       final bool canAuthenticateWithBiometrics = await _auth.canCheckBiometrics;
@@ -17,7 +17,7 @@ class BiometricService {
     }
   }
 
-  /// Kiểm tra xem người dùng đã đăng ký (setup) vân tay/khuôn mặt trong máy chưa
+  /// Check if the user has enrolled (setup) any biometrics on the device
   Future<bool> isBiometricEnrolled() async {
     try {
       final List<BiometricType> availableBiometrics = await _auth.getAvailableBiometrics();
@@ -27,7 +27,7 @@ class BiometricService {
     }
   }
 
-  /// Lấy danh sách các loại sinh trắc học khả dụng
+  /// Get the list of available biometric types
   Future<List<BiometricType>> getAvailableBiometrics() async {
     try {
       return await _auth.getAvailableBiometrics();
@@ -36,19 +36,19 @@ class BiometricService {
     }
   }
 
-  /// Thực hiện quét sinh trắc học
+  /// Perform biometric authentication
   Future<bool> authenticate({String? customMessage}) async {
     try {
       bool isEnabled = await TokenHelper.isBiometricEnabled();
       if (!isEnabled) return false;
 
       return await _auth.authenticate(
-        localizedReason: customMessage ?? 'Vui lòng xác thực để tiếp tục',
+        localizedReason: customMessage ?? 'Please authenticate to continue',
         authMessages: const <AuthMessages>[
           AndroidAuthMessages(
-            signInTitle: 'Xác thực sinh trắc học',
-            biometricHint: 'Quét khuôn mặt hoặc vân tay',
-            cancelButton: 'Hủy',
+            signInTitle: 'Biometric Authentication',
+            biometricHint: 'Scan face or fingerprint',
+            cancelButton: 'Cancel',
           ),
         ],
         options: const AuthenticationOptions(
@@ -59,8 +59,8 @@ class BiometricService {
       );
     } on PlatformException catch (e) {
       if (e.code == 'NotEnrolled') {
-        // Người dùng chưa cài đặt sinh trắc học trong máy
-        print("Chưa đăng ký sinh trắc học");
+        // User has not set up biometrics on the device
+        print("Biometrics not enrolled");
       }
       return false;
     } catch (e) {

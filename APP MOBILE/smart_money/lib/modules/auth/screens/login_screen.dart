@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:local_auth/local_auth.dart';
 import 'dart:io' show Platform;
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:app_settings/app_settings.dart';
 import '../providers/auth_provider.dart';
 import '../../contact/screens/contact_support_screen.dart';
@@ -119,7 +120,8 @@ class _LoginScreenState extends State<LoginScreen> {
     final authProvider = Provider.of<AuthProvider>(context);
 
     IconData bioIcon = Icons.fingerprint;
-    if (Platform.isAndroid) {
+    // Fix crash on Web: Platform.isAndroid cannot be accessed from web
+    if (!kIsWeb && Platform.isAndroid) {
       bioIcon = Icons.face_unlock_outlined; 
     } else if (_availableTypes.contains(BiometricType.face)) {
       bioIcon = Icons.face;
@@ -249,7 +251,8 @@ class _LoginScreenState extends State<LoginScreen> {
                         ],
                       ),
                       const SizedBox(height: 15),
-                      SizedBox(
+                      // Chỉ hiển thị Google Sign-In trên mobile platform (Android/iOS)
+                      if (!kIsWeb) SizedBox(
                         width: double.infinity,
                         height: 50,
                         child: OutlinedButton(

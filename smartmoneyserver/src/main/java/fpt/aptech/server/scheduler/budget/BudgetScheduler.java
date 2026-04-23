@@ -334,30 +334,41 @@ public class BudgetScheduler {
         LocalDate newStart; // Khai báo biến ngày bắt đầu mới
         LocalDate newEnd; // Khai báo biến ngày kết thúc mới
 
-        switch (old.getBudgetType()) { // Switch theo budget type
-            case MONTHLY: // Nếu là MONTHLY
-                // MONTHLY: Bắt đầu ngày 1 của tháng sau, kết thúc ngày cuối tháng
-                newStart = old.getBeginDate().plusMonths(1).withDayOfMonth(1); // Tháng sau ngày 1
-                newEnd = newStart.withDayOfMonth(newStart.lengthOfMonth()); // Ngày cuối tháng
-                break;
-            case WEEKLY: // Nếu là WEEKLY
-                // WEEKLY: Cộng thêm 1 tuần
-                newStart = old.getBeginDate().plusWeeks(1); // +1 tuần
-                newEnd = old.getEndDate().plusWeeks(1); // +1 tuần
-                break;
-            case YEARLY: // Nếu là YEARLY
-                // YEARLY: Cộng thêm 1 năm
-                newStart = old.getBeginDate().plusYears(1); // +1 năm
-                newEnd = old.getEndDate().plusYears(1); // +1 năm
-                break;
-            case CUSTOM: // Nếu là CUSTOM
-            default: // Mặc định
-                // CUSTOM: Cộng số ngày (logic cũ)
-                long duration = ChronoUnit.DAYS.between(old.getBeginDate(), old.getEndDate()); // Tính số ngày
-                newStart = old.getEndDate().plusDays(1); // +1 ngày từ endDate
-                newEnd = newStart.plusDays(duration); // +duration ngày
-                break;
+        // Null check cho budget cũ (trước khi có budgetType)
+        if (old.getBudgetType() != null) {
+            switch (old.getBudgetType()) { // Switch theo budget type
+                case MONTHLY: // Nếu là MONTHLY
+                    // MONTHLY: Bắt đầu ngày 1 của tháng sau, kết thúc ngày cuối tháng
+                    newStart = old.getBeginDate().plusMonths(1).withDayOfMonth(1); // Tháng sau ngày 1
+                    newEnd = newStart.withDayOfMonth(newStart.lengthOfMonth()); // Ngày cuối tháng
+                    break;
+                case WEEKLY: // Nếu là WEEKLY
+                    // WEEKLY: Cộng thêm 1 tuần
+                    newStart = old.getBeginDate().plusWeeks(1); // +1 tuần
+                    newEnd = old.getEndDate().plusWeeks(1); // +1 tuần
+                    break;
+                case YEARLY: // Nếu là YEARLY
+                    // YEARLY: Cộng thêm 1 năm
+                    newStart = old.getBeginDate().plusYears(1); // +1 năm
+                    newEnd = old.getEndDate().plusYears(1); // +1 năm
+                    break;
+                case CUSTOM: // Nếu là CUSTOM
+                default: // Mặc định
+                    // CUSTOM: Cộng số ngày (logic cũ)
+                    long duration = ChronoUnit.DAYS.between(old.getBeginDate(), old.getEndDate()); // Tính số ngày
+                    newStart = old.getEndDate().plusDays(1); // +1 ngày từ endDate
+                    newEnd = newStart.plusDays(duration); // +duration ngày
+                    break;
+            }
+        } else {
+            // Budget cũ không có budgetType → dùng logic mặc định (CUSTOM)
+            long duration = ChronoUnit.DAYS.between(old.getBeginDate(), old.getEndDate()); // Tính số ngày
+            newStart = old.getEndDate().plusDays(1); // +1 ngày từ endDate
+            newEnd = newStart.plusDays(duration); // +duration ngày
         }
+
+        // Validate ngày mới đã tính (đảm bảo hợp lệ theo budgetType)
+        validateRenewedDates(newStart, newEnd, old.getBudgetType());
 
         // Bước 3: Query categories từ database để tránh LazyInitializationException
         Set<Integer> categoryIds = budgetRepository.findCategoryIdsByBudgetId(old.getId()); // Lấy categoryIds
@@ -549,23 +560,87 @@ public class BudgetScheduler {
         boolean insufficientData = daysWithTransactions < 7;
 
         // Tính gợi ý theo budget type
-        switch (budget.getBudgetType()) {
+        // Null check cho budget cũ (trước khi có budgetType)
+        if (budget.getBudgetType() != null) {
+            switch (budget.getBudgetType()) {
+                case WEEKLY:
+                    if (insufficientData) {
+                        return dailyAverage;
+                    }
+                    return dailyAverage;
+                case MONTHLY:
+                    if (insufficientData) {
+                        return dailyAverage;
+                    }
+                    return dailyAverage;
+                case YEARLY:
+                    return dailyAverage;
+                case CUSTOM:
+                    return dailyAverage;
+                default:
+                    return BigDecimal.ZERO;
+            }
+        } else {
+            // Budget cũ không có budgetType → trả về dailyAverage
+            return dailyAverage;
+        }
+    }
+
+    /**
+     * Validate ngày gia hạn ngân sách phải hợp lệ theo budgetType.
+     * Logic tương tự validateBudgetType trong BudgetServiceImpl.
+     *
+     * @param beginDate - Ngày bắt đầu mới
+     * @param endDate - Ngày kết thúc mới
+     * @param budgetType - Loại ngân sách (có thể null cho budget cũ)
+     */
+    private void validateRenewedDates(LocalDate beginDate, LocalDate endDate, fpt.aptech.server.enums.budget.BudgetType budgetType) {
+        // Null check cho budget cũ
+        if (budgetType == null) {
+            return; // Budget cũ không có budgetType → skip validate
+        }
+
+        switch (budgetType) {
             case WEEKLY:
-                if (insufficientData) {
-                    return dailyAverage;
+                // WEEKLY: Phải đúng 7 ngày
+                long days = ChronoUnit.DAYS.between(beginDate, endDate) + 1;
+                if (days != 7) {
+                    log.error("[BudgetScheduler] Invalid WEEKLY budget renewal: {} days (must be 7)", days);
+                    throw new IllegalArgumentException("Weekly budget must be exactly 7 days");
                 }
-                return dailyAverage;
+                break;
+
             case MONTHLY:
-                if (insufficientData) {
-                    return dailyAverage;
+                // MONTHLY: Phải từ ngày 1 đến cuối tháng
+                if (beginDate.getDayOfMonth() != 1) {
+                    log.error("[BudgetScheduler] Invalid MONTHLY budget renewal: beginDate not day 1");
+                    throw new IllegalArgumentException("Monthly budget must start on day 1");
                 }
-                return dailyAverage;
+                if (endDate.getDayOfMonth() != endDate.lengthOfMonth()) {
+                    log.error("[BudgetScheduler] Invalid MONTHLY budget renewal: endDate not last day of month");
+                    throw new IllegalArgumentException("Monthly budget must end on last day of month");
+                }
+                break;
+
             case YEARLY:
-                return dailyAverage;
+                // YEARLY: Phải từ 01/01 đến 31/12
+                if (beginDate.getMonthValue() != 1 || beginDate.getDayOfMonth() != 1) {
+                    log.error("[BudgetScheduler] Invalid YEARLY budget renewal: beginDate not 01/01");
+                    throw new IllegalArgumentException("Yearly budget must start on 01/01");
+                }
+                if (endDate.getMonthValue() != 12 || endDate.getDayOfMonth() != 31) {
+                    log.error("[BudgetScheduler] Invalid YEARLY budget renewal: endDate not 12/31");
+                    throw new IllegalArgumentException("Yearly budget must end on 12/31");
+                }
+                break;
+
             case CUSTOM:
-                return dailyAverage;
-            default:
-                return BigDecimal.ZERO;
+                // CUSTOM: Chỉ cần begin < end
+                if (!beginDate.isBefore(endDate)) {
+                    log.error("[BudgetScheduler] Invalid CUSTOM budget renewal: beginDate >= endDate");
+                    throw new IllegalArgumentException("Start date must be before end date");
+                }
+                break;
         }
     }
 }

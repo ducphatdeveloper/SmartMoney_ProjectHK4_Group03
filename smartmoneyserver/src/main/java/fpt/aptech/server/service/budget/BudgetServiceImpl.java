@@ -425,7 +425,8 @@ public class BudgetServiceImpl implements BudgetService {
             // ================================
             // 🔥 3. CHỈ CHECK KHI CÙNG TYPE
             // ================================
-            if (request.budgetType() != existing.getBudgetType()) {
+            // Null check cho budget cũ (trước khi có budgetType)
+            if (existing.getBudgetType() != null && request.budgetType() != existing.getBudgetType()) {
                 continue; // ✅ KHÁC TYPE → CHO QUA
             }
 
@@ -506,7 +507,7 @@ public class BudgetServiceImpl implements BudgetService {
         Set<Integer> categoryIds = resolveCategoryIds(budget);
 
         // =========================
-        // 3. SPENT
+        // 3. SPENT (tính tất cả giao dịch trong khoảng thời gian budget, bao gồm tương lai)
         // =========================
 
         BigDecimal spent = transactionRepository.sumExpenseForBudget(
@@ -569,24 +570,11 @@ public class BudgetServiceImpl implements BudgetService {
                     RoundingMode.HALF_UP);
         }
 
-        // Dự đoán tổng chi đến cuối kỳ
-        // Nếu dailyActual = 0 (chưa có giao dịch) → projected = 0
-        // Nếu dailyActual > 0 → projected = dailyActual * totalDays
-        BigDecimal projected = BigDecimal.ZERO;
-        if (dailyActual.compareTo(BigDecimal.ZERO) > 0) {
-            projected = dailyActual.multiply(BigDecimal.valueOf(totalDays));
-        }
+        // Dự đoán tổng chi đến cuối kỳ dựa trên pattern giao dịch từ lịch sử 3 tháng
+        BigDecimal projected = calculateProjectedSpendByPattern(budget, totalDays);
 
-        // Mỗi ngày nên chi bao nhiêu để không vượt budget
-        BigDecimal dailyShould = BigDecimal.ZERO;
-        if (daysLeft > 0) {
-            dailyShould = remaining
-                    .max(BigDecimal.ZERO) // 🔥 không cho âm
-                    .divide(
-                            BigDecimal.valueOf(daysLeft),
-                            2,
-                            RoundingMode.HALF_UP);
-        }
+        // Nên chi/ngày dựa trên pattern giao dịch từ lịch sử 3 tháng
+        BigDecimal dailyShould = calculateDailyShouldSpendByPattern(budget);
 
         // =========================
         // 6. ALERT LOGIC
@@ -651,16 +639,42 @@ public class BudgetServiceImpl implements BudgetService {
         // 10. TÍNH TOÁN ĐỀ XUẤT DỰA TRÊN LỊCH SỬ 3 THÁNG VÀ TẦN SUẤT GIAO DỊCH
         // =========================
 
-        // Tính toán ngân sách đề xuất dựa trên tần suất giao dịch thực tế
+        // Tính toán các giá trị đề xuất dựa trên tần suất giao dịch thực tế
         BigDecimal suggestedAmount = calculateSuggestedBudget(budget);
         BigDecimal suggestedDailySpend = BigDecimal.ZERO;
+        BigDecimal suggestedWeeklySpend = BigDecimal.ZERO;
+        BigDecimal suggestedMonthlySpend = BigDecimal.ZERO;
+        BigDecimal suggestedYearlySpend = BigDecimal.ZERO;
+        BigDecimal suggestedCustomSpend = BigDecimal.ZERO;
 
-        // Tính số tiền nên chi hàng ngày theo đề xuất
-        if (suggestedAmount.compareTo(BigDecimal.ZERO) > 0 && totalDays > 0) {
-            suggestedDailySpend = suggestedAmount.divide(
-                    BigDecimal.valueOf(totalDays),
-                    2,
-                    RoundingMode.HALF_UP);
+        // Lấy các giá trị đề xuất theo từng đơn vị thời gian
+        // dựa trên budget type và pattern giao dịch thực tế
+        // Null check cho budget cũ (trước khi có budgetType)
+        if (budget.getBudgetType() != null) {
+            switch (budget.getBudgetType()) {
+                case WEEKLY:
+                    suggestedDailySpend = calculateSuggestedDailySpend(budget);
+                    suggestedWeeklySpend = suggestedAmount;
+                    break;
+                case MONTHLY:
+                    suggestedDailySpend = calculateSuggestedDailySpend(budget);
+                    suggestedMonthlySpend = suggestedAmount;
+                    break;
+                case YEARLY:
+                    suggestedDailySpend = calculateSuggestedDailySpend(budget);
+                    suggestedYearlySpend = suggestedAmount;
+                    break;
+                case CUSTOM:
+                    suggestedDailySpend = calculateSuggestedDailySpend(budget);
+                    suggestedCustomSpend = suggestedAmount;
+                    break;
+                default:
+                    suggestedDailySpend = calculateSuggestedDailySpend(budget);
+                    break;
+            }
+        } else {
+            // Budget cũ không có budgetType → chỉ tính suggestedDailySpend
+            suggestedDailySpend = calculateSuggestedDailySpend(budget);
         }
 
         // Tính số tiền vượt ngân sách = max(0, spent - amount)
@@ -696,6 +710,10 @@ public class BudgetServiceImpl implements BudgetService {
                 .budgetType(budget.getBudgetType())
                 .suggestedAmount(suggestedAmount)
                 .suggestedDailySpend(suggestedDailySpend)
+                .suggestedWeeklySpend(suggestedWeeklySpend)
+                .suggestedMonthlySpend(suggestedMonthlySpend)
+                .suggestedYearlySpend(suggestedYearlySpend)
+                .suggestedCustomSpend(suggestedCustomSpend)
                 .overBudgetAmount(overBudgetAmount)
                 .build();
     }
@@ -716,6 +734,50 @@ public class BudgetServiceImpl implements BudgetService {
                 throw new IllegalArgumentException("Start date must be today or later for custom budget.");
             }
         }
+    }
+
+    /**
+     * Tính toán mức chi tiêu/ngày đề xuất dựa trên lịch sử chi tiêu 3 tháng gần nhất.
+     * Giá trị này là trung bình thực tế chi mỗi ngày, không phụ thuộc vào budget type.
+     *
+     * @param budget - Ngân sách hiện tại để lấy thông tin wallet, categories
+     * @return BigDecimal - Mức chi tiêu/ngày đề xuất
+     */
+    private BigDecimal calculateSuggestedDailySpend(Budget budget) {
+        // Query giao dịch 3 tháng gần nhất
+        LocalDate today = LocalDate.now();
+        LocalDate threeMonthsAgo = today.minusMonths(3);
+
+        LocalDateTime startDate = threeMonthsAgo.atStartOfDay();
+        LocalDateTime endDate = today.atTime(LocalTime.MAX);
+
+        Integer walletId = budget.getWallet() != null ? budget.getWallet().getId() : null;
+        Set<Integer> categoryIds = resolveCategoryIds(budget);
+
+        // Query danh sách giao dịch 3 tháng gần nhất
+        List<Transaction> transactions = transactionRepository.findTransactionsForBudget(
+                budget.getAccount().getId(),
+                startDate,
+                endDate,
+                walletId,
+                budget.getAllCategories(),
+                categoryIds
+        );
+
+        // Nếu không có giao dịch nào → không đề xuất
+        if (transactions == null || transactions.isEmpty()) {
+            return BigDecimal.ZERO;
+        }
+
+        // Phân tích tần suất giao dịch trong 3 tháng
+        TransactionFrequencyAnalysis analysis = analyzeTransactionFrequency(
+                transactions,
+                threeMonthsAgo,
+                today
+        );
+
+        // Trả về trung bình chi mỗi ngày từ phân tích
+        return analysis.dailyAverage;
     }
 
     /**
@@ -1043,5 +1105,130 @@ public class BudgetServiceImpl implements BudgetService {
         WEEKLY,      // Giao dịch hàng tuần (> 70% tuần có giao dịch)
         MONTHLY,     // Giao dịch hàng tháng (> 60% tháng có giao dịch)
         IRREGULAR    // Giao dịch không đều
+    }
+
+    /**
+     * Tính toán dự đoán tổng chi đến cuối kỳ dựa trên pattern giao dịch từ lịch sử 3 tháng.
+     * Logic cải thiện: Dự đoán chính xác hơn với WEEKLY/MONTHLY/IRREGULAR pattern.
+     *
+     * @param budget - Ngân sách hiện tại
+     * @param totalDays - Tổng số ngày của budget
+     * @return BigDecimal - Dự đoán tổng chi đến cuối kỳ
+     */
+    private BigDecimal calculateProjectedSpendByPattern(Budget budget, long totalDays) {
+        // Query giao dịch 3 tháng gần nhất
+        LocalDate today = LocalDate.now();
+        LocalDate threeMonthsAgo = today.minusMonths(3);
+
+        LocalDateTime startDate = threeMonthsAgo.atStartOfDay();
+        LocalDateTime endDate = today.atTime(LocalTime.MAX);
+
+        Integer walletId = budget.getWallet() != null ? budget.getWallet().getId() : null;
+        Set<Integer> categoryIds = resolveCategoryIds(budget);
+
+        // Query danh sách giao dịch 3 tháng gần nhất
+        List<Transaction> transactions = transactionRepository.findTransactionsForBudget(
+                budget.getAccount().getId(),
+                startDate,
+                endDate,
+                walletId,
+                budget.getAllCategories(),
+                categoryIds
+        );
+
+        // Nếu không có giao dịch nào → dự đoán = 0
+        if (transactions == null || transactions.isEmpty()) {
+            return BigDecimal.ZERO;
+        }
+
+        // Phân tích tần suất giao dịch trong 3 tháng
+        TransactionFrequencyAnalysis analysis = analyzeTransactionFrequency(
+                transactions,
+                threeMonthsAgo,
+                today
+        );
+
+        // Dự đoán dựa trên pattern giao dịch
+        switch (analysis.pattern) {
+            case DAILY:
+                // Giao dịch hàng ngày → trung bình ngày * tổng số ngày
+                return analysis.dailyAverage.multiply(BigDecimal.valueOf(totalDays));
+
+            case WEEKLY:
+                // Giao dịch hàng tuần → trung bình tuần * (tổng số ngày / 7)
+                long weeksCount = totalDays / 7;
+                if (totalDays % 7 > 0) weeksCount++; // Làm tròn lên nếu dư
+                return analysis.weeklyAverage.multiply(BigDecimal.valueOf(weeksCount));
+
+            case MONTHLY:
+                // Giao dịch hàng tháng → trung bình tháng * (tổng số ngày / 30)
+                long monthsCount = totalDays / 30;
+                if (totalDays % 30 > 0) monthsCount++; // Làm tròn lên nếu dư
+                return analysis.monthlyAverage.multiply(BigDecimal.valueOf(monthsCount));
+
+            default: // IRREGULAR
+                // Giao dịch không đều → dùng trung bình ngày * tổng số ngày (an toàn nhất)
+                return analysis.dailyAverage.multiply(BigDecimal.valueOf(totalDays));
+        }
+    }
+
+    /**
+     * Tính toán mức chi/ngày nên chi dựa trên pattern giao dịch từ lịch sử 3 tháng.
+     * Logic cải thiện: Dựa trên pattern giao dịch thực tế thay vì chia đều.
+     *
+     * @param budget - Ngân sách hiện tại
+     * @return BigDecimal - Mức chi/ngày nên chi
+     */
+    private BigDecimal calculateDailyShouldSpendByPattern(Budget budget) {
+        // Query giao dịch 3 tháng gần nhất
+        LocalDate today = LocalDate.now();
+        LocalDate threeMonthsAgo = today.minusMonths(3);
+
+        LocalDateTime startDate = threeMonthsAgo.atStartOfDay();
+        LocalDateTime endDate = today.atTime(LocalTime.MAX);
+
+        Integer walletId = budget.getWallet() != null ? budget.getWallet().getId() : null;
+        Set<Integer> categoryIds = resolveCategoryIds(budget);
+
+        // Query danh sách giao dịch 3 tháng gần nhất
+        List<Transaction> transactions = transactionRepository.findTransactionsForBudget(
+                budget.getAccount().getId(),
+                startDate,
+                endDate,
+                walletId,
+                budget.getAllCategories(),
+                categoryIds
+        );
+
+        // Nếu không có giao dịch nào → không đề xuất
+        if (transactions == null || transactions.isEmpty()) {
+            return BigDecimal.ZERO;
+        }
+
+        // Phân tích tần suất giao dịch trong 3 tháng
+        TransactionFrequencyAnalysis analysis = analyzeTransactionFrequency(
+                transactions,
+                threeMonthsAgo,
+                today
+        );
+
+        // Tính toán dựa trên pattern giao dịch
+        switch (analysis.pattern) {
+            case DAILY:
+                // Giao dịch hàng ngày → dùng trực tiếp trung bình ngày
+                return analysis.dailyAverage;
+
+            case WEEKLY:
+                // Giao dịch hàng tuần → trung bình tuần / 7
+                return analysis.weeklyAverage.divide(BigDecimal.valueOf(7), 2, RoundingMode.HALF_UP);
+
+            case MONTHLY:
+                // Giao dịch hàng tháng → trung bình tháng / 30
+                return analysis.monthlyAverage.divide(BigDecimal.valueOf(30), 2, RoundingMode.HALF_UP);
+
+            default: // IRREGULAR
+                // Giao dịch không đều → dùng trung bình ngày
+                return analysis.dailyAverage;
+        }
     }
 }
