@@ -13,22 +13,22 @@ import java.math.BigDecimal;
 @Getter
 @Setter
 public class WalletRequest{
-    @NotBlank(message = "Mã tiền tệ không được để trống")
-    @Pattern(regexp = "VND", message = "Ví hiện chỉ hỗ trợ VND.")
+    @NotBlank(message = "Currency code cannot be empty")
+    @Pattern(regexp = "VND", message = "Wallet currently only supports VND.")
     private String currencyCode;
 
-    @NotBlank(message = "Tên ví không được để trống")
-    @Size(max = 100, message = "Tên ví không được quá 100 ký tự")
+    @NotBlank(message = "Wallet name cannot be empty")
+    @Size(max = 100, message = "Wallet name must not exceed 100 characters")
     private String walletName;
 
-    @PositiveOrZero(message = "Số dư phải lớn hơn hoặc bằng 0")
-    @DecimalMax(value = "1000000000000.00", message = "Số dư không được vượt quá 1.000 tỷ VND")
+    @PositiveOrZero(message = "Balance must be greater than or equal to 0")
+    @DecimalMax(value = "1000000000000.00", message = "Balance must not exceed 1,000 billion VND")
     private BigDecimal balance;
 
     private Boolean notified;
 
     private Boolean reportable;
 
-    @Size(max = 2048, message = "URL hình ảnh quá dài")
+    @Size(max = 2048, message = "Image URL is too long")
     private String goalImageUrl;
 }

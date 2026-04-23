@@ -353,7 +353,7 @@ class _AddBasicWalletScreenState extends State<AddBasicWalletScreen> {
       goalImageUrl: _selectedIconUrl,
     );
 
-    final success = await provider.createWallet(request);
+    final success = await provider.createWallet(context, request);
 
     setState(() => isSaving = false);
 

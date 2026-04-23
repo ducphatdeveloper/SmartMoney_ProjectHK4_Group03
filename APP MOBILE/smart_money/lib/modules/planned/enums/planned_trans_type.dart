@@ -19,17 +19,17 @@ enum PlannedTransType {
   String get displayName {
     switch (this) {
       case PlannedTransType.expense:
-        return 'Chi';
+        return 'Expense';
       case PlannedTransType.income:
-        return 'Thu';
+        return 'Income';
       case PlannedTransType.loanOut:
-        return 'Cho vay';
+        return 'Lend';
       case PlannedTransType.loanIn:
-        return 'Đi vay';
+        return 'Borrow';
       case PlannedTransType.debtCollect:
-        return 'Thu nợ';
+        return 'Debt collection';
       case PlannedTransType.debtRepay:
-        return 'Trả nợ';
+        return 'Debt repayment';
     }
   }
 }

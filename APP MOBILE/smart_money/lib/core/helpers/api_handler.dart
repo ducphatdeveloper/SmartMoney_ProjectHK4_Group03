@@ -175,7 +175,7 @@ class ApiHandler {
     if (response.statusCode == 401) {
       return ApiResponse<T>(
         success: false,
-        message: "Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại.",
+        message: "Session expired. Please login again.",
       );
     }
 
@@ -192,14 +192,14 @@ class ApiHandler {
     // Fallback nếu backend không trả message
     return ApiResponse<T>(
       success: false,
-      message: 'Có lỗi xảy ra (HTTP ${response.statusCode})',
+      message: 'An error occurred (HTTP ${response.statusCode})',
     );
   }
 
   static ApiResponse<T> _networkError<T>() {
     return ApiResponse<T>(
       success: false,
-      message: "Không thể kết nối đến server. Kiểm tra lại mạng.",
+      message: "Cannot connect to server. Please check your network.",
     );
   }
 }

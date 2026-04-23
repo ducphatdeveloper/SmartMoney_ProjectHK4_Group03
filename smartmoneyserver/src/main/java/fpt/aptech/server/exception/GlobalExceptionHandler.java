@@ -39,7 +39,7 @@ public class GlobalExceptionHandler {
 
         return ResponseEntity
                 .status(HttpStatus.BAD_REQUEST) // 400
-                .body(ApiResponse.error("Dữ liệu không hợp lệ", errors));
+                .body(ApiResponse.error("Invalid data", errors));
     }
 
     /**
@@ -50,12 +50,12 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ApiResponse<Void>> handleDataIntegrityViolationException(
             DataIntegrityViolationException ex) {
 
-        String message = "Dữ liệu không hợp lệ hoặc đã tồn tại.";
+        String message = "Invalid data or already exists.";
 
         if (ex.getMessage() != null && ex.getMessage().contains("Duplicate entry")) {
-            message = "Dữ liệu này đã tồn tại.";
+            message = "This data already exists.";
         } else if (ex.getMessage() != null && ex.getMessage().contains("foreign key constraint")) {
-            message = "Dữ liệu liên quan không tồn tại.";
+            message = "Related data does not exist.";
         }
 
         return ResponseEntity
@@ -73,7 +73,7 @@ public class GlobalExceptionHandler {
 
         return ResponseEntity
                 .status(HttpStatus.UNAUTHORIZED) // 401
-                .body(ApiResponse.error("Tên đăng nhập hoặc mật khẩu không chính xác"));
+                .body(ApiResponse.error("Incorrect username or password"));
     }
 
     /**
@@ -86,7 +86,7 @@ public class GlobalExceptionHandler {
 
         return ResponseEntity
                 .status(HttpStatus.UNAUTHORIZED) // 401
-                .body(ApiResponse.error("Xác thực thất bại: " + ex.getMessage()));
+                .body(ApiResponse.error("Authentication failed: " + ex.getMessage()));
     }
 
     /**
@@ -99,7 +99,7 @@ public class GlobalExceptionHandler {
 
         return ResponseEntity
                 .status(HttpStatus.UNAUTHORIZED) // 401
-                .body(ApiResponse.error("Token đã hết hạn"));
+                .body(ApiResponse.error("Token has expired"));
     }
 
     /**
@@ -112,7 +112,7 @@ public class GlobalExceptionHandler {
 
         return ResponseEntity
                 .status(HttpStatus.UNAUTHORIZED) // 401
-                .body(ApiResponse.error("Token không hợp lệ"));
+                .body(ApiResponse.error("Invalid token"));
     }
 
     /**
@@ -127,7 +127,7 @@ public class GlobalExceptionHandler {
         // Ta có thể custom lại cho thân thiện hơn nếu muốn.
         String message = ex.getMessage();
         if (ex instanceof AccessDeniedException) {
-            message = "Bạn không có quyền thực hiện hành động này.";
+            message = "You do not have permission to perform this action.";
         }
 
         return ResponseEntity
@@ -144,7 +144,7 @@ public class GlobalExceptionHandler {
             HttpRequestMethodNotSupportedException ex) {
         return ResponseEntity
                 .status(HttpStatus.METHOD_NOT_ALLOWED) // 405
-                .body(ApiResponse.error("Phương thức " + ex.getMethod() + " không được hỗ trợ cho API này"));
+                .body(ApiResponse.error("Method " + ex.getMethod() + " is not supported for this API"));
     }
 
     /**
@@ -157,7 +157,7 @@ public class GlobalExceptionHandler {
             NoHandlerFoundException ex) {
         return ResponseEntity
                 .status(HttpStatus.NOT_FOUND) // 404
-                .body(ApiResponse.error("Không tìm thấy đường dẫn: " + ex.getRequestURL()));
+                .body(ApiResponse.error("Path not found: " + ex.getRequestURL()));
     }
 
     /**
@@ -198,6 +198,6 @@ public class GlobalExceptionHandler {
 
         return ResponseEntity
                 .status(HttpStatus.INTERNAL_SERVER_ERROR) // 500
-                .body(ApiResponse.error("Đã xảy ra lỗi hệ thống: " + ex.getMessage()));
+                .body(ApiResponse.error("System error occurred: " + ex.getMessage()));
     }
 }

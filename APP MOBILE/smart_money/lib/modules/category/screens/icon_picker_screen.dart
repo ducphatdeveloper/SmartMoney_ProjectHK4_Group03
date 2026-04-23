@@ -64,7 +64,7 @@ class _IconPickerScreenState extends State<IconPickerScreen> {
       setState(() {
         _errorMessage = response.message.isNotEmpty
             ? response.message
-            : 'Không thể tải danh sách icon';
+            : 'Cannot load icon list';
         _isLoading = false;
       });
     }

@@ -78,4 +78,9 @@ public interface PlannedTransactionRepository extends JpaRepository<PlannedTrans
     @Modifying
     @Query("UPDATE PlannedTransaction p SET p.deleted = true, p.deletedAt = CURRENT_TIMESTAMP WHERE p.wallet.id = :walletId")
     void softDeleteAllByWalletId(@Param("walletId") Integer walletId);
+
+    /// [TRANSFER] Update wallet_id của tất cả PlannedTransaction từ ví nguồn sang ví đích
+    @Modifying
+    @Query("UPDATE PlannedTransaction p SET p.wallet.id = :toWalletId WHERE p.wallet.id = :fromWalletId")
+    void updateWalletIdByFromWalletId(@Param("fromWalletId") Integer fromWalletId, @Param("toWalletId") Integer toWalletId);
 }

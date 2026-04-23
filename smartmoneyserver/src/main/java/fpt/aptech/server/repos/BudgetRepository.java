@@ -101,6 +101,11 @@ AND b.endDate >= :beginDate
     @Query("UPDATE Budget b SET b.deleted = true, b.deletedAt = CURRENT_TIMESTAMP WHERE b.wallet.id = :walletId")
     void softDeleteAllByWalletId(@Param("walletId") Integer walletId);
 
+    /// [TRANSFER] Update wallet_id của tất cả Budget từ ví nguồn sang ví đích
+    @Modifying
+    @Query("UPDATE Budget b SET b.wallet.id = :toWalletId WHERE b.wallet.id = :fromWalletId")
+    void updateWalletIdByFromWalletId(@Param("fromWalletId") Integer fromWalletId, @Param("toWalletId") Integer toWalletId);
+
 
     // Lấy danh sách ngân sách hết hạn, fetch wallet luôn để tránh LazyInitializationException
     @Query("SELECT b FROM Budget b LEFT JOIN FETCH b.wallet w LEFT JOIN FETCH b.categories WHERE b.endDate < :today AND b.deleted = false")

@@ -33,7 +33,7 @@ public class NotificationScheduler {
             return;
         }
 
-        log.info("[NotificationScheduler] Tìm thấy {} thông báo đến hạn gửi.", pendingNotifications.size());
+        log.info("[NotificationScheduler] Found {} notifications due for sending.", pendingNotifications.size());
 
         for (Notification notification : pendingNotifications) {
             try {
@@ -48,10 +48,10 @@ public class NotificationScheduler {
                 notification.setNotifySent(true);
                 notificationRepository.save(notification);
 
-                log.info("[NotificationScheduler] Đã gửi thông báo ID: {} cho User ID: {}", 
+                log.info("[NotificationScheduler] Sent notification ID: {} to User ID: {}",
                         notification.getId(), notification.getAccount().getId());
             } catch (Exception e) {
-                log.error("[NotificationScheduler] Lỗi khi gửi thông báo ID: {}: {}", 
+                log.error("[NotificationScheduler] Error sending notification ID: {}: {}",
                         notification.getId(), e.getMessage());
             }
         }

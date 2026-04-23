@@ -41,9 +41,9 @@ public final class NotificationMessages {
                                                          BigDecimal amount,
                                                          String categoryName,
                                                          String walletName) {
-        String type = isIncome ? "thu nhập" : "chi tiêu";
-        String title = "Giao dịch mới";
-        String content = String.format("Đã ghi nhận %s %s - %s vào ví %s",
+        String type = isIncome ? "income" : "expense";
+        String title = "New Transaction";
+        String content = String.format("Recorded %s %s - %s in wallet %s",
                 type, CurrencyUtils.formatVND(amount), categoryName, walletName);
         return new NotificationContent(title, content);
     }
@@ -55,8 +55,8 @@ public final class NotificationMessages {
      */
     public static NotificationContent largeTransactionAlert(BigDecimal amount,
                                                             String categoryName) {
-        String title = "Giao dịch lớn";
-        String content = String.format("Phát hiện giao dịch lớn: %s cho %s. Hãy kiểm tra lại!",
+        String title = "Large Transaction";
+        String content = String.format("Large transaction detected: %s for %s. Please review!",
                 CurrencyUtils.formatVND(amount), categoryName);
         return new NotificationContent(title, content);
     }
@@ -91,19 +91,19 @@ public final class NotificationMessages {
                                                           Integer plannedType,
                                                           String debtPersonName) {
         // Bước 1: Xác định nhãn loại giao dịch — "thu" hoặc "chi"
-        String type = isIncome ? "thu" : "chi";
+        String type = isIncome ? "income" : "expense";
 
         // Bước 2: Xác định tiêu đề thông báo theo loại giao dịch
         //   isIncome = true  → khoản thu → icon 💰
         //   isIncome = false → khoản chi → icon 💸
         String title = isIncome
-                ? "💰 Nhắc nhở: Khoản thu của bạn"
-                : "💸 Nhắc nhở: Khoản chi của bạn";
+                ? "💰 Reminder: Your Income"
+                : "💸 Reminder: Your Expense";
 
         // Bước 3: Format ngày giờ đầy đủ từ transDate
         //   VD: transDate = 2026-04-11T14:30:00 → "ngày 11/04/2026 lúc 14:30"
         //   %02d: đảm bảo ngày/tháng/giờ/phút luôn 2 chữ số (VD: 7 → "07")
-        String dateTimeLabel = String.format("ngày %02d/%02d/%d lúc %02d:%02d",
+        String dateTimeLabel = String.format("on %02d/%02d/%d at %02d:%02d",
                 transDate.getDayOfMonth(),   // ngày trong tháng (1-31)
                 transDate.getMonthValue(),   // tháng (1-12)
                 transDate.getYear(),         // năm 4 chữ số
@@ -114,7 +114,7 @@ public final class NotificationMessages {
         // Bước 4: Ghép nội dung thông báo chính
         //   Cấu trúc: "Bạn đã [thu/chi] [số tiền] - [danh mục] [ngày giờ] vào [nguồn tiền]."
         StringBuilder content = new StringBuilder(String.format(
-                "Bạn đã %s %s - %s %s vào %s.",
+                "You have %s %s - %s %s in %s.",
                 type,
                 CurrencyUtils.formatVND(amount),
                 categoryName,
@@ -124,16 +124,16 @@ public final class NotificationMessages {
 
         // Bước 5: Nối các thông tin bổ sung (chỉ thêm nếu có giá trị)
         if (note != null && !note.isBlank()) {
-            content.append(" Ghi chú: ").append(note.trim()).append(".");
+            content.append(" Note: ").append(note.trim()).append(".");
         }
         if (eventName != null && !eventName.isBlank()) {
-            content.append(" Sự kiện: ").append(eventName.trim()).append(".");
+            content.append(" Event: ").append(eventName.trim()).append(".");
         }
         if (plannedType != null) {
-            content.append(plannedType == 1 ? " Hóa đơn định kỳ." : " Giao dịch lặp lại tự động.");
+            content.append(plannedType == 1 ? " Recurring Bill." : " Auto Recurring Transaction.");
         }
         if (debtPersonName != null && !debtPersonName.isBlank()) {
-            content.append(" Khoản nợ: ").append(debtPersonName.trim()).append(".");
+            content.append(" Debt: ").append(debtPersonName.trim()).append(".");
         }
 
         return new NotificationContent(title, content.toString());
@@ -156,8 +156,8 @@ public final class NotificationMessages {
      * Giao dịch được khôi phục bởi Admin.
      */
     public static NotificationContent transactionRestored(BigDecimal amount) {
-        String title = "Giao dịch được khôi phục ♻️";
-        String content = String.format("Giao dịch trị giá %s đã được Admin khôi phục thành công. Vui lòng kiểm tra lại số dư ví.",
+        String title = "Transaction Restored ♻️";
+        String content = String.format("Transaction worth %s has been successfully restored by Admin. Please check your wallet balance.",
                 CurrencyUtils.formatVND(amount));
         return new NotificationContent(title, content);
     }
@@ -166,8 +166,8 @@ public final class NotificationMessages {
      * Tất cả giao dịch đã xóa được khôi phục bởi Admin.
      */
     public static NotificationContent allTransactionsRestored() {
-        String title = "Khôi phục dữ liệu thành công ♻️";
-        String content = "Tất cả giao dịch đã bị xóa của bạn đã được Admin khôi phục lại trạng thái ban đầu.";
+        String title = "Data Restored Successfully ♻️";
+        String content = "All your deleted transactions have been restored to their original state by Admin.";
         return new NotificationContent(title, content);
     }
 
@@ -182,8 +182,8 @@ public final class NotificationMessages {
     public static NotificationContent savingMilestone(String goalName,
                                                       int percent,
                                                       BigDecimal remaining) {
-        String title = "Mục tiêu tiến triển 🎯";
-        String content = String.format("Bạn đã đạt %d%% mục tiêu \"%s\". Còn %s nữa là hoàn thành!",
+        String title = "Goal Progress 🎯";
+        String content = String.format("You have reached %d%% of goal \"%s\". %s more to complete!",
                 percent, goalName, CurrencyUtils.formatVND(remaining));
         return new NotificationContent(title, content);
     }
@@ -194,8 +194,8 @@ public final class NotificationMessages {
      */
     public static NotificationContent savingCompleted(String goalName,
                                                       BigDecimal targetAmount) {
-        String title = "Mục tiêu hoàn thành 🎉";
-        String content = String.format("Chúc mừng! Bạn đã hoàn thành mục tiêu \"%s\" với %s.",
+        String title = "Goal Completed 🎉";
+        String content = String.format("Congratulations! You have completed goal \"%s\" with %s.",
                 goalName, CurrencyUtils.formatVND(targetAmount));
         return new NotificationContent(title, content);
     }
@@ -208,9 +208,9 @@ public final class NotificationMessages {
                                                          int daysLeft,
                                                          LocalDate endDate,
                                                          BigDecimal remaining) {
-        String title = "Nhắc mục tiêu ⏰";
+        String title = "Goal Reminder ⏰";
         String content = String.format(
-                "Mục tiêu \"%s\" sắp đến hạn (%s). Còn %d ngày và %s nữa để hoàn thành!",
+                "Goal \"%s\" is approaching deadline (%s). %d days and %s left to complete!",
                 goalName, endDate.format(VN_DATE), daysLeft, CurrencyUtils.formatVND(remaining));
         return new NotificationContent(title, content);
     }
@@ -221,9 +221,9 @@ public final class NotificationMessages {
      */
     public static NotificationContent savingOverdue(String goalName,
                                                     BigDecimal remaining) {
-        String title = "Mục tiêu quá hạn ⚠️";
+        String title = "Goal Overdue ⚠️";
         String content = String.format(
-                "Mục tiêu tiết kiệm \"%s\" đã quá hạn nhưng vẫn còn thiếu %s. Bạn có muốn gia hạn?",
+                "Saving goal \"%s\" has passed deadline but still missing %s. Do you want to extend?",
                 goalName, CurrencyUtils.formatVND(remaining));
         return new NotificationContent(title, content);
     }
@@ -235,9 +235,9 @@ public final class NotificationMessages {
     public static NotificationContent savingFinalized(String goalName,
                                                       BigDecimal amount,
                                                       String walletName) {
-        String title = "Chốt sổ mục tiêu 🎯";
+        String title = "Goal Finalized 🎯";
         String content = String.format(
-                "Mục tiêu \"%s\" đã được chốt sổ. %s đã được chuyển về ví \"%s\".",
+                "Goal \"%s\" has been finalized. %s has been transferred to wallet \"%s\".",
                 goalName, CurrencyUtils.formatVND(amount), walletName);
         return new NotificationContent(title, content);
     }
@@ -249,9 +249,9 @@ public final class NotificationMessages {
     public static NotificationContent savingCancelled(String goalName,
                                                       BigDecimal amount,
                                                       String walletName) {
-        String title = "Hủy mục tiêu ❌";
+        String title = "Goal Cancelled ❌";
         String content = String.format(
-                "Mục tiêu \"%s\" đã bị hủy. %s đã được hoàn trả về ví \"%s\".",
+                "Goal \"%s\" has been cancelled. %s has been refunded to wallet \"%s\".",
                 goalName, CurrencyUtils.formatVND(amount), walletName);
         return new NotificationContent(title, content);
     }
@@ -364,8 +364,8 @@ public final class NotificationMessages {
      * Dùng khi: AuthServiceImp.register() thành công.
      */
     public static NotificationContent newUserRegistered(String userName) {
-        String title = "Người dùng mới đăng ký";
-        String content = String.format("Người dùng mới \"%s\" vừa đăng ký tài khoản.", userName);
+        String title = "New User Registered";
+        String content = String.format("New user \"%s\" has just registered an account.", userName);
         return new NotificationContent(title, content);
     }
 
@@ -375,9 +375,9 @@ public final class NotificationMessages {
      * (Để sẵn — khi implement tính năng bảo mật nâng cao)
      */
     public static NotificationContent suspiciousLogin(String deviceName, String time) {
-        String title = "Bảo mật tài khoản ⚠️";
+        String title = "Account Security ⚠️";
         String content = String.format(
-                "Phát hiện đăng nhập mới từ thiết bị \"%s\" lúc %s. Nếu không phải bạn, hãy đổi mật khẩu ngay!",
+                "New login detected from device \"%s\" at %s. If this wasn't you, change your password immediately!",
                 deviceName, time);
         return new NotificationContent(title, content);
     }
@@ -387,8 +387,8 @@ public final class NotificationMessages {
      * Dùng khi: Admin broadcast thông báo hệ thống.
      */
     public static NotificationContent systemUpdate(String version, String features) {
-        String title = "Cập nhật hệ thống 🆕";
-        String content = String.format("SmartMoney %s vừa ra mắt! %s", version, features);
+        String title = "System Update 🆕";
+        String content = String.format("SmartMoney %s is now available! %s", version, features);
         return new NotificationContent(title, content);
     }
 
@@ -397,8 +397,8 @@ public final class NotificationMessages {
      * Dùng khi: AdminServiceImp.lockAccount().
      */
     public static NotificationContent accountLocked() {
-        String title = "Tài khoản bị khóa 🔒";
-        String content = "Tài khoản của bạn đã bị khóa bởi quản trị viên. Vui lòng liên hệ hỗ trợ để biết thêm chi tiết.";
+        String title = "Account Locked 🔒";
+        String content = "Your account has been locked by an administrator. Please contact support for more details.";
         return new NotificationContent(title, content);
     }
 
@@ -407,33 +407,33 @@ public final class NotificationMessages {
      * Dùng khi: AdminServiceImp.unlockAccount().
      */
     public static NotificationContent accountUnlocked() {
-        String title = "Tài khoản được mở khóa 🔓";
-        String content = "Tài khoản của bạn đã được mở khóa. Bạn có thể tiếp tục sử dụng dịch vụ.";
+        String title = "Account Unlocked 🔓";
+        String content = "Your account has been unlocked. You can continue using the service.";
         return new NotificationContent(title, content);
     }
     /**
             * Thông báo cập nhật thông tin cá nhân.
             */
     public static NotificationContent profileUpdated() {
-        String title = "Cập nhật thông tin 📝";
-        String content = "Thông tin tài khoản của bạn đã được thay đổi thành công.";
+        String title = "Profile Updated 📝";
+        String content = "Your account information has been successfully changed.";
         return new NotificationContent(title, content);
     }
     /**
      * Thông báo cập nhật ảnh đại diện thành công.
      */
     public static NotificationContent avatarUpdated() {
-        String title = "Cập nhật hồ sơ ✨";
-        String content = "Ảnh đại diện của bạn đã được cập nhật thành công.";
+        String title = "Profile Updated ✨";
+        String content = "Your avatar has been successfully updated.";
         return new NotificationContent(title, content);
     }
     /**
      * Thông báo cho Admin khi người dùng thực hiện khóa khẩn cấp.
      */
     public static NotificationContent userEmergencyLockAlert(String email, String phone) {
-        String title = "YÊU CẦU KHÓA KHẨN CẤP 🚨";
+        String title = "EMERGENCY LOCK REQUEST 🚨";
         String content = String.format(
-                "Người dùng %s đã yêu cầu khóa tài khoản khẩn cấp qua gmail xác minh: %s.",
+                "User %s has requested emergency account lock via verified gmail: %s.",
                 email, phone);
         return new NotificationContent(title, content);
     }
@@ -441,8 +441,8 @@ public final class NotificationMessages {
      * Thông báo xác nhận khóa khẩn cấp cho người dùng.
      */
     public static NotificationContent accountEmergencyLockedConfirm() {
-        String title = "Tài khoản đã được khóa khẩn cấp 🔒";
-        String content = "Mọi quyền truy cập đã bị vô hiệu hóa để bảo vệ tài sản của bạn. Vui lòng liên hệ hỗ trợ để mở lại.";
+        String title = "Account Emergency Locked 🔒";
+        String content = "All access has been disabled to protect your assets. Please contact support to unlock.";
         return new NotificationContent(title, content);
     }
 
@@ -455,8 +455,8 @@ public final class NotificationMessages {
      * Dùng khi: AI conversation xử lý xong yêu cầu phân tích dài.
      */
     public static NotificationContent aiAnalysisDone(String summary) {
-        String title = "Phân tích AI hoàn tất 🤖";
-        String content = String.format("AI đã phân tích xong: %s", summary);
+        String title = "AI Analysis Complete 🤖";
+        String content = String.format("AI has completed analysis: %s", summary);
         return new NotificationContent(title, content);
     }
 
@@ -465,8 +465,8 @@ public final class NotificationMessages {
      * Dùng khi: AI nhận lệnh tạo giao dịch từ chat và xử lý xong.
      */
     public static NotificationContent aiActionCompleted(String actionDescription) {
-        String title = "AI đã thực hiện xong";
-        String content = String.format("Trợ lý AI đã: %s", actionDescription);
+        String title = "AI Action Completed";
+        String content = String.format("AI Assistant has: %s", actionDescription);
         return new NotificationContent(title, content);
     }
 
@@ -475,7 +475,7 @@ public final class NotificationMessages {
      * Dùng khi: AI tạo scheduled reminder từ chat (VD: "nhắc tôi trả nợ anh Tuấn ngày mai").
      */
     public static NotificationContent aiScheduledReminder(String reminderContent) {
-        String title = "AI nhắc nhở 🔔";
+        String title = "AI Reminder 🔔";
         return new NotificationContent(title, reminderContent);
     }
 
@@ -492,9 +492,9 @@ public final class NotificationMessages {
     public static NotificationContent walletLowBalance(String walletName,
                                                        BigDecimal balance,
                                                        BigDecimal threshold) {
-        String title = "Số dư ví thấp 💳";
+        String title = "Low Wallet Balance 💳";
         String content = String.format(
-                "Ví \"%s\" còn %s - dưới mức cảnh báo %s. Hãy nạp thêm tiền!",
+                "Wallet \"%s\" has %s - below warning threshold %s. Please top up!",
                 walletName, CurrencyUtils.formatVND(balance), CurrencyUtils.formatVND(threshold));
         return new NotificationContent(title, content);
     }
@@ -505,9 +505,9 @@ public final class NotificationMessages {
      */
     public static NotificationContent walletNegativeBalance(String walletName,
                                                             BigDecimal balance) {
-        String title = "Số dư ví âm ⚠️";
+        String title = "Negative Wallet Balance ⚠️";
         String content = String.format(
-                "Ví \"%s\" đang âm %s. Hãy kiểm tra lại các giao dịch!",
+                "Wallet \"%s\" is negative %s. Please review your transactions!",
                 walletName, CurrencyUtils.formatVND(balance.abs()));
         return new NotificationContent(title, content);
     }
@@ -515,9 +515,9 @@ public final class NotificationMessages {
      * Cảnh báo hoạt động chi tiêu bất thường trên ví.
      */
     public static NotificationContent abnormalWalletActivity(String walletName, int count, BigDecimal totalAmount) {
-        String title = "Cảnh báo chi tiêu bất thường 🚩";
+        String title = "Abnormal Spending Alert 🚩";
         String content = String.format(
-                "Ví '%s' phát sinh %d giao dịch chi tiêu với tổng %s trong 24h qua. Hãy kiểm tra lại!",
+                "Wallet '%s' generated %d expense transactions totaling %s in the last 24h. Please review!",
                 walletName, count, CurrencyUtils.formatVND(totalAmount));
         return new NotificationContent(title, content);
     }
@@ -526,9 +526,9 @@ public final class NotificationMessages {
      * Thông báo cho Admin về rủi ro ví người dùng.
      */
     public static NotificationContent adminWalletRiskAlert(String userEmail, String walletName, int count, BigDecimal totalAmount) {
-        String title = "Cảnh báo rủi ro ví người dùng 🚨";
+        String title = "User Wallet Risk Alert 🚨";
         String content = String.format(
-                "Người dùng [%s] tại ví '%s' phát sinh %d giao dịch bất thường (%s).",
+                "User [%s] at wallet '%s' generated %d abnormal transactions (%s).",
                 userEmail, walletName, count, CurrencyUtils.formatVND(totalAmount));
         return new NotificationContent(title, content);
     }
@@ -545,12 +545,12 @@ public final class NotificationMessages {
                                                     int daysLeft,
                                                     LocalDate eventDate,
                                                     BigDecimal budget) {
-        String title = "Sự kiện sắp tới 📅";
+        String title = "Upcoming Event 📅";
         String budgetInfo = budget != null
-                ? String.format(" Ngân sách dự kiến: %s.", CurrencyUtils.formatVND(budget))
+                ? String.format(" Estimated budget: %s.", CurrencyUtils.formatVND(budget))
                 : "";
         String content = String.format(
-                "\"%s\" còn %d ngày nữa (%s).%s Đừng quên lên kế hoạch!",
+                "\"%s\" is %d days away (%s).%s Don't forget to plan!",
                 eventName, daysLeft, eventDate.format(VN_DATE), budgetInfo);
         return new NotificationContent(title, content);
     }
@@ -561,9 +561,9 @@ public final class NotificationMessages {
      */
     public static NotificationContent eventCompleted(String eventName,
                                                      BigDecimal totalSpent) {
-        String title = "Sự kiện đã kết thúc ✅";
+        String title = "Event Ended ✅";
         String content = String.format(
-                "Sự kiện \"%s\" đã hoàn thành. Tổng chi tiêu: %s.",
+                "Event \"%s\" has completed. Total spending: %s.",
                 eventName, CurrencyUtils.formatVND(totalSpent));
         return new NotificationContent(title, content);
     }
@@ -575,9 +575,9 @@ public final class NotificationMessages {
     public static NotificationContent eventAutoCompleted(String eventName,
                                                          LocalDate endDate,
                                                          BigDecimal totalSpent) {
-        String title = "Sự kiện đã kết thúc tự động ✅";
+        String title = "Event Auto Completed ✅";
         String content = String.format(
-                "Sự kiện \"%s\" đã hết hạn vào %s và được tự động kết thúc. Tổng chi tiêu: %s.",
+                "Event \"%s\" expired on %s and was automatically completed. Total spending: %s.",
                 eventName, endDate.format(VN_DATE), CurrencyUtils.formatVND(totalSpent));
         return new NotificationContent(title, content);
     }
@@ -593,9 +593,9 @@ public final class NotificationMessages {
     public static NotificationContent debtPayableReminder(String personName,
                                                           BigDecimal remainAmount,
                                                           LocalDate dueDate) {
-        String title = "Nhắc khoản nợ 💸";
+        String title = "Debt Reminder 💸";
         String content = String.format(
-                "Bạn còn nợ %s số tiền %s. Hạn thanh toán: %s.",
+                "You still owe %s amount %s. Payment due: %s.",
                 personName, CurrencyUtils.formatVND(remainAmount), dueDate.format(VN_DATE));
         return new NotificationContent(title, content);
     }
@@ -607,9 +607,9 @@ public final class NotificationMessages {
     public static NotificationContent debtReceivableReminder(String personName,
                                                              BigDecimal remainAmount,
                                                              LocalDate dueDate) {
-        String title = "Nhắc khoản thu 💰";
+        String title = "Collection Reminder 💰";
         String content = String.format(
-                "Khoản cho %s vay %s đến hạn thu vào %s. Hãy liên hệ!",
+                "Loan to %s %s due for collection on %s. Please contact!",
                 personName, CurrencyUtils.formatVND(remainAmount), dueDate.format(VN_DATE));
         return new NotificationContent(title, content);
     }
@@ -624,12 +624,12 @@ public final class NotificationMessages {
                                                         LocalDate dueDate,
                                                         int daysLeft,
                                                         boolean isPayable) {
-        String title = isPayable ? "Nhắc nợ sắp đến hạn 📋" : "Nhắc thu nợ sắp đến hạn 📋";
+        String title = isPayable ? "Debt Due Soon 📋" : "Collection Due Soon 📋";
         String action = isPayable
-                ? String.format("Bạn còn nợ %s số tiền %s", personName, CurrencyUtils.formatVND(remainAmount))
-                : String.format("Khoản cho %s vay %s", personName, CurrencyUtils.formatVND(remainAmount));
+                ? String.format("You still owe %s amount %s", personName, CurrencyUtils.formatVND(remainAmount))
+                : String.format("Loan to %s %s", personName, CurrencyUtils.formatVND(remainAmount));
         String content = String.format(
-                "%s. Còn %d ngày nữa đến hạn (%s). Hãy chuẩn bị!",
+                "%s. %d days until due (%s). Be prepared!",
                 action, daysLeft, dueDate.format(VN_DATE));
         return new NotificationContent(title, content);
     }
@@ -643,12 +643,12 @@ public final class NotificationMessages {
                                                   BigDecimal remainAmount,
                                                   LocalDate dueDate,
                                                   boolean isPayable) {
-        String title = isPayable ? "Khoản nợ quá hạn ⚠️" : "Khoản thu quá hạn ⚠️";
+        String title = isPayable ? "Debt Overdue ⚠️" : "Collection Overdue ⚠️";
         String action = isPayable
-                ? String.format("Bạn còn nợ %s số tiền %s", personName, CurrencyUtils.formatVND(remainAmount))
-                : String.format("Khoản cho %s vay %s", personName, CurrencyUtils.formatVND(remainAmount));
+                ? String.format("You still owe %s amount %s", personName, CurrencyUtils.formatVND(remainAmount))
+                : String.format("Loan to %s %s", personName, CurrencyUtils.formatVND(remainAmount));
         String content = String.format(
-                "%s đã quá hạn từ %s. Hãy xử lý ngay!",
+                "%s has been overdue since %s. Handle immediately!",
                 action, dueDate.format(VN_DATE));
         return new NotificationContent(title, content);
     }
@@ -660,11 +660,11 @@ public final class NotificationMessages {
     public static NotificationContent debtFullyPaid(String personName,
                                                     BigDecimal totalAmount,
                                                     boolean isPayable) {
-        String title = isPayable ? "Đã trả hết nợ ✅" : "Đã thu hết nợ ✅";
-        String action = isPayable ? "trả hết" : "thu đủ";
+        String title = isPayable ? "Debt Fully Paid ✅" : "Collection Fully Received ✅";
+        String action = isPayable ? "paid in full" : "collected in full";
         String content = String.format(
-                "Bạn đã %s khoản %s với %s. Sổ nợ đã được cập nhật!",
-                action, isPayable ? "nợ của " + personName : "cho " + personName + " vay",
+                "You have %s %s with %s. Debt ledger has been updated!",
+                action, isPayable ? "debt of " + personName : "loan to " + personName,
                 CurrencyUtils.formatVND(totalAmount));
         return new NotificationContent(title, content);
     }
@@ -679,9 +679,9 @@ public final class NotificationMessages {
      * Scheduler CHỈ nhắc, KHÔNG tạo transaction và KHÔNG advance nextDueDate.
      */
     public static NotificationContent billDue(String billName, BigDecimal amount) {
-        String title = "Hóa đơn đến hạn! 📋";
+        String title = "Bill Due! 📋";
         String content = String.format(
-                "Hóa đơn \"%s\" trị giá %s đã đến hạn thanh toán. Nhấn để thanh toán ngay!",
+                "Bill \"%s\" worth %s is due for payment. Click to pay now!",
                 billName, CurrencyUtils.formatVND(amount));
         return new NotificationContent(title, content);
     }
@@ -697,9 +697,9 @@ public final class NotificationMessages {
      *   Content: "Hóa đơn \"Tiền điện\" trị giá 800.000 ₫ đã quá hạn 3 ngày. Hãy thanh toán ngay!"
      */
     public static NotificationContent billOverdue(String billName, BigDecimal amount, long daysOverdue) {
-        String title = "Hóa đơn quá hạn! ⏰";
+        String title = "Bill Overdue! ⏰";
         String content = String.format(
-                "Hóa đơn \"%s\" trị giá %s đã quá hạn %d ngày. Hãy thanh toán ngay!",
+                "Bill \"%s\" worth %s is %d days overdue. Pay immediately!",
                 billName, CurrencyUtils.formatVND(amount), daysOverdue);
         return new NotificationContent(title, content);
     }
@@ -709,8 +709,8 @@ public final class NotificationMessages {
      * Dùng khi: ReminderScheduler (chưa có) chạy mỗi tối.
      */
     public static NotificationContent dailyRecordReminder() {
-        String title = "Nhắc ghi chép 📝";
-        String content = "Bạn chưa ghi chép chi tiêu hôm nay! Hãy dành 2 phút cập nhật sổ chi tiêu.";
+        String title = "Record Reminder 📝";
+        String content = "You haven't recorded expenses today! Spend 2 minutes to update your expense log.";
         return new NotificationContent(title, content);
     }
 
@@ -721,9 +721,9 @@ public final class NotificationMessages {
     public static NotificationContent weeklyDigest(BigDecimal totalSpent,
                                                    String topCategoryName,
                                                    BigDecimal topCategoryAmount) {
-        String title = "Tổng kết tuần 📊";
+        String title = "Weekly Digest 📊";
         String content = String.format(
-                "Tuần này bạn đã chi %s. Danh mục chi nhiều nhất: %s (%s).",
+                "This week you spent %s. Top spending category: %s (%s).",
                 CurrencyUtils.formatVND(totalSpent),
                 topCategoryName,
                 CurrencyUtils.formatVND(topCategoryAmount));
@@ -743,10 +743,10 @@ public final class NotificationMessages {
                                                                     BigDecimal amount,
                                                                     String walletName,
                                                                     BigDecimal walletBalance) {
-        String title = "Số dư không đủ — giao dịch bị hoãn ⚠️";
+        String title = "Insufficient Balance — Transaction Deferred ⚠️";
         String content = String.format(
-                "Giao dịch định kỳ \"%s\" chưa thể thực hiện: Ví \"%s\" chỉ còn %s (cần thêm %s). " +
-                "Giao dịch sẽ tự động thực hiện khi ví có đủ số dư.",
+                "Recurring transaction \"%s\" cannot be executed: Wallet \"%s\" only has %s (needs %s more). " +
+                "Transaction will auto-execute when wallet has sufficient balance.",
                 label, walletName, CurrencyUtils.formatVND(walletBalance), CurrencyUtils.formatVND(amount));
         return new NotificationContent(title, content);
     }
@@ -760,11 +760,11 @@ public final class NotificationMessages {
      *   - Hết hạn/Kết thúc: Title="Hóa đơn đã thanh toán ✅" Content="... Hóa đơn đã kết thúc."
      */
     public static NotificationContent billPaid(String billName, BigDecimal amount, LocalDate nextDueDate) {
-        String title = "Hóa đơn đã thanh toán ✅";
+        String title = "Bill Paid ✅";
         String content = nextDueDate != null
-                ? String.format("Hóa đơn \"%s\" %s đã thanh toán thành công. Kỳ tiếp theo: %s.",
+                ? String.format("Bill \"%s\" %s paid successfully. Next due: %s.",
                         billName, CurrencyUtils.formatVND(amount), nextDueDate.format(VN_DATE))
-                : String.format("Hóa đơn \"%s\" %s đã thanh toán thành công. Hóa đơn đã kết thúc.",
+                : String.format("Bill \"%s\" %s paid successfully. Bill has ended.",
                         billName, CurrencyUtils.formatVND(amount));
         return new NotificationContent(title, content);
     }
@@ -776,10 +776,10 @@ public final class NotificationMessages {
     public static NotificationContent recurringExecuted(String note,
                                                         BigDecimal amount,
                                                         boolean isIncome) {
-        String title = "Giao dịch định kỳ đã thực hiện 🔄";
-        String type = isIncome ? "thu" : "chi";
+        String title = "Recurring Transaction Executed 🔄";
+        String type = isIncome ? "income" : "expense";
         String content = String.format(
-                "Giao dịch định kỳ \"%s\" đã tự động %s %s.",
+                "Recurring transaction \"%s\" automatically %s %s.",
                 note, type, CurrencyUtils.formatVND(amount));
         return new NotificationContent(title, content);
     }

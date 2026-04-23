@@ -40,10 +40,10 @@ public class NotificationServiceImp implements NotificationService {
     @Transactional
     public void markAsRead(Integer notificationId, Integer accId) {
         Notification notification = notificationRepository.findById(notificationId)
-                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy thông báo với ID: " + notificationId));
+                .orElseThrow(() -> new IllegalArgumentException("Notification not found with ID: " + notificationId));
 
         if (!notification.getAccount().getId().equals(accId)) {
-            throw new SecurityException("Bạn không có quyền đánh dấu đã đọc cho thông báo này.");
+            throw new SecurityException("You do not have permission to mark this notification as read.");
         }
 
         notification.setNotifyRead(true);
@@ -111,10 +111,10 @@ public class NotificationServiceImp implements NotificationService {
     @Transactional
     public void deleteNotification(Integer id, Integer accountId) {
         Notification notification = notificationRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Không tìm thấy thông báo"));
+                .orElseThrow(() -> new RuntimeException("Notification not found"));
 
         if (!notification.getAccount().getId().equals(accountId)) {
-            throw new RuntimeException("Bạn không có quyền xóa thông báo này");
+            throw new RuntimeException("You do not have permission to delete this notification");
         }
 
         notificationRepository.delete(notification);

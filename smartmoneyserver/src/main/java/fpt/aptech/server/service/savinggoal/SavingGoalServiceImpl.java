@@ -53,14 +53,14 @@ public class SavingGoalServiceImpl implements SavingGoalService {
     public SavingGoalResponse createSavingGoal(SavingGoalRequest request, Integer userId) {
         // Bước 1: Validate tài khoản và tiền tệ
         Account account = accountRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("Tài khoản không tồn tại"));
+                .orElseThrow(() -> new IllegalArgumentException("Account does not exist"));
 
         Currency currency = currencyRepository.findById(request.getCurrencyCode())
-                .orElseThrow(() -> new IllegalArgumentException("Loại tiền tệ không tồn tại"));
+                .orElseThrow(() -> new IllegalArgumentException("Currency type does not exist"));
 
         // Validate ngày kết thúc không được là ngày quá khứ
         if (request.getEndDate() != null && request.getEndDate().isBefore(LocalDate.now())) {
-            throw new IllegalArgumentException("Ngày kết thúc không hợp lệ");
+            throw new IllegalArgumentException("Invalid end date");
         }
 
         // Lấy số tiền ban đầu — mặc định 0 nếu không truyền
@@ -70,12 +70,12 @@ public class SavingGoalServiceImpl implements SavingGoalService {
 
         // Service-level guard (DTO đã có @PositiveOrZero nhưng cần guard thêm nếu gọi internal)
         if (initialAmount.compareTo(BigDecimal.ZERO) < 0) {
-            throw new IllegalArgumentException("Số tiền ban đầu không được âm");
+            throw new IllegalArgumentException("Initial amount cannot be negative");
         }
 
         // Validate: initialAmount không được lớn hơn targetAmount
         if (initialAmount.compareTo(request.getTargetAmount()) > 0) {
-            throw new IllegalArgumentException("Số tiền ban đầu không được lớn hơn mục tiêu");
+            throw new IllegalArgumentException("Initial amount cannot be greater than target");
         }
 
         // Bước 2: Tạo SavingGoal — trạng thái mặc định ACTIVE, finished=false
@@ -103,14 +103,14 @@ public class SavingGoalServiceImpl implements SavingGoalService {
         if (initialAmount.compareTo(BigDecimal.ZERO) > 0) {
             Category category = categoryRepository.findById(SystemCategory.INCOME_TRANSFER.getId())
                     .orElseThrow(() -> new IllegalArgumentException(
-                            "Không tìm thấy danh mục hệ thống 'Tiền chuyển đến'"));
+                            "System category 'Transfer Income' not found"));
 
             Transaction initTransaction = Transaction.builder()
                     .account(account)
                     .savingGoal(savedGoal)
                     .category(category)
                     .amount(initialAmount)
-                    .note("Số dư ban đầu cho mục tiêu tiết kiệm")
+                    .note("Initial balance for saving goal")
                     .reportable(false) // Không tính vào báo cáo thu/chi thông thường
                     .sourceType(TransactionSourceType.MANUAL.getValue())
                     .transDate(LocalDateTime.now())
@@ -144,12 +144,12 @@ public class SavingGoalServiceImpl implements SavingGoalService {
         // Bước 1: getOwnedGoal đã chặn finished=true và CANCELLED
         // Nên ở đây chỉ cần chặn lại nếu finished=true (đã chốt sổ)
         if (Boolean.TRUE.equals(goal.getFinished())) {
-            throw new IllegalStateException("Mục tiêu đã chốt sổ, không thể sửa.");
+            throw new IllegalStateException("Goal has been finalized, cannot edit.");
         }
 
         // Validate targetAmount trước khi sử dụng
         if (request.getTargetAmount() == null) {
-            throw new IllegalArgumentException("Số tiền mục tiêu không được để trống");
+            throw new IllegalArgumentException("Target amount cannot be empty");
         }
 
         // Bước 2: Xử lý điều chỉnh currentAmount (nếu request có truyền lên)
@@ -160,12 +160,12 @@ public class SavingGoalServiceImpl implements SavingGoalService {
 
             // 2.1: Validate số tiền không được âm
             if (newAmount.compareTo(BigDecimal.ZERO) < 0) {
-                throw new IllegalArgumentException("Số tiền hiện tại không được âm");
+                throw new IllegalArgumentException("Current amount cannot be negative");
             }
 
             // 2.2: Validate newAmount không được lớn hơn targetAmount
             if (newAmount.compareTo(request.getTargetAmount()) > 0) {
-                throw new IllegalArgumentException("Số tiền hiện tại không được lớn hơn mục tiêu");
+                throw new IllegalArgumentException("Current amount cannot be greater than target");
             }
 
             // 2.3: Nếu có thay đổi → tạo giao dịch ghi nhận chênh lệch
@@ -180,7 +180,7 @@ public class SavingGoalServiceImpl implements SavingGoalService {
                         : SystemCategory.OTHER_EXPENSE;
                 Category category = categoryRepository.findById(systemCategory.getId())
                         .orElseThrow(() -> new IllegalStateException(
-                                "Không tìm thấy danh mục hệ thống: " + systemCategory.name()));
+                                "System category not found: " + systemCategory.name()));
 
                 // Tạo giao dịch điều chỉnh — reportable=false để không lẫn vào báo cáo
                 Transaction adjustTransaction = Transaction.builder()
@@ -188,7 +188,7 @@ public class SavingGoalServiceImpl implements SavingGoalService {
                         .savingGoal(goal)
                         .category(category)
                         .amount(diff)
-                        .note("Điều chỉnh số dư mục tiêu: " + goal.getGoalName())
+                        .note("Adjust saving goal balance: " + goal.getGoalName())
                         .reportable(false) // Không tính vào báo cáo thu/chi thông thường
                         .sourceType(TransactionSourceType.MANUAL.getValue())
                         .transDate(LocalDateTime.now())
@@ -202,7 +202,7 @@ public class SavingGoalServiceImpl implements SavingGoalService {
         // Bước 3: Không cho target thấp hơn số tiền đã có
         if (request.getTargetAmount().compareTo(goal.getCurrentAmount()) < 0) {
             throw new IllegalArgumentException(
-                    "Số tiền mục tiêu không được nhỏ hơn số tiền hiện tại");
+                    "Target amount cannot be less than current amount");
         }
 
         // Cập nhật các trường thông tin (chỉ update nếu client có gửi — tránh ghi null vào DB)
@@ -236,7 +236,7 @@ public class SavingGoalServiceImpl implements SavingGoalService {
     public SavingGoalResponse depositToSavingGoal(Integer id, BigDecimal amount, Integer userId) {
         // Bước 1: Validate số tiền
         if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
-            throw new IllegalArgumentException("Số tiền nạp phải lớn hơn 0");
+            throw new IllegalArgumentException("Deposit amount must be greater than 0");
         }
 
         // Lấy goal — dùng getOwnedGoal (chặn CANCELLED và finished=true bên trong)
@@ -246,7 +246,7 @@ public class SavingGoalServiceImpl implements SavingGoalService {
         BigDecimal remaining = goal.getTargetAmount().subtract(goal.getCurrentAmount());
         if (amount.compareTo(remaining) > 0) {
             throw new IllegalArgumentException(
-                    String.format("Số tiền nạp vào vượt quá mục tiêu '%s'. Số tiền còn có thể nạp: %s đ.",
+                    String.format("Deposit amount exceeds target '%s'. Amount that can still be deposited: %s VND.",
                             goal.getGoalName(), remaining.toPlainString()));
         }
 
@@ -273,14 +273,14 @@ public class SavingGoalServiceImpl implements SavingGoalService {
         // Bước 3: Tạo giao dịch ghi nhận dòng tiền nạp vào
         Category category = categoryRepository.findById(SystemCategory.INCOME_TRANSFER.getId())
                 .orElseThrow(() -> new IllegalArgumentException(
-                        "Không tìm thấy danh mục hệ thống 'Tiền chuyển đến'"));
+                        "System category 'Transfer Income' not found"));
 
         Transaction depositTransaction = Transaction.builder()
                 .account(goal.getAccount())
                 .savingGoal(goal)
                 .category(category)
                 .amount(amount)
-                .note("Nạp tiền vào mục tiêu: " + goal.getGoalName())
+                .note("Deposit to saving goal: " + goal.getGoalName())
                 .reportable(true) // Nạp tiền tính vào báo cáo
                 .sourceType(TransactionSourceType.MANUAL.getValue())
                 .transDate(LocalDateTime.now())
@@ -315,7 +315,7 @@ public class SavingGoalServiceImpl implements SavingGoalService {
     public SavingGoalResponse withdrawFromSavingGoal(Integer id, BigDecimal amount, Integer userId) {
         // Bước 1: Validate số tiền
         if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
-            throw new IllegalArgumentException("Số tiền rút phải lớn hơn 0");
+            throw new IllegalArgumentException("Withdrawal amount must be greater than 0");
         }
 
         // Lấy goal — dùng getOwnedGoal (chặn finished=true và CANCELLED bên trong)
@@ -324,7 +324,7 @@ public class SavingGoalServiceImpl implements SavingGoalService {
         // Không cho rút nhiều hơn số dư hiện có
         if (amount.compareTo(goal.getCurrentAmount()) > 0) {
             throw new IllegalArgumentException(
-                    "Số tiền rút vượt quá số dư hiện có của mục tiêu");
+                    "Withdrawal amount exceeds current balance of the goal");
         }
 
         // Bước 2: Trừ tiền và tính lại trạng thái
@@ -336,14 +336,14 @@ public class SavingGoalServiceImpl implements SavingGoalService {
         // Bước 3: Tạo giao dịch ghi nhận dòng tiền rút ra
         Category category = categoryRepository.findById(SystemCategory.OTHER_EXPENSE.getId())
                 .orElseThrow(() -> new IllegalArgumentException(
-                        "Không tìm thấy danh mục hệ thống 'Chi phí khác'"));
+                        "System category 'Other Expense' not found"));
 
         Transaction withdrawTransaction = Transaction.builder()
                 .account(goal.getAccount())
                 .savingGoal(goal)
                 .category(category)
                 .amount(amount)
-                .note("Rút tiền từ mục tiêu: " + goal.getGoalName())
+                .note("Withdraw from saving goal: " + goal.getGoalName())
                 .reportable(true) // Rút tiền tính vào báo cáo
                 .sourceType(TransactionSourceType.MANUAL.getValue())
                 .transDate(LocalDateTime.now())
@@ -384,13 +384,13 @@ public class SavingGoalServiceImpl implements SavingGoalService {
         // Status có thể COMPLETED nhưng sau khi xóa giao dịch, currentAmount có thể giảm xuống dưới 100%
         if (goal.getCurrentAmount().compareTo(goal.getTargetAmount()) < 0) {
             throw new IllegalStateException(
-                    "Chỉ có thể chốt sổ khi mục tiêu đã đạt 100%. " +
-                            "Hiện tại: " + goal.getCurrentAmount() + "/" + goal.getTargetAmount());
+                    "Can only finalize when goal has reached 100%. " +
+                            "Current: " + goal.getCurrentAmount() + "/" + goal.getTargetAmount());
         }
 
         // Validate: chưa chốt sổ trước đó
         if (Boolean.TRUE.equals(goal.getFinished())) {
-            throw new IllegalStateException("Mục tiêu đã được chốt sổ trước đó, không thể thực hiện lại.");
+            throw new IllegalStateException("Goal has already been finalized, cannot execute again.");
         }
 
         BigDecimal amountToTransfer = goal.getCurrentAmount(); // Số tiền sẽ chuyển về wallet
@@ -399,11 +399,11 @@ public class SavingGoalServiceImpl implements SavingGoalService {
         if (walletId != null && amountToTransfer.compareTo(BigDecimal.ZERO) > 0) {
             Wallet wallet = walletRepository.findById(walletId)
                     .orElseThrow(() -> new IllegalArgumentException(
-                            "Không tìm thấy ví với ID: " + walletId));
+                            "Wallet not found with ID: " + walletId));
 
             // Kiểm tra quyền sở hữu ví
             if (!wallet.getAccount().getId().equals(userId)) {
-                throw new SecurityException("Bạn không có quyền sử dụng ví này.");
+                throw new SecurityException("You do not have permission to use this wallet.");
             }
 
             // Cộng tiền vào ví đích
@@ -413,14 +413,14 @@ public class SavingGoalServiceImpl implements SavingGoalService {
             // Bước 2: Tạo transaction ghi nhận dòng tiền goal → wallet
             Category category = categoryRepository.findById(SystemCategory.INCOME_TRANSFER.getId())
                     .orElseThrow(() -> new IllegalArgumentException(
-                            "Không tìm thấy danh mục hệ thống 'Tiền chuyển đến'"));
+                            "System category 'Transfer Income' not found"));
 
             Transaction disbursementTx = Transaction.builder()
                     .account(goal.getAccount())
                     .wallet(wallet) // Đích đến là wallet được chọn
                     .category(category)
                     .amount(amountToTransfer)
-                    .note("Chốt sổ mục tiêu: " + goal.getGoalName() + " → nhận về ví " + wallet.getWalletName())
+                    .note("Finalize saving goal: " + goal.getGoalName() + " → transfer to wallet " + wallet.getWalletName())
                     .reportable(false) // Chuyển nội bộ — không tính vào báo cáo thu/chi
                     .sourceType(TransactionSourceType.MANUAL.getValue())
                     .transDate(LocalDateTime.now())
@@ -477,7 +477,7 @@ public class SavingGoalServiceImpl implements SavingGoalService {
 
         // Validate: đã chốt/hủy rồi thì không làm gì nữa
         if (Boolean.TRUE.equals(goal.getFinished())) {
-            throw new IllegalStateException("Mục tiêu đã được đóng, không thể hủy.");
+            throw new IllegalStateException("Goal has been closed, cannot cancel.");
         }
 
         BigDecimal amountToReturn = goal.getCurrentAmount(); // Số tiền sẽ hoàn trả về wallet
@@ -486,11 +486,11 @@ public class SavingGoalServiceImpl implements SavingGoalService {
         if (walletId != null && amountToReturn.compareTo(BigDecimal.ZERO) > 0) {
             Wallet wallet = walletRepository.findById(walletId)
                     .orElseThrow(() -> new IllegalArgumentException(
-                            "Không tìm thấy ví với ID: " + walletId));
+                            "Wallet not found with ID: " + walletId));
 
             // Kiểm tra quyền sở hữu ví
             if (!wallet.getAccount().getId().equals(userId)) {
-                throw new SecurityException("Bạn không có quyền sử dụng ví này.");
+                throw new SecurityException("You do not have permission to use this wallet.");
             }
 
             // Cộng tiền hoàn trả vào ví đích
@@ -500,14 +500,14 @@ public class SavingGoalServiceImpl implements SavingGoalService {
             // Bước 2: Tạo transaction ghi nhận dòng tiền hoàn trả
             Category category = categoryRepository.findById(SystemCategory.INCOME_TRANSFER.getId())
                     .orElseThrow(() -> new IllegalArgumentException(
-                            "Không tìm thấy danh mục hệ thống 'Tiền chuyển đến'"));
+                            "System category 'Transfer Income' not found"));
 
             Transaction refundTx = Transaction.builder()
                     .account(goal.getAccount())
                     .wallet(wallet)
                     .category(category)
                     .amount(amountToReturn)
-                    .note("Hủy mục tiêu: " + goal.getGoalName() + " → hoàn trả về ví " + wallet.getWalletName())
+                    .note("Cancel saving goal: " + goal.getGoalName() + " → refund to wallet " + wallet.getWalletName())
                     .reportable(false) // Chuyển nội bộ — không tính vào báo cáo thu/chi
                     .sourceType(TransactionSourceType.MANUAL.getValue())
                     .transDate(LocalDateTime.now())
@@ -667,23 +667,23 @@ public class SavingGoalServiceImpl implements SavingGoalService {
         // @SQLRestriction("deleted=0") → goal deleted=true sẽ không tìm thấy → orElseThrow đúng
         SavingGoal goal = savingGoalRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException(
-                        "Không tìm thấy mục tiêu với ID: " + id));
+                        "Goal not found with ID: " + id));
 
         // Kiểm tra quyền sở hữu
         if (goal.getAccount() == null || !goal.getAccount().getId().equals(userId)) {
-            throw new SecurityException("Bạn không có quyền thao tác trên mục tiêu này.");
+            throw new SecurityException("You do not have permission to operate on this goal.");
         }
 
         // Chặn nếu đã chốt sổ hoàn toàn (finished=true)
         if (Boolean.TRUE.equals(goal.getFinished())) {
             throw new IllegalStateException(
-                    "Mục tiêu đã được chốt sổ hoàn toàn. Không thể thực hiện thao tác.");
+                    "Goal has been fully finalized. Cannot perform operation.");
         }
 
         // Chặn nếu đã CANCELLED (hủy giữa chừng mà chưa xóa)
         if (goal.getGoalStatus().equals(GoalStatus.CANCELLED.getValue())) {
             throw new IllegalStateException(
-                    "Mục tiêu đã bị hủy. Không thể nạp/rút/sửa mục tiêu này.");
+                    "Goal has been cancelled. Cannot deposit/withdraw/edit this goal.");
         }
 
         return goal;
@@ -701,11 +701,11 @@ public class SavingGoalServiceImpl implements SavingGoalService {
     private SavingGoal getOwnedGoalForAction(Integer id, Integer userId) {
         SavingGoal goal = savingGoalRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException(
-                        "Không tìm thấy mục tiêu với ID: " + id));
+                        "Goal not found with ID: " + id));
 
         // Kiểm tra quyền sở hữu
         if (goal.getAccount() == null || !goal.getAccount().getId().equals(userId)) {
-            throw new SecurityException("Bạn không có quyền thao tác trên mục tiêu này.");
+            throw new SecurityException("You do not have permission to operate on this goal.");
         }
 
         return goal;

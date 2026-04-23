@@ -31,13 +31,13 @@ class RegisterRequest {
   String? validate() {
     if ((accPhone == null || accPhone!.isEmpty) &&
         (accEmail == null || accEmail!.isEmpty)) {
-      return "Vui lòng nhập số điện thoại hoặc email";
+      return "Please enter phone number or email";
     }
     if (password.length < 6) {
-      return "Mật khẩu phải từ 6 ký tự trở lên";
+      return "Password must be at least 6 characters";
     }
     if (password != confirmPassword) {
-      return "Mật khẩu xác nhận không khớp";
+      return "Passwords do not match";
     }
     return null; // null = hợp lệ
   }

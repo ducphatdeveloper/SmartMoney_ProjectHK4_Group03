@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../models/wallet_request.dart';
 import '../models/wallet_response.dart';
 import '../models/transfer_request.dart';
 import '../models/wallet_delete_preview_response.dart';
 import '../services/wallet_service.dart';
+import '../../../core/helpers/token_helper.dart';
 
 class WalletProvider with ChangeNotifier {
   final WalletService _service = WalletService();
@@ -15,9 +17,10 @@ class WalletProvider with ChangeNotifier {
   String? error;
 
   // ================= LOAD ALL =================
-  Future<void> loadAll() async {
+  Future<void> loadAll(BuildContext context) async {
     try {
       isLoading = true;
+      error = null; // Reset error khi bắt đầu load
       notifyListeners();
 
       final results = await Future.wait([
@@ -30,6 +33,13 @@ class WalletProvider with ChangeNotifier {
 
     } catch (e) {
       error = e.toString();
+      // Xử lý 401 - Session expired
+      if (e.toString().contains("Session expired")) {
+        await TokenHelper.clearTokens();
+        if (context.mounted) {
+          context.go("/login");
+        }
+      }
     } finally {
       isLoading = false;
       notifyListeners();
@@ -37,54 +47,82 @@ class WalletProvider with ChangeNotifier {
   }
 
   // ================= CREATE =================
-  Future<bool> createWallet(WalletRequest request) async {
+  Future<bool> createWallet(BuildContext context, WalletRequest request) async {
     try {
       await _service.createWallet(request);
       // Reload all data to get the correct total balance from the server
-      await loadAll();
+      await loadAll(context);
       return true;
 
     } catch (e) {
       error = e.toString();
+      // Xử lý 401 - Session expired
+      if (e.toString().contains("Session expired")) {
+        await TokenHelper.clearTokens();
+        if (context.mounted) {
+          context.go("/login");
+        }
+      }
       notifyListeners();
       return false;
     }
   }
 
   // ================= UPDATE =================
-  Future<bool> updateWallet(int id, WalletRequest request) async {
+  Future<bool> updateWallet(BuildContext context, int id, WalletRequest request) async {
     try {
       await _service.updateWallet(id, request);
-      await loadAll();
+      await loadAll(context);
       return true;
     } catch (e) {
       error = e.toString();
+      // Xử lý 401 - Session expired
+      if (e.toString().contains("Session expired")) {
+        await TokenHelper.clearTokens();
+        if (context.mounted) {
+          context.go("/login");
+        }
+      }
       notifyListeners();
       return false;
     }
   }
 
   // ================= DELETE =================
-  Future<void> deleteWallet(int id) async {
+  Future<void> deleteWallet(BuildContext context, int id) async {
     try {
       await _service.deleteWallet(id);
       // Reload all data to get the correct total balance from the server
-      await loadAll();
+      await loadAll(context);
     } catch (e) {
       error = e.toString();
+      // Xử lý 401 - Session expired
+      if (e.toString().contains("Session expired")) {
+        await TokenHelper.clearTokens();
+        if (context.mounted) {
+          context.go("/login");
+        }
+      }
       notifyListeners();
     }
   }
 
   // ================= TRANSFER =================
-  Future<bool> transferMoney(TransferRequest request) async {
+  Future<bool> transferMoney(BuildContext context, TransferRequest request) async {
     try {
       await _service.transferMoney(request);
       // Reload all data để cập nhật số dư mới
-      await loadAll();
+      await loadAll(context);
       return true;
     } catch (e) {
       error = e.toString();
+      // Xử lý 401 - Session expired
+      if (e.toString().contains("Session expired")) {
+        await TokenHelper.clearTokens();
+        if (context.mounted) {
+          context.go("/login");
+        }
+      }
       notifyListeners();
       return false;
     }

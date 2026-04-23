@@ -10,7 +10,7 @@ class NoteInput extends StatelessWidget {
     return TextField(
       controller: controller,
       decoration: const InputDecoration(
-        hintText: "Ghi chú",
+        hintText: "Note",
         border: InputBorder.none,
         contentPadding: EdgeInsets.symmetric(horizontal: 16),
       ),

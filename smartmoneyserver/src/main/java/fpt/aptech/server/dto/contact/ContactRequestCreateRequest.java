@@ -13,24 +13,24 @@ import jakarta.validation.constraints.Size;
  */
 public record ContactRequestCreateRequest(
 
-        @NotNull(message = "Loại yêu cầu không được để trống.")
+        @NotNull(message = "Request type cannot be empty.")
         ContactRequestType requestType,
 
-        @NotBlank(message = "Tiêu đề không được để trống.")
-        @Size(max = 200, message = "Tiêu đề không được vượt quá 200 ký tự.")
+        @NotBlank(message = "Title cannot be empty.")
+        @Size(max = 200, message = "Title must not exceed 200 characters.")
         String title,
 
-        @Size(max = 2000, message = "Mô tả không được vượt quá 2000 ký tự.")
+        @Size(max = 2000, message = "Description must not exceed 2000 characters.")
         String requestDescription,
 
         // Họ tên — tùy chọn cho user đã login (backend tự gán nếu null); bắt buộc cho guest
-        @Size(max = 60, message = "Họ tên không được vượt quá 60 ký tự.")
+        @Size(max = 60, message = "Full name must not exceed 60 characters.")
         String fullname,
 
         // Phải có ít nhất phone HOẶC email (validate trong Service)
-        @Size(max = 20, message = "Số điện thoại không được vượt quá 20 ký tự.")
+        @Size(max = 20, message = "Phone number must not exceed 20 characters.")
         String contactPhone,
 
-        @Size(max = 100, message = "Email liên hệ không được vượt quá 100 ký tự.")
+        @Size(max = 100, message = "Contact email must not exceed 100 characters.")
         String contactEmail
 ) {}

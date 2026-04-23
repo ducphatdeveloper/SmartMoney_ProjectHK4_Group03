@@ -10,10 +10,10 @@ import jakarta.validation.constraints.Size;
  */
 public record ContactRequestResolveRequest(
 
-        @NotNull(message = "Trạng thái xử lý không được để trống.")
+        @NotNull(message = "Processing status cannot be empty.")
         ContactRequestStatus requestStatus,
 
-        @Size(max = 1000, message = "Ghi chú không được vượt quá 1000 ký tự.")
+        @Size(max = 1000, message = "Note must not exceed 1000 characters.")
         String adminNote
 ) {}
 

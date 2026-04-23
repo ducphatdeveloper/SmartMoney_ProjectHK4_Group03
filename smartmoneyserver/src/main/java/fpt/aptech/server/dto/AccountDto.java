@@ -34,15 +34,15 @@ public class AccountDto {
 
     // Thông tin cá nhân
     private String accUsername; // Tên hiển thị, có thể lấy từ fullname hoặc email
-    @Size(max = 60, message = "Họ và tên không được vượt quá 60 ký tự")
+    @Size(max = 60, message = "Full name must not exceed 60 characters")
     private String fullname;
-    @Pattern(regexp = "Nam|Nữ|Khác|", message = "Giới tính không hợp lệ (chấp nhận Nam, Nữ, Khác hoặc để trống)")
+    @Pattern(regexp = "Nam|Nữ|Khác|", message = "Invalid gender (accepts Male, Female, Other or leave empty)")
     private String gender;
-    @PastOrPresent(message = "Ngày sinh không được ở tương lai")
+    @PastOrPresent(message = "Date of birth cannot be in the future")
     private LocalDate dateofbirth;
-    @Size(max = 20, message = "Số CCCD không được vượt quá 20 ký tự")
+    @Size(max = 20, message = "ID card number must not exceed 20 characters")
     private String identityCard;
-    @Size(max = 255, message = "Địa chỉ không được vượt quá 255 ký tự")
+    @Size(max = 255, message = "Address must not exceed 255 characters")
     private String address;
 
     // Constructor giúp chuyển đổi từ Account entity sang AccountDto một cách dễ dàng

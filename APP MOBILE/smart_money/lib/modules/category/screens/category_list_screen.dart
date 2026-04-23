@@ -73,7 +73,7 @@ class _CategoryListScreenState extends State<CategoryListScreen>
     // Bước 3: Load danh mục tab ban đầu
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final provider = Provider.of<CategoryProvider>(context, listen: false);
-      provider.loadByGroup(_tabGroups[initialIndex]);
+      provider.loadByGroup(context, _tabGroups[initialIndex]);
     });
 
     // Bước 4: Đăng ký lắng nghe app lifecycle (resume từ background)
@@ -93,7 +93,7 @@ class _CategoryListScreenState extends State<CategoryListScreen>
       final provider = Provider.of<CategoryProvider>(context, listen: false);
       provider.clearCache();
       // Load lại tab hiện tại (sẽ gọi API do cache được xóa)
-      provider.loadByGroup(_tabGroups[_tabController.index]);
+      provider.loadByGroup(context, _tabGroups[_tabController.index]);
     }
   }
 
@@ -114,7 +114,7 @@ class _CategoryListScreenState extends State<CategoryListScreen>
     // Gọi loadByGroup mà không force refresh
     // → Nếu đã cache trước đó → dùng cache (mượt)
     // → Nếu chưa cache → gọi API lần đầu
-    provider.loadByGroup(group, forceRefresh: false);
+    provider.loadByGroup(context, group, forceRefresh: false);
   }
 
   // =============================================
@@ -140,7 +140,7 @@ class _CategoryListScreenState extends State<CategoryListScreen>
     // Luôn reload tab hiện tại khi quay về (có thể đã sửa/xóa từ search)
     if (mounted) {
       final provider = Provider.of<CategoryProvider>(context, listen: false);
-      provider.loadByGroup(_tabGroups[_tabController.index], forceRefresh: true);
+      provider.loadByGroup(context, _tabGroups[_tabController.index], forceRefresh: true);
     }
   }
 
@@ -163,7 +163,7 @@ class _CategoryListScreenState extends State<CategoryListScreen>
     // Nếu tạo thành công (result == true) → reload danh sách
     if (result == true && mounted) {
       final provider = Provider.of<CategoryProvider>(context, listen: false);
-      provider.loadByGroup(_tabGroups[_tabController.index], forceRefresh: true);
+      provider.loadByGroup(context, _tabGroups[_tabController.index], forceRefresh: true);
     }
   }
 
@@ -197,7 +197,7 @@ class _CategoryListScreenState extends State<CategoryListScreen>
     // Nếu sửa/xóa thành công → reload
     if (result == true && mounted) {
       final provider = Provider.of<CategoryProvider>(context, listen: false);
-      provider.loadByGroup(_tabGroups[_tabController.index], forceRefresh: true);
+      provider.loadByGroup(context, _tabGroups[_tabController.index], forceRefresh: true);
     }
   }
 
@@ -257,7 +257,7 @@ class _CategoryListScreenState extends State<CategoryListScreen>
           // Khi user pull-to-refresh → clear cache + load tab hiện tại
           final provider = Provider.of<CategoryProvider>(context, listen: false);
           provider.clearCache();
-          await provider.loadByGroup(_tabGroups[_tabController.index]);
+          await provider.loadByGroup(context, _tabGroups[_tabController.index]);
         },
         child: TabBarView(
           controller: _tabController,

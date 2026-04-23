@@ -48,7 +48,7 @@ public class ApiResponse<T> {
     public static <T> ApiResponse<T> success(T data) {
         return ApiResponse.<T>builder()
                 .success(true)
-                .message("Thành công")
+                .message("Success")
                 .data(data)
                 .timestamp(LocalDateTime.now())
                 .build();

@@ -46,25 +46,25 @@ enum DateRange {
   String get displayName {
     switch (this) {
       case DateRange.thisWeek:
-        return 'Tuần này';
+        return 'This Week';
       case DateRange.lastWeek:
-        return 'Tuần trước';
+        return 'Last Week';
       case DateRange.thisMonth:
-        return 'Tháng này';
+        return 'This Month';
       case DateRange.lastMonth:
-        return 'Tháng trước';
+        return 'Last Month';
       case DateRange.thisQuarter:
-        return 'Quý này';
+        return 'This Quarter';
       case DateRange.lastQuarter:
-        return 'Quý trước';
+        return 'Last Quarter';
       case DateRange.thisYear:
-        return 'Năm nay';
+        return 'This Year';
       case DateRange.lastYear:
-        return 'Năm trước';
+        return 'Last Year';
       case DateRange.future:
-        return 'Tương lai';
+        return 'Future';
       case DateRange.custom:
-        return 'Tùy chỉnh';
+        return 'Custom';
     }
   }
 }

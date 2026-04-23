@@ -45,7 +45,7 @@ class _CategorySearchScreenState extends State<CategorySearchScreen> {
     // Load tất cả danh mục khi mở màn hình (keyword = null)
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final provider = Provider.of<CategoryProvider>(context, listen: false);
-      provider.searchCategories(null);
+      provider.searchCategories(context, null);
     });
   }
 
@@ -66,7 +66,7 @@ class _CategorySearchScreenState extends State<CategorySearchScreen> {
     // Bước 2: Đặt timer mới — gọi API sau 400ms nếu không gõ thêm
     _debounce = Timer(const Duration(milliseconds: 400), () {
       final provider = Provider.of<CategoryProvider>(context, listen: false);
-      provider.searchCategories(value.trim().isEmpty ? null : value.trim());
+      provider.searchCategories(context, value.trim().isEmpty ? null : value.trim());
     });
 
     // Cập nhật UI để hiện/ẩn nút X
@@ -79,7 +79,7 @@ class _CategorySearchScreenState extends State<CategorySearchScreen> {
   void _clearSearch() {
     _searchController.clear();
     final provider = Provider.of<CategoryProvider>(context, listen: false);
-    provider.searchCategories(null); // load lại tất cả
+    provider.searchCategories(context, null); // load lại tất cả
     setState(() {});
   }
 
@@ -99,7 +99,7 @@ class _CategorySearchScreenState extends State<CategorySearchScreen> {
       _hasEdited = true;
       final keyword = _searchController.text.trim();
       final provider = Provider.of<CategoryProvider>(context, listen: false);
-      provider.searchCategories(keyword.isEmpty ? null : keyword);
+      provider.searchCategories(context, keyword.isEmpty ? null : keyword);
     }
   }
 
@@ -156,8 +156,8 @@ class _CategorySearchScreenState extends State<CategorySearchScreen> {
                     const SizedBox(height: 12),
                     Text(
                       _searchController.text.isEmpty
-                          ? "Chưa có danh mục nào"
-                          : 'Không tìm thấy "${_searchController.text}"',
+                          ? "No categories yet"
+                          : 'No results for "${_searchController.text}"',
                       style: const TextStyle(color: Colors.grey, fontSize: 14),
                     ),
                   ],
@@ -192,7 +192,7 @@ class _CategorySearchScreenState extends State<CategorySearchScreen> {
       cursorColor: Colors.green,
       onChanged: _onSearchChanged,
       decoration: InputDecoration(
-        hintText: "Tìm danh mục...",
+        hintText: "Search categories...",
         hintStyle: const TextStyle(color: Colors.grey),
         border: InputBorder.none,
         // Nút X xóa tìm kiếm
@@ -234,7 +234,7 @@ class _CategorySearchScreenState extends State<CategorySearchScreen> {
               borderRadius: BorderRadius.circular(4),
             ),
             child: Text(
-              category.ctgType == true ? "Thu nhập" : "Chi tiêu",
+              category.ctgType == true ? "Income" : "Expense",
               style: TextStyle(
                 color: category.ctgType == true ? Colors.green : Colors.orange,
                 fontSize: 11,
@@ -251,7 +251,7 @@ class _CategorySearchScreenState extends State<CategorySearchScreen> {
                 borderRadius: BorderRadius.circular(4),
               ),
               child: const Text(
-                "Danh mục con",
+                "Subcategory",
                 style: TextStyle(color: Colors.blue, fontSize: 11),
               ),
             ),

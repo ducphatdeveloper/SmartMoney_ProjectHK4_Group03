@@ -74,7 +74,7 @@ class _WalletDetailScreenState extends State<WalletDetailScreen> {
               );
 
               if (result == true) {
-                Provider.of<WalletProvider>(context, listen: false).loadAll();
+                Provider.of<WalletProvider>(context, listen: false).loadAll(context);
                 Navigator.pop(context);
               }
             },
@@ -414,12 +414,12 @@ class _WalletDetailScreenState extends State<WalletDetailScreen> {
               final provider =
                   Provider.of<WalletProvider>(context, listen: false);
 
-              await provider.deleteWallet(widget.wallet.id);
+              await provider.deleteWallet(context, widget.wallet.id);
 
               if (context.mounted) {
                 // Reload danh sách ví sau khi xóa thành công
-                await provider.loadAll();
-                context.read<TransactionProvider>().refreshSourceItems();
+                await provider.loadAll(context);
+                context.read<TransactionProvider>().refreshSourceItems(context);
                 Navigator.pop(context);
                 Navigator.pop(context, true);
               }
@@ -512,14 +512,14 @@ class _WalletDetailScreenState extends State<WalletDetailScreen> {
                         amount: preview.currentBalance,
                       );
 
-                      final success = await provider.transferMoney(request);
+                      final success = await provider.transferMoney(context, request);
 
                       if (context.mounted) {
                         Navigator.pop(context);
 
                         if (success) {
                           // Reload danh sách ví sau khi chuyển tiền thành công
-                          await provider.loadAll();
+                          await provider.loadAll(context);
 
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(

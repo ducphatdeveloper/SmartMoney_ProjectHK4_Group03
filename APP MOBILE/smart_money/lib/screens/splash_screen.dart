@@ -23,7 +23,7 @@ class _SplashScreenState extends State<SplashScreen>
 
     _controller = AnimationController(
         vsync: this,
-        duration: const Duration(seconds: 2));
+        duration: const Duration(seconds: 1));
 
     _animation = Tween<double>(begin: 0, end: 1)
         .animate(CurvedAnimation(
@@ -37,8 +37,8 @@ class _SplashScreenState extends State<SplashScreen>
   }
 
   Future<void> _checkAuthAndNavigate() async {
-    // Đợi 3 giây để animation splash hoàn tất
-    await Future.delayed(const Duration(seconds: 3));
+    // Đợi 1.5 giây để animation splash hoàn tất
+    await Future.delayed(const Duration(milliseconds: 1500));
     
     if (!mounted) return;
 

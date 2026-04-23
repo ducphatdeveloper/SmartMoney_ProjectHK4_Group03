@@ -68,7 +68,7 @@ class _BillScreenState extends State<BillScreen> with SingleTickerProviderStateM
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final provider = Provider.of<BillProvider>(context, listen: false);
-      provider.loadAll();
+      provider.loadAll(context);
     });
 
     // Load wallets từ UtilService (tự auth, không cần token)
@@ -129,6 +129,7 @@ class _BillScreenState extends State<BillScreen> with SingleTickerProviderStateM
       title: const Text(
         'Bill',
         style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600),
+        overflow: TextOverflow.ellipsis,
       ),
       actions: [_buildWalletDropdown()],
       bottom: TabBar(
@@ -500,7 +501,7 @@ class _BillScreenState extends State<BillScreen> with SingleTickerProviderStateM
     final items = provider.expiredItems;
 
     if (items.isEmpty) {
-      return _buildEmptyState('Không có hóa đơn đã kết thúc.');
+      return _buildEmptyState('No completed bills.');
     }
 
     return ListView(
@@ -627,7 +628,7 @@ class _BillScreenState extends State<BillScreen> with SingleTickerProviderStateM
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        'Còn ${item.remainingCount} lần lặp lại',
+                        '${item.remainingCount} repeats left',
                         style: const TextStyle(color: Color(0xFF8E8E93), fontSize: 13),
                       ),
                     ),
@@ -648,7 +649,7 @@ class _BillScreenState extends State<BillScreen> with SingleTickerProviderStateM
                     ),
                     const Spacer(),
                     if (item.displayStatus == 'OVERDUE')
-                      _buildInlineExpiryLabel(item.statusLabel ?? 'Quá hạn', const Color(0xFFFF3B30))
+                      _buildInlineExpiryLabel(item.statusLabel ?? 'Overdue', const Color(0xFFFF3B30))
                     else if (item.displayStatus != 'EXPIRED'
                         && item.nextDueDateLabel != null
                         && item.nextDueDate != null)
@@ -696,7 +697,7 @@ class _BillScreenState extends State<BillScreen> with SingleTickerProviderStateM
 
                        // Load debt details để kiểm tra finished
                        final debtProvider = Provider.of<DebtProvider>(context, listen: false);
-                       await debtProvider.loadDebts(item.categoryType ?? false);
+                       await debtProvider.loadDebts(context, item.categoryType ?? false);
 
                        if (!mounted) return;
                        Navigator.pop(context); // Đóng loading dialog
@@ -731,11 +732,11 @@ class _BillScreenState extends State<BillScreen> with SingleTickerProviderStateM
                      // Nếu không có debt hoặc debt chưa finished → tiến hành toggle
                      Navigator.pop(ctx);
                      final provider = Provider.of<BillProvider>(context, listen: false);
-                     final success = await provider.toggle(item.id);
+                     final success = await provider.toggle(context, item.id);
                      if (!mounted) return;
                      if (success) {
                        // Reload list after toggle to update UI immediately
-                       provider.loadAll();
+                       provider.loadAll(context);
                        _showSnackBar('Invoice status has been updated.');
                      } else {
                        _showSnackBar(provider.errorMessage ?? 'An error occurred.', isError: true);
@@ -802,7 +803,7 @@ class _BillScreenState extends State<BillScreen> with SingleTickerProviderStateM
                       child: ElevatedButton.icon(
                         icon: const Icon(Icons.payment, color: Colors.white, size: 18),
                         label: Text(
-                          'Trả tiền',
+                          'Pay',
                           style: const TextStyle(color: Colors.white, fontSize: 14),
                         ),
                         style: ElevatedButton.styleFrom(
@@ -904,7 +905,7 @@ class _BillScreenState extends State<BillScreen> with SingleTickerProviderStateM
   // =============================================
   Future<void> _handlePayBill(PlannedTransactionResponse item) async {
     final provider = Provider.of<BillProvider>(context, listen: false);
-    final success = await provider.payBill(item.id);
+    final success = await provider.payBill(context, item.id);
     if (!mounted) return;
     if (success) {
       _showSnackBar('The bill has been paid.');
@@ -970,7 +971,7 @@ class _BillScreenState extends State<BillScreen> with SingleTickerProviderStateM
             onPressed: () async {
               Navigator.pop(ctx);
               final provider = Provider.of<BillProvider>(context, listen: false);
-              final success = await provider.delete(item.id);
+              final success = await provider.delete(context, item.id);
               if (!mounted) return;
               if (success) {
                 _showSnackBar('Bill has been deleted');

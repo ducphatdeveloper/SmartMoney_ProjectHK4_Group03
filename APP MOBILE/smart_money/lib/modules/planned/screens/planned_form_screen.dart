@@ -221,7 +221,7 @@ class _PlannedFormScreenState extends State<PlannedFormScreen> {
                     child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF4CAF50)),
                   )
                 : const Text(
-                    'LƯU',
+                    'SAVE',
                     style: TextStyle(color: Color(0xFF4CAF50), fontWeight: FontWeight.w600, fontSize: 16),
                   ),
           ),
@@ -651,9 +651,9 @@ class _PlannedFormScreenState extends State<PlannedFormScreen> {
             if (_isEditing) {
               final id = widget.existing!.id;
               if (widget.planType == PlanType.recurring) {
-                Provider.of<RecurringProvider>(context, listen: false).toggle(id);
+                Provider.of<RecurringProvider>(context, listen: false).toggle(context, id);
               } else {
-                Provider.of<BillProvider>(context, listen: false).toggle(id);
+                Provider.of<BillProvider>(context, listen: false).toggle(context, id);
               }
             }
           },
@@ -730,8 +730,8 @@ class _PlannedFormScreenState extends State<PlannedFormScreen> {
     // planned chỉ được dùng Thu nợ (21) / Trả nợ (22)
     if (_blockedCategoryIds.contains(result.id)) {
       _showSnackBar(
-        'Không thể sử dụng danh mục "${result.ctgName}" cho giao dịch định kỳ/hóa đơn. '
-        'Vui lòng chọn Thu nợ hoặc Trả nợ.',
+        'Cannot use category "${result.ctgName}" for recurring transaction/bill. '
+        'Please select Debt collection or Debt repayment.',
         isError: true,
       );
       return;
@@ -763,7 +763,7 @@ class _PlannedFormScreenState extends State<PlannedFormScreen> {
     final debtType = _debtTypeForPicker;
 
     // Bước 1: Load danh sách nợ theo loại (CẦN THU hoặc CẦN TRẢ)
-    await debtProvider.loadDebts(debtType);
+    await debtProvider.loadDebts(context, debtType);
     if (!mounted) return;
 
     // Bước 2: Lấy danh sách chưa hoàn thành để chọn
@@ -1015,16 +1015,16 @@ class _PlannedFormScreenState extends State<PlannedFormScreen> {
     if (widget.planType == PlanType.recurring) {
       final provider = Provider.of<RecurringProvider>(context, listen: false);
       if (_isEditing) {
-        success = await provider.update(widget.existing!.id, request);
+        success = await provider.update(context, widget.existing!.id, request);
       } else {
-        success = await provider.create(request);
+        success = await provider.create(context, request);
       }
     } else {
       final provider = Provider.of<BillProvider>(context, listen: false);
       if (_isEditing) {
-        success = await provider.update(widget.existing!.id, request);
+        success = await provider.update(context, widget.existing!.id, request);
       } else {
-        success = await provider.create(request);
+        success = await provider.create(context, request);
       }
     }
 
@@ -1078,9 +1078,9 @@ class _PlannedFormScreenState extends State<PlannedFormScreen> {
               bool success;
               final id = widget.existing!.id;
               if (widget.planType == PlanType.recurring) {
-                success = await Provider.of<RecurringProvider>(context, listen: false).delete(id);
+                success = await Provider.of<RecurringProvider>(context, listen: false).delete(context, id);
               } else {
-                success = await Provider.of<BillProvider>(context, listen: false).delete(id);
+                success = await Provider.of<BillProvider>(context, listen: false).delete(context, id);
               }
 
               setState(() => _isDeleting = false);

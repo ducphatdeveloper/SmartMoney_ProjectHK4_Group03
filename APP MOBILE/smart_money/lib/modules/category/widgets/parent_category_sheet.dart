@@ -78,7 +78,7 @@ class _ParentCategorySheetState extends State<ParentCategorySheet> {
             child: Row(
               children: [
                 const Text(
-                  "Chọn nhóm cha",
+                  "Select Parent Category",
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 18,
@@ -102,7 +102,7 @@ class _ParentCategorySheetState extends State<ParentCategorySheet> {
               controller: _searchController,
               style: const TextStyle(color: Colors.white, fontSize: 14),
               decoration: InputDecoration(
-                hintText: "Tìm kiếm nhóm cha...",
+                hintText: "Search parent category...",
                 hintStyle: TextStyle(color: Colors.grey[500]),
                 prefixIcon: const Icon(Icons.search, color: Colors.grey, size: 20),
                 // Nút xóa ô tìm kiếm
@@ -133,7 +133,7 @@ class _ParentCategorySheetState extends State<ParentCategorySheet> {
               child: const Icon(Icons.layers_clear, color: Colors.white, size: 20),
             ),
             title: const Text(
-              "Không có nhóm cha",
+              "No Parent Category",
               style: TextStyle(color: Colors.white),
             ),
             // Highlight nếu đang chọn "không có cha"
@@ -152,7 +152,7 @@ class _ParentCategorySheetState extends State<ParentCategorySheet> {
                     child: Padding(
                       padding: const EdgeInsets.all(24),
                       child: Text(
-                        "Không tìm thấy nhóm cha",
+                        "No parent category found",
                         style: TextStyle(color: Colors.grey[500], fontSize: 14),
                       ),
                     ),

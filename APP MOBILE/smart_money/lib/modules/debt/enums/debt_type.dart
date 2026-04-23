@@ -19,9 +19,9 @@ enum DebtType {
   String get displayName {
     switch (this) {
       case DebtType.payable:
-        return 'Cần trả (Đi vay)';
+        return 'To Pay (Borrowed)';
       case DebtType.receivable:
-        return 'Cần thu (Cho vay)';
+        return 'To Receive (Lent)';
     }
   }
 }

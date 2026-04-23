@@ -12,6 +12,9 @@
 // ===========================================================
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:smart_money/core/helpers/token_helper.dart';
 import 'package:smart_money/modules/category/models/category_response.dart';
 import 'package:smart_money/modules/category/models/category_request.dart';
 import 'package:smart_money/modules/category/services/category_service.dart';
@@ -73,7 +76,7 @@ class CategoryProvider extends ChangeNotifier {
   //
   // Gọi khi: Mở màn hình, chuyển tab lần đầu, sau khi tạo/sửa/xóa
   // API: GET /api/categories?group=expense
-  Future<void> loadByGroup(String group, {bool forceRefresh = false}) async {
+  Future<void> loadByGroup(BuildContext context, String group, {bool forceRefresh = false}) async {
     // Bước 0: Nếu đã cache và không force refresh → dùng cache
     if (!forceRefresh && _cachedByGroup.containsKey(group)) {
       _categories = _cachedByGroup[group]!;
@@ -92,21 +95,32 @@ class CategoryProvider extends ChangeNotifier {
     _currentGroup = group; // lưu tab đang chọn
     notifyListeners();
 
-    // Bước 2: Gọi API qua CategoryService
-    final response = await CategoryService.getByGroup(group);
+    try {
+      // Bước 2: Gọi API qua CategoryService
+      final response = await CategoryService.getByGroup(group);
 
-    // Bước 3: Xử lý kết quả + cache
-    if (response.success && response.data != null) {
-      _categories = response.data!;
-      _cachedByGroup[group] = response.data!; // lưu cache
-    } else {
-      _categories = [];
-      _errorMessage = response.message; // lỗi từ server (tiếng Việt)
+      // Bước 3: Xử lý kết quả + cache
+      if (response.success && response.data != null) {
+        _categories = response.data!;
+        _cachedByGroup[group] = response.data!; // lưu cache
+      } else {
+        _categories = [];
+        _errorMessage = response.message; // lỗi từ server (tiếng Việt)
+      }
+    } catch (e) {
+      _errorMessage = e.toString();
+      // Xử lý 401 - Session expired
+      if (e.toString().contains("Session expired")) {
+        await TokenHelper.clearTokens();
+        if (context.mounted) {
+          context.go("/login");
+        }
+      }
+    } finally {
+      // Bước 4: Tắt loading, thông báo UI cập nhật
+      _isLoading = false;
+      notifyListeners();
     }
-
-    // Bước 4: Tắt loading, thông báo UI cập nhật
-    _isLoading = false;
-    notifyListeners();
   }
 
   // =============================================
@@ -130,22 +144,33 @@ class CategoryProvider extends ChangeNotifier {
   // =============================================
   // Gọi khi: User gõ vào thanh search
   // API: GET /api/categories/search?name=Ăn
-  Future<void> searchCategories(String? keyword) async {
+  Future<void> searchCategories(BuildContext context, String? keyword) async {
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
 
-    final response = await CategoryService.search(keyword);
+    try {
+      final response = await CategoryService.search(keyword);
 
-    if (response.success && response.data != null) {
-      _searchResults = response.data!;
-    } else {
-      _searchResults = [];
-      _errorMessage = response.message;
+      if (response.success && response.data != null) {
+        _searchResults = response.data!;
+      } else {
+        _searchResults = [];
+        _errorMessage = response.message;
+      }
+    } catch (e) {
+      _errorMessage = e.toString();
+      // Xử lý 401 - Session expired
+      if (e.toString().contains("Session expired")) {
+        await TokenHelper.clearTokens();
+        if (context.mounted) {
+          context.go("/login");
+        }
+      }
+    } finally {
+      _isLoading = false;
+      notifyListeners();
     }
-
-    _isLoading = false;
-    notifyListeners();
   }
 
   // =============================================
@@ -155,22 +180,33 @@ class CategoryProvider extends ChangeNotifier {
   // API: GET /api/categories/parents?type=false
   // ctgType: true = Thu nhập, false = Chi tiêu
   // Dùng _isLoadingSheet thay vì _isLoading để tránh trigger rebuild CategoryTabContent
-  Future<void> loadParents(bool ctgType) async {
+  Future<void> loadParents(BuildContext context, bool ctgType) async {
     _isLoadingSheet = true;
     _errorMessage = null;
     notifyListeners();
 
-    final response = await CategoryService.getParents(ctgType);
+    try {
+      final response = await CategoryService.getParents(ctgType);
 
-    if (response.success && response.data != null) {
-      _parentCategories = response.data!;
-    } else {
-      _parentCategories = [];
-      _errorMessage = response.message;
+      if (response.success && response.data != null) {
+        _parentCategories = response.data!;
+      } else {
+        _parentCategories = [];
+        _errorMessage = response.message;
+      }
+    } catch (e) {
+      _errorMessage = e.toString();
+      // Xử lý 401 - Session expired
+      if (e.toString().contains("Session expired")) {
+        await TokenHelper.clearTokens();
+        if (context.mounted) {
+          context.go("/login");
+        }
+      }
+    } finally {
+      _isLoadingSheet = false;
+      notifyListeners();
     }
-
-    _isLoadingSheet = false;
-    notifyListeners();
   }
 
   // =============================================
@@ -178,21 +214,35 @@ class CategoryProvider extends ChangeNotifier {
   // =============================================
   // API: POST /api/categories
   // [FIX-3] Dùng _extractErrorMessage để xử lý cả 2 dạng lỗi từ server
-  Future<bool> createCategory(CategoryRequest request) async {
+  Future<bool> createCategory(BuildContext context, CategoryRequest request) async {
     _isLoading = true;
     _errorMessage = null;
     _successMessage = null;
     notifyListeners();
 
-    final response = await CategoryService.create(request);
+    try {
+      final response = await CategoryService.create(request);
 
-    if (response.success) {
-      _successMessage = response.message; // "Tạo danh mục thành công"
-      await loadByGroup(_currentGroup); // reload danh sách
-      return true;
-    } else {
-      // [FIX-3] Gom lỗi field-level validation thành string đọc được
-      _errorMessage = _extractErrorMessage(response);
+      if (response.success) {
+        _successMessage = response.message; // "Tạo danh mục thành công"
+        await loadByGroup(context, _currentGroup); // reload danh sách
+        return true;
+      } else {
+        // [FIX-3] Gom lỗi field-level validation thành string đọc được
+        _errorMessage = _extractErrorMessage(response);
+        _isLoading = false;
+        notifyListeners();
+        return false;
+      }
+    } catch (e) {
+      _errorMessage = e.toString();
+      // Xử lý 401 - Session expired
+      if (e.toString().contains("Session expired")) {
+        await TokenHelper.clearTokens();
+        if (context.mounted) {
+          context.go("/login");
+        }
+      }
       _isLoading = false;
       notifyListeners();
       return false;
@@ -203,20 +253,34 @@ class CategoryProvider extends ChangeNotifier {
   // [2.6] UPDATE — Cập nhật danh mục
   // =============================================
   // API: PUT /api/categories/{id}
-  Future<bool> updateCategory(int id, CategoryRequest request) async {
+  Future<bool> updateCategory(BuildContext context, int id, CategoryRequest request) async {
     _isLoading = true;
     _errorMessage = null;
     _successMessage = null;
     notifyListeners();
 
-    final response = await CategoryService.update(id, request);
+    try {
+      final response = await CategoryService.update(id, request);
 
-    if (response.success) {
-      _successMessage = response.message; // "Cập nhật danh mục thành công"
-      await loadByGroup(_currentGroup);
-      return true;
-    } else {
-      _errorMessage = _extractErrorMessage(response); // [FIX-3]
+      if (response.success) {
+        _successMessage = response.message; // "Cập nhật danh mục thành công"
+        await loadByGroup(context, _currentGroup);
+        return true;
+      } else {
+        _errorMessage = _extractErrorMessage(response); // [FIX-3]
+        _isLoading = false;
+        notifyListeners();
+        return false;
+      }
+    } catch (e) {
+      _errorMessage = e.toString();
+      // Xử lý 401 - Session expired
+      if (e.toString().contains("Session expired")) {
+        await TokenHelper.clearTokens();
+        if (context.mounted) {
+          context.go("/login");
+        }
+      }
       _isLoading = false;
       notifyListeners();
       return false;
@@ -231,20 +295,34 @@ class CategoryProvider extends ChangeNotifier {
   //    → Xóa sạch giao dịch (con + cha) + xóa danh mục (con + cha) → luôn thành công
   // ⚠️ Hiện tại không dùng — UI gọi deleteCategoryWithOptions() thay thế
   //    để truyền actionType rõ ràng (DELETE_ALL hoặc MERGE)
-  Future<bool> deleteCategory(int id) async {
+  Future<bool> deleteCategory(BuildContext context, int id) async {
     _isLoading = true;
     _errorMessage = null;
     _successMessage = null;
     notifyListeners();
 
-    final response = await CategoryService.delete(id);
+    try {
+      final response = await CategoryService.delete(id);
 
-    if (response.success) {
-      _successMessage = response.message; // "Xóa danh mục thành công" (cả cha + con)
-      await loadByGroup(_currentGroup);
-      return true;
-    } else {
-      _errorMessage = response.message;
+      if (response.success) {
+        _successMessage = response.message; // "Xóa danh mục thành công" (cả cha + con)
+        await loadByGroup(context, _currentGroup);
+        return true;
+      } else {
+        _errorMessage = response.message;
+        _isLoading = false;
+        notifyListeners();
+        return false;
+      }
+    } catch (e) {
+      _errorMessage = e.toString();
+      // Xử lý 401 - Session expired
+      if (e.toString().contains("Session expired")) {
+        await TokenHelper.clearTokens();
+        if (context.mounted) {
+          context.go("/login");
+        }
+      }
       _isLoading = false;
       notifyListeners();
       return false;
@@ -261,25 +339,36 @@ class CategoryProvider extends ChangeNotifier {
   List<CategoryResponse> _mergeTargets = [];
   List<CategoryResponse> get mergeTargets => _mergeTargets;
 
-  Future<void> loadMergeTargets(bool ctgType, {int? excludeId}) async {
+  Future<void> loadMergeTargets(BuildContext context, bool ctgType, {int? excludeId}) async {
     _isLoadingSheet = true;
     _errorMessage = null;
     notifyListeners();
 
-    final response = await CategoryService.getMergeTargets(ctgType);
+    try {
+      final response = await CategoryService.getMergeTargets(ctgType);
 
-    if (response.success && response.data != null) {
-      // Loại bỏ danh mục đang xóa ra khỏi danh sách chọn
-      _mergeTargets = response.data!
-          .where((c) => c.id != excludeId)
-          .toList();
-    } else {
-      _mergeTargets = [];
-      _errorMessage = response.message;
+      if (response.success && response.data != null) {
+        // Loại bỏ danh mục đang xóa ra khỏi danh sách chọn
+        _mergeTargets = response.data!
+            .where((c) => c.id != excludeId)
+            .toList();
+      } else {
+        _mergeTargets = [];
+        _errorMessage = response.message;
+      }
+    } catch (e) {
+      _errorMessage = e.toString();
+      // Xử lý 401 - Session expired
+      if (e.toString().contains("Session expired")) {
+        await TokenHelper.clearTokens();
+        if (context.mounted) {
+          context.go("/login");
+        }
+      }
+    } finally {
+      _isLoadingSheet = false;
+      notifyListeners();
     }
-
-    _isLoadingSheet = false;
-    notifyListeners();
   }
 
   // =============================================
@@ -288,7 +377,7 @@ class CategoryProvider extends ChangeNotifier {
   // API: DELETE /api/categories/{id}?actionType=MERGE&newCategoryId=5
   //   hoặc: DELETE /api/categories/{id}?actionType=DELETE_ALL
   // Gọi khi: Danh mục có giao dịch → user đã chọn hành động
-  Future<bool> deleteCategoryWithOptions({
+  Future<bool> deleteCategoryWithOptions(BuildContext context, {
     required int id,
     required String actionType,
     int? newCategoryId,
@@ -298,18 +387,32 @@ class CategoryProvider extends ChangeNotifier {
     _successMessage = null;
     notifyListeners();
 
-    final response = await CategoryService.deleteWithOptions(
-      id: id,
-      actionType: actionType,
-      newCategoryId: newCategoryId,
-    );
+    try {
+      final response = await CategoryService.deleteWithOptions(
+        id: id,
+        actionType: actionType,
+        newCategoryId: newCategoryId,
+      );
 
-    if (response.success) {
-      _successMessage = response.message; // "Xóa danh mục thành công"
-      await loadByGroup(_currentGroup); // reload danh sách
-      return true;
-    } else {
-      _errorMessage = response.message;
+      if (response.success) {
+        _successMessage = response.message; // "Xóa danh mục thành công"
+        await loadByGroup(context, _currentGroup); // reload danh sách
+        return true;
+      } else {
+        _errorMessage = response.message;
+        _isLoading = false;
+        notifyListeners();
+        return false;
+      }
+    } catch (e) {
+      _errorMessage = e.toString();
+      // Xử lý 401 - Session expired
+      if (e.toString().contains("Session expired")) {
+        await TokenHelper.clearTokens();
+        if (context.mounted) {
+          context.go("/login");
+        }
+      }
       _isLoading = false;
       notifyListeners();
       return false;
@@ -350,7 +453,7 @@ class CategoryProvider extends ChangeNotifier {
     }
 
     // Fallback: message chính từ server (IllegalArgumentException, RuntimeException)
-    return response.message ?? "Có lỗi xảy ra";
+    return response.message ?? "An error occurred";
   }
 }
 

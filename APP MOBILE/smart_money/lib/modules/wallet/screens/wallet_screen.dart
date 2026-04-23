@@ -26,7 +26,7 @@ class _WalletListViewState extends State<WalletListView> {
     super.initState();
 
     Future.microtask(() {
-      Provider.of<WalletProvider>(context, listen: false).loadAll();
+      Provider.of<WalletProvider>(context, listen: false).loadAll(context);
     });
   }
   Widget build(BuildContext context) {
@@ -88,13 +88,13 @@ class _WalletListViewState extends State<WalletListView> {
               );
 
               if (result == true) {
-                Provider.of<WalletProvider>(context, listen: false).loadAll();
+                Provider.of<WalletProvider>(context, listen: false).loadAll(context);
               }
             },
             child: const Icon(Icons.add),
           ),
           body: RefreshIndicator(
-            onRefresh: () async => provider.loadAll(),
+            onRefresh: () async => provider.loadAll(context),
             child: ListView(
               padding: const EdgeInsets.all(16),
               children: [

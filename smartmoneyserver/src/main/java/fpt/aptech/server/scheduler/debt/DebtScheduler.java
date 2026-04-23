@@ -66,7 +66,7 @@ public class DebtScheduler {
     @Scheduled(cron = "0 0 8 * * ?") // 8:00 AM mỗi ngày
     public void checkDebtReminders() {
         LocalDate today = LocalDate.now();
-        log.info("[DebtScheduler] Bắt đầu kiểm tra nhắc nợ...");
+        log.info("[DebtScheduler] Starting debt reminder check...");
 
         int earlyCount   = 0; // Đếm số thông báo nhắc sớm
         int nearDueCount = 0; // Đếm số thông báo sắp hạn
@@ -81,7 +81,7 @@ public class DebtScheduler {
                 self.notifyDebtEarly(debt, today); // self-injection cho @Transactional(REQUIRES_NEW)
                 earlyCount++;
             } catch (Exception e) {
-                log.error("[DebtScheduler] Lỗi nhắc sớm khoản nợ id={}: {}", debt.getId(), e.getMessage());
+                log.error("[DebtScheduler] Error in early reminder for debt id={}: {}", debt.getId(), e.getMessage());
             }
         }
 
@@ -94,7 +94,7 @@ public class DebtScheduler {
                 self.notifyDebtNearDue(debt); // self-injection cho @Transactional(REQUIRES_NEW)
                 nearDueCount++;
             } catch (Exception e) {
-                log.error("[DebtScheduler] Lỗi nhắc khoản nợ id={}: {}", debt.getId(), e.getMessage());
+                log.error("[DebtScheduler] Error in near-due reminder for debt id={}: {}", debt.getId(), e.getMessage());
             }
         }
 
@@ -106,11 +106,11 @@ public class DebtScheduler {
                 self.notifyDebtOverdue(debt); // self-injection cho @Transactional(REQUIRES_NEW)
                 overdueCount++;
             } catch (Exception e) {
-                log.error("[DebtScheduler] Lỗi nhắc nợ quá hạn id={}: {}", debt.getId(), e.getMessage());
+                log.error("[DebtScheduler] Error in overdue reminder for debt id={}: {}", debt.getId(), e.getMessage());
             }
         }
 
-        log.info("[DebtScheduler] Hoàn tất. Nhắc sớm 10 ngày: {} | Sắp đến hạn: {} | Quá hạn: {}",
+        log.info("[DebtScheduler] Completed. Early 10-day reminders: {} | Near due: {} | Overdue: {}",
                 earlyCount, nearDueCount, overdueCount);
     }
 
@@ -149,9 +149,9 @@ public class DebtScheduler {
                 null                                      // scheduledTime = null → gửi ngay
         );
 
-        log.debug("[DebtScheduler] Đã nhắc sớm khoản nợ id={} '{}' ({}), hạn: {}, còn {} ngày",
+        log.debug("[DebtScheduler] Early reminder sent for debt id={} '{}' ({}), due: {}, {} days left",
                 debt.getId(), debt.getPersonName(),
-                isPayable ? "Cần trả" : "Cần thu", dueDate, daysLeft);
+                isPayable ? "To Pay" : "To Collect", dueDate, daysLeft);
     }
 
     /**
@@ -189,9 +189,9 @@ public class DebtScheduler {
                 null                                      // scheduledTime = null → gửi ngay
         );
 
-        log.debug("[DebtScheduler] Đã nhắc khoản nợ sắp hạn id={} '{}' ({}), hạn: {}",
+        log.debug("[DebtScheduler] Near-due reminder sent for debt id={} '{}' ({}), due: {}",
                 debt.getId(), debt.getPersonName(),
-                isPayable ? "Cần trả" : "Cần thu", dueDate);
+                isPayable ? "To Pay" : "To Collect", dueDate);
     }
 
     /**
@@ -226,8 +226,8 @@ public class DebtScheduler {
                 null                                      // scheduledTime = null → gửi ngay
         );
 
-        log.debug("[DebtScheduler] Đã nhắc nợ quá hạn id={} '{}' ({}), hạn: {}",
+        log.debug("[DebtScheduler] Overdue reminder sent for debt id={} '{}' ({}), due: {}",
                 debt.getId(), debt.getPersonName(),
-                isPayable ? "Cần trả" : "Cần thu", dueDate);
+                isPayable ? "To Pay" : "To Collect", dueDate);
     }
 }

@@ -10,7 +10,7 @@ class DatePickerTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListTile(
-      title: const Text("Ngày"),
+      title: const Text("Date"),
       trailing: Text(DateFormat('dd/MM/yyyy').format(date)),
       onTap: onTap,
     );

@@ -115,7 +115,7 @@ class TransactionJournalList extends StatelessWidget {
             onPressed: () async {
               Navigator.pop(ctx); // đóng dialog
               final provider = Provider.of<TransactionProvider>(context, listen: false);
-              final success = await provider.deleteTransaction(transaction.id);
+              final success = await provider.deleteTransaction(context, transaction.id);
               if (success && context.mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(
@@ -300,7 +300,7 @@ class TransactionGroupedList extends StatelessWidget {
             onPressed: () async {
               Navigator.pop(ctx);
               final provider = Provider.of<TransactionProvider>(context, listen: false);
-              await provider.deleteTransaction(transaction.id);
+              await provider.deleteTransaction(context, transaction.id);
             },
             child: const Text('Delete', style: TextStyle(color: Colors.red)),
           ),

@@ -38,7 +38,7 @@ public class WalletController {
 
         return ResponseEntity
                 .status(HttpStatus.CREATED)
-                .body(ApiResponse.success(response, "Tạo ví thành công"));
+                .body(ApiResponse.success(response, "Wallet created successfully"));
     }
 
     // ================= UPDATE =================
@@ -52,7 +52,7 @@ public class WalletController {
                 walletService.updateWallet(currentUser.getId(), walletId, request);
 
         return ResponseEntity.ok(
-                ApiResponse.success(response, "Cập nhật ví thành công")
+                ApiResponse.success(response, "Wallet updated successfully")
         );
     }
 
@@ -65,7 +65,7 @@ public class WalletController {
         walletService.deleteWallet(currentUser.getId(), walletId);
 
         return ResponseEntity.ok(
-                ApiResponse.success(null, "Xóa ví thành công")
+                ApiResponse.success(null, "Wallet deleted successfully")
         );
     }
 
@@ -116,7 +116,7 @@ public class WalletController {
     ) {
         TransferResponse response = walletService.transferMoney(currentUser.getId(), request);
         return ResponseEntity.ok(
-                ApiResponse.success(response, "Chuyển tiền thành công")
+                ApiResponse.success(response, "Transfer successful")
         );
     }
 

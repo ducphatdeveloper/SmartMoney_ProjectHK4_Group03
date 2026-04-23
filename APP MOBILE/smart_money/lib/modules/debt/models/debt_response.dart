@@ -67,10 +67,10 @@ class DebtResponse {
       totalAmount > 0 ? (paidAmount / totalAmount).clamp(0.0, 1.0) : 0.0;
 
   /// Label loại nợ cho UI (phân biệt 2 tab)
-  String get debtTypeLabel => debtType ? 'Cần Thu' : 'Cần Trả';
+  String get debtTypeLabel => debtType ? 'To Receive' : 'To Pay';
 
   /// Label trạng thái cho UI (header section)
   String get finishedLabel => finished
-      ? (debtType ? 'Đã nhận hết' : 'Đã trả hết')
-      : (debtType ? 'Chưa thu'   : 'Chưa trả');
+      ? (debtType ? 'Fully Received' : 'Fully Paid')
+      : (debtType ? 'Not Yet Received'   : 'Not Yet Paid');
 }

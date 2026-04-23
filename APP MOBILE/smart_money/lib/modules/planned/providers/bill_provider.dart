@@ -22,6 +22,9 @@
 // ===========================================================
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:smart_money/core/helpers/token_helper.dart';
 import 'package:smart_money/modules/planned/models/planned_transaction_request.dart';
 import 'package:smart_money/modules/planned/models/planned_transaction_response.dart';
 import 'package:smart_money/modules/planned/services/planned_service.dart';
@@ -71,38 +74,49 @@ class BillProvider extends ChangeNotifier {
   // =============================================
   // Gọi khi: Mở màn hình, sau khi tạo/sửa/xóa/toggle/pay
   // API: GET /api/bills?active=true + GET /api/bills?active=false
-  Future<void> loadAll() async {
+  Future<void> loadAll(BuildContext context) async {
     // Bước 1: Bật loading, xóa lỗi cũ
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
 
-    // Bước 2: Gọi 2 API song song — tăng tốc load
-    final results = await Future.wait([
-      PlannedService.getBills(active: true),
-      PlannedService.getBills(active: false),
-    ]);
+    try {
+      // Bước 2: Gọi 2 API song song — tăng tốc load
+      final results = await Future.wait([
+        PlannedService.getBills(active: true),
+        PlannedService.getBills(active: false),
+      ]);
 
-    // Bước 3: Xử lý kết quả active
-    if (results[0].success && results[0].data != null) {
-      _activeItems = results[0].data!;
-    } else {
-      _activeItems = [];
-      _errorMessage = results[0].message;
+      // Bước 3: Xử lý kết quả active
+      if (results[0].success && results[0].data != null) {
+        _activeItems = results[0].data!;
+      } else {
+        _activeItems = [];
+        _errorMessage = results[0].message;
+      }
+
+      // Bước 4: Xử lý kết quả expired
+      if (results[1].success && results[1].data != null) {
+        _expiredItems = results[1].data!;
+      } else {
+        _expiredItems = [];
+        // Chỉ ghi đè errorMessage nếu chưa có lỗi trước đó
+        _errorMessage ??= results[1].message;
+      }
+    } catch (e) {
+      _errorMessage = e.toString();
+      // Xử lý 401 - Session expired
+      if (e.toString().contains("Session expired")) {
+        await TokenHelper.clearTokens();
+        if (context.mounted) {
+          context.go("/login");
+        }
+      }
+    } finally {
+      // Bước 5: Tắt loading, thông báo UI cập nhật
+      _isLoading = false;
+      notifyListeners();
     }
-
-    // Bước 4: Xử lý kết quả expired
-    if (results[1].success && results[1].data != null) {
-      _expiredItems = results[1].data!;
-    } else {
-      _expiredItems = [];
-      // Chỉ ghi đè errorMessage nếu chưa có lỗi trước đó
-      _errorMessage ??= results[1].message;
-    }
-
-    // Bước 5: Tắt loading, thông báo UI cập nhật
-    _isLoading = false;
-    notifyListeners();
   }
 
   // =============================================
@@ -121,18 +135,30 @@ class BillProvider extends ChangeNotifier {
   // Gọi khi: User bấm "Lưu" ở PlannedFormScreen (planType = bill)
   // API: POST /api/bills
   // Trả về: true nếu thành công, false nếu thất bại
-  Future<bool> create(PlannedTransactionRequest request) async {
-    // Bước 1: Gọi API
-    final response = await PlannedService.createBill(request);
+  Future<bool> create(BuildContext context, PlannedTransactionRequest request) async {
+    try {
+      // Bước 1: Gọi API
+      final response = await PlannedService.createBill(request);
 
-    // Bước 2: Xử lý kết quả
-    if (response.success) {
-      _successMessage = response.message;
-      await loadAll(); // reload cả 2 tab
-      return true;
-    } else {
-      _errorMessage = response.message;
-      notifyListeners();
+      // Bước 2: Xử lý kết quả
+      if (response.success) {
+        _successMessage = response.message;
+        await loadAll(context); // reload cả 2 tab
+        return true;
+      } else {
+        _errorMessage = response.message;
+        notifyListeners();
+        return false;
+      }
+    } catch (e) {
+      _errorMessage = e.toString();
+      // Xử lý 401 - Session expired
+      if (e.toString().contains("Session expired")) {
+        await TokenHelper.clearTokens();
+        if (context.mounted) {
+          context.go("/login");
+        }
+      }
       return false;
     }
   }
@@ -142,16 +168,28 @@ class BillProvider extends ChangeNotifier {
   // =============================================
   // Gọi khi: User bấm "Lưu" ở PlannedFormScreen (chế độ sửa)
   // API: PUT /api/bills/{id}
-  Future<bool> update(int id, PlannedTransactionRequest request) async {
-    final response = await PlannedService.updateBill(id, request);
+  Future<bool> update(BuildContext context, int id, PlannedTransactionRequest request) async {
+    try {
+      final response = await PlannedService.updateBill(id, request);
 
-    if (response.success) {
-      _successMessage = response.message;
-      await loadAll();
-      return true;
-    } else {
-      _errorMessage = response.message;
-      notifyListeners();
+      if (response.success) {
+        _successMessage = response.message;
+        await loadAll(context);
+        return true;
+      } else {
+        _errorMessage = response.message;
+        notifyListeners();
+        return false;
+      }
+    } catch (e) {
+      _errorMessage = e.toString();
+      // Xử lý 401 - Session expired
+      if (e.toString().contains("Session expired")) {
+        await TokenHelper.clearTokens();
+        if (context.mounted) {
+          context.go("/login");
+        }
+      }
       return false;
     }
   }
@@ -162,7 +200,7 @@ class BillProvider extends ChangeNotifier {
   // Gọi khi: User xác nhận xóa trong Dialog
   // API: DELETE /api/bills/{id}
   // [NOTE] Dùng optimistic update: xóa khỏi list trước, gọi API sau
-  Future<bool> delete(int id) async {
+  Future<bool> delete(BuildContext context, int id) async {
     // Bước 1: Tìm item trong active hoặc expired, lưu bản sao
     int removedIndex = _activeItems.indexWhere((e) => e.id == id);
     bool wasActive = true;
@@ -182,21 +220,40 @@ class BillProvider extends ChangeNotifier {
     }
     notifyListeners();
 
-    // Bước 2: Gọi API xóa
-    final response = await PlannedService.deleteBill(id);
+    try {
+      // Bước 2: Gọi API xóa
+      final response = await PlannedService.deleteBill(id);
 
-    // Bước 3: Xử lý kết quả
-    if (response.success) {
-      _successMessage = "Đã xóa hóa đơn";
-      return true;
-    } else {
-      // Thất bại → rollback thêm lại vào list
+      // Bước 3: Xử lý kết quả
+      if (response.success) {
+        _successMessage = "Deleted bill";
+        return true;
+      } else {
+        // Thất bại → rollback thêm lại vào list
+        if (wasActive) {
+          _activeItems.insert(removedIndex, removed);
+        } else {
+          _expiredItems.insert(removedIndex, removed);
+        }
+        _errorMessage = response.message;
+        notifyListeners();
+        return false;
+      }
+    } catch (e) {
+      // Rollback thêm lại vào list
       if (wasActive) {
         _activeItems.insert(removedIndex, removed);
       } else {
         _expiredItems.insert(removedIndex, removed);
       }
-      _errorMessage = response.message;
+      _errorMessage = e.toString();
+      // Xử lý 401 - Session expired
+      if (e.toString().contains("Session expired")) {
+        await TokenHelper.clearTokens();
+        if (context.mounted) {
+          context.go("/login");
+        }
+      }
       notifyListeners();
       return false;
     }
@@ -207,17 +264,31 @@ class BillProvider extends ChangeNotifier {
   // =============================================
   // Gọi khi: User bấm "Đánh dấu hoàn tất" trong BillDetailSheet
   // API: PATCH /api/bills/{id}/toggle
-  Future<bool> toggle(int id) async {
-    final response = await PlannedService.toggleBill(id);
+  Future<bool> toggle(BuildContext context, int id) async {
+    try {
+      final response = await PlannedService.toggleBill(id);
 
-    if (response.success) {
-      _successMessage = response.message;
-      // Reload lại vì item chuyển giữa active ↔ expired
-      await loadAll();
-      return true;
-    } else {
-      _errorMessage = response.message;
-      notifyListeners(); // ✅ Notify để UI hiển thị error message rõ ràng
+      if (response.success) {
+        _successMessage = response.message;
+        // Reload lại vì item chuyển giữa active ↔ expired
+        await loadAll(context);
+        return true;
+      } else {
+        _errorMessage = response.message;
+        notifyListeners(); // ✅ Notify để UI hiển thị error message rõ ràng
+        return false;
+      }
+    } catch (e) {
+      _errorMessage = e.toString();
+      // Xử lý 401 - Session expired
+      if (e.toString().contains("Session expired")) {
+        await TokenHelper.clearTokens();
+        if (context.mounted) {
+          context.go("/login");
+        }
+      }
+      notifyListeners();
+      await loadAll(context);
       return false;
     }
   }
@@ -228,18 +299,30 @@ class BillProvider extends ChangeNotifier {
   // Gọi khi: User bấm "Trả tiền" ở BillDetailSheet
   // API: POST /api/bills/{id}/pay
   // Backend: tạo Transaction + cập nhật nextDueDate + lastExecutedAt
-  Future<bool> payBill(int id) async {
-    final response = await PlannedService.payBill(id);
+  Future<bool> payBill(BuildContext context, int id) async {
+    try {
+      final response = await PlannedService.payBill(id);
 
-    if (response.success) {
-      _successMessage = response.message.isNotEmpty
-          ? response.message
-          : "Đã thanh toán hóa đơn";
-      await loadAll();
-      return true;
-    } else {
-      _errorMessage = response.message;
-      notifyListeners();
+      if (response.success) {
+        _successMessage = response.message.isNotEmpty
+            ? response.message
+            : "Bill paid successfully";
+        await loadAll(context);
+        return true;
+      } else {
+        _errorMessage = response.message;
+        notifyListeners();
+        return false;
+      }
+    } catch (e) {
+      _errorMessage = e.toString();
+      // Xử lý 401 - Session expired
+      if (e.toString().contains("Session expired")) {
+        await TokenHelper.clearTokens();
+        if (context.mounted) {
+          context.go("/login");
+        }
+      }
       return false;
     }
   }

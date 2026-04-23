@@ -10,14 +10,14 @@ import java.time.LocalDate;
 @Builder
 public record PlannedTransactionRequest(
 
-        @NotNull(message = "Vui lòng chọn ví")
+        @NotNull(message = "Please select a wallet")
         Integer walletId,
 
-        @NotNull(message = "Số tiền không được để trống")
-        @DecimalMin(value = "0.0", inclusive = false, message = "Số tiền phải lớn hơn 0")
+        @NotNull(message = "Amount cannot be empty")
+        @DecimalMin(value = "0.0", inclusive = false, message = "Amount must be greater than 0")
         BigDecimal amount,
 
-        @NotNull(message = "Vui lòng chọn danh mục")
+        @NotNull(message = "Please select a category")
         Integer categoryId,
 
         // NULL nếu ctg không phải nợ/vay
@@ -26,24 +26,24 @@ public record PlannedTransactionRequest(
         String note,
 
         // 1: Bill | 2: Recurring
-        @NotNull(message = "Loại kế hoạch không hợp lệ")
+        @NotNull(message = "Invalid plan type")
         Integer planType,
 
         // 1: Ngày | 2: Tuần | 3: Tháng | 4: Năm
-        @NotNull(message = "Vui lòng chọn lịch lặp lại")
+        @NotNull(message = "Please select repeat schedule")
         Integer repeatType,
 
-        @NotNull(message = "Khoảng lặp không được để trống")
+        @NotNull(message = "Repeat interval cannot be empty")
         Integer repeatInterval,
 
         // Bitmask cho lặp tuần (CN=1,T2=2,T3=4,T4=8,T5=16,T6=32,T7=64)
         Integer repeatOnDayVal,
 
-        @NotNull(message = "Vui lòng chọn ngày bắt đầu")
+        @NotNull(message = "Please select start date")
         LocalDate beginDate,
 
         // "FOREVER" | "UNTIL_DATE" | "COUNT"
-        @NotNull(message = "Vui lòng chọn ngày kết thúc")
+        @NotNull(message = "Please select end date option")
         String endDateOption,
 
         // Dùng khi endDateOption = "UNTIL_DATE"

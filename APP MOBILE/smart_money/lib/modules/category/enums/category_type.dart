@@ -19,9 +19,9 @@ enum CategoryType {
   String get displayName {
     switch (this) {
       case CategoryType.expense:
-        return 'Chi tiêu';
+        return 'Expense';
       case CategoryType.income:
-        return 'Thu nhập';
+        return 'Income';
     }
   }
 }

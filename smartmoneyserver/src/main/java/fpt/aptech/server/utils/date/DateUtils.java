@@ -248,7 +248,7 @@ public final class DateUtils {
         LocalDate today = LocalDate.now();
         if (date.equals(today)) return "Today";
         if (date.equals(today.minusDays(1))) return "Yesterday";
-        return date.format(DateTimeFormatter.ofPattern("EEEE, dd/MM/yyyy", VI_LOCALE));
+        return date.format(DateTimeFormatter.ofPattern("EEEE, dd/MM/yyyy", Locale.ENGLISH));
     }
 
     /**

@@ -107,9 +107,9 @@ class _DebtEditScreenState extends State<DebtEditScreen> {
       // Hạn trả phải là tương lai — không chọn quá khứ
       firstDate: now,
       lastDate: DateTime(2030, 12, 31),
-      helpText: 'Chọn ngày hẹn trả',
-      confirmText: 'Xác nhận',
-      cancelText: 'Hủy',
+      helpText: 'Select due date',
+      confirmText: 'Confirm',
+      cancelText: 'Cancel',
     );
 
     if (picked != null) {
@@ -169,7 +169,7 @@ class _DebtEditScreenState extends State<DebtEditScreen> {
 
     // Bước 3: Gọi provider (không gọi Service trực tiếp từ Screen)
     final success =
-        await context.read<DebtProvider>().updateDebt(widget.debtId, request);
+        await context.read<DebtProvider>().updateDebt(context, widget.debtId, request);
 
     // Bước 4: Xử lý kết quả
     if (!mounted) return; // [IMPORTANT] check mounted sau await
@@ -217,7 +217,7 @@ class _DebtEditScreenState extends State<DebtEditScreen> {
                         height: 18,
                         child: CircularProgressIndicator(strokeWidth: 2))
                     : const Text(
-                        'Lưu',
+                        'Save',
                         style: TextStyle(fontWeight: FontWeight.bold),
                       ),
               ),
@@ -343,7 +343,7 @@ class _DebtEditScreenState extends State<DebtEditScreen> {
 
                 // ----- [Field 3] Ghi chú -----
                 const Text(
-                  'Ghi chú',
+                  'Note',
                   style: TextStyle(
                       fontWeight: FontWeight.w600, fontSize: 13),
                 ),

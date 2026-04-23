@@ -18,15 +18,15 @@ enum RepeatType {
   String get displayName {
     switch (this) {
       case RepeatType.none:
-        return 'Không lặp';
+        return 'No repeat';
       case RepeatType.daily:
-        return 'Hàng ngày';
+        return 'Daily';
       case RepeatType.weekly:
-        return 'Hàng tuần';
+        return 'Weekly';
       case RepeatType.monthly:
-        return 'Hàng tháng';
+        return 'Monthly';
       case RepeatType.yearly:
-        return 'Hàng năm';
+        return 'Yearly';
     }
   }
 }

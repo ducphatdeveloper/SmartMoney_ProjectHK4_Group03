@@ -5,10 +5,10 @@ import lombok.Data;
 
 @Data
 public class LoginRequest {
-    @NotBlank(message = "Tên đăng nhập không được để trống")
+    @NotBlank(message = "Username cannot be empty")
     private String username;
 
-    @NotBlank(message = "Mật khẩu không được để trống")
+    @NotBlank(message = "Password cannot be empty")
     private String password;
 
     private String deviceToken; // Để lưu vào tUserDevices

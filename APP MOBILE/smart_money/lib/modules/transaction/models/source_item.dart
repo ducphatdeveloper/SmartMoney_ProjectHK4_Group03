@@ -20,7 +20,7 @@ class SourceItem {
   factory SourceItem.all() {
     return SourceItem(
       id: null,
-      name: "Tổng cộng",
+      name: "Total",
       type: 'all',
       iconUrl: null,
       balance: null,

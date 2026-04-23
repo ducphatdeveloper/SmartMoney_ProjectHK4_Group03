@@ -266,9 +266,9 @@ class _RepeatScheduleSheetState extends State<RepeatScheduleSheet> {
 
     // [TODO i18n] Date labels
     if (target == today) {
-      dateLabel = 'Hôm nay';
+      dateLabel = 'Today';
     } else if (target == tomorrow) {
-      dateLabel = 'Ngày mai';
+      dateLabel = 'Tomorrow';
     } else {
       dateLabel = DateFormat('dd/MM/yyyy').format(_beginDate);
     }
@@ -277,7 +277,7 @@ class _RepeatScheduleSheetState extends State<RepeatScheduleSheet> {
       children: [
         // [TODO i18n] Label 'From'
         const Text(
-          'Từ',
+          'From',
           style: TextStyle(fontSize: 14, color: Color(0xFF8E8E93)),
         ),
         const SizedBox(width: 12),
@@ -319,17 +319,17 @@ class _RepeatScheduleSheetState extends State<RepeatScheduleSheet> {
     // [TODO i18n] Interval unit labels
     String unit;
     switch (_repeatType) {
-      case 1: unit = 'ngày'; break;   // daily
-      case 2: unit = 'tuần'; break;   // weekly
-      case 3: unit = 'tháng'; break;  // monthly
-      case 4: unit = 'năm'; break;    // yearly
-      default: unit = 'ngày';
+      case 1: unit = 'day'; break;   // daily
+      case 2: unit = 'week'; break;   // weekly
+      case 3: unit = 'month'; break;  // monthly
+      case 4: unit = 'year'; break;    // yearly
+      default: unit = 'day';
     }
 
     return Row(
       children: [
         const Text(
-          'Mỗi',
+          'Every',
           style: TextStyle(fontSize: 14, color: Color(0xFF8E8E93)),
         ),
         const SizedBox(width: 12),
@@ -427,9 +427,9 @@ class _RepeatScheduleSheetState extends State<RepeatScheduleSheet> {
     String desc;
     // [TODO i18n] Monthly description
     if (_interval == 1) {
-      desc = 'Lặp vào ngày $day hàng tháng';
+      desc = 'Repeat on day $day every month';
     } else {
-      desc = 'Lặp vào ngày $day, mỗi $_interval tháng một lần';
+      desc = 'Repeat on day $day, every $_interval months';
     }
     return Align(
       alignment: Alignment.centerLeft,
@@ -505,13 +505,13 @@ class _RepeatScheduleSheetState extends State<RepeatScheduleSheet> {
     // [TODO i18n] End date button label
     final label = _endDateValue != null
         ? DateFormat('dd/MM/yyyy').format(_endDateValue!)
-        : 'Chọn ngày';
+        : 'Select date';
 
     return Row(
       children: [
         // [TODO i18n] 'Until date' label
         const Text(
-          'Cho đến ngày',
+          'Until date',
           style: TextStyle(fontSize: 14, color: Color(0xFF8E8E93)),
         ),
         const SizedBox(width: 12),
@@ -546,7 +546,7 @@ class _RepeatScheduleSheetState extends State<RepeatScheduleSheet> {
       children: [
         // [TODO i18n] 'Occurs' label for count option
         const Text(
-          'Xảy ra',
+          'Occur',
           style: TextStyle(fontSize: 14, color: Color(0xFF8E8E93)),
         ),
         const SizedBox(width: 12),
@@ -577,7 +577,7 @@ class _RepeatScheduleSheetState extends State<RepeatScheduleSheet> {
         const SizedBox(width: 8),
         // [TODO i18n] 'times' suffix
         const Text(
-          'lần',
+          'times',
           style: TextStyle(fontSize: 14, color: Color(0xFF8E8E93)),
         ),
       ],
@@ -596,7 +596,7 @@ class _RepeatScheduleSheetState extends State<RepeatScheduleSheet> {
           onPressed: () => Navigator.pop(context),
             // [TODO i18n] Cancel button
             child: const Text(
-                'HUỶ',
+                'CANCEL',
                 style: TextStyle(color: Color(0xFF8E8E93), fontWeight: FontWeight.w600),
               ),
         ),
@@ -606,7 +606,7 @@ class _RepeatScheduleSheetState extends State<RepeatScheduleSheet> {
           onPressed: _handleConfirm,
             // [TODO i18n] Confirm button
             child: const Text(
-                'XONG',
+                'DONE',
                 style: TextStyle(color: Color(0xFF4CAF50), fontWeight: FontWeight.w600),
               ),
         ),

@@ -57,7 +57,7 @@ public class DebtController {
             @AuthenticationPrincipal Account currentUser) {
         return ResponseEntity.ok(ApiResponse.success(
                 debtService.updateDebt(id, request, currentUser.getId()),
-                "Cập nhật khoản nợ thành công."));
+                "Debt updated successfully."));
     }
 
     @PutMapping("/{id}/status")
@@ -66,7 +66,7 @@ public class DebtController {
             @AuthenticationPrincipal Account currentUser) {
         return ResponseEntity.ok(ApiResponse.success(
                 debtService.updateDebtStatus(id, currentUser.getId()),
-                "Cập nhật trạng thái khoản nợ thành công."));
+                "Debt status updated successfully."));
     }
 
     @DeleteMapping("/{id}")
@@ -77,6 +77,6 @@ public class DebtController {
         // Trả về 200 OK + JSON body thay vì 204 No Content.
         // Flutter ApiHandler._handleResponse() gọi jsonDecode(body) cho mọi status code,
         // nếu body rỗng (204) → FormatException → bị catch → hiện "Không thể kết nối đến server".
-        return ResponseEntity.ok(ApiResponse.success(null, "Xóa khoản nợ thành công."));
+        return ResponseEntity.ok(ApiResponse.success(null, "Debt deleted successfully."));
     }
 }

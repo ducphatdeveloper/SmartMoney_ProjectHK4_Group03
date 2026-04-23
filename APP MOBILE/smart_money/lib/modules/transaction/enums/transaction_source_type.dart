@@ -18,15 +18,15 @@ enum TransactionSourceType {
   String get displayName {
     switch (this) {
       case TransactionSourceType.manual:
-        return 'Nhập thủ công';
+        return 'Manual entry';
       case TransactionSourceType.chat:
         return 'Chat AI';
       case TransactionSourceType.voice:
-        return 'Giọng nói';
+        return 'Voice';
       case TransactionSourceType.receipt:
-        return 'Quét hóa đơn';
+        return 'Scan receipt';
       case TransactionSourceType.planned:
-        return 'Giao dịch dự kiến';
+        return 'Scheduled transaction';
     }
   }
 }

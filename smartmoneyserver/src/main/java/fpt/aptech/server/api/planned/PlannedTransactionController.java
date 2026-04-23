@@ -50,7 +50,7 @@ public class PlannedTransactionController {
             @Valid @RequestBody PlannedTransactionRequest request,
             @AuthenticationPrincipal Account currentUser) {
         PlannedTransactionResponse data = plannedService.createRecurring(request, currentUser.getId());
-        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(data, "Tạo giao dịch định kỳ thành công."));
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(data, "Recurring transaction created successfully."));
     }
 
     @PutMapping("/api/recurring/{id}")
@@ -59,7 +59,7 @@ public class PlannedTransactionController {
             @Valid @RequestBody PlannedTransactionRequest request,
             @AuthenticationPrincipal Account currentUser) {
         PlannedTransactionResponse data = plannedService.updateRecurring(id, request, currentUser.getId());
-        return ResponseEntity.ok(ApiResponse.success(data, "Cập nhật giao dịch định kỳ thành công."));
+        return ResponseEntity.ok(ApiResponse.success(data, "Recurring transaction updated successfully."));
     }
 
     @DeleteMapping("/api/recurring/{id}")
@@ -67,7 +67,7 @@ public class PlannedTransactionController {
             @PathVariable Integer id,
             @AuthenticationPrincipal Account currentUser) {
         plannedService.deleteRecurring(id, currentUser.getId());
-        return ResponseEntity.ok(ApiResponse.success("Xóa giao dịch định kỳ thành công."));
+        return ResponseEntity.ok(ApiResponse.success("Recurring transaction deleted successfully."));
     }
 
     @PatchMapping("/api/recurring/{id}/toggle")
@@ -75,7 +75,7 @@ public class PlannedTransactionController {
             @PathVariable Integer id,
             @AuthenticationPrincipal Account currentUser) {
         PlannedTransactionResponse data = plannedService.toggleRecurring(id, currentUser.getId());
-        return ResponseEntity.ok(ApiResponse.success(data, "Cập nhật trạng thái giao dịch định kỳ thành công."));
+        return ResponseEntity.ok(ApiResponse.success(data, "Recurring transaction status updated successfully."));
     }
 
     // ════════════════════════════════════════════════════════════════════
@@ -103,7 +103,7 @@ public class PlannedTransactionController {
             @Valid @RequestBody PlannedTransactionRequest request,
             @AuthenticationPrincipal Account currentUser) {
         PlannedTransactionResponse data = plannedService.createBill(request, currentUser.getId());
-        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(data, "Tạo hóa đơn thành công."));
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(data, "Bill created successfully."));
     }
 
     @PutMapping("/api/bills/{id}")
@@ -112,7 +112,7 @@ public class PlannedTransactionController {
             @Valid @RequestBody PlannedTransactionRequest request,
             @AuthenticationPrincipal Account currentUser) {
         PlannedTransactionResponse data = plannedService.updateBill(id, request, currentUser.getId());
-        return ResponseEntity.ok(ApiResponse.success(data, "Cập nhật hóa đơn thành công."));
+        return ResponseEntity.ok(ApiResponse.success(data, "Bill updated successfully."));
     }
 
     @DeleteMapping("/api/bills/{id}")
@@ -120,7 +120,7 @@ public class PlannedTransactionController {
             @PathVariable Integer id,
             @AuthenticationPrincipal Account currentUser) {
         plannedService.deleteBill(id, currentUser.getId());
-        return ResponseEntity.ok(ApiResponse.success("Xóa hóa đơn thành công."));
+        return ResponseEntity.ok(ApiResponse.success("Bill deleted successfully."));
     }
 
     @PostMapping("/api/bills/{id}/pay")
@@ -128,7 +128,7 @@ public class PlannedTransactionController {
             @PathVariable Integer id,
             @AuthenticationPrincipal Account currentUser) {
         PlannedTransactionResponse data = plannedService.payBill(id, currentUser.getId());
-        return ResponseEntity.ok(ApiResponse.success(data, "Thanh toán hóa đơn thành công."));
+        return ResponseEntity.ok(ApiResponse.success(data, "Bill paid successfully."));
     }
 
     @PatchMapping("/api/bills/{id}/toggle")
@@ -136,7 +136,7 @@ public class PlannedTransactionController {
             @PathVariable Integer id,
             @AuthenticationPrincipal Account currentUser) {
         PlannedTransactionResponse data = plannedService.toggleBill(id, currentUser.getId());
-        return ResponseEntity.ok(ApiResponse.success(data, "Cập nhật trạng thái hóa đơn thành công."));
+        return ResponseEntity.ok(ApiResponse.success(data, "Bill status updated successfully."));
     }
 
     // ════════════════════════════════════════════════════════════════════
@@ -160,6 +160,6 @@ public class PlannedTransactionController {
     @PostMapping("/api/planned/check-now")
     public ResponseEntity<ApiResponse<String>> checkNow() {
         scheduler.checkNow();
-        return ResponseEntity.ok(ApiResponse.success("Đã kích hoạt scheduler kiểm tra giao dịch định kỳ và hóa đơn."));
+        return ResponseEntity.ok(ApiResponse.success("Scheduler triggered to check recurring transactions and bills."));
     }
 }

@@ -34,9 +34,9 @@ class _AddTransactionViewState extends State<AddTransactionView> {
             amountCtrl.clear(); // reset form
             widget.onCancel?.call(); // 👈 quay về Home
           },
-          child: const Text("Huỷ"),
+          child: const Text("Cancel"),
         ),
-        title: const Text("Thêm Giao Dịch"),
+        title: const Text("Add Transaction"),
         centerTitle: true,
       ),
       body: Column(
@@ -55,7 +55,7 @@ class _AddTransactionViewState extends State<AddTransactionView> {
               children: [
                 const SettingTile(
                   icon: Icons.account_balance_wallet,
-                  title: "Tổng Cộng",
+                  title: "Total",
                 ),
 
                 const SizedBox(height: 12),
@@ -63,8 +63,8 @@ class _AddTransactionViewState extends State<AddTransactionView> {
 
                 const Divider(height: 32),
 
-                const SettingTile(icon: Icons.circle, title: "Chọn nhóm"),
-                const SettingTile(icon: Icons.notes, title: "Ghi chú"),
+                const SettingTile(icon: Icons.circle, title: "Select category"),
+                const SettingTile(icon: Icons.notes, title: "Note"),
 
                 const SizedBox(height: 16),
                 DateSwitcher(
@@ -75,17 +75,17 @@ class _AddTransactionViewState extends State<AddTransactionView> {
 
                 const Divider(height: 32),
 
-                const SettingTile(icon: Icons.people, title: "Với"),
-                const SettingTile(icon: Icons.location_on, title: "Đặt vị trí"),
-                const SettingTile(icon: Icons.event, title: "Chọn sự kiện"),
-                const SettingTile(icon: Icons.alarm, title: "Đặt nhắc nhở"),
+                const SettingTile(icon: Icons.people, title: "With"),
+                const SettingTile(icon: Icons.location_on, title: "Set location"),
+                const SettingTile(icon: Icons.event, title: "Select event"),
+                const SettingTile(icon: Icons.alarm, title: "Set reminder"),
 
                 const SizedBox(height: 12),
                 TextButton.icon(
                   onPressed: () {},
                   icon: const Icon(Icons.image, color: Colors.green),
                   label: const Text(
-                    "Thêm Hình Ảnh",
+                    "Add Image",
                     style: TextStyle(color: Colors.green),
                   ),
                 ),
@@ -93,7 +93,7 @@ class _AddTransactionViewState extends State<AddTransactionView> {
                 SwitchListTile(
                   value: excludeReport,
                   onChanged: (v) => setState(() => excludeReport = v),
-                  title: const Text("Không tính vào báo cáo"),
+                  title: const Text("Exclude from reports"),
                 ),
               ],
             ),

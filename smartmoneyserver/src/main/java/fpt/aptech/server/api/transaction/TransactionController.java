@@ -233,7 +233,7 @@ public class TransactionController {
 
         return ResponseEntity
                 .status(HttpStatus.CREATED)
-                .body(ApiResponse.success(newTransaction, "Tạo giao dịch thành công."));
+                .body(ApiResponse.success(newTransaction, "Transaction created successfully."));
     }
 
     /**
@@ -282,7 +282,7 @@ public class TransactionController {
         Integer userId = currentUser.getId();
         TransactionResponse updatedTransaction = transactionService.updateTransaction(id, request, userId);
 
-        return ResponseEntity.ok(ApiResponse.success(updatedTransaction, "Cập nhật giao dịch thành công."));
+        return ResponseEntity.ok(ApiResponse.success(updatedTransaction, "Transaction updated successfully."));
     }
 
     /**
@@ -297,6 +297,6 @@ public class TransactionController {
         Integer userId = currentUser.getId();
         transactionService.deleteTransaction(id, userId);
 
-        return ResponseEntity.ok(ApiResponse.success("Xóa giao dịch thành công."));
+        return ResponseEntity.ok(ApiResponse.success("Transaction deleted successfully."));
     }
 }

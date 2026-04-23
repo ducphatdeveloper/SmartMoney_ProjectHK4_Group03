@@ -77,12 +77,12 @@ public class AuthServiceImp implements AuthService {
             response = restTemplate.getForObject(googleVerifyUrl, Map.class);
         } catch (Exception e) {
             log.error("[GoogleAuth] Lỗi mạng khi gọi Google API: {}", e.getMessage());
-            throw new IllegalArgumentException("Không thể kết nối tới Google để xác thực. Vui lòng thử lại.");
+            throw new IllegalArgumentException("Cannot connect to Google for authentication. Please try again.");
         }
 
         if (response == null || response.containsKey("error")) {
             log.error("[GoogleAuth] Google API từ chối Token: {}", response != null ? response.get("error_description") : "null");
-            throw new IllegalArgumentException("Đăng nhập Google thất bại: Token không hợp lệ hoặc đã hết hạn.");
+            throw new IllegalArgumentException("Google login failed: Token is invalid or has expired.");
         }
 
         String email = (String) response.get("email");
@@ -93,9 +93,9 @@ public class AuthServiceImp implements AuthService {
         Account account = accountRepository.findByAccEmail(email).orElseGet(() -> {
             log.info("[GoogleAuth] Tạo tài khoản mới cho user Google: {}", email);
             Role userRole = roleRepository.findByRoleCode("ROLE_USER")
-                    .orElseThrow(() -> new IllegalStateException("Hệ thống chưa cấu hình ROLE_USER"));
+                    .orElseThrow(() -> new IllegalStateException("System has not configured ROLE_USER"));
             Currency defaultCurrency = currencyRepository.findById("VND")
-                    .orElseThrow(() -> new IllegalStateException("Hệ thống chưa cấu hình Currency VND"));
+                    .orElseThrow(() -> new IllegalStateException("System has not configured Currency VND"));
 
             Account newAcc = Account.builder()
                     .accEmail(email)
@@ -113,11 +113,11 @@ public class AuthServiceImp implements AuthService {
             
             // Gửi email chào mừng ngay khi đăng ký qua Google thành công
             try {
-                String subject = "Chào mừng bạn đến với SmartMoney";
-                String htmlBody = "<h3>Đăng ký thành công qua Google!</h3><p>Chào <b>" + name + "</b>, cảm ơn bạn đã tham gia SmartMoney. Hãy bắt đầu quản lý tài chính hiệu quả ngay hôm nay.</p>";
+                String subject = "Welcome to SmartMoney";
+                String htmlBody = "<h3>Successfully registered via Google!</h3><p>Hello <b>" + name + "</b>, thank you for joining SmartMoney. Start managing your finances effectively today.</p>";
                 emailService.sendHtmlReport(saved.getAccEmail(), subject, htmlBody);
             } catch (Exception e) {
-                log.warn("[GoogleAuth] Không thể gửi email chào mừng tới {}: {}", email, e.getMessage());
+                log.warn("[GoogleAuth] Cannot send welcome email to {}: {}", email, e.getMessage());
             }
 
             notifyAdminsAboutNewUser(saved);
@@ -125,7 +125,7 @@ public class AuthServiceImp implements AuthService {
         });
 
         if (Boolean.TRUE.equals(account.getLocked())) {
-            throw new IllegalStateException("Tài khoản Google này hiện đang bị khóa");
+            throw new IllegalStateException("This Google account is currently locked");
         }
 
         return createAuthResponse(account, deviceToken, deviceType, deviceName, ipAddress);
@@ -158,7 +158,7 @@ public class AuthServiceImp implements AuthService {
                 .accessTokenExpiry(3600000L)
                 .refreshTokenExpiry(86400000L)
                 .loginAt(LocalDateTime.now())
-                .message("Đăng nhập thành công")
+                .message("Login successful")
                 .build();
     }
 
@@ -166,12 +166,12 @@ public class AuthServiceImp implements AuthService {
     @Transactional(readOnly = true)
     public Account login(String username, String password) {
         Account account = accountRepository.findByUsernameOrEmail(username)
-                .orElseThrow(() -> new IllegalArgumentException("Tài khoản không tồn tại"));
+                .orElseThrow(() -> new IllegalArgumentException("Account does not exist"));
         if (Boolean.TRUE.equals(account.getLocked())) {
-            throw new IllegalStateException("Tài khoản hiện đang bị khóa");
+            throw new IllegalStateException("Account is currently locked");
         }
         if (!passwordEncoder.matches(password, account.getHashPassword())) {
-            throw new IllegalArgumentException("Mật khẩu không chính xác");
+            throw new IllegalArgumentException("Incorrect password");
         }
         return account;
     }
@@ -179,7 +179,7 @@ public class AuthServiceImp implements AuthService {
     @Override
     public String generateResetToken(String username) {
         accountRepository.findByUsernameOrEmail(username)
-                .orElseThrow(() -> new RuntimeException("Tài khoản không tồn tại trong hệ thống"));
+                .orElseThrow(() -> new RuntimeException("Account does not exist in the system"));
         String otp = String.valueOf((int) ((Math.random() * 900000) + 100000));
         LocalDateTime expiry = LocalDateTime.now().plusMinutes(15);
         otpCache.put(username, new OtpData(otp, expiry));
@@ -190,13 +190,13 @@ public class AuthServiceImp implements AuthService {
     public void resetPassword(String username, String otp, String newPassword) {
         OtpData storedOtp = otpCache.get(username);
         if (storedOtp == null || !storedOtp.getOtp().equals(otp)) {
-            throw new RuntimeException("Mã OTP không chính xác hoặc không tồn tại");
+            throw new RuntimeException("OTP code is incorrect or does not exist");
         }
         if (storedOtp.getExpiry().isBefore(LocalDateTime.now())) {
-            throw new RuntimeException("Mã OTP đã hết hạn");
+            throw new RuntimeException("OTP code has expired");
         }
         Account account = accountRepository.findByUsernameOrEmail(username)
-                .orElseThrow(() -> new RuntimeException("Tài khoản không tồn tại"));
+                .orElseThrow(() -> new RuntimeException("Account does not exist"));
         account.setHashPassword(passwordEncoder.encode(newPassword));
         accountRepository.save(account);
         otpCache.remove(username);
@@ -225,15 +225,15 @@ public class AuthServiceImp implements AuthService {
     @Transactional
     public Account register(RegisterRequest request) {
         if (request.getAccEmail() != null && accountRepository.existsByAccEmail(request.getAccEmail())) {
-            throw new IllegalArgumentException("Email đã được sử dụng");
+            throw new IllegalArgumentException("Email already in use");
         }
         if (request.getAccPhone() != null && accountRepository.existsByAccPhone(request.getAccPhone())) {
-            throw new IllegalArgumentException("Số điện thoại đã được sử dụng");
+            throw new IllegalArgumentException("Phone number already in use");
         }
         Role userRole = roleRepository.findByRoleCode("ROLE_USER")
-                .orElseThrow(() -> new IllegalStateException("Role USER không tồn tại"));
+                .orElseThrow(() -> new IllegalStateException("Role USER does not exist"));
         Currency defaultCurrency = currencyRepository.findById("VND")
-                .orElseThrow(() -> new IllegalStateException("Currency VND không tồn tại"));
+                .orElseThrow(() -> new IllegalStateException("Currency VND does not exist"));
         Account account = Account.builder()
                 .accPhone(request.getAccPhone())
                 .accEmail(request.getAccEmail())

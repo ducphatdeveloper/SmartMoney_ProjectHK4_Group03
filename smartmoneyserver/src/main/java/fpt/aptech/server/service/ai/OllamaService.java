@@ -84,7 +84,7 @@ public class OllamaService {
 
         } catch (Exception e) {
             log.error("[OllamaService] Lỗi gọi chat model: {}", e.getMessage(), e);
-            throw new RuntimeException("Không thể kết nối Ollama để xử lý trò chuyện.");
+            throw new RuntimeException("Cannot connect to Ollama for chat processing.");
         }
     }
 
@@ -136,12 +136,12 @@ public class OllamaService {
                 Object responseBody = response.getBody().get("response");
                 return responseBody != null ? responseBody.toString() : "";
             } else {
-                throw new RuntimeException("Lỗi phản hồi từ Ollama Vision API. Mã lỗi: " + response.getStatusCode());
+                throw new RuntimeException("Error response from Ollama Vision API. Error code: " + response.getStatusCode());
             }
 
         } catch (Exception e) {
             log.error("[OllamaService] Lỗi gọi vision model: {}", e.getMessage(), e);
-            throw new RuntimeException("Không thể phân tích ảnh hóa đơn.");
+            throw new RuntimeException("Cannot analyze receipt image.");
         }
     }
 }

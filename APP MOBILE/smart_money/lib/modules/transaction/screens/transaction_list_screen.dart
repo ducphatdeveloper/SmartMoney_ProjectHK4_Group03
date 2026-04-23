@@ -31,7 +31,7 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
     super.initState();
     Future.microtask(() {
       if (!mounted) return;
-      context.read<TransactionProvider>().initialize();
+      context.read<TransactionProvider>().initialize(context);
     });
   }
 
@@ -73,7 +73,7 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
                   ),
                   const SizedBox(height: 16),
                   ElevatedButton(
-                    onPressed: () => provider.refresh(),
+                    onPressed: () => provider.refresh(context),
                     child: const Text('Retry'),
                   ),
                 ],
@@ -103,7 +103,7 @@ class _TransactionListScreenState extends State<TransactionListScreen> {
                         onClose: () => setState(() => _isReportMode = false),
                       )
                     : RefreshIndicator(
-                        onRefresh: () => provider.refresh(),
+                        onRefresh: () => provider.refresh(context),
                         child: SingleChildScrollView(
                           physics: const AlwaysScrollableScrollPhysics(),
                           child: Column(

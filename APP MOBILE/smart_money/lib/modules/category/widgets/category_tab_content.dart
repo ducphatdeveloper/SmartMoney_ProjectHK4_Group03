@@ -84,7 +84,7 @@ class CategoryTabContent extends StatelessWidget {
             Icon(Icons.category_outlined, color: Colors.grey, size: 48),
             SizedBox(height: 12),
             Text(
-              "Chưa có danh mục nào",
+              "No categories yet",
               style: TextStyle(color: Colors.grey, fontSize: 14),
             ),
           ],
@@ -124,7 +124,7 @@ class CategoryTabContent extends StatelessWidget {
               Icon(Icons.visibility, color: Colors.green),
               SizedBox(width: 8),
               Text(
-                "Hiển thị nhóm không hoạt động",
+                "Show inactive groups",
                 style: TextStyle(color: Colors.green),
               ),
             ],

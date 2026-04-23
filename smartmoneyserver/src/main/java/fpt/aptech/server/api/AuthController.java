@@ -36,7 +36,7 @@ public class AuthController {
 
         String ipAddress = getClientIp(request);
         AuthResponse authResponse = authService.authenticate(loginRequest, ipAddress);
-        return ResponseEntity.ok(ApiResponse.success(authResponse, "Đăng nhập thành công"));
+        return ResponseEntity.ok(ApiResponse.success(authResponse, "Login successful"));
     }
 
     @PostMapping("/google-login")
@@ -52,7 +52,7 @@ public class AuthController {
         String ipAddress = getClientIp(request);
         AuthResponse authResponse = authService.authenticateGoogle(idToken, deviceToken, deviceType, deviceName, ipAddress);
         
-        return ResponseEntity.ok(ApiResponse.success(authResponse, "Đăng nhập Google thành công"));
+        return ResponseEntity.ok(ApiResponse.success(authResponse, "Google login successful"));
     }
 
     @PostMapping("/register")
@@ -62,31 +62,31 @@ public class AuthController {
         Account account = authService.register(registerRequest);
         UserInfoDTO userInfo = authService.convertToUserInfoDTO(account);
 
-        String subject = "Chào mừng bạn đến với SmartMoney";
-        String htmlBody = "<h3>Đăng ký thành công!</h3><p>Cảm ơn bạn đã tạo tài khoản. Hãy bắt đầu quản lý chi tiêu của mình ngay hôm nay.</p>";
+        String subject = "Welcome to SmartMoney";
+        String htmlBody = "<h3>Registration successful!</h3><p>Thank you for creating an account. Start managing your expenses today.</p>";
         emailService.sendHtmlReport(account.getAccEmail(), subject, htmlBody);
 
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.success(userInfo, "Đăng ký tài khoản thành công"));
+                .body(ApiResponse.success(userInfo, "Account registration successful"));
     }
 
     @PostMapping("/forgot-password")
     public ResponseEntity<ApiResponse<Void>> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
         String otp = authService.generateResetToken(request.getEmail());
         emailService.sendOtp(request.getEmail(), otp);
-        return ResponseEntity.ok(ApiResponse.success(null, "Mã xác thực đã được gửi đến email của bạn"));
+        return ResponseEntity.ok(ApiResponse.success(null, "Verification code has been sent to your email"));
     }
 
     @PostMapping("/reset-password")
     public ResponseEntity<ApiResponse<Void>> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
         authService.resetPassword(request.getEmail(), request.getOtp(), request.getNewPassword());
-        return ResponseEntity.ok(ApiResponse.success(null, "Đặt lại mật khẩu thành công"));
+        return ResponseEntity.ok(ApiResponse.success(null, "Password reset successful"));
     }
 
     @PostMapping("/logout")
     public ResponseEntity<ApiResponse<Void>> logout(@RequestParam String deviceToken) {
         authService.logout(deviceToken);
-        return ResponseEntity.ok(ApiResponse.success(null, "Đăng xuất thành công"));
+        return ResponseEntity.ok(ApiResponse.success(null, "Logout successful"));
     }
 
     private String getClientIp(HttpServletRequest request) {

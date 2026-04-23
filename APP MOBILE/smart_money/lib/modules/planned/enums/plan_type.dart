@@ -15,9 +15,9 @@ enum PlanType {
   String get displayName {
     switch (this) {
       case PlanType.bill:
-        return 'Hóa đơn';
+        return 'Bill';
       case PlanType.recurring:
-        return 'Lặp lại';
+        return 'Recurring';
     }
   }
 }

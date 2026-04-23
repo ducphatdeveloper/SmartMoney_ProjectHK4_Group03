@@ -75,7 +75,7 @@ class BillListItem extends StatelessWidget {
                       children: [
                         Expanded(
                           child: Text(
-                            item.categoryName ?? 'Không rõ',
+                            item.categoryName ?? 'Unknown',
                             style: const TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.w600,
@@ -113,7 +113,7 @@ class BillListItem extends StatelessWidget {
                       // Tab ĐÃ KẾT THÚC: "Đã kết thúc"
                       const SizedBox(height: 4),
                       const Text(
-                        'Đã kết thúc',
+                        'Completed',
                         style: TextStyle(
                           fontSize: 13,
                           color: Color(0xFF8E8E93),
@@ -138,7 +138,7 @@ class BillListItem extends StatelessWidget {
                       if (item.nextDueDateLabel != null) ...[
                         const SizedBox(height: 4),
                         Text(
-                          'Hóa đơn tiếp theo: ${item.nextDueDateLabel}',
+                          'Next bill: ${item.nextDueDateLabel}',
                           style: const TextStyle(
                             fontSize: 12,
                             color: Color(0xFF8E8E93),
@@ -148,7 +148,7 @@ class BillListItem extends StatelessWidget {
                         // Fallback: tự format nếu Backend chưa trả label
                         const SizedBox(height: 4),
                         Text(
-                          'Hóa đơn tiếp theo: ${FormatHelper.formatDisplayDate(item.nextDueDate!)}',
+                          'Next bill: ${item.nextDueDateLabel}',
                           style: const TextStyle(
                             fontSize: 12,
                             color: Color(0xFF8E8E93),
@@ -160,7 +160,7 @@ class BillListItem extends StatelessWidget {
                       if (item.remainingCount != null && item.repeatType == 3) ...[
                         const SizedBox(height: 4),
                         Text(
-                          'Còn ${item.remainingCount} lần lặp lại',
+                          '${item.remainingCount} repeats left',
                           style: const TextStyle(
                             fontSize: 12,
                             color: Color(0xFF8E8E93),
@@ -204,31 +204,31 @@ class BillListItem extends StatelessWidget {
     ({String label, Color color, FontWeight weight}) _resolve(int days) {
       if (days < 0) {
         return (
-        label: '🔴 Quá hạn ${days.abs()} ngày',
+        label: '🔴 Overdue ${days.abs()} days',
         color: const Color(0xFFFF3B30),
         weight: FontWeight.w600,
         );
       } else if (days == 0) {
         return (
-        label: '🟠 Đến hạn hôm nay',
+        label: '🟠 Due today',
         color: const Color(0xFFFF9500),
         weight: FontWeight.w600,
         );
       } else if (days <= 3) {
         return (
-        label: '🟠 Còn $days ngày',
+        label: '🟠 $days days left',
         color: const Color(0xFFFF9500),
         weight: FontWeight.w600,
         );
       } else if (days <= 7) {
         return (
-        label: '🟡 Còn $days ngày',
+        label: '🟡 $days days left',
         color: const Color(0xFFFFCC00),
         weight: FontWeight.w500,
         );
       } else {
         return (
-        label: '🟢 Còn $days ngày',
+        label: '🟢 $days days left',
         color: const Color(0xFF4CAF50),
         weight: FontWeight.normal,
         );
@@ -242,7 +242,7 @@ class BillListItem extends StatelessWidget {
       return Padding(
         padding: const EdgeInsets.only(top: 2),
         child: Text(
-          '🔴 ${item.statusLabel ?? "Quá hạn"}',
+          '🔴 ${item.statusLabel ?? "Overdue"}',
           style: const TextStyle(
             fontSize: 12,
             color: Color(0xFFFF3B30),
@@ -257,7 +257,7 @@ class BillListItem extends StatelessWidget {
       return const Padding(
         padding: EdgeInsets.only(top: 2),
         child: Text(
-          '⚫ Đã tạm dừng',
+          '⚫ Paused',
           style: TextStyle(
             fontSize: 12,
             color: Color(0xFF8E8E93),
@@ -272,7 +272,7 @@ class BillListItem extends StatelessWidget {
       return Padding(
         padding: const EdgeInsets.only(top: 2),
         child: Text(
-          '⚫ ${item.statusLabel ?? "Đã hết hạn"}',
+          '⚫ ${item.statusLabel ?? "Expired"}',
           style: const TextStyle(
             fontSize: 12,
             color: Color(0xFF8E8E93),
@@ -362,7 +362,7 @@ class BillListItem extends StatelessWidget {
                 Icon(Icons.check_circle, color: Color(0xFF8E8E93), size: 18),
                 SizedBox(width: 4),
                 Text(
-                  'Đã trả',
+                  'Paid',
                   style: TextStyle(
                     color: Color(0xFF8E8E93),
                     fontSize: 14,
@@ -394,7 +394,7 @@ class BillListItem extends StatelessWidget {
                 const Icon(Icons.payment, color: Colors.white, size: 18),
                 const SizedBox(width: 4),
                 Text(
-                  'Trả ${FormatHelper.formatVND(item.amount)}',
+                  'Pay ${FormatHelper.formatVND(item.amount)}',
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 14,

@@ -87,7 +87,7 @@ public class TransactionServiceImpl implements TransactionService {
     public TransactionResponse createTransaction(TransactionRequest request, Integer accountId) {
         // Bước 1: Lấy thông tin User hiện tại
         Account currentUser = accountRepository.findById(accountId)
-                .orElseThrow(() -> new IllegalArgumentException("Tài khoản không tồn tại."));
+                .orElseThrow(() -> new IllegalArgumentException("Account does not exist."));
 
         // Bước 2: Map dữ liệu từ DTO sang Entity
         Transaction transaction = transactionMapper.toEntity(request);
@@ -105,34 +105,34 @@ public class TransactionServiceImpl implements TransactionService {
         if (request.aiChatId() != null) {
             AIConversation aiConversation = aiConversationRepository.findById(request.aiChatId())
                     .orElseThrow(() -> new IllegalArgumentException(
-                            "Cuộc hội thoại AI không tồn tại với ID: " + request.aiChatId()));
+                            "AI conversation not found with ID: " + request.aiChatId()));
             transaction.setAiConversation(aiConversation);
         }
 
         // Bước 3: Validate nguồn tiền
         if (request.walletId() == null && request.goalId() == null) {
-            throw new IllegalArgumentException("Vui lòng chọn Ví hoặc Mục tiêu tiết kiệm.");
+            throw new IllegalArgumentException("Please select a Wallet or Saving Goal.");
         }
         if (request.walletId() != null && request.goalId() != null) {
             throw new IllegalArgumentException(
-                    "Giao dịch chỉ được thuộc về Ví hoặc Mục tiêu, không được thuộc về cả hai.");
+                    "Transaction must belong to either Wallet or Saving Goal, not both.");
         }
 
         // Bước 3.5: Chặn tạo giao dịch trong kỳ đã chốt (quá khứ)
         // Giao dịch tương lai vẫn cho phép (PlannedTransaction, Event, nhắc nhở)
         if (isPastPeriod(request.transDate())) {
             throw new IllegalArgumentException(
-                    "Không thể tạo giao dịch trong kỳ đã chốt. " +
-                    "Nếu bạn cần điều chỉnh số liệu quá khứ, hãy tạo giao dịch ở tháng hiện tại.");
+                    "Cannot create transaction in a closed period. " +
+                    "If you need to adjust past data, please create the transaction in the current month.");
         }
 
         // Bước 4: Validate và lấy Danh mục
         Category category = categoryRepository.findById(request.categoryId())
                 .orElseThrow(() -> new IllegalArgumentException(
-                        "Danh mục không tồn tại với ID: " + request.categoryId()));
+                        "Category not found with ID: " + request.categoryId()));
         if (category.getAccount() != null
                 && !category.getAccount().getId().equals(accountId)) {
-            throw new SecurityException("Bạn không có quyền sử dụng danh mục này.");
+            throw new SecurityException("You do not have permission to use this category.");
         }
         transaction.setCategory(category);
 
@@ -151,9 +151,9 @@ public class TransactionServiceImpl implements TransactionService {
         if (request.eventId() != null) {
             Event event = eventRepository.findById(request.eventId())
                     .orElseThrow(() -> new IllegalArgumentException(
-                            "Sự kiện không tồn tại với ID: " + request.eventId()));
+                            "Event not found with ID: " + request.eventId()));
             if (!event.getAccount().getId().equals(accountId)) {
-                throw new SecurityException("Bạn không có quyền sử dụng sự kiện này.");
+                throw new SecurityException("You do not have permission to use this event.");
             }
             transaction.setEvent(event);
         }
@@ -277,10 +277,10 @@ public class TransactionServiceImpl implements TransactionService {
     public TransactionResponse getTransactionById(Long transactionId, Integer accountId) {
         Transaction transaction = transactionRepository.findById(transactionId)
                 .orElseThrow(() -> new IllegalArgumentException(
-                        "Không tìm thấy giao dịch với ID: " + transactionId));
+                        "Transaction not found with ID: " + transactionId));
 
         if (!transaction.getAccount().getId().equals(accountId)) {
-            throw new SecurityException("Bạn không có quyền xem giao dịch này.");
+            throw new SecurityException("You do not have permission to view this transaction.");
         }
         return transactionMapper.toDto(transaction);
     }
@@ -569,7 +569,7 @@ public class TransactionServiceImpl implements TransactionService {
              PlannedTransaction planned = plannedTransactionRepository
                      .findByIdAndAccount_Id(plannedId, accountId)
                      .orElseThrow(() -> new IllegalArgumentException(
-                             "Không tìm thấy kế hoạch định kỳ với ID: " + plannedId));
+                             "Planned transaction not found with ID: " + plannedId));
              if (Integer.valueOf(2).equals(planned.getPlanType())) {
                  // Recurring — không hỗ trợ list giao dịch theo plannedId
                  return TransactionListResponse.builder().build();
@@ -722,13 +722,13 @@ public class TransactionServiceImpl implements TransactionService {
         // Bước 1: Tìm và kiểm tra quyền
         Transaction transaction = transactionRepository.findById(transactionId)
                 .orElseThrow(() -> new IllegalArgumentException(
-                        "Không tìm thấy giao dịch với ID: " + transactionId));
+                        "Transaction not found with ID: " + transactionId));
         if (!transaction.getAccount().getId().equals(accountId)) {
-            throw new SecurityException("Bạn không có quyền sửa giao dịch này.");
+            throw new SecurityException("You do not have permission to edit this transaction.");
         }
         if (request.walletId() != null && request.goalId() != null) {
             throw new IllegalArgumentException(
-                    "Giao dịch chỉ được thuộc về Ví hoặc Mục tiêu, không được thuộc về cả hai.");
+                    "Transaction must belong to either Wallet or Saving Goal, not both.");
         }
 
         // [FIX-DEBT-WALLET-LOCK-UPDATE] Kiểm tra: Nếu giao dịch thuộc debt (có debt link HOẶC có category debt)
@@ -753,7 +753,7 @@ public class TransactionServiceImpl implements TransactionService {
 
             if (walletChanged || goalChanged) {
                 throw new IllegalArgumentException(
-                        "Không thể đổi ví hoặc mục tiêu cho giao dịch vay/nợ. Ví/Mục tiêu đã được xác định bởi khoản nợ liên kết.");
+                        "Cannot change wallet or saving goal for debt/loan transactions. Wallet/Goal is determined by the linked debt.");
             }
         }
 
@@ -764,15 +764,15 @@ public class TransactionServiceImpl implements TransactionService {
             // (chỉ tạo notification, không sửa giao dịch gốc)
             if (request.reminderDate() != null) {
                 Account account = accountRepository.findById(accountId)
-                        .orElseThrow(() -> new IllegalArgumentException("Tài khoản không tồn tại."));
+                        .orElseThrow(() -> new IllegalArgumentException("Account not found."));
                 createReminderNotification(transaction, account, request.reminderDate());
                 return transactionMapper.toDto(transaction); // Trả về giao dịch gốc không đổi
             }
 
             // Không có reminderDate → chặn hoàn toàn như cũ
             throw new IllegalArgumentException(
-                    "Không thể sửa giao dịch thuộc kỳ đã chốt (tháng trước trở về trước). " +
-                    "Nếu cần điều chỉnh, hãy tạo giao dịch mới ở tháng hiện tại.");
+                    "Cannot edit transaction from a closed period (previous months or earlier). " +
+                    "If you need to adjust, please create a new transaction in the current month.");
         }
         // isPastPeriod = false → tiếp tục flow sửa bình thường bên dưới
 
@@ -781,19 +781,19 @@ public class TransactionServiceImpl implements TransactionService {
         if (transaction.getSavingGoal() != null
                 && Boolean.TRUE.equals(transaction.getSavingGoal().getFinished())) {
             throw new IllegalArgumentException(
-                    "Không thể chỉnh sửa giao dịch của mục tiêu đã hoàn tất. "
-                    + "Lịch sử giao dịch của mục tiêu đã chốt được bảo vệ.");
+                    "Cannot edit transaction from a completed goal. "
+                    + "Transaction history of closed goals is protected.");
         }
 
         // Bước 1.2b: Chặn sửa giao dịch giải ngân/hoàn trả từ mục tiêu đã đóng
         // Giao dịch được tạo khi completeSavingGoal() hoặc cancelSavingGoal()
-        // → note chứa "Chốt sổ mục tiêu:" hoặc "Hủy mục tiêu:"
+        // → note chứa "Goal closed:" hoặc "Goal cancelled:"
         if (transaction.getNote() != null) {
             String note = transaction.getNote();
-            if (note.startsWith("Chốt sổ mục tiêu:") || note.startsWith("Hủy mục tiêu:")) {
+            if (note.startsWith("Goal closed:") || note.startsWith("Goal cancelled:")) {
                 throw new IllegalArgumentException(
-                        "Không thể chỉnh sửa giao dịch giải ngân/hoàn trả từ mục tiêu đã đóng. "
-                        + "Lịch sử chốt sổ/hủy được bảo vệ.");
+                        "Cannot edit disbursement/refund transaction from a closed goal. "
+                        + "Close/cancel history is protected.");
             }
         }
 
@@ -802,20 +802,20 @@ public class TransactionServiceImpl implements TransactionService {
         // sửa amount/category/wallet vì sẽ phá vỡ số dư. Chỉ cho phép đặt reminder.
         boolean isInitTransaction = !Boolean.TRUE.equals(transaction.getReportable())
                 && transaction.getNote() != null
-                && (transaction.getNote().equals("Số dư ban đầu")
-                        || transaction.getNote().equals("Số dư ban đầu cho mục tiêu tiết kiệm"));
+                && (transaction.getNote().equals("Initial balance")
+                        || transaction.getNote().equals("Initial balance for saving goal"));
 
         if (isInitTransaction) {
             if (request.reminderDate() != null) {
                 Account account = accountRepository.findById(accountId)
-                        .orElseThrow(() -> new IllegalArgumentException("Tài khoản không tồn tại."));
+                        .orElseThrow(() -> new IllegalArgumentException("Account not found."));
                 createReminderNotification(transaction, account, request.reminderDate());
                 return transactionMapper.toDto(transaction);
             }
 
             throw new IllegalArgumentException(
-                    "Giao dịch khởi tạo số dư không thể sửa. " +
-                    "Nếu muốn điều chỉnh số dư ví, hãy dùng tính năng 'Điều chỉnh số dư' trong màn hình ví.");
+                    "Initial balance transaction cannot be edited. " +
+                    "To adjust wallet balance, use the 'Adjust Balance' feature in the wallet screen.");
         }
 
         // Bước 1.4: Nếu chỉ đặt reminder (không thay đổi gì khác) → skip balance ops
@@ -834,7 +834,7 @@ public class TransactionServiceImpl implements TransactionService {
 
         if (isReminderOnly) {
             Account account = accountRepository.findById(accountId)
-                    .orElseThrow(() -> new IllegalArgumentException("Tài khoản không tồn tại."));
+                    .orElseThrow(() -> new IllegalArgumentException("Account does not exist."));
             createReminderNotification(transaction, account, request.reminderDate());
             return transactionMapper.toDto(transaction); // Trả về gốc không đổi
         }
@@ -858,7 +858,7 @@ public class TransactionServiceImpl implements TransactionService {
         if (request.aiChatId() != null) {
             AIConversation aiConversation = aiConversationRepository.findById(request.aiChatId())
                     .orElseThrow(() -> new IllegalArgumentException(
-                            "Cuộc hội thoại AI không tồn tại với ID: " + request.aiChatId()));
+                            "AI conversation not found with ID: " + request.aiChatId()));
             transaction.setAiConversation(aiConversation);
         } else {
             transaction.setAiConversation(null);
@@ -869,10 +869,10 @@ public class TransactionServiceImpl implements TransactionService {
         if (!Objects.equals(transaction.getCategory().getId(), request.categoryId())) {
             targetCategory = categoryRepository.findById(request.categoryId())
                     .orElseThrow(() -> new IllegalArgumentException(
-                            "Danh mục mới không tồn tại với ID: " + request.categoryId()));
+                            "New category not found with ID: " + request.categoryId()));
             if (targetCategory.getAccount() != null
                     && !targetCategory.getAccount().getId().equals(accountId)) {
-                throw new SecurityException("Bạn không có quyền sử dụng danh mục mới này.");
+                throw new SecurityException("You do not have permission to use this new category.");
             }
             transaction.setCategory(targetCategory);
         }
@@ -883,9 +883,9 @@ public class TransactionServiceImpl implements TransactionService {
                     || !Objects.equals(transaction.getEvent().getId(), request.eventId())) {
                 Event newEvent = eventRepository.findById(request.eventId())
                         .orElseThrow(() -> new IllegalArgumentException(
-                                "Sự kiện mới không tồn tại với ID: " + request.eventId()));
+                                "New event not found with ID: " + request.eventId()));
                 if (!newEvent.getAccount().getId().equals(accountId)) {
-                    throw new SecurityException("Bạn không có quyền sử dụng sự kiện mới này.");
+                    throw new SecurityException("You do not have permission to use this new event.");
                 }
                 transaction.setEvent(newEvent);
             }
@@ -904,7 +904,7 @@ public class TransactionServiceImpl implements TransactionService {
                     targetCategory.getCtgType(), request.amount());
         } else {
             throw new IllegalArgumentException(
-                    "Vui lòng chọn Ví hoặc Mục tiêu tiết kiệm khi cập nhật.");
+                    "Please select a Wallet or Saving Goal when updating.");
         }
 
         Transaction updated = transactionRepository.save(transaction);
@@ -924,7 +924,7 @@ public class TransactionServiceImpl implements TransactionService {
         // (Notification cũ nếu có vẫn giữ nguyên trong DB, scheduler tự bỏ qua nếu đã sent)
         if (request.reminderDate() != null) {
             Account account = accountRepository.findById(accountId)
-                    .orElseThrow(() -> new IllegalArgumentException("Tài khoản không tồn tại."));
+                    .orElseThrow(() -> new IllegalArgumentException("Account does not exist."));
             createReminderNotification(updated, account, request.reminderDate());
         }
 
@@ -944,16 +944,16 @@ public class TransactionServiceImpl implements TransactionService {
         // Bước 1: Tìm và kiểm tra quyền
         Transaction transaction = transactionRepository.findById(transactionId)
                 .orElseThrow(() -> new IllegalArgumentException(
-                        "Không tìm thấy giao dịch với ID: " + transactionId));
+                        "Transaction not found with ID: " + transactionId));
         if (!transaction.getAccount().getId().equals(accountId)) {
-            throw new SecurityException("Bạn không có quyền xóa giao dịch này.");
+            throw new SecurityException("You do not have permission to delete this transaction.");
         }
 
         // Bước 1.5: Kiểm tra kỳ đã chốt — KHÓA hoàn toàn, không cho xóa giao dịch tháng quá khứ
         if (isPastPeriod(transaction.getTransDate())) {
             throw new IllegalArgumentException(
-                    "Không thể xóa giao dịch thuộc kỳ đã chốt (tháng trước trở về trước). " +
-                    "Nếu cần điều chỉnh, hãy tạo giao dịch mới ở tháng hiện tại.");
+                    "Cannot delete transaction from a closed period (previous months or earlier). " +
+                    "If you need to adjust, please create a new transaction in the current month.");
         }
         // isPastPeriod = false → tiếp tục flow xóa bình thường bên dưới
 
@@ -963,19 +963,19 @@ public class TransactionServiceImpl implements TransactionService {
         if (transaction.getSavingGoal() != null
                 && Boolean.TRUE.equals(transaction.getSavingGoal().getFinished())) {
             throw new IllegalArgumentException(
-                    "Không thể xóa giao dịch của mục tiêu đã hoàn tất. "
-                    + "Lịch sử giao dịch của mục tiêu đã chốt được bảo vệ.");
+                    "Cannot delete transaction from a completed goal. "
+                    + "Transaction history of closed goals is protected.");
         }
 
         // Bước 1.5b: Chặn xóa giao dịch giải ngân/hoàn trả từ mục tiêu đã đóng
         // Giao dịch được tạo khi completeSavingGoal() hoặc cancelSavingGoal()
-        // → note chứa "Chốt sổ mục tiêu:" hoặc "Hủy mục tiêu:"
+        // → note chứa "Goal closed:" hoặc "Goal cancelled:"
         if (transaction.getNote() != null) {
             String note = transaction.getNote();
-            if (note.startsWith("Chốt sổ mục tiêu:") || note.startsWith("Hủy mục tiêu:")) {
+            if (note.startsWith("Goal closed:") || note.startsWith("Goal cancelled:")) {
                 throw new IllegalArgumentException(
-                        "Không thể xóa giao dịch giải ngân/hoàn trả từ mục tiêu đã đóng. "
-                        + "Lịch sử chốt sổ/hủy được bảo vệ.");
+                        "Cannot delete disbursement/refund transaction from a closed goal. "
+                        + "Close/cancel history is protected.");
             }
         }
 
@@ -984,12 +984,12 @@ public class TransactionServiceImpl implements TransactionService {
         // Không cho phép dù ví mới tạo tháng này.
         boolean isInitTx = !Boolean.TRUE.equals(transaction.getReportable())
                 && transaction.getNote() != null
-                && (transaction.getNote().equals("Số dư ban đầu")
-                        || transaction.getNote().equals("Số dư ban đầu cho mục tiêu tiết kiệm"));
+                && (transaction.getNote().equals("Initial balance")
+                        || transaction.getNote().equals("Initial balance for saving goal"));
         if (isInitTx) {
             throw new IllegalArgumentException(
-                    "Giao dịch khởi tạo số dư không thể xóa. " +
-                    "Nếu muốn điều chỉnh số dư ví, hãy dùng tính năng 'Điều chỉnh số dư' trong màn hình ví.");
+                    "Initial balance transaction cannot be deleted. " +
+                    "To adjust wallet balance, use the 'Adjust Balance' feature in the wallet screen.");
         }
 
         // Lưu debtId, categoryId, savingGoalId TRƯỚC khi xóa mềm
@@ -1062,7 +1062,7 @@ public class TransactionServiceImpl implements TransactionService {
                 // Guard: không cho phép số dư âm — phải throw exception thay vì set = 0
                 BigDecimal newBalance = wallet.getBalance().subtract(transaction.getAmount());
                 if (newBalance.compareTo(BigDecimal.ZERO) < 0) {
-                    throw new IllegalArgumentException("Số dư hiện tại không đủ để thực hiện giao dịch");
+                    throw new IllegalArgumentException("Insufficient balance to perform transaction");
                 }
                 wallet.setBalance(newBalance);
             } else {
@@ -1082,7 +1082,7 @@ public class TransactionServiceImpl implements TransactionService {
                 // Guard: không cho phép số dư mục tiêu âm — throw exception
                 BigDecimal newAmount = goal.getCurrentAmount().subtract(transaction.getAmount());
                 if (newAmount.compareTo(BigDecimal.ZERO) < 0) {
-                    throw new IllegalArgumentException("Số dư hiện tại không đủ để thực hiện giao dịch");
+                    throw new IllegalArgumentException("Insufficient balance to perform transaction");
                 }
                 goal.setCurrentAmount(newAmount);
             } else {
@@ -1131,9 +1131,9 @@ public class TransactionServiceImpl implements TransactionService {
         // Bước 1: Tìm ví
         Wallet wallet = walletRepository.findById(walletId)
                 .orElseThrow(() -> new IllegalArgumentException(
-                        "Ví không tồn tại với ID: " + walletId));
+                        "Wallet not found with ID: " + walletId));
         if (!wallet.getAccount().getId().equals(accountId)) {
-            throw new SecurityException("Bạn không có quyền sử dụng ví này.");
+            throw new SecurityException("You do not have permission to use this wallet.");
         }
 
         // Bước 2: Gán ví
@@ -1146,7 +1146,7 @@ public class TransactionServiceImpl implements TransactionService {
         } else {
             // 3.1 Kiểm tra số dư trước khi trừ (Chặn đứng nếu là Chi tiêu và số dư không đủ)
             if (wallet.getBalance().compareTo(amount) < 0) {
-                throw new IllegalArgumentException("Số dư hiện tại không đủ để thực hiện giao dịch");
+                throw new IllegalArgumentException("Insufficient balance to perform transaction");
             }
             wallet.setBalance(wallet.getBalance().subtract(amount)); // Chi → Trừ
         }
@@ -1177,19 +1177,19 @@ public class TransactionServiceImpl implements TransactionService {
                                               Integer accountId, Boolean isIncome, BigDecimal amount) {
         // Bước 1: Tìm mục tiêu
         SavingGoal goal = savingGoalRepository.findById(goalId)
-                .orElseThrow(() -> new IllegalArgumentException("Mục tiêu tiết kiệm không tồn tại."));
+                .orElseThrow(() -> new IllegalArgumentException("Saving goal not found."));
         if (!goal.getAccount().getId().equals(accountId)) {
-            throw new SecurityException("Bạn không có quyền sử dụng mục tiêu này.");
+            throw new SecurityException("You do not have permission to use this goal.");
         }
 
         // Guard: chặn goal đã chốt sổ hoặc đã hủy
         if (Boolean.TRUE.equals(goal.getFinished())) {
             throw new IllegalStateException(
-                    "Mục tiêu đã được chốt sổ, không thể ghi giao dịch vào.");
+                    "Goal has been closed, cannot record transactions.");
         }
         if (goal.getGoalStatus().equals(GoalStatus.CANCELLED.getValue())) {
             throw new IllegalStateException(
-                    "Mục tiêu đã bị hủy, không thể ghi giao dịch vào.");
+                    "Goal has been cancelled, cannot record transactions.");
         }
 
         // Bước 2: Gán mục tiêu
@@ -1202,14 +1202,14 @@ public class TransactionServiceImpl implements TransactionService {
             BigDecimal newAmount = goal.getCurrentAmount().add(amount);
             if (newAmount.compareTo(goal.getTargetAmount()) > 0) {
                 throw new IllegalArgumentException(
-                        String.format("Số tiền nạp vào mục tiêu '%s' sẽ vượt quá số tiền mục tiêu (Mục tiêu: %s đ, Hiện có: %s đ).",
+                        String.format("Deposit amount for goal '%s' will exceed the target amount (Target: %s đ, Current: %s đ).",
                                 goal.getGoalName(), goal.getTargetAmount().toPlainString(), goal.getCurrentAmount().toPlainString()));
             }
             goal.setCurrentAmount(newAmount); // Nạp → Cộng
         } else {
             // 3.1 Kiểm tra số dư Mục tiêu (Rút tiền không được vượt quá số hiện có)
             if (goal.getCurrentAmount().compareTo(amount) < 0) {
-                throw new IllegalArgumentException("Số dư hiện tại không đủ để thực hiện giao dịch");
+                throw new IllegalArgumentException("Insufficient balance to perform transaction");
             }
             goal.setCurrentAmount(goal.getCurrentAmount().subtract(amount)); // Rút → Trừ
         }
@@ -1245,23 +1245,23 @@ public class TransactionServiceImpl implements TransactionService {
                 // Vay thêm vào khoản nợ cũ — gắn debt_id, recalculate sẽ tính lại
                 Debt debt = debtRepository.findByIdAndAccount_Id(request.debtId(), accountId)
                         .orElseThrow(() -> new IllegalArgumentException(
-                                "Khoản nợ không tồn tại hoặc không có quyền."));
+                                "Debt not found or you do not have permission."));
                 transaction.setDebt(debt);
             } else {
                 // Tạo khoản nợ mới — bắt buộc có personName
                 if (request.personName() == null || request.personName().isBlank()) {
                     throw new IllegalArgumentException(isBorrowing
-                            ? "Vui lòng nhập tên người cho vay."
-                            : "Vui lòng nhập tên người vay.");
+                            ? "Please enter the lender's name."
+                            : "Please enter the borrower's name.");
                 }
 
                 // [VALIDATE-DUEDATE] Bắt buộc nhập ngày hẹn trả khi tạo khoản nợ mới
                 if (request.dueDate() == null) {
-                    throw new IllegalArgumentException("Vui lòng chọn ngày hẹn trả cho khoản nợ.");
+                    throw new IllegalArgumentException("Please select a due date for the debt.");
                 }
                 // [VALIDATE-DUEDATE] Ngày hẹn trả phải là ngày trong tương lai (sau ngày hiện tại)
                 if (!request.dueDate().isAfter(LocalDateTime.now())) {
-                    throw new IllegalArgumentException("Ngày hẹn trả phải là ngày trong tương lai.");
+                    throw new IllegalArgumentException("Due date must be a future date.");
                 }
 
                 Debt debt = Debt.builder()
@@ -1281,23 +1281,23 @@ public class TransactionServiceImpl implements TransactionService {
             if (request.debtId() != null) {
                 Debt debt = debtRepository.findByIdAndAccount_Id(request.debtId(), accountId)
                         .orElseThrow(() -> new IllegalArgumentException(
-                                "Khoản nợ không tồn tại hoặc không có quyền."));
+                                "Debt not found or you do not have permission."));
                 // Validate that the payment type matches the debtType:
                 // - Debt.debtType == true  => Cho vay / CẦN THU  (should use Thu nợ)
                 // - Debt.debtType == false => Đi vay / CẦN TRẢ  (should use Trả nợ)
                 if (isCollection && Boolean.FALSE.equals(debt.getDebtType())) {
-                    throw new SecurityException("Khoản nợ này là 'Cần trả' nên không thể thực hiện 'Thu nợ'.");
+                    throw new SecurityException("This debt is 'To Pay', cannot perform 'Debt Collection'.");
                 }
                 if (isRepayment && Boolean.TRUE.equals(debt.getDebtType())) {
-                    throw new SecurityException("Khoản nợ này là 'Cần thu' nên không thể thực hiện 'Trả nợ'.");
+                    throw new SecurityException("This debt is 'To Collect', cannot perform 'Debt Repayment'.");
                 }
 
                 // Chặn trả/thu vượt quá số nợ còn lại
                 BigDecimal remaining = debt.getRemainAmount();
                 if (remaining != null && request.amount().compareTo(remaining) > 0) {
-                    String action = isRepayment ? "trả" : "thu";
+                    String action = isRepayment ? "pay" : "collect";
                     throw new IllegalArgumentException(
-                            String.format("Số tiền %s (%s) vượt quá số nợ còn lại (%s).",
+                            String.format("Amount to %s (%s) exceeds the remaining debt (%s).",
                                     action,
                                     request.amount(),
                                     remaining));
@@ -1351,7 +1351,7 @@ public class TransactionServiceImpl implements TransactionService {
         // [KB-1] Vượt ngưỡng: chỉ áp dụng cho khoản CHI > 50.000.000đ
         if (reason == null && isExpense && amount.compareTo(new BigDecimal("50000000")) > 0) {
             reason = String.format(
-                    "Giao dịch chi %s vượt ngưỡng cảnh báo 50.000.000đ. Không phải bạn thực hiện? Liên hệ hỗ trợ ngay.",
+                    "Expense transaction %s exceeds 50,000,000đ warning threshold. Did you not perform this transaction? Contact support immediately.",
                     CurrencyUtils.formatVND(amount));
         }
 
@@ -1361,7 +1361,7 @@ public class TransactionServiceImpl implements TransactionService {
             long spamCount = transactionRepository.countSameAmountCreatedAfter(accountId, amount, tenMinsAgo);
             if (spamCount >= 3) {
                 reason = String.format(
-                        "Phát hiện %d giao dịch %s xuất hiện liên tiếp trong vòng 10 phút. Vui lòng kiểm tra tài khoản.",
+                        "Detected %d transactions of %s appearing consecutively within 10 minutes. Please check your account.",
                         spamCount, CurrencyUtils.formatVND(amount));
             }
         }
@@ -1384,7 +1384,7 @@ public class TransactionServiceImpl implements TransactionService {
 
             if (hadYesterday && had2DaysAgo) {
                 reason = String.format(
-                        "Phát hiện giao dịch %s xuất hiện vào cùng khung giờ %dh trong 3 ngày liên tiếp. Vui lòng kiểm tra tài khoản.",
+                        "Detected transaction %s appearing at the same time slot %dh for 3 consecutive days. Please check your account.",
                         CurrencyUtils.formatVND(amount), currentHour);
             }
         }
@@ -1400,7 +1400,7 @@ public class TransactionServiceImpl implements TransactionService {
         // Dùng TRANSACTION (type=1) vì related_id = tTransactions.id → Flutter mở chi tiết giao dịch đó
         notificationService.createNotification(
                 currentUser,
-                "⚠️ Cảnh báo giao dịch bất thường",
+                "⚠️ Abnormal Transaction Alert",
                 reason,
                 NotificationType.TRANSACTION,
                 tx.getId(),
@@ -1420,7 +1420,7 @@ public class TransactionServiceImpl implements TransactionService {
         for (Account admin : admins) {
             notificationService.createNotification(
                     admin,
-                    "🚨 [URGENT] Giao dịch bất thường cần xử lý",
+                    "🚨 [URGENT] Abnormal Transaction Needs Processing",
                     adminContent,
                     NotificationType.SYSTEM,
                     contactRequest.getId().longValue(),
@@ -1442,12 +1442,12 @@ public class TransactionServiceImpl implements TransactionService {
      * @param reminderDate  thời điểm nhắc nhở (scheduledTime cho NotificationScheduler)
      */
     private void createReminderNotification(Transaction transaction, Account account, LocalDateTime reminderDate) {
-        // Xác định nguồn tiền — ưu tiên Ví → Mục tiêu → fallback "Không xác định"
+        // Xác định nguồn tiền — ưu tiên Ví → Mục tiêu → fallback "Unknown"
         String sourceName = transaction.getWallet() != null
                 ? transaction.getWallet().getWalletName()
                 : (transaction.getSavingGoal() != null
                         ? transaction.getSavingGoal().getGoalName()
-                        : "Không xác định");
+                        : "Unknown");
 
         // Thu thập thông tin bổ sung (nullable — bỏ qua nếu null)
         String  debtPersonName = transaction.getDebt() != null ? transaction.getDebt().getPersonName() : null;

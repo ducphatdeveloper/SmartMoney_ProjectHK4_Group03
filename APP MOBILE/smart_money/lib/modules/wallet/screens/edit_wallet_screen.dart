@@ -402,7 +402,7 @@ class _EditWalletScreenState extends State<EditWalletScreen> {
       goalImageUrl: _selectedIconUrl,
     );
 
-    final success = await provider.updateWallet(widget.wallet.id, request);
+    final success = await provider.updateWallet(context, widget.wallet.id, request);
 
     setState(() => isSaving = false);
 

@@ -76,8 +76,8 @@ class _DebtListScreenState extends State<DebtListScreen>
   Future<void> _loadAll() async {
     final provider = context.read<DebtProvider>();
     await Future.wait([
-      provider.loadDebts(false), // Tab CẦN TRẢ
-      provider.loadDebts(true),  // Tab CẦN THU
+      provider.loadDebts(context, false), // Tab CẦN TRẢ
+      provider.loadDebts(context, true),  // Tab CẦN THU
     ]);
   }
 
@@ -86,7 +86,7 @@ class _DebtListScreenState extends State<DebtListScreen>
     final provider = context.read<DebtProvider>();
     // Làm mới tab đang xem
     final isPayableTab = _tabController.index == 0;
-    await provider.loadDebts(!isPayableTab); // false=CẦN TRẢ, true=CẦN THU
+    await provider.loadDebts(context, !isPayableTab); // false=CẦN TRẢ, true=CẦN THU
   }
 
   // =============================================
@@ -108,7 +108,7 @@ class _DebtListScreenState extends State<DebtListScreen>
     // [IMPORTANT] Reload list nếu user đã sửa/xóa/toggle ở Detail screen
     if (changed == true && mounted) {
       final isPayableTab = _tabController.index == 0;
-      context.read<DebtProvider>().loadDebts(!isPayableTab);
+      context.read<DebtProvider>().loadDebts(context, !isPayableTab);
     }
   }
 
@@ -269,13 +269,13 @@ class _DebtListScreenState extends State<DebtListScreen>
           const SizedBox(height: 16),
           Text(
             isPayable
-                ? 'Bạn chưa có khoản vay nào'
-                : 'Bạn chưa có khoản cho vay nào',
+                ? 'You have no debts yet'
+                : 'You have no loans yet',
             style: TextStyle(color: Colors.grey[600], fontSize: 15),
           ),
           const SizedBox(height: 8),
           Text(
-            'Create a transaction "${isPayable ? 'Đi vay' : 'Cho vay'}" to begin',
+            'Create a transaction "${isPayable ? 'Borrow' : 'Lend'}" to begin',
             style: TextStyle(color: Colors.grey[400], fontSize: 13),
           ),
         ],

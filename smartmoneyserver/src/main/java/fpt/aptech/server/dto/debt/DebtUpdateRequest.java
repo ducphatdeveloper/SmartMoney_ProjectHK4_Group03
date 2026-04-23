@@ -15,14 +15,14 @@ import java.time.LocalDateTime;
 @Builder
 public record DebtUpdateRequest(
 
-        @NotBlank(message = "Tên người liên quan không được để trống.")
-        @Size(max = 200, message = "Tên người liên quan không được quá 200 ký tự.")
+        @NotBlank(message = "Person name cannot be empty.")
+        @Size(max = 200, message = "Person name must not exceed 200 characters.")
         String personName,
 
         // [VALIDATE] Bắt buộc nhập ngày hẹn trả — validate quá khứ được xử lý trong DebtServiceImpl
-        @NotNull(message = "Vui lòng chọn ngày hẹn trả cho khoản nợ.")
+        @NotNull(message = "Please select a due date for the debt.")
         LocalDateTime dueDate,
 
-        @Size(max = 500, message = "Ghi chú không được quá 500 ký tự.")
+        @Size(max = 500, message = "Note must not exceed 500 characters.")
         String note // Ghi chú (có thể null)
 ) {}

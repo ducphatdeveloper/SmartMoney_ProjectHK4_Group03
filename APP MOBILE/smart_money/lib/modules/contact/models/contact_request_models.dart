@@ -13,15 +13,15 @@ enum ContactRequestType {
 extension ContactRequestTypeExt on ContactRequestType {
   String get label {
     switch (this) {
-      case ContactRequestType.ACCOUNT_LOCK: return "Yêu cầu khóa tài khoản";
-      case ContactRequestType.ACCOUNT_UNLOCK: return "Mở khóa tài khoản";
-      case ContactRequestType.FORGOT_PASSWORD: return "Quên mật khẩu";
-      case ContactRequestType.EMERGENCY: return "Khẩn cấp (bị hack / giao dịch lạ)";
-      case ContactRequestType.BUG_REPORT: return "Báo lỗi ứng dụng";
-      case ContactRequestType.DATA_RECOVERY: return "Yêu cầu khôi phục dữ liệu";
-      case ContactRequestType.DATA_LOSS: return "Báo mất dữ liệu";
-      case ContactRequestType.GENERAL: return "Góp ý / câu hỏi";
-      case ContactRequestType.SUSPICIOUS_TX: return "Giao dịch bất thường";
+      case ContactRequestType.ACCOUNT_LOCK: return "Account lock request";
+      case ContactRequestType.ACCOUNT_UNLOCK: return "Unlock account";
+      case ContactRequestType.FORGOT_PASSWORD: return "Forgot password";
+      case ContactRequestType.EMERGENCY: return "Emergency (hacked / suspicious transaction)";
+      case ContactRequestType.BUG_REPORT: return "Report app bug";
+      case ContactRequestType.DATA_RECOVERY: return "Data recovery request";
+      case ContactRequestType.DATA_LOSS: return "Report data loss";
+      case ContactRequestType.GENERAL: return "Feedback / question";
+      case ContactRequestType.SUSPICIOUS_TX: return "Suspicious transaction";
     }
   }
 }

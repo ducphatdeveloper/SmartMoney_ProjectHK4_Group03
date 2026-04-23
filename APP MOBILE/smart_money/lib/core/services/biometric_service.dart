@@ -31,7 +31,7 @@ class BiometricService {
 
       // Sử dụng cấu hình cơ bản để tương thích tốt nhất với mọi phiên bản local_auth
       return await _auth.authenticate(
-        localizedReason: customMessage ?? 'Xác thực để đăng nhập vào SmartMoney',
+        localizedReason: customMessage ?? 'Authenticate to login to SmartMoney',
         options: const AuthenticationOptions(
           stickyAuth: true,
           biometricOnly: false, // Quan trọng: Cho phép FaceID AI trên Android

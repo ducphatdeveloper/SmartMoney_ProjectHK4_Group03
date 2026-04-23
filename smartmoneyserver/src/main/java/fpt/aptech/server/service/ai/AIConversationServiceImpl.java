@@ -494,7 +494,7 @@ Categories (id:name): %s
     public void clearHistory(Account account) {
         // Bước 1: Validate input
         if (account == null || account.getId() == null) {
-            throw new IllegalArgumentException("Tài khoản không hợp lệ");
+            throw new IllegalArgumentException("Invalid account");
         }
 
         // Bước 2: Lấy tất cả AIConversation của account
@@ -527,15 +527,15 @@ Categories (id:name): %s
     public void deleteConversationById(Integer conversationId, Integer accountId) {
         // Bước 1: Validate input
         if (conversationId == null) {
-            throw new IllegalArgumentException("ID cuộc trò chuyện không hợp lệ");
+            throw new IllegalArgumentException("Invalid conversation ID");
         }
         if (accountId == null) {
-            throw new IllegalArgumentException("ID tài khoản không hợp lệ");
+            throw new IllegalArgumentException("Invalid account ID");
         }
 
         // Bước 2: Lấy conversation theo ID và accountId (đảm bảo bảo mật - query trực tiếp theo acc_id)
         AIConversation conversation = aiRepo.findByIdAndAccountId(conversationId, accountId)
-            .orElseThrow(() -> new SecurityException("Bạn không có quyền xóa cuộc trò chuyện này"));
+            .orElseThrow(() -> new SecurityException("You do not have permission to delete this conversation"));
 
         // Bước 3: Xử lý các Transaction có ai_chat_id liên quan
         // Dùng @Modifying UPDATE query trực tiếp thay vì load entity rồi saveAll (tối ưu hiệu năng)
@@ -580,7 +580,7 @@ Categories (id:name): %s
         }
 
         // Bước 5 (Lỗi): Quăng ngoại lệ nếu loại hành động không hợp lệ
-        throw new IllegalArgumentException("Loại hành động không hỗ trợ: " + actionType);
+        throw new IllegalArgumentException("Unsupported action type: " + actionType);
     }
 
     // =================================================================================
@@ -2329,7 +2329,7 @@ Categories (id:name): %s
             Wallet wallet = walletRepo.findByAccountId(accountId).stream()
                     .filter(w -> w.getId().equals(walletId) && Boolean.FALSE.equals(w.getDeleted()))
                     .findFirst()
-                    .orElseThrow(() -> new SecurityException("Bạn không có quyền truy cập ví này."));
+                    .orElseThrow(() -> new SecurityException("You do not have permission to access this wallet."));
             return String.format("Đã lưu giao dịch %,.0f đ vào ví %s.", amountValue, wallet.getWalletName());
         } else {
             return String.format("Đã lưu giao dịch %,.0f đ.", amountValue);
@@ -2416,8 +2416,8 @@ Categories (id:name): %s
             if (matchedCat == null) { // Nếu không tìm thấy category
                 boolean isIncome = params.containsKey("isIncome") && Boolean.parseBoolean(params.get("isIncome").toString()); // Lấy isIncome từ params
                 Integer defaultCatId = isIncome ? SystemCategory.INCOME_OTHER.getId() : SystemCategory.OTHER_EXPENSE.getId(); // Default category ID
-                matchedCat = categoryRepo.findById(defaultCatId).orElseThrow(() -> new RuntimeException("Không tìm thấy danh mục mặc định.")); // Query default category
-                log.warn("[AI] Không tìm thấy categoryId {}, dùng default ID: {}", categoryId, defaultCatId);
+                matchedCat = categoryRepo.findById(defaultCatId).orElseThrow(() -> new RuntimeException("Default category not found.")); // Query default category
+                log.warn("[AI] CategoryId {} not found, using default ID: {}", categoryId, defaultCatId);
             }
 
             // Bước 9: Xây dựng Request DTO đầy đủ

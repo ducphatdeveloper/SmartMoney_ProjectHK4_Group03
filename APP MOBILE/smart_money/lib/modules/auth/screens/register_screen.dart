@@ -380,7 +380,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
                                // Bước 4: Hiện kết quả cho user
                                if (success) {
-                                 _showSnackBar(authProvider.successMessage ?? 'Đăng ký thành công!', isError: false);
+                                 _showSnackBar(authProvider.successMessage ?? 'Registration successful!', isError: false);
                                  context.go("/login");
                                } else {
                                  setState(() {
@@ -399,7 +399,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                      _confirmPasswordError = authProvider.fieldErrors['passwordMatching'];
                                    }
                                  });
-                                 _showSnackBar(authProvider.errorMessage ?? 'Có lỗi xảy ra');
+                                 _showSnackBar(authProvider.errorMessage ?? 'An error occurred');
                                }
                              },
 
@@ -439,7 +439,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                               final success = await authProvider.loginWithGoogle(context); // Sử dụng lại logic loginWithGoogle
                               if (!mounted) return;
                               if (success) {
-                                _showSnackBar(authProvider.successMessage ?? 'Đăng ký/Đăng nhập Google thành công!', isError: false);
+                                _showSnackBar(authProvider.successMessage ?? 'Google registration/login successful!', isError: false);
                                 context.go("/main");
                               } else if (authProvider.errorMessage != null) {
                                 _showSnackBar(authProvider.errorMessage!);

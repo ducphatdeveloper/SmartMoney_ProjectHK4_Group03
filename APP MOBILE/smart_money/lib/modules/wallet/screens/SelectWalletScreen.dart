@@ -20,7 +20,7 @@ class _SelectWalletScreenState extends State<SelectWalletScreen> {
   void initState() {
     super.initState();
     Future.microtask(() =>
-        context.read<WalletProvider>().loadAll());
+        context.read<WalletProvider>().loadAll(context));
   }
 
   @override
@@ -259,7 +259,7 @@ class _SelectWalletScreenState extends State<SelectWalletScreen> {
               );
 
               if (result == true) {
-                context.read<WalletProvider>().loadAll();
+                context.read<WalletProvider>().loadAll(context);
               }
             },
           ),

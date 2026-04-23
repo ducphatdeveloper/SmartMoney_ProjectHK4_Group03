@@ -49,7 +49,7 @@ public class NotificationController {
 
         notificationService.markAsRead(id, currentUser.getId());
 
-        return ResponseEntity.ok(ApiResponse.success("Đã đánh dấu đã đọc."));
+        return ResponseEntity.ok(ApiResponse.success("Marked as read."));
     }
 
     // =================================================================================
@@ -63,7 +63,7 @@ public class NotificationController {
 
         notificationService.markAllAsRead(currentUser.getId());
 
-        return ResponseEntity.ok(ApiResponse.success("Đã đánh dấu tất cả là đã đọc."));
+        return ResponseEntity.ok(ApiResponse.success("All marked as read."));
     }
 
     // =================================================================================
@@ -96,7 +96,7 @@ public class NotificationController {
 
         notificationService.deleteNotification(id, currentUser.getId());
 
-        return ResponseEntity.ok(ApiResponse.success("Đã xóa thông báo thành công."));
+        return ResponseEntity.ok(ApiResponse.success("Notification deleted successfully."));
     }
     // =================================================================================
     // [6] MOBILE — Gọi khi điện thoại nhận được thông báo từ FCM (Background/Foreground)
@@ -106,6 +106,6 @@ public class NotificationController {
     @PreAuthorize("hasAuthority('USER_STANDARD_MANAGE')")
     public ResponseEntity<ApiResponse<Void>> markAsDelivered(@PathVariable Integer id) {
         notificationService.markAsDelivered(id);
-        return ResponseEntity.ok(ApiResponse.success("Đã xác nhận nhận thông báo."));
+        return ResponseEntity.ok(ApiResponse.success("Notification delivery confirmed."));
     }
 }

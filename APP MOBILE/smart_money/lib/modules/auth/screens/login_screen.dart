@@ -51,7 +51,7 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _handleBiometricLogin({bool auto = false}) async {
     final authProvider = context.read<AuthProvider>();
     // Hướng dẫn tổng hợp cho cả 2 phương thức
-    String msg = 'Xác thực khuôn mặt hoặc vân tay để đăng nhập';
+    String msg = 'Authenticate with face or fingerprint to login';
     
     final status = await authProvider.loginWithBiometric(context, customMessage: msg);
     
@@ -59,20 +59,20 @@ class _LoginScreenState extends State<LoginScreen> {
 
     switch (status) {
       case BiometricLoginStatus.success:
-        _showSnackBar('Đăng nhập sinh trắc học thành công!', isError: false);
+        _showSnackBar('Biometric login successful!', isError: false);
         context.go("/main");
         break;
       case BiometricLoginStatus.authFailed:
-        _showSnackBar('Xác thực sinh trắc học thất bại.');
+        _showSnackBar('Biometric authentication failed.');
         break;
       case BiometricLoginStatus.noCredentials:
-        _showSnackBar('Vui lòng đăng nhập bằng mật khẩu để kích hoạt sinh trắc học lần đầu.');
+        _showSnackBar('Please login with password to activate biometric for the first time.');
         break;
       case BiometricLoginStatus.loginApiFailed:
-        _showSnackBar(authProvider.errorMessage ?? 'Đăng nhập API thất bại.');
+        _showSnackBar(authProvider.errorMessage ?? 'API login failed.');
         break;
       default:
-        if (!auto) _showSnackBar('Không thể xác thực sinh trắc học lúc này.');
+        if (!auto) _showSnackBar('Cannot authenticate biometric at this time.');
     }
   }
 
@@ -187,12 +187,12 @@ class _LoginScreenState extends State<LoginScreen> {
                                     ? null
                                     : () async {
                                   setState(() { _usernameError = null; _passwordError = null; });
-                                  if (usernameController.text.trim().isEmpty) { _showSnackBar('Tên đăng nhập không được để trống'); return; }
-                                  if (passwordController.text.trim().isEmpty) { _showSnackBar('Mật khẩu không được để trống'); return; }
+                                  if (usernameController.text.trim().isEmpty) { _showSnackBar('Username cannot be empty'); return; }
+                                  if (passwordController.text.trim().isEmpty) { _showSnackBar('Password cannot be empty'); return; }
                                   final success = await authProvider.login(usernameController.text, passwordController.text, context);
                                   if (!mounted) return;
                                   if (success) { context.go("/main"); }
-                                  else { setState(() { _usernameError = authProvider.fieldErrors['username']; _passwordError = authProvider.fieldErrors['password']; }); _showSnackBar(authProvider.errorMessage ?? 'Có lỗi xảy ra'); }
+                                  else { setState(() { _usernameError = authProvider.fieldErrors['username']; _passwordError = authProvider.fieldErrors['password']; }); _showSnackBar(authProvider.errorMessage ?? 'An error occurred'); }
                                 },
                                 child: authProvider.isLoading
                                     ? const CircularProgressIndicator(color: Colors.white)

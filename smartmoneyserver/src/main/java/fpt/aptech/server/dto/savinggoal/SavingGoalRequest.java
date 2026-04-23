@@ -17,28 +17,28 @@ import java.time.LocalDate;
 @Setter
 public class SavingGoalRequest {
     // Tên mục tiêu
-    @NotBlank(message = "Tên mục tiêu không được để trống")
+    @NotBlank(message = "Goal name cannot be empty")
     private String goalName;
 
     // Số tiền mục tiêu > 0 (theo CHECK constraint)
-    @NotNull(message = "Số tiền mục tiêu không được để trống")
-    @DecimalMin(value = "0.01", message = "Số tiền mục tiêu phải lớn hơn 0")
-    @DecimalMax(value = "1000000000000.00", message = "Số tiền mục tiêu không được vượt quá 1.000 tỷ VND")
+    @NotNull(message = "Target amount cannot be empty")
+    @DecimalMin(value = "0.01", message = "Target amount must be greater than 0")
+    @DecimalMax(value = "1000000000000.00", message = "Target amount must not exceed 1,000 billion VND")
     private BigDecimal targetAmount;
 
     // Số tiền khởi tạo (nếu có)
-    @PositiveOrZero(message = "Số tiền khởi tạo phải lớn hơn hoặc bằng 0")
-    @DecimalMax(value = "1000000000000.00", message = "Số tiền khởi tạo không được vượt quá 1.000 tỷ VND")
+    @PositiveOrZero(message = "Initial amount must be greater than or equal to 0")
+    @DecimalMax(value = "1000000000000.00", message = "Initial amount must not exceed 1,000 billion VND")
     private BigDecimal initialAmount;
 
     // Currency FK
-    @NotBlank(message = "Mã tiền tệ không được để trống")
-    @Pattern(regexp = "VND", message = "Mục tiêu tiết kiệm hiện chỉ hỗ trợ VND.")
+    @NotBlank(message = "Currency code cannot be empty")
+    @Pattern(regexp = "VND", message = "Saving goal currently only supports VND.")
     private String currencyCode;
 
     // Phải là ngày tương lai
-    @NotNull(message = "Ngày kết thúc không được để trống")
-    @FutureOrPresent(message = "Ngày kết thúc phải là ngày hiện tại hoặc tương lai")
+    @NotNull(message = "End date cannot be empty")
+    @FutureOrPresent(message = "End date must be today or in the future")
     private LocalDate endDate;
 
     private String goalImageUrl;

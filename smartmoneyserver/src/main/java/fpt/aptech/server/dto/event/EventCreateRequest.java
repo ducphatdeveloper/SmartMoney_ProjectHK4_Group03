@@ -15,18 +15,18 @@ import java.time.LocalDate;
  */
 @Builder
 public record EventCreateRequest(
-        @NotBlank(message = "Tên sự kiện không được để trống")
-        @Size(max = 200, message = "Tên sự kiện không được quá 200 ký tự")
+        @NotBlank(message = "Event name cannot be empty")
+        @Size(max = 200, message = "Event name must not exceed 200 characters")
         String eventName,
 
-        @Size(max = 2048, message = "URL icon không được quá 2048 ký tự")
+        @Size(max = 2048, message = "Icon URL must not exceed 2048 characters")
         String eventIconUrl,
 
-        @NotNull(message = "Ngày kết thúc không được để trống")
-        @FutureOrPresent(message = "Ngày kết thúc phải là hôm nay hoặc trong tương lai")
+        @NotNull(message = "End date cannot be empty")
+        @FutureOrPresent(message = "End date must be today or in the future")
         LocalDate endDate,
 
-        @NotBlank(message = "Mã tiền tệ không được để trống")
-        @Pattern(regexp = "VND", message = "Sự kiện hiện chỉ hỗ trợ VND.")
+        @NotBlank(message = "Currency code cannot be empty")
+        @Pattern(regexp = "VND", message = "Event currently only supports VND.")
         String currencyCode
 ) {}

@@ -15,13 +15,13 @@ enum DateRangeType {
   String get displayName {
     switch (this) {
       case DateRangeType.past:
-        return 'Quá khứ';
+        return 'Past';
       case DateRangeType.current:
-        return 'Hiện tại';
+        return 'Current';
       case DateRangeType.future:
-        return 'Tương lai';
+        return 'Future';
       case DateRangeType.custom:
-        return 'Tùy chỉnh';
+        return 'Custom';
     }
   }
 }

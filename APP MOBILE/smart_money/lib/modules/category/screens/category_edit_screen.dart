@@ -107,7 +107,7 @@ class _CategoryEditScreenState extends State<CategoryEditScreen> {
   Future<void> _openParentSheet() async {
     final provider = Provider.of<CategoryProvider>(context, listen: false);
     // Bước 1: Load danh sách cha phù hợp với loại hiện tại
-    await provider.loadParents(_ctgType); // GET /api/categories/parents?type=...
+    await provider.loadParents(context, _ctgType); // GET /api/categories/parents?type=...
 
     if (!mounted) return;
 
@@ -213,7 +213,7 @@ class _CategoryEditScreenState extends State<CategoryEditScreen> {
     setState(() => _isSaving = true);
 
     final provider = Provider.of<CategoryProvider>(context, listen: false);
-    final success = await provider.updateCategory(widget.category.id, request);
+    final success = await provider.updateCategory(context, widget.category.id, request);
 
     setState(() => _isSaving = false);
 
@@ -345,7 +345,7 @@ class _CategoryEditScreenState extends State<CategoryEditScreen> {
     setState(() => _isDeleting = true);
 
     final provider = Provider.of<CategoryProvider>(context, listen: false);
-    final success = await provider.deleteCategoryWithOptions(
+    final success = await provider.deleteCategoryWithOptions(context,
       id: widget.category.id,
       actionType: "DELETE_ALL",
     );
@@ -372,7 +372,7 @@ class _CategoryEditScreenState extends State<CategoryEditScreen> {
     final provider = Provider.of<CategoryProvider>(context, listen: false);
 
     // Bước 1: Load danh sách danh mục nhận gộp
-    await provider.loadMergeTargets(
+    await provider.loadMergeTargets(context,
       widget.category.ctgType ?? false,
       excludeId: widget.category.id,
     );
@@ -405,7 +405,7 @@ class _CategoryEditScreenState extends State<CategoryEditScreen> {
     // Bước 4: Gọi API gộp
     setState(() => _isDeleting = true);
 
-    final success = await provider.deleteCategoryWithOptions(
+    final success = await provider.deleteCategoryWithOptions(context,
       id: widget.category.id,
       actionType: "MERGE",
       newCategoryId: selected.id,

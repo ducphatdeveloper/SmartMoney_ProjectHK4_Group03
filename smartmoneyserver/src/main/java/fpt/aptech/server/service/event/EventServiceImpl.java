@@ -125,9 +125,9 @@ public class EventServiceImpl implements EventService {
     public EventResponse createEvent(EventCreateRequest request, Integer accId) {
         // Bước 1: Validate
         Account account = accountRepository.findById(accId)
-                .orElseThrow(() -> new IllegalArgumentException("Tài khoản không tồn tại."));
+                .orElseThrow(() -> new IllegalArgumentException("Account does not exist."));
         Currency currency = currencyRepository.findById(request.currencyCode())
-                .orElseThrow(() -> new IllegalArgumentException("Loại tiền tệ không tồn tại."));
+                .orElseThrow(() -> new IllegalArgumentException("Currency does not exist."));
 
         // Bước 2: Tạo Event
         Event event = eventMapper.fromCreateRequest(request);
@@ -147,7 +147,7 @@ public class EventServiceImpl implements EventService {
         Event event = getOwnedEvent(eventId, accId);
 
         Currency currency = currencyRepository.findById(request.currencyCode())
-                .orElseThrow(() -> new IllegalArgumentException("Loại tiền tệ không tồn tại."));
+                .orElseThrow(() -> new IllegalArgumentException("Currency does not exist."));
 
         eventMapper.updateFromUpdateRequest(request, event);
         event.setCurrency(currency);
@@ -229,10 +229,10 @@ public class EventServiceImpl implements EventService {
     private Event getOwnedEvent(Integer eventId, Integer accId) {
         Event event = eventRepository.findById(eventId)
                 .orElseThrow(() -> new IllegalArgumentException(
-                        "Sự kiện không tồn tại với ID: " + eventId));
+                        "Event does not exist with ID: " + eventId));
 
         if (!event.getAccount().getId().equals(accId)) {
-            throw new SecurityException("Bạn không có quyền truy cập sự kiện này.");
+            throw new SecurityException("You do not have permission to access this event.");
         }
         return event;
     }

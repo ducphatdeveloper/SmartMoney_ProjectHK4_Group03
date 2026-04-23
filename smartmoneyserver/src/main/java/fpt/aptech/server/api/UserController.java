@@ -29,7 +29,7 @@ public class UserController {
         String email = authentication.getName(); // Email được set làm username trong UserDetails
 
         AccountDto profile = userService.getProfile(email);
-        return ResponseEntity.ok(ApiResponse.success(profile, "Lấy thông tin cá nhân thành công"));
+        return ResponseEntity.ok(ApiResponse.success(profile, "Profile retrieved successfully"));
     }
     @PatchMapping("/profile")
     @PreAuthorize("hasAuthority('USER_STANDARD_MANAGE')")
@@ -37,7 +37,7 @@ public class UserController {
             @AuthenticationPrincipal Account currentUser,
             @Valid @RequestBody AccountDto dto) {
         AccountDto updatedProfile = userService.updateProfile(currentUser.getId(), dto);
-        return ResponseEntity.ok(ApiResponse.success(updatedProfile, "Cập nhật thông tin cá nhân thành công"));
+        return ResponseEntity.ok(ApiResponse.success(updatedProfile, "Profile updated successfully"));
     }
 
     @PostMapping(value = "/avatar", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -47,15 +47,15 @@ public class UserController {
             @RequestParam("file") MultipartFile file) {
 
         if (file.isEmpty()) {
-            return ResponseEntity.badRequest().body(ApiResponse.error("File không được để trống"));
+            return ResponseEntity.badRequest().body(ApiResponse.error("File cannot be empty"));
         }
 
         try {
             String newAvatarUrl = userService.updateAvatar(currentUser.getId(), file);
-            return ResponseEntity.ok(ApiResponse.success(newAvatarUrl, "Cập nhật ảnh đại diện thành công"));
+            return ResponseEntity.ok(ApiResponse.success(newAvatarUrl, "Avatar updated successfully"));
         } catch (Exception e) {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body(ApiResponse.error("Lỗi khi tải ảnh lên server: " + e.getMessage()));
+                    .body(ApiResponse.error("Error uploading image to server: " + e.getMessage()));
         }
     }
 
@@ -66,7 +66,7 @@ public class UserController {
             @RequestParam String identityCard) {
         try {
             userService.sendEmergencyLockOTP(currentUser.getId(), identityCard);
-            return ResponseEntity.ok(ApiResponse.success(null, "Mã OTP đã được gửi đến Gmail của bạn. Vui lòng kiểm tra và nhập mã để xác nhận khóa tài khoản."));
+            return ResponseEntity.ok(ApiResponse.success(null, "OTP code has been sent to your Gmail. Please check and enter the code to confirm account lock."));
         } catch (RuntimeException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ApiResponse.error(e.getMessage()));
         }
@@ -79,7 +79,7 @@ public class UserController {
             @RequestParam String otpCode) {
         try {
             userService.verifyAndLockAccount(currentUser.getId(), otpCode);
-            return ResponseEntity.ok(ApiResponse.success(null, "Tài khoản của bạn đã được khóa khẩn cấp thành công."));
+            return ResponseEntity.ok(ApiResponse.success(null, "Your account has been successfully locked."));
         } catch (RuntimeException e) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ApiResponse.error(e.getMessage()));
         }

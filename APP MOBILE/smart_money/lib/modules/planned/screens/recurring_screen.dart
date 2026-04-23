@@ -66,7 +66,7 @@ class _RecurringScreenState extends State<RecurringScreen> with SingleTickerProv
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final provider = Provider.of<RecurringProvider>(context, listen: false);
-      provider.loadAll(); // Gọi loadAll() thay vì loadRecurring()
+      provider.loadAll(context); // Gọi loadAll() thay vì loadRecurring()
     });
 
     // Load wallets từ UtilService (tự auth, không cần token)
@@ -123,11 +123,9 @@ class _RecurringScreenState extends State<RecurringScreen> with SingleTickerProv
         icon: const Icon(Icons.arrow_back, color: Colors.white),
         onPressed: () => Navigator.pop(context),
       ),
-      // [TODO i18n] Hard-coded title string — migrate to AppLocalizations
-      // [0b] Giảm fontSize xuống 15 để không bị tràn khi hiển thị cùng wallet dropdown
       title: const Text(
         'Recurring transactions',
-        style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w600),
+        style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w600),
         overflow: TextOverflow.ellipsis,
       ),
       actions: [
@@ -170,13 +168,12 @@ class _RecurringScreenState extends State<RecurringScreen> with SingleTickerProv
           child: GestureDetector(
             onTap: _isLoadingWallets ? null : () => _showWalletFilterSheet(wallets, recurringProv),
             child: Container(
-              // [0c] Thu nhỏ maxWidth từ 200 → 130 để chữ title "Giao dịch định kỳ" hiện đủ
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
                 border: Border.all(color: Colors.white24),
                 borderRadius: BorderRadius.circular(8),
               ),
-              constraints: const BoxConstraints(maxWidth: 130),
+              constraints: const BoxConstraints(maxWidth: 200),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -187,11 +184,11 @@ class _RecurringScreenState extends State<RecurringScreen> with SingleTickerProv
                           ? wallets.firstWhere((w) => w.id == selected).goalImageUrl
                           : null,
                     ),
-                    const SizedBox(width: 4),
+                    const SizedBox(width: 6),
                   ] else ...[
                     // Khi 'Tất cả ví' được chọn (selected == null) hiển thị icon màu xanh lá giống trang transaction
-                    const Icon(Icons.account_balance_wallet, color: Color(0xFF4CAF50), size: 16),
-                    const SizedBox(width: 4),
+                    const Icon(Icons.account_balance_wallet, color: Color(0xFF4CAF50), size: 18),
+                    const SizedBox(width: 6),
                   ],
                   // Tên ví
                   Flexible(
@@ -413,7 +410,7 @@ class _RecurringScreenState extends State<RecurringScreen> with SingleTickerProv
     final items = provider.activeItems;
 
     if (provider.errorMessage != null && items.isEmpty) {
-      return _buildErrorState(provider.errorMessage!, () => provider.loadAll());
+      return _buildErrorState(provider.errorMessage!, () => provider.loadAll(context));
     }
 
     if (items.isEmpty) {
@@ -452,7 +449,7 @@ class _RecurringScreenState extends State<RecurringScreen> with SingleTickerProv
     final items = provider.inactiveItems;
 
     if (provider.errorMessage != null && items.isEmpty) {
-      return _buildErrorState(provider.errorMessage!, () => provider.loadAll());
+      return _buildErrorState(provider.errorMessage!, () => provider.loadAll(context));
     }
 
     if (items.isEmpty) {
@@ -659,7 +656,7 @@ class _RecurringScreenState extends State<RecurringScreen> with SingleTickerProv
 
                     // Load debt details để kiểm tra finished
                     final debtProvider = Provider.of<DebtProvider>(context, listen: false);
-                    await debtProvider.loadDebts(item.categoryType ?? false);
+                    await debtProvider.loadDebts(context, item.categoryType ?? false);
 
                     if (!mounted) return;
                     Navigator.pop(context); // Đóng loading dialog
@@ -694,13 +691,13 @@ class _RecurringScreenState extends State<RecurringScreen> with SingleTickerProv
                   // Bước 3: Nếu không có debt hoặc debt chưa finished → tiến hành toggle
                   Navigator.pop(ctx); // Đóng bottom sheet trước
                   final provider = Provider.of<RecurringProvider>(context, listen: false);
-                  final success = await provider.toggle(item.id);
+                  final success = await provider.toggle(context, item.id);
 
                   if (!mounted) return;
 
                   if (success) {
                     // Reload lists so UI updates immediately
-                    provider.loadAll();
+                    provider.loadAll(context);
                     _showSnackBar(provider.successMessage ?? 'Status update successful');
                   } else {
                     _showSnackBar(provider.errorMessage ?? 'An error occurred while updating the status.', isError: true);
@@ -773,7 +770,7 @@ class _RecurringScreenState extends State<RecurringScreen> with SingleTickerProv
     if (result == true && mounted) {
       _showSnackBar('Recurring transactions have been created.');
       // Sau khi tạo thành công, reload lại cả hai tab
-      Provider.of<RecurringProvider>(context, listen: false).loadAll();
+      Provider.of<RecurringProvider>(context, listen: false).loadAll(context);
     }
   }
 
@@ -794,7 +791,7 @@ class _RecurringScreenState extends State<RecurringScreen> with SingleTickerProv
     if (result == true && mounted) {
       _showSnackBar('Regular transaction updates have been made.');
       // Sau khi cập nhật thành công, reload lại cả hai tab
-      Provider.of<RecurringProvider>(context, listen: false).loadAll();
+      Provider.of<RecurringProvider>(context, listen: false).loadAll(context);
     }
   }
 
@@ -823,7 +820,7 @@ class _RecurringScreenState extends State<RecurringScreen> with SingleTickerProv
             onPressed: () async {
               Navigator.pop(ctx);
               final provider = Provider.of<RecurringProvider>(context, listen: false);
-              final success = await provider.delete(item.id);
+              final success = await provider.delete(context, item.id);
 
               // [IMPORTANT] Kiểm tra mounted sau await
               if (!mounted) return;
@@ -831,7 +828,7 @@ class _RecurringScreenState extends State<RecurringScreen> with SingleTickerProv
               if (success) {
                 _showSnackBar('Recurring transaction deleted');
                 // Sau khi xóa thành công, reload lại cả hai tab
-                provider.loadAll();
+                provider.loadAll(context);
               } else {
                 _showSnackBar(provider.errorMessage ?? 'An error occurred.', isError: true);
               }

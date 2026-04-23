@@ -21,6 +21,9 @@
 // ===========================================================
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:smart_money/core/helpers/token_helper.dart';
 import 'package:smart_money/modules/ai/models/request/ai_chat_request.dart';
 import 'package:smart_money/modules/ai/models/request/ai_execute_request.dart';
 import 'package:smart_money/modules/ai/models/response/ai_chat_response.dart';
@@ -78,7 +81,7 @@ class AiProvider extends ChangeNotifier {
   //   1. Reset page nếu là load lần đầu
   //   2. Gọi API getHistory với page + size
   //   3. Append vào list (hoặc replace nếu load lần đầu)
-  Future<void> loadHistory({bool refresh = false}) async {
+  Future<void> loadHistory(BuildContext context, {bool refresh = false}) async {
     // Bước 1: Reset nếu refresh
     if (refresh) {
       _currentPage = 0;
@@ -132,7 +135,14 @@ class AiProvider extends ChangeNotifier {
     } catch (e) {
       // Lỗi bất ngờ
       _isLoading = false;
-      _errorMessage = 'Lỗi khi tải lịch sử: ${e.toString()}';
+      _errorMessage = 'Error loading history: ${e.toString()}';
+      // Xử lý 401 - Session expired
+      if (e.toString().contains("Session expired")) {
+        await TokenHelper.clearTokens();
+        if (context.mounted) {
+          context.go("/login");
+        }
+      }
       notifyListeners();
     }
   }
@@ -143,7 +153,7 @@ class AiProvider extends ChangeNotifier {
   // Gọi khi: User nhập tin nhắn và bấm gửi
   // API: POST /api/ai/chat
   // Trả về: true nếu thành công, false nếu thất bại
-  Future<bool> sendMessage(AiChatRequest request) async {
+  Future<bool> sendMessage(BuildContext context, AiChatRequest request) async {
     // Bước 1: Thêm tin nhắn user vào local state ngay lập tức (UI hiển thị ngay)
     final userMessage = ChatHistoryItem(
       id: DateTime.now().millisecondsSinceEpoch, // Tạm thời dùng timestamp làm ID
@@ -173,7 +183,7 @@ class AiProvider extends ChangeNotifier {
         _lastResponse = response.data;
 
         // Reload lịch sử để sync với server (sẽ thay thế tin nhắn tạm thời bằng tin nhắn thật từ DB)
-        await loadHistory(refresh: true);
+        await loadHistory(context, refresh: true);
 
         // Tắt sending
         _isSending = false;
@@ -191,7 +201,14 @@ class AiProvider extends ChangeNotifier {
       // Lỗi bất ngờ - xóa tin nhắn tạm thời
       _chatHistory.removeLast();
       _isSending = false;
-      _errorMessage = 'Lỗi khi gửi tin nhắn: ${e.toString()}';
+      _errorMessage = 'Error sending message: ${e.toString()}';
+      // Xử lý 401 - Session expired
+      if (e.toString().contains("Session expired")) {
+        await TokenHelper.clearTokens();
+        if (context.mounted) {
+          context.go("/login");
+        }
+      }
       notifyListeners();
       return false;
     }
@@ -203,7 +220,7 @@ class AiProvider extends ChangeNotifier {
   // Gọi khi: User chọn ảnh từ gallery để AI đọc hóa đơn
   // API: POST /api/ai/upload-receipt (multipart/form-data)
   // Trả về: true nếu thành công, false nếu thất bại
-  Future<bool> uploadReceipt({
+  Future<bool> uploadReceipt(BuildContext context, {
     required String imagePath,
     int? walletId,
   }) async {
@@ -225,10 +242,10 @@ class AiProvider extends ChangeNotifier {
         // Lưu phản hồi cuối cùng
         _lastResponse = response.data;
 
-        _successMessage = 'Đã tải lên hóa đơn';
+        _successMessage = 'Receipt uploaded';
 
         // Reload lịch sử để sync với server
-        await loadHistory(refresh: true);
+        await loadHistory(context, refresh: true);
 
         // Tắt sending
         _isSending = false;
@@ -244,7 +261,14 @@ class AiProvider extends ChangeNotifier {
     } catch (e) {
       // Lỗi bất ngờ
       _isSending = false;
-      _errorMessage = 'Lỗi khi tải lên hóa đơn: ${e.toString()}';
+      _errorMessage = 'Error uploading receipt: ${e.toString()}';
+      // Xử lý 401 - Session expired
+      if (e.toString().contains("Session expired")) {
+        await TokenHelper.clearTokens();
+        if (context.mounted) {
+          context.go("/login");
+        }
+      }
       notifyListeners();
       return false;
     }
@@ -256,7 +280,7 @@ class AiProvider extends ChangeNotifier {
   // Gọi khi: User bấm xác nhận hành động (VD: "Lưu giao dịch")
   // API: POST /api/ai/execute
   // Trả về: true nếu thành công, false nếu thất bại
-  Future<bool> executeAction(AiExecuteRequest request) async {
+  Future<bool> executeAction(BuildContext context, AiExecuteRequest request) async {
     // Bước 1: Bật sending
     _isSending = true;
     _errorMessage = null;
@@ -272,10 +296,10 @@ class AiProvider extends ChangeNotifier {
         // Lưu phản hồi cuối cùng
         _lastResponse = response.data;
 
-        _successMessage = 'Đã thực thi hành động';
+        _successMessage = 'Action executed';
 
         // Reload lịch sử để sync với server
-        await loadHistory(refresh: true);
+        await loadHistory(context, refresh: true);
 
         // Tắt sending
         _isSending = false;
@@ -291,7 +315,14 @@ class AiProvider extends ChangeNotifier {
     } catch (e) {
       // Lỗi bất ngờ
       _isSending = false;
-      _errorMessage = 'Lỗi khi thực thi hành động: ${e.toString()}';
+      _errorMessage = 'Error executing action: ${e.toString()}';
+      // Xử lý 401 - Session expired
+      if (e.toString().contains("Session expired")) {
+        await TokenHelper.clearTokens();
+        if (context.mounted) {
+          context.go("/login");
+        }
+      }
       notifyListeners();
       return false;
     }
@@ -303,7 +334,7 @@ class AiProvider extends ChangeNotifier {
   // Gọi khi: User bấm "Xóa toàn bộ lịch sử"
   // API: DELETE /api/ai/history
   // Trả về: true nếu thành công, false nếu thất bại
-  Future<bool> clearHistory() async {
+  Future<bool> clearHistory(BuildContext context) async {
     // Bước 1: Bật loading
     _isLoading = true;
     _errorMessage = null;
@@ -337,7 +368,14 @@ class AiProvider extends ChangeNotifier {
     } catch (e) {
       // Lỗi bất ngờ
       _isLoading = false;
-      _errorMessage = 'Lỗi khi xóa lịch sử: ${e.toString()}';
+      _errorMessage = 'Error deleting history: ${e.toString()}';
+      // Xử lý 401 - Session expired
+      if (e.toString().contains("Session expired")) {
+        await TokenHelper.clearTokens();
+        if (context.mounted) {
+          context.go("/login");
+        }
+      }
       notifyListeners();
       return false;
     }
@@ -349,7 +387,7 @@ class AiProvider extends ChangeNotifier {
   // Gọi khi: User bấm xóa 1 tin nhắn cụ thể
   // API: DELETE /api/ai/history/{conversationId}
   // Trả về: true nếu thành công, false nếu thất bại
-  Future<bool> deleteConversation(int conversationId) async {
+  Future<bool> deleteConversation(BuildContext context, int conversationId) async {
     // Bước 1: Bật loading
     _isLoading = true;
     _errorMessage = null;
@@ -381,7 +419,14 @@ class AiProvider extends ChangeNotifier {
     } catch (e) {
       // Lỗi bất ngờ
       _isLoading = false;
-      _errorMessage = 'Lỗi khi xóa tin nhắn: ${e.toString()}';
+      _errorMessage = 'Error deleting message: ${e.toString()}';
+      // Xử lý 401 - Session expired
+      if (e.toString().contains("Session expired")) {
+        await TokenHelper.clearTokens();
+        if (context.mounted) {
+          context.go("/login");
+        }
+      }
       notifyListeners();
       return false;
     }
@@ -413,7 +458,7 @@ class AiProvider extends ChangeNotifier {
     }
 
     // Mặc định
-    return 'Có lỗi xảy ra. Vui lòng thử lại.';
+    return 'An error occurred. Please try again.';
   }
 
   // =============================================

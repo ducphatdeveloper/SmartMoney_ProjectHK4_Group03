@@ -76,7 +76,7 @@ class TransactionDetailSheet extends StatelessWidget {
 
           // ===== Tên category =====
           Text(
-            transaction.categoryName ?? 'Không có danh mục',
+            transaction.categoryName ?? 'No category',
             style: const TextStyle(
               color: Colors.white,
               fontSize: 18,
@@ -183,7 +183,7 @@ class TransactionDetailSheet extends StatelessWidget {
           if (transaction.withPerson != null && transaction.withPerson!.isNotEmpty)
             _buildInfoRow(
               icon: Icons.person_outline,
-              label: 'Với: ${transaction.withPerson}',
+              label: 'With: ${transaction.withPerson}',
             ),
 
           // ===== Row sự kiện (ẩn nếu null) =====
@@ -197,7 +197,7 @@ class TransactionDetailSheet extends StatelessWidget {
           if (!transaction.reportable)
             _buildInfoRow(
               icon: Icons.visibility_off_outlined,
-              label: 'Không tính vào báo cáo',
+              label: 'Exclude from reports',
               labelColor: Colors.orange,
             ),
 
