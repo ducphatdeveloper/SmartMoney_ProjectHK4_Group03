@@ -38,7 +38,7 @@ const Login = () => {
                     ipAddress: data.ip
                 }));
             } catch (error) {
-                console.error("Lấy Public IP Address thất bại:", error);
+                console.error("Failed to get Public IP Address:", error);
                 // Fallback về địa chỉ IP mặc định nếu dịch vụ không khả dụng
                 setFormData(prev => ({
                     ...prev,
@@ -61,10 +61,10 @@ const Login = () => {
     const validate = () => {
         const newErrors = {};
         if (!formData.username.trim()) {
-            newErrors.username = 'Vui lòng nhập Email hoặc Số điện thoại';
+            newErrors.username = 'Please enter Email or Phone number';
         }
         if (!formData.password) {
-            newErrors.password = 'Vui lòng nhập mật khẩu';
+            newErrors.password = 'Please enter password';
         }
         return newErrors;
     };
@@ -111,7 +111,7 @@ const Login = () => {
             }
         } catch (err) {
             // Lấy message lỗi từ server nếu có
-            const message = err.response?.data?.message || 'Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin.';
+            const message = err.response?.data?.message || 'Login failed. Please check your information.';
             setGeneralError(message);
         } finally {
             setIsLoading(false);
@@ -169,7 +169,7 @@ const Login = () => {
                         <i className="bi bi-wallet2 fs-1 text-primary"></i>
                     </div>
                     <h3 className="fw-bold text-dark">SmartMoney</h3>
-                    <p className="text-muted small">Quản lý tài chính thông minh & hiệu quả</p>
+                    <p className="text-muted small">Smart & efficient financial management</p>
                 </div>
 
                 {generalError && <div className="alert alert-danger border-0 small text-center py-2 rounded-3 mb-3">{generalError}</div>}
@@ -182,7 +182,7 @@ const Login = () => {
                             className={`form-control ${errors.username ? 'is-invalid' : ''}`}
                             value={formData.username}
                             onChange={(e) => { setFormData({...formData, username: e.target.value}); if (errors.username) setErrors({...errors, username: ''}); }}
-                            placeholder="Email hoặc số điện thoại"
+                            placeholder="Email or phone number"
                         />
                         {errors.username && <div className="invalid-feedback">{errors.username}</div>}
                     </div>
@@ -193,21 +193,21 @@ const Login = () => {
                             className={`form-control ${errors.password ? 'is-invalid' : ''}`}
                             value={formData.password}
                             onChange={(e) => { setFormData({...formData, password: e.target.value}); if (errors.password) setErrors({...errors, password: ''}); }}
-                            placeholder="Mật khẩu"
+                            placeholder="Password"
                         />
                         {errors.password && <div className="invalid-feedback">{errors.password}</div>}
                     </div>
                     
                     <button type="submit" className="btn btn-primary btn-login w-100 fw-bold text-white shadow-sm" disabled={isLoading}>
-                        {isLoading ? <span><span className="spinner-border spinner-border-sm me-2"></span>Xử lý...</span> : "ĐĂNG NHẬP"}
+                        {isLoading ? <span><span className="spinner-border spinner-border-sm me-2"></span>Processing...</span> : "LOGIN"}
                     </button>
                     
                     <div className="text-center mt-4">
-                        <Link to="/forgot-password" className="text-decoration-none small">Quên mật khẩu?</Link>
+                        <Link to="/forgot-password" className="text-decoration-none small">Forgot password?</Link>
                     </div>
                     <div className="text-center mt-2 small">
-                        <span className="text-muted">Chưa có tài khoản?</span>{" "}
-                        <Link to="/register" className="text-decoration-none fw-bold text-primary">Đăng ký ngay</Link>
+                        <span className="text-muted">Don't have an account?</span>{" "}
+                        <Link to="/register" className="text-decoration-none fw-bold text-primary">Sign up now</Link>
                     </div>
                 </form>
             </div>

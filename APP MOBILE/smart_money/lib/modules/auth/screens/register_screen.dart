@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'dart:io' show Platform;
+import 'package:flutter/foundation.dart' show kIsWeb;
 import '../providers/auth_provider.dart';
 
 class RegisterScreen extends StatefulWidget {
@@ -415,38 +417,40 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           ),
                         ),
 
-                        const SizedBox(height: 15),
-                        // --- Nút Đăng ký bằng Google ---
-                        SizedBox(
-                          width: double.infinity,
-                          height: 50,
-                          child: OutlinedButton.icon(
-                            icon: Image.asset(
-                              'assets/icons/google_logo.png', // Thay đổi từ Image.network sang Image.asset
-                              height: 24,
-                            ),
-                            label: const Text(
-                              "Sign up with Google",
-                              style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold),
-                            ),
-                            style: OutlinedButton.styleFrom(
-                              side: const BorderSide(color: Colors.grey),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(14),
+                        // --- Nút Đăng ký bằng Google (Ẩn trên Web, hiện trên Mobile) ---
+                        if (!kIsWeb) ...[
+                          const SizedBox(height: 15),
+                          SizedBox(
+                            width: double.infinity,
+                            height: 50,
+                            child: OutlinedButton.icon(
+                              icon: Image.asset(
+                                'assets/icons/google_logo.png',
+                                height: 24,
                               ),
+                              label: const Text(
+                                "Sign up with Google",
+                                style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold),
+                              ),
+                              style: OutlinedButton.styleFrom(
+                                side: const BorderSide(color: Colors.grey),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
+                              ),
+                              onPressed: authProvider.isLoading ? null : () async {
+                                final success = await authProvider.loginWithGoogle(context);
+                                if (!mounted) return;
+                                if (success) {
+                                  _showSnackBar(authProvider.successMessage ?? 'Google registration/login successful!', isError: false);
+                                  context.go("/main");
+                                } else if (authProvider.errorMessage != null) {
+                                  _showSnackBar(authProvider.errorMessage!);
+                                }
+                              },
                             ),
-                            onPressed: authProvider.isLoading ? null : () async {
-                              final success = await authProvider.loginWithGoogle(context); // Sử dụng lại logic loginWithGoogle
-                              if (!mounted) return;
-                              if (success) {
-                                _showSnackBar(authProvider.successMessage ?? 'Google registration/login successful!', isError: false);
-                                context.go("/main");
-                              } else if (authProvider.errorMessage != null) {
-                                _showSnackBar(authProvider.errorMessage!);
-                              }
-                            },
                           ),
-                        ),
+                        ],
 
                         const SizedBox(height: 20),
 
