@@ -282,16 +282,45 @@ class _BudgetScreenState extends State<BudgetScreen>
     final start = b.beginDate;
     final end = b.endDate;
 
+    // Lấy giá trị gợi ý theo budgetType
+    double? suggestedPeriodSpend;
+
     switch (b.budgetType) {
       case BudgetType.weekly:
-        return "Suggested this week (${formatter.format(start)} - ${formatter.format(end)}): ${formatMoney(b.suggestedAmount)}";
+        suggestedPeriodSpend = b.suggestedWeeklySpend;
+        break;
       case BudgetType.monthly:
-        return "Suggested this month (${formatter.format(start)} - ${formatter.format(end)}): ${formatMoney(b.suggestedAmount)}";
+        suggestedPeriodSpend = b.suggestedMonthlySpend;
+        break;
       case BudgetType.yearly:
-        return "Suggested this year (${formatter.format(start)} - ${formatter.format(end)}): ${formatMoney(b.suggestedAmount)}";
+        suggestedPeriodSpend = b.suggestedYearlySpend;
+        break;
       case BudgetType.custom:
-        return "Suggested (${formatter.format(start)} - ${formatter.format(end)}): ${formatMoney(b.suggestedAmount)}";
+        suggestedPeriodSpend = b.suggestedCustomSpend;
+        break;
     }
+
+    String periodText;
+    switch (b.budgetType) {
+      case BudgetType.weekly:
+        periodText = "week";
+        break;
+      case BudgetType.monthly:
+        periodText = "month";
+        break;
+      case BudgetType.yearly:
+        periodText = "year";
+        break;
+      case BudgetType.custom:
+        periodText = "period";
+        break;
+    }
+
+    if (suggestedPeriodSpend != null && suggestedPeriodSpend > 0) {
+      return "Suggested $periodText (${formatter.format(start)} - ${formatter.format(end)}): ${formatMoney(suggestedPeriodSpend)}";
+    }
+
+    return "Suggested $periodText (${formatter.format(start)} - ${formatter.format(end)}): ${formatMoney(b.suggestedAmount)}";
   }
 
   // ================= BUILD =================
@@ -704,7 +733,7 @@ class _BudgetScreenState extends State<BudgetScreen>
     );
   }
 
-  // ── Widget hiển thị thông tin ngân sách (spent/amount, overBudgetAmount, warning) ────────
+  // ── Widget hiển thị thông tin ngân sách với đầy đủ logic backend mới ────────
   Widget _budgetInfoRow(BudgetResponse b) {
     final remaining = b.amount - b.spentAmount;
     final p = b.spentAmount / (b.amount == 0 ? 1 : b.amount);
@@ -750,6 +779,25 @@ class _BudgetScreenState extends State<BudgetScreen>
                 const Text(
                   "Approaching budget limit",
                   style: TextStyle(
+                    color: Colors.orange,
+                    fontSize: 11,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        // ── Hiển thị dự đoán chi tiêu (projectedSpend) khi có warning hoặc custom budgetType ────────
+        if ((b.warning || b.budgetType == BudgetType.custom) && b.projectedSpend > 0)
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Row(
+              children: [
+                const Icon(Icons.trending_up,
+                  color: Colors.orange, size: 12),
+                const SizedBox(width: 4),
+                Text(
+                  "Projected: ${formatMoney(b.projectedSpend)}",
+                  style: const TextStyle(
                     color: Colors.orange,
                     fontSize: 11,
                   ),

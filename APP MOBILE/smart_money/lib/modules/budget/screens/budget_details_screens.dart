@@ -68,11 +68,18 @@ class _BudgetDetailScreenState extends State<BudgetDetailScreen>
 
   Future<void> _loadTransactions() async {
     final service = BudgetService();
+    print("🔍 [BudgetDetail] Loading transactions for budget #${_budget.id}");
     final res = await service.getBudgetTransactions(_budget.id);
+
+    print("📥 [BudgetDetail] Response success: ${res?.success}");
+    print("📥 [BudgetDetail] Response data length: ${res?.data?.length}");
 
     if (res?.success == true) {
       transactions = res?.data ?? [];
       transactions.sort((a, b) => b.transDate.compareTo(a.transDate));
+      print("✅ [BudgetDetail] Loaded ${transactions.length} transactions");
+    } else {
+      print("❌ [BudgetDetail] Failed to load transactions: ${res?.message}");
     }
 
     setState(() => isLoading = false);
@@ -377,7 +384,7 @@ class _BudgetDetailScreenState extends State<BudgetDetailScreen>
     );
   }
 
-  // ── Card hiển thị gợi ý theo type (tuần/tháng/năm/custom) ─────────────────────────
+  // ── Card hiển thị gợi ý theo type (tuần/tháng/năm/custom) với đầy đủ logic backend ─────────────────────────
   Widget _suggestionCard() {
     final b = _budget;
 
@@ -388,6 +395,54 @@ class _BudgetDetailScreenState extends State<BudgetDetailScreen>
 
     if (b.isOther) {
       return const SizedBox.shrink();
+    }
+
+    // Lấy label cho dailyShouldSpend và dailyActualSpend theo budgetType
+    String shouldSpendLabel;
+    String actualSpendLabel;
+
+    switch (b.budgetType) {
+      case BudgetType.weekly:
+        shouldSpendLabel = "Daily should spend";
+        actualSpendLabel = "Daily actual spend";
+        break;
+      case BudgetType.monthly:
+        shouldSpendLabel = "Weekly should spend";
+        actualSpendLabel = "Weekly actual spend";
+        break;
+      case BudgetType.yearly:
+        shouldSpendLabel = "Monthly should spend";
+        actualSpendLabel = "Monthly actual spend";
+        break;
+      case BudgetType.custom:
+        shouldSpendLabel = "Daily should spend";
+        actualSpendLabel = "Daily actual spend";
+        break;
+    }
+
+    // Tính giá trị hiển thị cho should/actual spend theo budgetType
+    double displayShouldSpend;
+    double displayActualSpend;
+
+    switch (b.budgetType) {
+      case BudgetType.weekly:
+        displayShouldSpend = b.dailyShouldSpend;
+        displayActualSpend = b.dailyActualSpend;
+        break;
+      case BudgetType.monthly:
+        // Chuyển daily sang weekly (x7)
+        displayShouldSpend = b.dailyShouldSpend * 7;
+        displayActualSpend = b.dailyActualSpend * 7;
+        break;
+      case BudgetType.yearly:
+        // Chuyển daily sang monthly (x30)
+        displayShouldSpend = b.dailyShouldSpend * 30;
+        displayActualSpend = b.dailyActualSpend * 30;
+        break;
+      case BudgetType.custom:
+        displayShouldSpend = b.dailyShouldSpend;
+        displayActualSpend = b.dailyActualSpend;
+        break;
     }
 
     return Container(
@@ -415,15 +470,36 @@ class _BudgetDetailScreenState extends State<BudgetDetailScreen>
             ],
           ),
           const SizedBox(height: 12),
+          // ── Ngân sách đề xuất dựa trên lịch sử 3 tháng ────────
           _infoRow("Suggested budget", formatMoney(b.suggestedAmount)),
           const SizedBox(height: 8),
-          _infoRow("Recommended daily spend", formatMoney(b.suggestedDailySpend)),
+          // ── Số tiền nên chi theo budgetType ────────
+          _infoRow(shouldSpendLabel, formatMoney(displayShouldSpend)),
           const SizedBox(height: 8),
+          // ── Chi thực tế theo budgetType ────────
+          _infoRow(actualSpendLabel, formatMoney(displayActualSpend)),
+          const SizedBox(height: 8),
+          // ── So sánh với ngân sách hiện tại ────────
           if (b.amount > 0)
             _infoRow(
               "Difference from current",
               formatMoney(b.suggestedAmount - b.amount),
               color: (b.suggestedAmount - b.amount) >= 0 ? Colors.greenAccent : Colors.redAccent,
+            ),
+          const SizedBox(height: 8),
+          // ── Dự đoán tổng chi đến cuối kỳ dựa trên pattern ────────
+          _infoRow(
+            "Projected spend",
+            formatMoney(b.projectedSpend),
+            color: b.warning ? Colors.orange : Colors.grey,
+          ),
+          const SizedBox(height: 8),
+          // ── Số tiền vượt ngân sách (nếu có) ────────
+          if (b.overBudgetAmount > 0)
+            _infoRow(
+              "Over budget amount",
+              formatMoney(b.overBudgetAmount),
+              color: Colors.redAccent,
             ),
         ],
       ),
@@ -675,7 +751,7 @@ class _BudgetDetailScreenState extends State<BudgetDetailScreen>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
-            width: 90,
+            width: 120,
             child: Text(
               "$label:",
               style: const TextStyle(fontSize: 12, color: Colors.grey),
