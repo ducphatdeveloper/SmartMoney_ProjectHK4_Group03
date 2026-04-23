@@ -28,9 +28,13 @@ class BudgetResponse {
   final double dailyActualSpend;
   final double projectedSpend;
 
-  final double suggestedAmount;      // Ngân sách đề xuất dựa trên lịch sử 3 tháng
-  final double suggestedDailySpend;  // Nên chi hàng ngày theo đề xuất
-  final double overBudgetAmount;     // Số tiền vượt ngân sách = max(0, spent - amount)
+  final double suggestedAmount;       // Ngân sách đề xuất dựa trên lịch sử 3 tháng
+  final double suggestedDailySpend;   // Nên chi hàng ngày theo đề xuất
+  final double? suggestedWeeklySpend;  // Nên chi hàng tuần theo đề xuất (chỉ có giá trị khi budgetType=WEEKLY)
+  final double? suggestedMonthlySpend; // Nên chi hàng tháng theo đề xuất (chỉ có giá trị khi budgetType=MONTHLY)
+  final double? suggestedYearlySpend;  // Nên chi hàng năm theo đề xuất (chỉ có giá trị khi budgetType=YEARLY)
+  final double? suggestedCustomSpend;  // Nên chi theo custom period theo đề xuất (chỉ có giá trị khi budgetType=CUSTOM)
+  final double overBudgetAmount;      // Số tiền vượt ngân sách = max(0, spent - amount)
 
   final bool exceeded;
   final bool warning;
@@ -56,6 +60,10 @@ class BudgetResponse {
     this.projectedSpend = 0,
     this.suggestedAmount = 0,
     this.suggestedDailySpend = 0,
+    this.suggestedWeeklySpend,
+    this.suggestedMonthlySpend,
+    this.suggestedYearlySpend,
+    this.suggestedCustomSpend,
     this.overBudgetAmount = 0,
     this.isOther = false,
     this.exceeded = false,
@@ -103,6 +111,10 @@ class BudgetResponse {
       spentAmount: safeDouble(json['spentAmount']),
       suggestedAmount: safeDouble(json['suggestedAmount']),
       suggestedDailySpend: safeDouble(json['suggestedDailySpend']),
+      suggestedWeeklySpend: safeDouble(json['suggestedWeeklySpend']),
+      suggestedMonthlySpend: safeDouble(json['suggestedMonthlySpend']),
+      suggestedYearlySpend: safeDouble(json['suggestedYearlySpend']),
+      suggestedCustomSpend: safeDouble(json['suggestedCustomSpend']),
       overBudgetAmount: safeDouble(json['overBudgetAmount']),
       remainingAmount: safeDouble(json['remainingAmount']),
       dailyShouldSpend: safeDouble(json['dailyShouldSpend']),
@@ -135,6 +147,10 @@ class BudgetResponse {
     double? projectedSpend,
     double? suggestedAmount,
     double? suggestedDailySpend,
+    double? suggestedWeeklySpend,
+    double? suggestedMonthlySpend,
+    double? suggestedYearlySpend,
+    double? suggestedCustomSpend,
     double? overBudgetAmount,
     bool? exceeded,
     bool? warning,
@@ -163,6 +179,10 @@ class BudgetResponse {
       projectedSpend: projectedSpend ?? this.projectedSpend,
       suggestedAmount: suggestedAmount ?? this.suggestedAmount,
       suggestedDailySpend: suggestedDailySpend ?? this.suggestedDailySpend,
+      suggestedWeeklySpend: suggestedWeeklySpend ?? this.suggestedWeeklySpend,
+      suggestedMonthlySpend: suggestedMonthlySpend ?? this.suggestedMonthlySpend,
+      suggestedYearlySpend: suggestedYearlySpend ?? this.suggestedYearlySpend,
+      suggestedCustomSpend: suggestedCustomSpend ?? this.suggestedCustomSpend,
       overBudgetAmount: overBudgetAmount ?? this.overBudgetAmount,
       exceeded: exceeded ?? this.exceeded,
       warning: warning ?? this.warning,
