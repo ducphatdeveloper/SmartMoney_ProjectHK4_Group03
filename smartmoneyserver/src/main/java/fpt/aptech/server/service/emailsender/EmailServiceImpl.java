@@ -29,8 +29,8 @@ public class EmailServiceImpl implements EmailService {
         SimpleMailMessage message = new SimpleMailMessage();
         message.setFrom(fromEmail);
         message.setTo(to);
-        message.setSubject("Mã OTP xác thực");
-        message.setText("Mã OTP của bạn là: " + otp);
+        message.setSubject("OTP Verification Code");
+        message.setText("Your OTP code is: " + otp);
         mailSender.send(message);
     }
 
@@ -50,7 +50,7 @@ public class EmailServiceImpl implements EmailService {
             mailSender.send(message);
         } catch (MessagingException e) {
             // Xử lý lỗi khi không gửi được mail
-            log.error("Lỗi khi gửi HTML email: ", e);
+            log.error("Error sending HTML email: ", e);
         }
     }
 
@@ -70,7 +70,7 @@ public class EmailServiceImpl implements EmailService {
 
             mailSender.send(message);
         } catch (MessagingException e) {
-            log.error("Lỗi khi gửi mail đính kèm: ", e);
+            log.error("Error sending email with attachment: ", e);
         }
     }
 
@@ -82,19 +82,19 @@ public class EmailServiceImpl implements EmailService {
 
             helper.setFrom(fromEmail);
             helper.setTo(to);
-            helper.setSubject("[SmartMoney] Mã xác nhận khóa tài khoản khẩn cấp");
+            helper.setSubject("[SmartMoney] Emergency Account Lock Verification Code");
 
-            String htmlBody = "<h3>Yêu cầu khóa tài khoản khẩn cấp</h3>" +
-                    "<p>Chào " + fullname + ",</p>" +
-                    "<p>Bạn vừa yêu cầu khóa tài khoản khẩn cấp. Mã xác nhận của bạn là:</p>" +
+            String htmlBody = "<h3>Emergency Account Lock Request</h3>" +
+                    "<p>Hello " + fullname + ",</p>" +
+                    "<p>You have requested an emergency account lock. Your verification code is:</p>" +
                     "<h2 style='color:red;'>" + otp + "</h2>" +
-                    "<p>Mã này có hiệu lực trong 5 phút. Nếu không phải bạn thực hiện, hãy đổi mật khẩu ngay.</p>";
+                    "<p>This code is valid for 5 minutes. If you did not make this request, please change your password immediately.</p>";
 
             helper.setText(htmlBody, true);
             mailSender.send(message);
-            log.info("Đã gửi OTP khẩn cấp bất đồng bộ thành công đến: {}", to);
+            log.info("Emergency OTP sent successfully to: {}", to);
         } catch (MessagingException e) {
-            log.error("Lỗi khi gửi email OTP khẩn cấp: ", e);
+            log.error("Error sending emergency OTP email: ", e);
         }
     }
 }

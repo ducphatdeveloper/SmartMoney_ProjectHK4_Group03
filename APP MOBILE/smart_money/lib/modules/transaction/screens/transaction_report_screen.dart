@@ -603,9 +603,11 @@ class _ReportLoaderState extends State<_ReportLoader> {
                     SizedBox(
                       width: 45,
                       child: Text(
-                        '${item.percentage.toStringAsFixed(1)}%', 
+                        '${item.percentage.toStringAsFixed(1)}%',
                         textAlign: TextAlign.right,
-                        style: TextStyle(color: Colors.green[400], fontSize: 11, fontWeight: FontWeight.w600)
+                        style: TextStyle(color: Colors.green[400], fontSize: 11, fontWeight: FontWeight.w600),
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
                       ),
                     ),
                   ],
@@ -646,7 +648,7 @@ class _ReportLoaderState extends State<_ReportLoader> {
       final isTouched = i == (isExpense ? _touchedExpenseIndex : _touchedIncomeIndex);
       final item = data[i];
       final double radius = isTouched ? 75.0 : 65.0;
-      final double fontSize = isTouched ? 13.0 : 10.0;
+      final double fontSize = isTouched ? 12.0 : 9.0;
       final double iconSize = isTouched ? 22.0 : 18.0;
 
       return PieChartSectionData(

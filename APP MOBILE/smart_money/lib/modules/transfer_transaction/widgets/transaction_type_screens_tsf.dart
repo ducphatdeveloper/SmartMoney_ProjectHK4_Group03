@@ -48,11 +48,11 @@ class TransactionTypeTab extends StatelessWidget {
   String _label(TransactionTab type) {
     switch (type) {
       case TransactionTab.expense:
-        return "Chi tiêu";
+        return "Expense";
       case TransactionTab.income:
-        return "Thu nhập";
+        return "Income";
       case TransactionTab.transfer:
-        return "Chuyển tiền";
+        return "Transfer";
     }
   }
 }

@@ -14,8 +14,8 @@ import lombok.Builder;
 @Builder
 public record AiChatRequest(
         // Bước 1: Validate tin nhắn không rỗng và độ dài tối đa
-        @NotBlank(message = "Tin nhắn không được để trống")
-        @Size(max = 2000, message = "Tin nhắn không được vượt quá 2000 ký tự")
+        @NotBlank(message = "Message cannot be empty")
+        @Size(max = 2000, message = "Message must not exceed 2000 characters")
         @JsonProperty("message")
         String message,             // Nội dung tin nhắn của người dùng
 

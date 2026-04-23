@@ -59,7 +59,7 @@ class AuthService {
     } catch (e) {
       return ApiResponse<AuthResponse>(
         success: false,
-        message: "Không thể kết nối đến server. Kiểm tra lại mạng.",
+        message: "Cannot connect to server. Please check your network.",
       );
     }
   }
@@ -99,7 +99,7 @@ class AuthService {
     } catch (e) {
       return ApiResponse<AuthResponse>(
         success: false,
-        message: "Không thể kết nối đến server khi đăng nhập Google.",
+        message: "Cannot connect to server during Google login.",
       );
     }
   }
@@ -125,7 +125,7 @@ class AuthService {
     } catch (e) {
       return ApiResponse<dynamic>(
         success: false,
-        message: "Không thể kết nối đến server. Kiểm tra lại mạng.",
+        message: "Cannot connect to server. Please check your network.",
       );
     }
   }
@@ -159,7 +159,7 @@ class AuthService {
       await _handleUnauthorized(response);
       return ApiResponse<AuthResponse>.fromJson(jsonDecode(utf8.decode(response.bodyBytes)), (data) => AuthResponse.fromJson(data));
     } catch (e) {
-      return ApiResponse<AuthResponse>(success: false, message: "Lỗi lấy thông tin.");
+      return ApiResponse<AuthResponse>(success: false, message: "Error fetching profile information.");
     }
   }
 
@@ -169,7 +169,7 @@ class AuthService {
       await _handleUnauthorized(response);
       return ApiResponse<AuthResponse>.fromJson(jsonDecode(utf8.decode(response.bodyBytes)), (data) => AuthResponse.fromJson(data));
     } catch (e) {
-      return ApiResponse<AuthResponse>(success: false, message: "Lỗi cập nhật.");
+      return ApiResponse<AuthResponse>(success: false, message: "Error updating profile.");
     }
   }
 
@@ -184,7 +184,7 @@ class AuthService {
       await _handleUnauthorized(response);
       return ApiResponse<String>.fromJson(jsonDecode(utf8.decode(response.bodyBytes)), (data) => data.toString());
     } catch (e) {
-      return ApiResponse<String>(success: false, message: "Lỗi avatar.");
+      return ApiResponse<String>(success: false, message: "Error updating avatar.");
     }
   }
 
@@ -201,7 +201,7 @@ class AuthService {
       await _handleUnauthorized(response);
       return ApiResponse<dynamic>.fromJson(jsonDecode(utf8.decode(response.bodyBytes)), null);
     } catch (e) {
-      return ApiResponse<dynamic>(success: false, message: "Lỗi gửi mã OTP.");
+      return ApiResponse<dynamic>(success: false, message: "Error sending OTP code.");
     }
   }
 
@@ -214,7 +214,7 @@ class AuthService {
       await _handleUnauthorized(response);
       return ApiResponse<dynamic>.fromJson(jsonDecode(utf8.decode(response.bodyBytes)), null);
     } catch (e) {
-      return ApiResponse<dynamic>(success: false, message: "Lỗi xác nhận.");
+      return ApiResponse<dynamic>(success: false, message: "Error verifying OTP code.");
     }
   }
 
@@ -225,13 +225,13 @@ class AuthService {
     try {
       final response = await http.post(Uri.parse(AppConstants.authForgotPassword), headers: {"Content-Type": "application/json"}, body: jsonEncode({"email": email}));
       return ApiResponse<dynamic>.fromJson(jsonDecode(utf8.decode(response.bodyBytes)), null);
-    } catch (e) { return ApiResponse<dynamic>(success: false, message: "Lỗi server."); }
+    } catch (e) { return ApiResponse<dynamic>(success: false, message: "Server error."); }
   }
 
   Future<ApiResponse<dynamic>> resetPassword(String email, String otp, String newPassword) async {
     try {
       final response = await http.post(Uri.parse(AppConstants.authResetPassword), headers: {"Content-Type": "application/json"}, body: jsonEncode({"email": email, "otp": otp, "newPassword": newPassword}));
       return ApiResponse<dynamic>.fromJson(jsonDecode(utf8.decode(response.bodyBytes)), null);
-    } catch (e) { return ApiResponse<dynamic>(success: false, message: "Lỗi server."); }
+    } catch (e) { return ApiResponse<dynamic>(success: false, message: "Server error."); }
   }
 }

@@ -137,7 +137,7 @@ class AuthProvider extends ChangeNotifier {
       notifyListeners();
       return false;
     } catch (e) {
-      _errorMessage = 'Lỗi kết nối server.';
+      _errorMessage = 'Server connection error.';
       _isLoading = false;
       notifyListeners();
       return false;
@@ -152,7 +152,7 @@ class AuthProvider extends ChangeNotifier {
     try {
       final googleAuth = await _googleAuthService.signInWithGoogle();
       if (googleAuth == null || googleAuth.idToken == null) {
-        _errorMessage = "Đăng nhập bị hủy hoặc không thể kết nối tới Google.";
+        _errorMessage = "Login was cancelled or could not connect to Google.";
         _isLoading = false;
         notifyListeners();
         return false;
@@ -171,12 +171,12 @@ class AuthProvider extends ChangeNotifier {
         notifyListeners();
         return true;
       }
-      _errorMessage = response.message ?? "Tài khoản Google này chưa được cấp phép hoặc lỗi xác thực.";
+      _errorMessage = response.message ?? "This Google account is not authorized or authentication error.";
       _isLoading = false;
       notifyListeners();
       return false;
     } catch (e) {
-      _errorMessage = 'Lỗi trong quá trình xử lý đăng nhập Google.';
+      _errorMessage = 'Error during Google login processing.';
       _isLoading = false;
       notifyListeners();
       return false;
@@ -250,7 +250,7 @@ class AuthProvider extends ChangeNotifier {
       final request = RegisterRequest(accEmail: email, accPhone: phone, password: password, confirmPassword: confirmPassword);
       final response = await _authService.register(request);
       if (response.success) {
-        _successMessage = response.message ?? 'Đăng ký thành công';
+        _successMessage = response.message ?? 'Registration successful';
         _isLoading = false;
         notifyListeners();
         return true;
@@ -260,7 +260,7 @@ class AuthProvider extends ChangeNotifier {
       notifyListeners();
       return false;
     } catch (e) {
-      _errorMessage = 'Không thể kết nối đến server.';
+      _errorMessage = 'Cannot connect to server.';
       _isLoading = false;
       notifyListeners();
       return false;
@@ -353,7 +353,7 @@ class AuthProvider extends ChangeNotifier {
 
   String _extractErrorMessage(dynamic response) {
     if (response.message != null && response.message!.isNotEmpty) return response.message!;
-    return 'Có lỗi xảy ra. Vui lòng thử lại.';
+    return 'An error occurred. Please try again.';
   }
 
   UserModel _fromDecodedToken(Map<String, dynamic> decodedToken) {

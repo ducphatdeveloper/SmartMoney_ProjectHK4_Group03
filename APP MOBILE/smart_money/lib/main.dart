@@ -40,7 +40,7 @@ const AndroidNotificationChannel channel = AndroidNotificationChannel(
 void _showLocalNotification(RemoteMessage message) {
   RemoteNotification? notification = message.notification;
   String? title = notification?.title ?? message.data['title'] ?? 'Smart Money';
-  String? body = notification?.body ?? message.data['body'] ?? 'Bạn có thông báo mới';
+  String? body = notification?.body ?? message.data['body'] ?? 'You have a new notification';
 
   flutterLocalNotificationsPlugin.show(
     message.hashCode,
@@ -179,7 +179,7 @@ class _SmartMoneyAppState extends State<SmartMoneyApp> {
           int notifyId = int.parse(notifyIdStr);
           context.read<NotificationProvider>().markAsDelivered(notifyId);
         } catch (e) {
-          debugPrint("Lỗi parse notifyId: $e");
+          debugPrint("Error parsing notifyId: $e");
         }
       }
     });

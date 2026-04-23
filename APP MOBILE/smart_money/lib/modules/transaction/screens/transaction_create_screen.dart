@@ -143,7 +143,7 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
       final provider = context.read<TransactionProvider>();
       if (provider.sourceItems.isEmpty) {
         setState(() => _isLoadingSources = true);
-        await provider.ensureSourceItemsLoaded();
+        await provider.ensureSourceItemsLoaded(context);
         if (mounted) setState(() => _isLoadingSources = false);
       }
     });
@@ -259,7 +259,7 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
     // Bước 4: Gọi Provider (không gọi Service trực tiếp từ Screen)
     setState(() => _isSaving = true);
     final provider = Provider.of<TransactionProvider>(context, listen: false);
-    final success = await provider.createTransaction(request);
+    final success = await provider.createTransaction(context, request);
     setState(() => _isSaving = false);
 
     // Bước 5: Kiểm tra mounted TRƯỚC KHI dùng context sau await
@@ -562,7 +562,7 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
     // Bước 1: Load khoản nợ phù hợp
     final debtProvider = Provider.of<DebtProvider>(context, listen: false);
     final debtType = _debtTypeForPicker;
-    await debtProvider.loadDebts(debtType);
+    await debtProvider.loadDebts(context, debtType);
 
     // Bước 2: Kiểm tra mounted sau await
     if (!mounted) return;
@@ -574,7 +574,7 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
         ? debtProvider.receivableDebts  // CẦN THU — Cho vay chưa thu
         : debtProvider.payableDebts;    // CẦN TRẢ — Đi vay chưa trả
 
-    final tabLabel = debtType ? 'CẦN THU' : 'CẦN TRẢ';
+    final tabLabel = debtType ? 'RECEIVABLE' : 'PAYABLE';
 
     // Bước 4: Hiện bottom sheet
     showModalBottomSheet(
@@ -601,7 +601,7 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      'Choose the $tabLabel',
+                      'Select $tabLabel debt',
                       style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
                     ),
                     const Spacer(),
@@ -940,7 +940,7 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
                       const Divider(color: Colors.grey, height: 1),
                     ],
 
-                    // Nút "THÊM CHI TIẾT"
+                    // Button "ADD DETAILS"
                     _buildToggleDetailsButton(),
 
                     // Phần chi tiết (ẩn/hiện)
@@ -1173,10 +1173,10 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
     });
   }
 
-  // ----- Widget: Row liên kết khoản nợ (chỉ hiện khi category là Thu nợ/Trả nợ) -----
+  // ----- Widget: Row link debt (only show when category is Debt collection/Debt repayment) -----
   Widget _buildDebtRow() {
-    // Nhãn phụ theo loại category
-    final isCollect = _selectedCategory?.id == 21; // Thu nợ → CẦN THU
+    // Label based on category type
+    final isCollect = _selectedCategory?.id == 21; // Debt collection → RECEIVABLE
     final hintText = isCollect
         ? 'Select the amount of debt to be collected (optional)'
         : 'Select the amount of debt to be repaid (optional)';
@@ -1366,7 +1366,7 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
             ),
             const SizedBox(width: 4),
             Text(
-              _showDetails ? 'HIDE DETAILS' : 'MORE DETAILS',
+              _showDetails ? 'HIDE DETAILS' : 'ADD DETAILS',
               style: const TextStyle(
                 color: Color(0xFF4CAF50),
                 fontWeight: FontWeight.w600,
@@ -1601,7 +1601,7 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
                   child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                 )
               : const Text(
-                  'LƯU',
+                  'SAVE',
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                 ),
         ),

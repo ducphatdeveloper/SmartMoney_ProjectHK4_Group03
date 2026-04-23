@@ -47,9 +47,9 @@ class TransactionTabSwitch extends StatelessWidget {
       ),
       child: Row(
         children: [
-          buildItem("Khoản chi", TransactionTab.expense),
-          buildItem("Khoản thu", TransactionTab.income),
-          buildItem("Vay/Nợ", TransactionTab.debt),
+          buildItem("Expense", TransactionTab.expense),
+          buildItem("Income", TransactionTab.income),
+          buildItem("Debt", TransactionTab.debt),
         ],
       ),
     );

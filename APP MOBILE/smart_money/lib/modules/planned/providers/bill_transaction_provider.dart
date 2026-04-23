@@ -12,6 +12,8 @@
 // ===========================================================
 
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:smart_money/core/helpers/token_helper.dart';
 import 'package:smart_money/modules/planned/services/planned_service.dart';
 import 'package:smart_money/modules/transaction/models/view/bill_transaction_list_response.dart';
 
@@ -34,22 +36,33 @@ class BillTransactionProvider extends ChangeNotifier {
   // =============================================
   // Gọi khi: Mở màn hình BillTransactionListScreen
   // API: GET /api/bills/{id}/transactions
-  Future<void> loadBillTransactions(int billId) async {
+  Future<void> loadBillTransactions(BuildContext context, int billId) async {
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
 
-    final response = await PlannedService.getBillTransactions(billId);
+    try {
+      final response = await PlannedService.getBillTransactions(billId);
 
-    if (response.success && response.data != null) {
-      _billTransactions = response.data;
-    } else {
-      _billTransactions = null;
-      _errorMessage = response.message ?? 'Không thể tải giao dịch của hóa đơn.';
+      if (response.success && response.data != null) {
+        _billTransactions = response.data;
+      } else {
+        _billTransactions = null;
+        _errorMessage = response.message ?? 'Cannot load bill transactions.';
+      }
+    } catch (e) {
+      _errorMessage = e.toString();
+      // Xử lý 401 - Session expired
+      if (e.toString().contains("Session expired")) {
+        await TokenHelper.clearTokens();
+        if (context.mounted) {
+          context.go("/login");
+        }
+      }
+    } finally {
+      _isLoading = false;
+      notifyListeners();
     }
-
-    _isLoading = false;
-    notifyListeners();
   }
 
   // =============================================

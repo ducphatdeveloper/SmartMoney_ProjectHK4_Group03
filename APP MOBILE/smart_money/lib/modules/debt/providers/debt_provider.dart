@@ -22,6 +22,9 @@
 // ===========================================================
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:smart_money/core/helpers/token_helper.dart';
 import 'package:smart_money/modules/transaction/models/view/transaction_response.dart';
 import '../models/debt_response.dart';
 import '../models/debt_update_request.dart';
@@ -77,36 +80,47 @@ class DebtProvider extends ChangeNotifier {
   // Tham số:
   //   • debtType: false=Tab CẦN TRẢ, true=Tab CẦN THU
   // [NOTE] Gọi riêng cho từng tab để tránh load thừa
-  Future<void> loadDebts(bool debtType) async {
+  Future<void> loadDebts(BuildContext context, bool debtType) async {
     // Bước 1: Bật loading, reset lỗi cũ
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
 
-    // Bước 2: Gọi API
-    final response = await DebtService.getDebts(debtType);
+    try {
+      // Bước 2: Gọi API
+      final response = await DebtService.getDebts(debtType);
 
-    // Bước 3: Xử lý kết quả
-    if (response.success && response.data != null) {
-      // Thành công → phân chia list thành 2 nhóm dựa vào field finished
-      final all = response.data!;
-      if (!debtType) {
-        // Tab Cần Trả: finished=false là chưa trả, true là đã trả hết
-        _payableDebts = all.where((d) => !d.finished).toList();
-        _payableDone  = all.where((d) =>  d.finished).toList();
+      // Bước 3: Xử lý kết quả
+      if (response.success && response.data != null) {
+        // Thành công → phân chia list thành 2 nhóm dựa vào field finished
+        final all = response.data!;
+        if (!debtType) {
+          // Tab Cần Trả: finished=false là chưa trả, true là đã trả hết
+          _payableDebts = all.where((d) => !d.finished).toList();
+          _payableDone  = all.where((d) =>  d.finished).toList();
+        } else {
+          // Tab Cần Thu: finished=false là chưa thu, true là đã nhận hết
+          _receivableDebts = all.where((d) => !d.finished).toList();
+          _receivableDone  = all.where((d) =>  d.finished).toList();
+        }
       } else {
-        // Tab Cần Thu: finished=false là chưa thu, true là đã nhận hết
-        _receivableDebts = all.where((d) => !d.finished).toList();
-        _receivableDone  = all.where((d) =>  d.finished).toList();
+        // Thất bại → lưu message lỗi để Screen hiện SnackBar
+        _errorMessage = response.message;
       }
-    } else {
-      // Thất bại → lưu message lỗi để Screen hiện SnackBar
-      _errorMessage = response.message;
+    } catch (e) {
+      _errorMessage = e.toString();
+      // Xử lý 401 - Session expired
+      if (e.toString().contains("Session expired")) {
+        await TokenHelper.clearTokens();
+        if (context.mounted) {
+          context.go("/login");
+        }
+      }
+    } finally {
+      // Bước 4: Tắt loading, notify UI
+      _isLoading = false;
+      notifyListeners();
     }
-
-    // Bước 4: Tắt loading, notify UI
-    _isLoading = false;
-    notifyListeners();
   }
 
   // =============================================
@@ -114,23 +128,34 @@ class DebtProvider extends ChangeNotifier {
   // =============================================
   // [UPDATED] Chỉ load debt detail — transaction list do screen tự load
   // qua TransactionService.getTransactionList({'debtId': id})
-  Future<void> loadDetail(int debtId) async {
+  Future<void> loadDetail(BuildContext context, int debtId) async {
     _isLoadingDetail = true;
     _debtTransactions = [];
     _errorMessage = null;
     notifyListeners();
 
-    final response = await DebtService.getDebt(debtId);
+    try {
+      final response = await DebtService.getDebt(debtId);
 
-    if (response.success && response.data != null) {
-      _currentDebt = response.data;
-    } else {
-      _currentDebt = null;
-      _errorMessage = response.message;
+      if (response.success && response.data != null) {
+        _currentDebt = response.data;
+      } else {
+        _currentDebt = null;
+        _errorMessage = response.message;
+      }
+    } catch (e) {
+      _errorMessage = e.toString();
+      // Xử lý 401 - Session expired
+      if (e.toString().contains("Session expired")) {
+        await TokenHelper.clearTokens();
+        if (context.mounted) {
+          context.go("/login");
+        }
+      }
+    } finally {
+      _isLoadingDetail = false;
+      notifyListeners();
     }
-
-    _isLoadingDetail = false;
-    notifyListeners();
   }
 
   // =============================================
@@ -138,32 +163,46 @@ class DebtProvider extends ChangeNotifier {
   // =============================================
   // Gọi khi: User bấm "Lưu" ở DebtEditScreen
   // Trả về: true nếu thành công, false nếu thất bại
-  Future<bool> updateDebt(int debtId, DebtUpdateRequest request) async {
+  Future<bool> updateDebt(BuildContext context, int debtId, DebtUpdateRequest request) async {
     // Bước 1: Bật flag saving, reset lỗi
     _isSaving = true;
     _errorMessage = null;
     notifyListeners();
 
-    // Bước 2: Gọi API PUT /api/debts/{id}
-    final response = await DebtService.updateDebt(debtId, request);
+    try {
+      // Bước 2: Gọi API PUT /api/debts/{id}
+      final response = await DebtService.updateDebt(debtId, request);
 
-    // Bước 3: Xử lý kết quả
-    bool success = false;
-    if (response.success && response.data != null) {
-      // Thành công → cập nhật currentDebt để Detail screen refresh ngay
-      _currentDebt = response.data;
-      // Cập nhật luôn item trong list (nếu đang giữ)
-      _updateInList(response.data!);
-      success = true;
-    } else {
-      // Thất bại → lưu lỗi để Screen hiện SnackBar
-      _errorMessage = response.message;
+      // Bước 3: Xử lý kết quả
+      bool success = false;
+      if (response.success && response.data != null) {
+        // Thành công → cập nhật currentDebt để Detail screen refresh ngay
+        _currentDebt = response.data;
+        // Cập nhật luôn item trong list (nếu đang giữ)
+        _updateInList(response.data!);
+        success = true;
+      } else {
+        // Thất bại → lưu lỗi để Screen hiện SnackBar
+        _errorMessage = response.message;
+      }
+
+      // Bước 4: Tắt saving, notify
+      _isSaving = false;
+      notifyListeners();
+      return success;
+    } catch (e) {
+      _errorMessage = e.toString();
+      // Xử lý 401 - Session expired
+      if (e.toString().contains("Session expired")) {
+        await TokenHelper.clearTokens();
+        if (context.mounted) {
+          context.go("/login");
+        }
+      }
+      _isSaving = false;
+      notifyListeners();
+      return false;
     }
-
-    // Bước 4: Tắt saving, notify
-    _isSaving = false;
-    notifyListeners();
-    return success;
   }
 
   // =============================================
@@ -171,30 +210,45 @@ class DebtProvider extends ChangeNotifier {
   // =============================================
   // Gọi khi: User bấm nút "Đánh dấu hoàn thành" ở Detail screen
   // Trả về: true nếu thành công
-  Future<bool> toggleStatus(int debtId) async {
+  Future<bool> toggleStatus(BuildContext context, int debtId) async {
     // Bước 1: Bật flag toggling
     _isToggling = true;
     _errorMessage = null;
     notifyListeners();
 
-    // Bước 2: Gọi API PUT /api/debts/{id}/status
-    final response = await DebtService.updateDebtStatus(debtId);
+    try {
+      // Bước 2: Gọi API PUT /api/debts/{id}/status
+      final response = await DebtService.updateDebtStatus(debtId);
 
-    // Bước 3: Xử lý kết quả
-    bool success = false;
-    if (response.success && response.data != null) {
-      // Thành công → cập nhật currentDebt + list
-      _currentDebt = response.data;
-      _updateInList(response.data!);
-      success = true;
-    } else {
-      _errorMessage = response.message;
+      // Bước 3: Xử lý kết quả
+      bool success = false;
+      if (response.success && response.data != null) {
+        // Thành công → cập nhật currentDebt + list
+        _currentDebt = response.data;
+        _updateInList(response.data!);
+        success = true;
+      } else {
+        // Thất bại → lưu lỗi để Screen hiện SnackBar
+        _errorMessage = response.message;
+      }
+
+      // Bước 4: Tắt toggling, notify
+      _isToggling = false;
+      notifyListeners();
+      return success;
+    } catch (e) {
+      _errorMessage = e.toString();
+      // Xử lý 401 - Session expired
+      if (e.toString().contains("Session expired")) {
+        await TokenHelper.clearTokens();
+        if (context.mounted) {
+          context.go("/login");
+        }
+      }
+      _isToggling = false;
+      notifyListeners();
+      return false;
     }
-
-    // Bước 4: Tắt toggling
-    _isToggling = false;
-    notifyListeners();
-    return success;
   }
 
   // =============================================
@@ -203,30 +257,44 @@ class DebtProvider extends ChangeNotifier {
   // Gọi khi: User xác nhận xóa từ Dialog ở Detail screen
   // Trả về: true nếu thành công
   // [NOTE] Giao dịch liên quan KHÔNG bị xóa — backend chỉ set debt_id=null
-  Future<bool> deleteDebt(int debtId, bool debtType) async {
+  Future<bool> deleteDebt(BuildContext context, int debtId, bool debtType) async {
     // Bước 1: Bật flag deleting
     _isDeleting = true;
     _errorMessage = null;
     notifyListeners();
 
-    // Bước 2: Gọi API DELETE /api/debts/{id}
-    final response = await DebtService.deleteDebt(debtId);
+    try {
+      // Bước 2: Gọi API DELETE /api/debts/{id}
+      final response = await DebtService.deleteDebt(debtId);
 
-    // Bước 3: Xử lý kết quả
-    bool success = false;
-    if (response.success) {
-      // Thành công → xóa khỏi list local (không cần reload API)
-      _removeFromList(debtId, debtType);
-      _currentDebt = null;
-      success = true;
-    } else {
-      _errorMessage = response.message;
+      // Bước 3: Xử lý kết quả
+      bool success = false;
+      if (response.success) {
+        // Thành công → xóa khỏi list local (không cần reload API)
+        _removeFromList(debtId, debtType);
+        _currentDebt = null;
+        success = true;
+      } else {
+        _errorMessage = response.message;
+      }
+
+      // Bước 4: Tắt deleting
+      _isDeleting = false;
+      notifyListeners();
+      return success;
+    } catch (e) {
+      _errorMessage = e.toString();
+      // Xử lý 401 - Session expired
+      if (e.toString().contains("Session expired")) {
+        await TokenHelper.clearTokens();
+        if (context.mounted) {
+          context.go("/login");
+        }
+      }
+      _isDeleting = false;
+      notifyListeners();
+      return false;
     }
-
-    // Bước 4: Tắt deleting
-    _isDeleting = false;
-    notifyListeners();
-    return success;
   }
 
   // =============================================

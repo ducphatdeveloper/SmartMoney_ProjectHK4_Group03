@@ -20,7 +20,7 @@ class TransactionBalanceDisplay extends StatelessWidget {
           child: Column(
             children: [
               const Text(
-                'Số dư',
+                'Balance',
                 style: TextStyle(color: Colors.grey, fontSize: 12),
               ),
               const SizedBox(height: 4),

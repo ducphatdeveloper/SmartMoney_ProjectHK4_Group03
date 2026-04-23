@@ -67,7 +67,7 @@ public class ReminderScheduler {
         LocalDateTime startOfDay = today.atStartOfDay();           // 00:00:00 hôm nay
         LocalDateTime endOfDay = today.plusDays(1).atStartOfDay(); // 00:00:00 ngày mai (exclusive)
 
-        log.info("[ReminderScheduler] Kiểm tra user chưa ghi chép hôm nay...");
+        log.info("[ReminderScheduler] Checking users who haven't recorded transactions today...");
 
         // Bước 1: Lấy tất cả account active (chưa bị khóa)
         List<Account> allActive = accountRepository.findAllActiveAccounts();
@@ -95,12 +95,12 @@ public class ReminderScheduler {
                     );
                     count++;
                 } catch (Exception e) {
-                    log.error("[ReminderScheduler] Lỗi nhắc user id={}: {}", acc.getId(), e.getMessage());
+                    log.error("[ReminderScheduler] Error reminding user id={}: {}", acc.getId(), e.getMessage());
                 }
             }
         }
 
-        log.info("[ReminderScheduler] Đã nhắc {} user ghi chép. ({} user đã ghi chép hôm nay)",
+        log.info("[ReminderScheduler] Reminded {} users to record. ({} users have recorded today)",
                 count, usersWithTx.size());
     }
 
@@ -124,7 +124,7 @@ public class ReminderScheduler {
         LocalDateTime weekStart = today.minusDays(6).atStartOfDay();  // 7 ngày trước (inclusive)
         LocalDateTime weekEnd = today.atTime(23, 59, 59);             // Cuối ngày hôm nay
 
-        log.info("[ReminderScheduler] Tạo tổng kết tuần ({} → {})...", weekStart.toLocalDate(), today);
+        log.info("[ReminderScheduler] Creating weekly digest ({} → {})...", weekStart.toLocalDate(), today);
 
         // Bước 1: Lấy tất cả account active
         List<Account> allActive = accountRepository.findAllActiveAccounts();
@@ -167,11 +167,11 @@ public class ReminderScheduler {
                 );
                 sentCount++;
             } catch (Exception e) {
-                log.error("[ReminderScheduler] Lỗi tổng kết tuần cho user id={}: {}", acc.getId(), e.getMessage());
+                log.error("[ReminderScheduler] Error creating weekly digest for user id={}: {}", acc.getId(), e.getMessage());
             }
         }
 
-        log.info("[ReminderScheduler] Đã gửi tổng kết tuần cho {} user.", sentCount);
+        log.info("[ReminderScheduler] Sent weekly digest to {} users.", sentCount);
     }
 }
 

@@ -9,15 +9,15 @@ enum DateRangeMode {
   String get displayName {
     switch (this) {
       case DateRangeMode.daily:
-        return 'Theo ngày';
+        return 'Daily';
       case DateRangeMode.weekly:
-        return 'Theo tuần';
+        return 'Weekly';
       case DateRangeMode.monthly:
-        return 'Theo tháng';
+        return 'Monthly';
       case DateRangeMode.quarterly:
-        return 'Theo quý';
+        return 'Quarterly';
       case DateRangeMode.yearly:
-        return 'Theo năm';
+        return 'Yearly';
     }
   }
 }

@@ -600,7 +600,9 @@ class _ExpiredBudgetScreenState extends State<ExpiredBudgetScreen>
                   style: TextStyle(
                     color: getColor(p),
                     fontWeight: FontWeight.bold,
-                  )),
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1),
             ],
           ),
           const SizedBox(height: 10),
@@ -667,15 +669,24 @@ class _ExpiredBudgetScreenState extends State<ExpiredBudgetScreen>
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text("${formatMoney(b.spentAmount)} / ${formatMoney(b.amount)}",
-                style: const TextStyle(color: Colors.grey)),
-            Text(
-              left >= 0
-                  ? "Remaining ${formatMoney(left)}"
-                  : "⚠️ Over ${formatMoney(left.abs())}",
-              style: TextStyle(
-                  color: left >= 0 ? Colors.green : Colors.red,
-                  fontWeight: FontWeight.w500),
+            Expanded(
+              child: Text("${formatMoney(b.spentAmount)} / ${formatMoney(b.amount)}",
+                  style: const TextStyle(color: Colors.grey),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1),
+            ),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                left >= 0
+                    ? "Remaining ${formatMoney(left)}"
+                    : "⚠️ Over ${formatMoney(left.abs())}",
+                style: TextStyle(
+                    color: left >= 0 ? Colors.green : Colors.red,
+                    fontWeight: FontWeight.w500),
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
+              ),
             ),
           ],
         ),

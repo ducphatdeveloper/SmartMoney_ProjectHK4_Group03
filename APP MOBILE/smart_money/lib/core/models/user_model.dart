@@ -152,5 +152,5 @@ class UserModel {
 
   // Tên hiển thị — dùng trong UI
   // Ưu tiên fullname, fallback về username, email, rồi phone
-  String get displayName => fullname ?? accUsername ?? accEmail ?? accPhone ?? "Người dùng";
+  String get displayName => fullname ?? accUsername ?? accEmail ?? accPhone ?? "User";
 }

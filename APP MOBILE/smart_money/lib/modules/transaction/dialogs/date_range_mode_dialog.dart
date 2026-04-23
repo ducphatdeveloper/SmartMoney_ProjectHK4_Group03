@@ -48,14 +48,14 @@ class DateRangeModeDialog extends StatelessWidget {
                   Navigator.pop(context);
 
                   if (mode['value'] == 'ALL') {
-                    provider.loadAllTransactions();
+                    provider.loadAllTransactions(context);
                   } else if (mode['value'] == 'CUSTOM') {
                     showDialog(
                       context: context,
                       builder: (_) => const CustomDateRangeDialog(),
                     );
                   } else {
-                    provider.changeDateRangeMode(mode['value']!);
+                    provider.changeDateRangeMode(context, mode['value']!);
                   }
                 },
               );
@@ -167,7 +167,7 @@ class _CustomDateRangeDialogState extends State<CustomDateRangeDialog> {
             Navigator.pop(context);
             final provider = context.read<TransactionProvider>();
             final end = DateTime(endDate.year, endDate.month, endDate.day, 23, 59, 59);
-            provider.loadCustomDateRange(startDate, end);
+            provider.loadCustomDateRange(context, startDate, end);
           },
           child: const Text('Confirm'),
         ),

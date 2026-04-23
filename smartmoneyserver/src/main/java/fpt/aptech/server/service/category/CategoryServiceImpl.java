@@ -47,16 +47,16 @@ public class CategoryServiceImpl implements CategoryService {
     private Category getOwnedCategory(Integer categoryId, Integer accountId) {
         // 1. Dùng Query để lấy Category lên (chỉ cần ID là đủ)
         Category category = categoryRepository.findById(categoryId)
-                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy danh mục với ID: " + categoryId));
+                .orElseThrow(() -> new IllegalArgumentException("Category not found with ID: " + categoryId));
 
         // 2. Chặn danh mục hệ thống (Thứ tự này quan trọng để báo lỗi đúng loại)
         if (category.getAccount() == null) {
-            throw new IllegalStateException("Không thể xóa/sửa danh mục mặc định của hệ thống.");
+            throw new IllegalStateException("Cannot delete/edit default system category.");
         }
 
         // 3. Kiểm tra quyền sở hữu (Security)
         if (!category.getAccount().getId().equals(accountId)) {
-            throw new SecurityException("Bạn không có quyền thao tác danh mục này!");
+            throw new SecurityException("You do not have permission to modify this category!");
         }
 
         return category;
@@ -108,24 +108,24 @@ public class CategoryServiceImpl implements CategoryService {
         String action = (actionType != null) ? actionType.toUpperCase() : "DELETE_ALL";
 
         if ("MERGE".equals(action)) {
-            if (newCategoryId == null) throw new IllegalArgumentException("Thiếu tham số: newCategoryId");
+            if (newCategoryId == null) throw new IllegalArgumentException("Missing parameter: newCategoryId");
 
             // [FIX] Danh mục đích (merge target) có thể là danh mục hệ thống (account=null)
             // → Không dùng getOwnedCategory() vì nó chặn danh mục hệ thống
             // → Chỉ cần kiểm tra: tồn tại + cùng loại Thu/Chi + không phải chính nó
             Category targetCategory = categoryRepository.findById(newCategoryId)
-                    .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy danh mục đích với ID: " + newCategoryId));
+                    .orElseThrow(() -> new IllegalArgumentException("Target category not found with ID: " + newCategoryId));
 
             // Nếu target là danh mục của user khác → chặn
             if (targetCategory.getAccount() != null && !targetCategory.getAccount().getId().equals(accountId)) {
-                throw new SecurityException("Bạn không có quyền gộp vào danh mục này.");
+                throw new SecurityException("You do not have permission to merge into this category.");
             }
 
             if (!category.getCtgType().equals(targetCategory.getCtgType())) {
-                throw new IllegalArgumentException("Không thể gộp khác loại (Thu/Chi).");
+                throw new IllegalArgumentException("Cannot merge different types (Income/Expense).");
             }
             if (categoryId.equals(newCategoryId)) {
-                throw new IllegalArgumentException("Không thể gộp vào chính nó.");
+                throw new IllegalArgumentException("Cannot merge into itself.");
             }
 
             // MERGE: Chỉ chuyển category_id của transactions sang category mới.
@@ -210,7 +210,7 @@ public class CategoryServiceImpl implements CategoryService {
                 entities = categoryRepository.findDebtAndLoanCategories(lendingNames);
                 break;
             default:
-                throw new IllegalArgumentException("Nhóm danh mục không hợp lệ: " + group);
+                throw new IllegalArgumentException("Invalid category group: " + group);
         }
         return categoryMapper.toDtoList(entities);
     }
@@ -271,17 +271,17 @@ public class CategoryServiceImpl implements CategoryService {
             if (categoryRepository.existsByCtgNameAndParent_IdAndAccount_Id(request.ctgName(), request.parentId(), accountId)) {
                 Category parent = categoryRepository.findById(request.parentId()).orElse(null);
                 String parentName = (parent != null) ? parent.getCtgName() : "";
-                throw new IllegalArgumentException("Danh mục '" + request.ctgName() + "' đã tồn tại trong mục '" + parentName + "'.");
+                throw new IllegalArgumentException("Category '" + request.ctgName() + "' already exists in '" + parentName + "'.");
             }
         } else {
             // Nếu tạo danh mục GỐC:
             // a. Check trùng tên với danh mục gốc của chính user
             if (categoryRepository.existsByCtgNameAndAccount_IdAndParentIsNull(request.ctgName(), accountId)) {
-                throw new IllegalArgumentException("Danh mục gốc '" + request.ctgName() + "' đã tồn tại.");
+                throw new IllegalArgumentException("Root category '" + request.ctgName() + "' already exists.");
             }
             // b. Check trùng tên với danh mục gốc của HỆ THỐNG
             if (categoryRepository.existsByCtgNameAndAccountIsNullAndParentIsNull(request.ctgName())) {
-                throw new IllegalArgumentException("Không thể tạo danh mục gốc trùng tên với danh mục của hệ thống.");
+                throw new IllegalArgumentException("Cannot create root category with the same name as a system category.");
             }
         }
 
@@ -295,17 +295,17 @@ public class CategoryServiceImpl implements CategoryService {
 
         // 4. Gán Account cho Category
         Account account = accountRepository.findById(accountId)
-                .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy tài khoản ID: " + accountId));
+                .orElseThrow(() -> new IllegalArgumentException("Account not found with ID: " + accountId));
         category.setAccount(account);
 
         // 5. Xử lý danh mục cha (nếu có)
         if (request.parentId() != null) {
             Category parent = categoryRepository.findById(request.parentId())
-                    .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy danh mục cha với ID: " + request.parentId()));
+                    .orElseThrow(() -> new IllegalArgumentException("Parent category not found with ID: " + request.parentId()));
 
             // Validate quyền sở hữu cha
             if (parent.getAccount() != null && !parent.getAccount().getId().equals(accountId)) {
-                throw new SecurityException("Không có quyền sử dụng danh mục cha này.");
+                throw new SecurityException("You do not have permission to use this parent category.");
             }
 
             // [FIX-PARENT-TYPE] Chặn tạo danh mục con với parent khác loại Thu/Chi
@@ -356,16 +356,16 @@ public class CategoryServiceImpl implements CategoryService {
                 if (categoryRepository.existsByCtgNameAndParent_IdAndAccount_Id(request.ctgName(), effectiveParentId, accountId)) {
                     Category parent = categoryRepository.findById(effectiveParentId).orElse(null);
                     String parentName = (parent != null) ? parent.getCtgName() : "";
-                    throw new IllegalArgumentException("Danh mục '" + request.ctgName() + "' đã tồn tại trong mục '" + parentName + "'.");
+                    throw new IllegalArgumentException("Category '" + request.ctgName() + "' already exists in '" + parentName + "'.");
                 }
             } else {
                 // Là danh mục GỐC: check trùng tên với danh mục gốc của user
                 if (categoryRepository.existsByCtgNameAndAccount_IdAndParentIsNull(request.ctgName(), accountId)) {
-                    throw new IllegalArgumentException("Danh mục gốc '" + request.ctgName() + "' đã tồn tại.");
+                    throw new IllegalArgumentException("Root category '" + request.ctgName() + "' already exists.");
                 }
                 // Check trùng tên với danh mục gốc của HỆ THỐNG
                 if (categoryRepository.existsByCtgNameAndAccountIsNullAndParentIsNull(request.ctgName())) {
-                    throw new IllegalArgumentException("Không thể tạo danh mục gốc trùng tên với danh mục của hệ thống.");
+                    throw new IllegalArgumentException("Cannot create root category with the same name as a system category.");
                 }
             }
         }
@@ -379,11 +379,11 @@ public class CategoryServiceImpl implements CategoryService {
         // Nếu request không gửi parentId, sẽ giữ nguyên cha cũ (không thay đổi quan hệ)
         if (request.parentId() != null) {
             Category parent = categoryRepository.findById(request.parentId())
-                    .orElseThrow(() -> new IllegalArgumentException("Không tìm thấy danh mục cha với ID: " + request.parentId()));
+                    .orElseThrow(() -> new IllegalArgumentException("Parent category not found with ID: " + request.parentId()));
 
             // Kiểm tra quyền: Danh mục cha phải là của hệ thống (account=null) hoặc của chính user này.
             if (parent.getAccount() != null && !parent.getAccount().getId().equals(accountId)) {
-                throw new SecurityException("Không có quyền sử dụng danh mục cha này.");
+                throw new SecurityException("You do not have permission to use this parent category.");
             }
 
             // [FIX-PARENT-TYPE] Chặn gán parent khác loại Thu/Chi

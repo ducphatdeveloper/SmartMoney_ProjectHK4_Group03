@@ -21,6 +21,9 @@
 // ===========================================================
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:smart_money/core/helpers/token_helper.dart';
 import 'package:smart_money/modules/planned/models/planned_transaction_request.dart';
 import 'package:smart_money/modules/planned/models/planned_transaction_response.dart';
 import 'package:smart_money/modules/planned/services/planned_service.dart';
@@ -66,38 +69,49 @@ class RecurringProvider extends ChangeNotifier {
   // =============================================
   // Gọi khi: Mở màn hình, sau khi tạo/sửa/xóa/toggle
   // API: GET /api/recurring?active=true + GET /api/recurring?active=false
-  Future<void> loadAll() async {
+  Future<void> loadAll(BuildContext context) async {
     // Bước 1: Bật loading, xóa lỗi cũ
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
 
-    // Bước 2: Gọi 2 API song song — tăng tốc load
-    final results = await Future.wait([
-      PlannedService.getRecurring(active: true),
-      PlannedService.getRecurring(active: false),
-    ]);
+    try {
+      // Bước 2: Gọi 2 API song song — tăng tốc load
+      final results = await Future.wait([
+        PlannedService.getRecurring(active: true),
+        PlannedService.getRecurring(active: false),
+      ]);
 
-    // Bước 3: Xử lý kết quả active
-    if (results[0].success && results[0].data != null) {
-      _activeItems = results[0].data!;
-    } else {
-      _activeItems = [];
-      _errorMessage = results[0].message;
+      // Bước 3: Xử lý kết quả active
+      if (results[0].success && results[0].data != null) {
+        _activeItems = results[0].data!;
+      } else {
+        _activeItems = [];
+        _errorMessage = results[0].message;
+      }
+
+      // Bước 4: Xử lý kết quả inactive
+      if (results[1].success && results[1].data != null) {
+        _inactiveItems = results[1].data!;
+      } else {
+        _inactiveItems = [];
+        // Chỉ ghi đè errorMessage nếu chưa có lỗi trước đó
+        _errorMessage ??= results[1].message;
+      }
+    } catch (e) {
+      _errorMessage = e.toString();
+      // Xử lý 401 - Session expired
+      if (e.toString().contains("Session expired")) {
+        await TokenHelper.clearTokens();
+        if (context.mounted) {
+          context.go("/login");
+        }
+      }
+    } finally {
+      // Bước 5: Tắt loading, thông báo UI cập nhật
+      _isLoading = false;
+      notifyListeners();
     }
-
-    // Bước 4: Xử lý kết quả inactive
-    if (results[1].success && results[1].data != null) {
-      _inactiveItems = results[1].data!;
-    } else {
-      _inactiveItems = [];
-      // Chỉ ghi đè errorMessage nếu chưa có lỗi trước đó
-      _errorMessage ??= results[1].message;
-    }
-
-    // Bước 5: Tắt loading, thông báo UI cập nhật
-    _isLoading = false;
-    notifyListeners();
   }
 
   // =============================================
@@ -116,20 +130,32 @@ class RecurringProvider extends ChangeNotifier {
   // Gọi khi: User bấm "Lưu" ở PlannedFormScreen (planType = recurring)
   // API: POST /api/recurring
   // Trả về: true nếu thành công, false nếu thất bại
-  Future<bool> create(PlannedTransactionRequest request) async {
-    // Bước 1: Gọi API
-    final response = await PlannedService.createRecurring(request);
+  Future<bool> create(BuildContext context, PlannedTransactionRequest request) async {
+    try {
+      // Bước 1: Gọi API
+      final response = await PlannedService.createRecurring(request);
 
-    // Bước 2: Xử lý kết quả
-    if (response.success) {
-      // Thành công → reload danh sách
-      _successMessage = response.message;
-      await loadAll(); // reload cả 2 tab
-      return true;
-    } else {
-      // Thất bại → lưu lỗi
-      _errorMessage = response.message;
-      notifyListeners();
+      // Bước 2: Xử lý kết quả
+      if (response.success) {
+        // Thành công → reload danh sách
+        _successMessage = response.message;
+        await loadAll(context); // reload cả 2 tab
+        return true;
+      } else {
+        // Thất bại → lưu lỗi
+        _errorMessage = response.message;
+        notifyListeners();
+        return false;
+      }
+    } catch (e) {
+      _errorMessage = e.toString();
+      // Xử lý 401 - Session expired
+      if (e.toString().contains("Session expired")) {
+        await TokenHelper.clearTokens();
+        if (context.mounted) {
+          context.go("/login");
+        }
+      }
       return false;
     }
   }
@@ -139,18 +165,30 @@ class RecurringProvider extends ChangeNotifier {
   // =============================================
   // Gọi khi: User bấm "Lưu" ở PlannedFormScreen (chế độ sửa)
   // API: PUT /api/recurring/{id}
-  Future<bool> update(int id, PlannedTransactionRequest request) async {
-    // Bước 1: Gọi API
-    final response = await PlannedService.updateRecurring(id, request);
+  Future<bool> update(BuildContext context, int id, PlannedTransactionRequest request) async {
+    try {
+      // Bước 1: Gọi API
+      final response = await PlannedService.updateRecurring(id, request);
 
-    // Bước 2: Xử lý kết quả
-    if (response.success) {
-      _successMessage = response.message;
-      await loadAll(); // reload cả 2 tab
-      return true;
-    } else {
-      _errorMessage = response.message;
-      notifyListeners();
+      // Bước 2: Xử lý kết quả
+      if (response.success) {
+        _successMessage = response.message;
+        await loadAll(context); // reload cả 2 tab
+        return true;
+      } else {
+        _errorMessage = response.message;
+        notifyListeners();
+        return false;
+      }
+    } catch (e) {
+      _errorMessage = e.toString();
+      // Xử lý 401 - Session expired
+      if (e.toString().contains("Session expired")) {
+        await TokenHelper.clearTokens();
+        if (context.mounted) {
+          context.go("/login");
+        }
+      }
       return false;
     }
   }
@@ -161,7 +199,7 @@ class RecurringProvider extends ChangeNotifier {
   // Gọi khi: User xác nhận xóa trong Dialog
   // API: DELETE /api/recurring/{id}
   // [NOTE] Dùng optimistic update: xóa khỏi list trước, gọi API sau
-  Future<bool> delete(int id) async {
+  Future<bool> delete(BuildContext context, int id) async {
     // Bước 1: Tìm item trong active hoặc inactive, lưu bản sao
     int removedIndex = _activeItems.indexWhere((e) => e.id == id);
     bool wasActive = true;
@@ -181,21 +219,40 @@ class RecurringProvider extends ChangeNotifier {
     }
     notifyListeners();
 
-    // Bước 2: Gọi API xóa
-    final response = await PlannedService.deleteRecurring(id);
+    try {
+      // Bước 2: Gọi API xóa
+      final response = await PlannedService.deleteRecurring(id);
 
-    // Bước 3: Xử lý kết quả
-    if (response.success) {
-      _successMessage = "Đã xóa giao dịch định kỳ";
-      return true;
-    } else {
-      // Thất bại → rollback thêm lại vào list
+      // Bước 3: Xử lý kết quả
+      if (response.success) {
+        _successMessage = "Deleted recurring transaction";
+        return true;
+      } else {
+        // Thất bại → rollback thêm lại vào list
+        if (wasActive) {
+          _activeItems.insert(removedIndex, removed!);
+        } else {
+          _inactiveItems.insert(removedIndex, removed!);
+        }
+        _errorMessage = response.message;
+        notifyListeners();
+        return false;
+      }
+    } catch (e) {
+      // Rollback thêm lại vào list
       if (wasActive) {
         _activeItems.insert(removedIndex, removed!);
       } else {
         _inactiveItems.insert(removedIndex, removed!);
       }
-      _errorMessage = response.message;
+      _errorMessage = e.toString();
+      // Xử lý 401 - Session expired
+      if (e.toString().contains("Session expired")) {
+        await TokenHelper.clearTokens();
+        if (context.mounted) {
+          context.go("/login");
+        }
+      }
       notifyListeners();
       return false;
     }
@@ -206,20 +263,34 @@ class RecurringProvider extends ChangeNotifier {
   // =============================================
   // Gọi khi: User bấm switch trong RecurringDetailSheet
   // API: PATCH /api/recurring/{id}/toggle
-  Future<bool> toggle(int id) async {
+  Future<bool> toggle(BuildContext context, int id) async {
     // Optimistic update: Cập nhật UI ngay lập tức
     _updateItemToggleStatus(id);
-    
-    // Gọi API toggle
-    final response = await PlannedService.toggleRecurring(id);
 
-    if (response.success) {
-      _successMessage = response.message;
-      return true;
-    } else {
-      _errorMessage = response.message;
-      notifyListeners(); // ✅ Notify trước khi reload để UI hiển thị error message
-      await loadAll();
+    try {
+      // Gọi API toggle
+      final response = await PlannedService.toggleRecurring(id);
+
+      if (response.success) {
+        _successMessage = response.message;
+        return true;
+      } else {
+        _errorMessage = response.message;
+        notifyListeners(); // ✅ Notify trước khi reload để UI hiển thị error message
+        await loadAll(context);
+        return false;
+      }
+    } catch (e) {
+      _errorMessage = e.toString();
+      // Xử lý 401 - Session expired
+      if (e.toString().contains("Session expired")) {
+        await TokenHelper.clearTokens();
+        if (context.mounted) {
+          context.go("/login");
+        }
+      }
+      notifyListeners();
+      await loadAll(context);
       return false;
     }
   }

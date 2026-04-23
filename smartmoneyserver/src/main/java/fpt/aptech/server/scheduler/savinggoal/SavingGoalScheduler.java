@@ -77,7 +77,7 @@ public class SavingGoalScheduler {
     @Scheduled(cron = "0 0 1 * * ?") // 1:00 AM mỗi ngày
     //@Scheduled(cron = "0 * * * * *")
     public void checkOverdueGoals() {
-        log.info("[SavingGoalScheduler] Kiểm tra mục tiêu quá hạn...");
+        log.info("[SavingGoalScheduler] Checking overdue goals...");
 
         // Bước 1: Tìm mục tiêu ACTIVE có endDate < today (đã quá hạn nhưng chưa OVERDUE)
         List<SavingGoal> overdueGoals = savingGoalRepository.findByGoalStatusAndEndDateBefore(
@@ -85,7 +85,7 @@ public class SavingGoalScheduler {
 
         // Bước 2: Nếu không có → log và return
         if (overdueGoals.isEmpty()) {
-            log.info("[SavingGoalScheduler] Không có mục tiêu quá hạn.");
+            log.info("[SavingGoalScheduler] No overdue goals found.");
             return;
         }
 
@@ -94,11 +94,11 @@ public class SavingGoalScheduler {
             try {
                 self.processOverdueGoal(goal); // self-injection cho @Transactional(REQUIRES_NEW)
             } catch (Exception e) {
-                log.error("[SavingGoalScheduler] Lỗi mục tiêu id={}: {}", goal.getId(), e.getMessage());
+                log.error("[SavingGoalScheduler] Error processing goal id={}: {}", goal.getId(), e.getMessage());
             }
         }
 
-        log.info("[SavingGoalScheduler] Đã xử lý {} mục tiêu quá hạn.", overdueGoals.size());
+        log.info("[SavingGoalScheduler] Processed {} overdue goals.", overdueGoals.size());
     }
 
     /**
@@ -131,7 +131,7 @@ public class SavingGoalScheduler {
                 goal.getId().longValue(),                 // related_id = goal.id (để Flutter navigate)
                 null                                      // scheduledTime = null → gửi ngay
         );
-        log.info("[SavingGoalScheduler] Mục tiêu id={} '{}' → QUÁ HẠN (OVERDUE).", goal.getId(), goal.getGoalName());
+        log.info("[SavingGoalScheduler] Goal id={} '{}' → OVERDUE.", goal.getId(), goal.getGoalName());
     }
 
     // ══════════════════════════════════════════════════════════════════════
@@ -152,7 +152,7 @@ public class SavingGoalScheduler {
     @Scheduled(cron = "0 0 8 * * ?") // 8:00 AM mỗi ngày
     //@Scheduled(cron = "0 * * * * *")
     public void remindNearDeadlineGoals() {
-        log.info("[SavingGoalScheduler] Kiểm tra mục tiêu sắp đến hạn...");
+        log.info("[SavingGoalScheduler] Checking goals near deadline...");
 
         LocalDate today    = LocalDate.now();
         LocalDate deadline = today.plusDays(NEAR_DEADLINE_DAYS); // Mốc: today + 7 ngày
@@ -183,10 +183,10 @@ public class SavingGoalScheduler {
                         null                              // scheduledTime = null → gửi ngay
                 );
 
-                log.info("[SavingGoalScheduler] Đã nhắc mục tiêu id={} '{}' còn {} ngày.",
+                log.info("[SavingGoalScheduler] Reminded goal id={} '{}' with {} days remaining.",
                         goal.getId(), goal.getGoalName(), daysLeft);
             } catch (Exception e) {
-                log.error("[SavingGoalScheduler] Lỗi khi nhắc mục tiêu id={}: {}", goal.getId(), e.getMessage());
+                log.error("[SavingGoalScheduler] Error reminding goal id={}: {}", goal.getId(), e.getMessage());
             }
         }
     }

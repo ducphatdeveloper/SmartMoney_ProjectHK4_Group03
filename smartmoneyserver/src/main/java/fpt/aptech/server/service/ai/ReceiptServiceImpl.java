@@ -110,7 +110,7 @@ public class ReceiptServiceImpl implements ReceiptService {
             log.info("[OCR] Upload ảnh thành công: {}", imageUrl);
         } catch (Exception e) {
             log.error("[OCR] Lỗi upload ảnh: ", e);
-            throw new RuntimeException("Lỗi tải ảnh lên hệ thống.", e);
+            throw new RuntimeException("Error uploading image to system.", e);
         }
 
         // Bước 2: Khai báo receipt ở scope rộng để dùng trong catch block

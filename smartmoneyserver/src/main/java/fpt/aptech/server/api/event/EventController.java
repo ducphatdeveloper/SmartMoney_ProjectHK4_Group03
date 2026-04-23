@@ -32,7 +32,7 @@ public class EventController {
             @AuthenticationPrincipal Account currentUser) {
         EventResponse newEvent = eventService.createEvent(request, currentUser.getId());
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ApiResponse.success(newEvent, "Tạo sự kiện thành công."));
+                .body(ApiResponse.success(newEvent, "Event created successfully."));
     }
 
     @GetMapping
@@ -73,7 +73,7 @@ public class EventController {
             @Valid @RequestBody EventUpdateRequest request,
             @AuthenticationPrincipal Account currentUser) {
         EventResponse updatedEvent = eventService.updateEvent(id, request, currentUser.getId());
-        return ResponseEntity.ok(ApiResponse.success(updatedEvent, "Cập nhật sự kiện thành công."));
+        return ResponseEntity.ok(ApiResponse.success(updatedEvent, "Event updated successfully."));
     }
 
     @PutMapping("/{id}/status")
@@ -92,6 +92,6 @@ public class EventController {
         // Trả về 200 OK + JSON body thay vì 204 No Content.
         // Flutter ApiHandler._handleResponse() gọi jsonDecode(body) cho mọi status code,
         // nếu body rỗng (204) → FormatException → bị catch → hiện "Không thể kết nối đến server".
-        return ResponseEntity.ok(ApiResponse.success(null, "Xóa sự kiện thành công."));
+        return ResponseEntity.ok(ApiResponse.success(null, "Event deleted successfully."));
     }
 }

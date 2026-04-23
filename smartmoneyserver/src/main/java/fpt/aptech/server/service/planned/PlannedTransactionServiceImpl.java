@@ -134,7 +134,7 @@ public class PlannedTransactionServiceImpl implements PlannedTransactionService 
                 && planned.getDebt() != null
                 && Boolean.TRUE.equals(planned.getDebt().getFinished())) {
             throw new IllegalArgumentException(
-                    "Khoản nợ đã thanh toán xong, không thể kích hoạt lại giao dịch định kỳ này.");
+                    "Debt has been fully paid, cannot reactivate this recurring transaction.");
         }
 
         // Không cho reactivate nếu giao dịch định kỳ đã hết hạn (endDate đã qua)
@@ -142,7 +142,7 @@ public class PlannedTransactionServiceImpl implements PlannedTransactionService 
                 && planned.getEndDate() != null
                 && planned.getEndDate().isBefore(LocalDate.now())) {
             throw new IllegalArgumentException(String.format(
-                    "Giao dịch định kỳ đã hết hạn từ ngày %s. Vui lòng tạo mới nếu muốn tiếp tục.",
+                    "Recurring transaction expired on %s. Please create a new one to continue.",
                     DateUtils.formatDisplayDate(planned.getEndDate())));
         }
 
@@ -225,21 +225,21 @@ public class PlannedTransactionServiceImpl implements PlannedTransactionService 
 
         // --- Bước 2: Validate loại, chỉ cho phép Bill ---
         if (planned.getPlanType() != 1) {
-            throw new IllegalArgumentException("Chỉ hóa đơn (Bill) mới có thể được trả qua phương thức này.");
+            throw new IllegalArgumentException("Only Bills can be paid through this method.");
         }
 
         // --- Bước 3: Validate trạng thái (Logic V3) ---
         // 3.1. Kiểm tra Hết Hạn (EXPIRED)
         if (planned.getEndDate() != null && planned.getEndDate().isBefore(today)) {
-            throw new IllegalArgumentException("Hóa đơn đã hết hạn. Vui lòng sửa lại ngày kết thúc nếu muốn tiếp tục.");
+            throw new IllegalArgumentException("Bill has expired. Please update the end date to continue.");
         }
 
         // 3.2. Kiểm tra Đã Đến Hạn thanh toán chưa
         // Chỉ cho phép thanh toán khi ngày hiện tại >= ngày đến hạn tiếp theo
         if (planned.getNextDueDate() != null && today.isBefore(planned.getNextDueDate())) {
             throw new IllegalArgumentException(String.format(
-                "Chưa tới hạn thanh toán. Hóa đơn này có thể thanh toán vào ngày %s. " +
-                "Vui lòng quay lại vào ngày đến hạn để thanh toán.",
+                "Payment not yet due. This bill can be paid on %s. " +
+                "Please return on the due date to pay.",
                 DateUtils.formatDisplayDate(planned.getNextDueDate())
             ));
         }
@@ -252,7 +252,7 @@ public class PlannedTransactionServiceImpl implements PlannedTransactionService 
 
         if (transactionRepo.existsByPlannedTransactionIdAndAccountIdAndTransDateBetween(
                 planned.getId(), userId, startOfCycle, endOfCycle)) {
-            throw new IllegalArgumentException("Hóa đơn đã được thanh toán cho kỳ này.");
+            throw new IllegalArgumentException("Bill has already been paid for this period.");
         }
 
         // 3.4. [FIX-DEBT-PRECHECK] Kiểm tra khoản nợ liên kết đã hoàn thành TRƯỚC KHI tạo GD
@@ -263,7 +263,7 @@ public class PlannedTransactionServiceImpl implements PlannedTransactionService 
             Debt linkedDebt = debtRepo.findById(planned.getDebt().getId()).orElse(null);
             if (linkedDebt != null && Boolean.TRUE.equals(linkedDebt.getFinished())) {
                 throw new IllegalArgumentException(
-                    "Khoản nợ liên kết đã được thanh toán xong. Hóa đơn không còn hiệu lực.");
+                    "Linked debt has been fully paid. Bill is no longer valid.");
             }
         }
 
@@ -336,7 +336,7 @@ public class PlannedTransactionServiceImpl implements PlannedTransactionService 
                 && planned.getDebt() != null
                 && Boolean.TRUE.equals(planned.getDebt().getFinished())) {
             throw new IllegalArgumentException(
-                    "Khoản nợ đã thanh toán xong, không thể kích hoạt lại hóa đơn này.");
+                    "Debt has been fully paid, cannot reactivate this bill.");
         }
 
         // Không cho reactivate nếu hóa đơn đã hết hạn (endDate đã qua)
@@ -344,7 +344,7 @@ public class PlannedTransactionServiceImpl implements PlannedTransactionService 
                 && planned.getEndDate() != null
                 && planned.getEndDate().isBefore(LocalDate.now())) {
             throw new IllegalArgumentException(String.format(
-                    "Hóa đơn đã hết hạn từ ngày %s. Vui lòng tạo mới nếu muốn tiếp tục.",
+                    "Bill expired on %s. Please create a new one to continue.",
                     DateUtils.formatDisplayDate(planned.getEndDate())));
         }
 
@@ -373,7 +373,7 @@ public class PlannedTransactionServiceImpl implements PlannedTransactionService 
         // Bước 1: Validate Bill tồn tại, thuộc user, và đúng plan_type=1
         PlannedTransaction bill = getOwnedPlanned(billId, userId);
         if (bill.getPlanType() != 1) {
-            throw new IllegalArgumentException("Chỉ hóa đơn mới có danh sách giao dịch");
+            throw new IllegalArgumentException("Only Bills have transaction lists");
         }
 
         // Bước 2: Lấy toàn bộ giao dịch của Bill (1 query duy nhất, sắp xếp mới nhất lên đầu)
@@ -430,7 +430,7 @@ public class PlannedTransactionServiceImpl implements PlannedTransactionService 
     private PlannedTransaction getOwnedPlanned(Integer id, Integer userId) {
         return plannedRepo.findByIdAndAccount_Id(id, userId)
                 .orElseThrow(() -> new IllegalArgumentException(
-                        "Không tìm thấy giao dịch định kỳ"));
+                        "Planned transaction not found"));
     }
 
     /**
@@ -443,21 +443,21 @@ public class PlannedTransactionServiceImpl implements PlannedTransactionService 
                                             Integer userId, Integer planType) {
         // Bước 1.1: Validate Account
         Account account = accountRepo.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("Tài khoản không tồn tại"));
+                .orElseThrow(() -> new IllegalArgumentException("Account not found"));
 
         // Bước 1.2: Validate Wallet
         Wallet wallet = walletRepo.findById(req.walletId())
-                .orElseThrow(() -> new IllegalArgumentException("Ví không tồn tại"));
+                .orElseThrow(() -> new IllegalArgumentException("Wallet not found"));
         if (!wallet.getAccount().getId().equals(userId)) {
-            throw new SecurityException("Không có quyền sử dụng ví này");
+            throw new SecurityException("You do not have permission to use this wallet");
         }
 
         // Bước 1.3: Validate Category
         Category category = categoryRepo.findById(req.categoryId())
-                .orElseThrow(() -> new IllegalArgumentException("Danh mục không tồn tại"));
+                .orElseThrow(() -> new IllegalArgumentException("Category not found"));
         if (category.getAccount() != null
                 && !category.getAccount().getId().equals(userId)) {
-            throw new SecurityException("Không có quyền sử dụng danh mục này");
+            throw new SecurityException("You do not have permission to use this category");
         }
 
         // Bước 1.4: Validate category Nợ/Vay cho PlannedTransaction
@@ -467,8 +467,8 @@ public class PlannedTransactionServiceImpl implements PlannedTransactionService 
         if (req.categoryId() == SystemCategory.DEBT_LENDING.getId()
                 || req.categoryId() == SystemCategory.DEBT_BORROWING.getId()) {
             throw new IllegalArgumentException(
-                    "Không thể tạo giao dịch định kỳ/hóa đơn với danh mục Cho vay hoặc Đi vay. " +
-                    "Vui lòng sử dụng danh mục Thu nợ hoặc Trả nợ.");
+                    "Cannot create recurring transaction/bill with lending or borrowing categories. " +
+                    "Please use debt collection or debt repayment categories.");
         }
 
         // Bước 1.5: Validate Debt cho Thu nợ (21) / Trả nợ (22)
@@ -479,12 +479,12 @@ public class PlannedTransactionServiceImpl implements PlannedTransactionService 
             // 1.5a: Bắt buộc chọn khoản nợ liên kết
             if (req.debtId() == null) {
                 throw new IllegalArgumentException(
-                        "Vui lòng chọn khoản nợ liên kết cho danh mục Thu nợ / Trả nợ.");
+                        "Please select a linked debt for debt collection / debt repayment categories.");
             }
             debt = debtRepo.findById(req.debtId())
-                    .orElseThrow(() -> new IllegalArgumentException("Khoản nợ không tồn tại"));
+                    .orElseThrow(() -> new IllegalArgumentException("Debt not found"));
             if (!debt.getAccount().getId().equals(userId)) {
-                throw new SecurityException("Không có quyền sử dụng khoản nợ này");
+                throw new SecurityException("You do not have permission to use this debt");
             }
             // 1.5b: Validate debt_type phù hợp:
             //   Thu nợ (21) → debt phải là "Cần Thu" (debtType=true/1, tức Cho vay)
@@ -492,13 +492,13 @@ public class PlannedTransactionServiceImpl implements PlannedTransactionService 
             boolean requireDebtType = req.categoryId() == SystemCategory.DEBT_COLLECTION.getId();
             if (!debt.getDebtType().equals(requireDebtType)) {
                 throw new IllegalArgumentException(requireDebtType
-                        ? "Danh mục Thu nợ chỉ được liên kết với khoản nợ loại 'Cần Thu' (Cho vay)."
-                        : "Danh mục Trả nợ chỉ được liên kết với khoản nợ loại 'Cần Trả' (Đi vay).");
+                        ? "Debt collection category can only be linked to 'To Collect' (Lending) debt type."
+                        : "Debt repayment category can only be linked to 'To Pay' (Borrowing) debt type.");
             }
             // 1.5c: Chặn liên kết debt đã trả xong
             if (Boolean.TRUE.equals(debt.getFinished())) {
                 throw new IllegalArgumentException(
-                        "Khoản nợ đã thanh toán xong, không thể tạo giao dịch định kỳ/hóa đơn liên kết.");
+                        "Debt has been fully paid, cannot create linked recurring transaction/bill.");
             }
         }
 
@@ -549,37 +549,37 @@ public class PlannedTransactionServiceImpl implements PlannedTransactionService 
 
         if (beginDateChanged && req.beginDate().isBefore(LocalDate.now())) {
             throw new IllegalArgumentException(
-                    "Không thể sửa thời gian bắt đầu sang ngày trong quá khứ. " +
-                            "Vui lòng chọn một ngày từ hôm nay trở đi.");
+                    "Cannot change start date to a past date. " +
+                            "Please select a date from today onwards.");
         }
 
         // ── Bước 2: Validate Wallet, Category, Debt ──────────────────────
         Wallet wallet = walletRepo.findById(req.walletId())
-                .orElseThrow(() -> new IllegalArgumentException("Ví không tồn tại"));
+                .orElseThrow(() -> new IllegalArgumentException("Wallet not found"));
         if (!wallet.getAccount().getId().equals(userId))
-            throw new SecurityException("Không có quyền sử dụng ví này");
+            throw new SecurityException("You do not have permission to use this wallet");
 
         // [FIX-DEBT-WALLET-LOCK] Kiểm tra: nếu giao dịch định kỳ thuộc vay nợ (category 19/20/21/22)
         // → không được phép đổi ví (vì các transaction liên kết debt đã ghi trong ví cũ)
         if (DEBT_CATEGORY_IDS.contains(req.categoryId())) {
             if (!req.walletId().equals(planned.getWallet().getId())) {
                 throw new IllegalArgumentException(
-                        "Không thể đổi ví cho giao dịch định kỳ/hóa đơn thuộc vay nợ. " +
-                        "Ví đã được xác định bởi các giao dịch nợ trước đó.");
+                        "Cannot change wallet for debt-related recurring transaction/bill. " +
+                        "Wallet has been determined by previous debt transactions.");
             }
         }
 
         Category category = categoryRepo.findById(req.categoryId())
-                .orElseThrow(() -> new IllegalArgumentException("Danh mục không tồn tại"));
+                .orElseThrow(() -> new IllegalArgumentException("Category not found"));
         if (category.getAccount() != null && !category.getAccount().getId().equals(userId))
-            throw new SecurityException("Không có quyền sử dụng danh mục này");
+            throw new SecurityException("You do not have permission to use this category");
 
         // [FIX-BLOCK-DEBT-ORIGIN] Chặn đổi sang category Cho vay (19) / Đi vay (20) khi update
         if (req.categoryId() == SystemCategory.DEBT_LENDING.getId()
                 || req.categoryId() == SystemCategory.DEBT_BORROWING.getId()) {
             throw new IllegalArgumentException(
-                    "Không thể sử dụng danh mục Cho vay hoặc Đi vay cho giao dịch định kỳ/hóa đơn. " +
-                    "Vui lòng sử dụng danh mục Thu nợ hoặc Trả nợ.");
+                    "Cannot use lending or borrowing categories for recurring transaction/bill. " +
+                    "Please use debt collection or debt repayment categories.");
         }
 
         // Validate Debt cho Thu nợ (21) / Trả nợ (22)
@@ -588,22 +588,22 @@ public class PlannedTransactionServiceImpl implements PlannedTransactionService 
                 || req.categoryId() == SystemCategory.DEBT_REPAYMENT.getId()) {
             if (req.debtId() == null) {
                 throw new IllegalArgumentException(
-                        "Vui lòng chọn khoản nợ liên kết cho danh mục Thu nợ / Trả nợ.");
+                        "Please select a linked debt for debt collection / debt repayment categories.");
             }
             debt = debtRepo.findById(req.debtId())
-                    .orElseThrow(() -> new IllegalArgumentException("Khoản nợ không tồn tại"));
+                    .orElseThrow(() -> new IllegalArgumentException("Debt not found"));
             if (!debt.getAccount().getId().equals(userId))
-                throw new SecurityException("Không có quyền sử dụng khoản nợ này");
+                throw new SecurityException("You do not have permission to use this debt");
             // Validate debt_type phù hợp với category
             boolean requireDebtType = req.categoryId() == SystemCategory.DEBT_COLLECTION.getId();
             if (!debt.getDebtType().equals(requireDebtType)) {
                 throw new IllegalArgumentException(requireDebtType
-                        ? "Danh mục Thu nợ chỉ được liên kết với khoản nợ loại 'Cần Thu' (Cho vay)."
-                        : "Danh mục Trả nợ chỉ được liên kết với khoản nợ loại 'Cần Trả' (Đi vay).");
+                        ? "Debt collection category can only be linked to 'To Collect' (Lending) debt type."
+                        : "Debt repayment category can only be linked to 'To Pay' (Borrowing) debt type.");
             }
             if (Boolean.TRUE.equals(debt.getFinished())) {
                 throw new IllegalArgumentException(
-                        "Khoản nợ đã thanh toán xong, không thể liên kết.");
+                        "Debt has been fully paid, cannot link.");
             }
         }
 
@@ -689,7 +689,7 @@ public class PlannedTransactionServiceImpl implements PlannedTransactionService 
             case "UNTIL_DATE" -> req.endDateValue();
             case "COUNT"      -> calculateEndDateByCount(req);
             default           -> throw new IllegalArgumentException(
-                    "endDateOption không hợp lệ: " + req.endDateOption());
+                    "Invalid endDateOption: " + req.endDateOption());
         };
     }
 
@@ -713,7 +713,7 @@ public class PlannedTransactionServiceImpl implements PlannedTransactionService 
             case 3 -> start.plusMonths((long) interval * remaining);
             case 4 -> start.plusYears((long)  interval * remaining);
             default -> throw new IllegalArgumentException(
-                    "repeatType không hợp lệ: " + req.repeatType());
+                    "Invalid repeatType: " + req.repeatType());
         };
     }
 
@@ -783,9 +783,9 @@ public class PlannedTransactionServiceImpl implements PlannedTransactionService 
         Wallet wallet = planned.getWallet();
         if (!isIncome && wallet.getBalance().compareTo(planned.getAmount()) < 0) {
             throw new IllegalArgumentException(
-                    "Ví '" + wallet.getWalletName() + "' hiện có "
+                    "Wallet '" + wallet.getWalletName() + "' has "
                     + wallet.getBalance().toPlainString()
-                    + " không đủ để thực hiện giao dịch "
+                    + " which is not enough to perform transaction "
                     + planned.getAmount().toPlainString());
         }
 

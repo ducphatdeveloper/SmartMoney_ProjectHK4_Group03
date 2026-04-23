@@ -86,7 +86,7 @@ class _CategoryCreateScreenState extends State<CategoryCreateScreen> {
   void _openParentSheet() async {
     // Bước 1: Load danh sách cha từ API trước khi mở sheet
     final provider = Provider.of<CategoryProvider>(context, listen: false);
-    await provider.loadParents(_ctgType); // GET /api/categories/parents?type=false
+    await provider.loadParents(context, _ctgType); // GET /api/categories/parents?type=false
 
     if (!mounted) return;
 
@@ -163,7 +163,7 @@ class _CategoryCreateScreenState extends State<CategoryCreateScreen> {
     setState(() => _isSaving = true);
 
     final provider = Provider.of<CategoryProvider>(context, listen: false);
-    final success = await provider.createCategory(request);
+    final success = await provider.createCategory(context, request);
 
     setState(() => _isSaving = false);
 
@@ -239,7 +239,7 @@ class _CategoryCreateScreenState extends State<CategoryCreateScreen> {
                     style: const TextStyle(color: Colors.white, fontSize: 16),
                     maxLength: 100, // tối đa 100 ký tự (khớp backend @Size)
                     decoration: const InputDecoration(
-                      hintText: "Tên nhóm",
+                      hintText: "Category name",
                       hintStyle: TextStyle(color: Colors.grey),
                       counterStyle: TextStyle(color: Colors.grey),
                       enabledBorder: UnderlineInputBorder(
@@ -335,7 +335,7 @@ class _CategoryCreateScreenState extends State<CategoryCreateScreen> {
                     Expanded(
                       child: Text(
                         // Hiện tên cha đã chọn hoặc placeholder
-                        _selectedParent?.ctgName ?? "Chọn nhóm cha",
+                        _selectedParent?.ctgName ?? "Select parent category",
                         style: TextStyle(
                           color: _selectedParent != null ? Colors.white : Colors.grey,
                           fontSize: 15,
@@ -368,7 +368,7 @@ class _CategoryCreateScreenState extends State<CategoryCreateScreen> {
                         child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
                       )
                     : const Text(
-                        "Lưu",
+                        "Save",
                         style: TextStyle(fontSize: 16, color: Colors.white),
                       ),
               ),

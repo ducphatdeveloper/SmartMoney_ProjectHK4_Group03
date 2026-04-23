@@ -80,7 +80,7 @@ class _TransactionDateSliderState extends State<TransactionDateSlider> {
               return SizedBox(
                 width: ITEM_WIDTH,
                 child: GestureDetector(
-                  onTap: () => provider.selectDateRange(range),
+                  onTap: () => provider.selectDateRange(context, range),
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     margin: const EdgeInsets.symmetric(horizontal: 2, vertical: 6),
@@ -146,7 +146,7 @@ class TransactionSpecialModeLabel extends StatelessWidget {
           const SizedBox(width: 8),
           GestureDetector(
             onTap: () {
-              context.read<TransactionProvider>().changeDateRangeMode('MONTHLY');
+              context.read<TransactionProvider>().changeDateRangeMode(context, 'MONTHLY');
             },
             child: const Icon(Icons.close, color: Colors.grey, size: 18),
           ),

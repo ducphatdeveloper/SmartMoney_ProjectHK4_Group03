@@ -1,4 +1,4 @@
-﻿/// Trạng thái mục tiêu tiết kiệm — đồng bộ GoalStatus.java (server):
+/// Trạng thái mục tiêu tiết kiệm — đồng bộ GoalStatus.java (server):
 ///   ACTIVE(1)    : Đang hoạt động
 ///   COMPLETED(2) : Hoàn thành (đủ tiền) — KHÔNG kích hoạt lại
 ///   CANCELLED(3) : Tạm dừng (deleted=false) — CÓ THỂ kích hoạt lại
@@ -21,13 +21,13 @@ enum GoalStatus {
   String get displayName {
     switch (this) {
       case GoalStatus.active:
-        return 'Đang hoạt động';
+        return 'Active';
       case GoalStatus.completed:
-        return 'Hoàn thành';
+        return 'Completed';
       case GoalStatus.cancelled:
-        return 'Tạm dừng';
+        return 'Paused';
       case GoalStatus.overdue:
-        return 'Quá hạn';
+        return 'Overdue';
     }
   }
 

@@ -91,7 +91,7 @@ public class UserServiceImp implements UserService {
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
         if (file == null || file.isEmpty()) {
-            throw new RuntimeException("File không được để trống.");
+            throw new RuntimeException("File cannot be empty.");
         }
 
         try {
@@ -99,7 +99,7 @@ public class UserServiceImp implements UserService {
             List<String> allowedTypes = Arrays.asList("image/jpeg", "image/png", "image/webp");
             if (contentType == null || !allowedTypes.contains(contentType.toLowerCase())) {
                 log.warn("Định dạng file '{}' không được hỗ trợ cho User ID: {}", contentType, accId);
-                throw new RuntimeException("Chỉ hỗ trợ định dạng ảnh JPG, PNG hoặc WEBP.");
+                throw new RuntimeException("Only JPG, PNG, or WEBP image formats are supported.");
             }
 
             // 1. Xóa ảnh cũ trên Cloudinary nếu tồn tại
@@ -129,7 +129,7 @@ public class UserServiceImp implements UserService {
             return fileUrl;
         } catch (IOException e) {
             log.error("Lỗi nghiêm trọng khi upload avatar lên Cloudinary cho User {}: {}", accId, e.getMessage(), e);
-            throw new RuntimeException("Lỗi xử lý file ảnh.");
+            throw new RuntimeException("Error processing image file.");
         }
     }
 
@@ -141,7 +141,7 @@ public class UserServiceImp implements UserService {
         // Xác minh CCCD
         if (account.getIdentityCard() == null || !account.getIdentityCard().equals(identityCard)) {
             log.warn("Yêu cầu OTP khóa khẩn cấp thất bại cho User {}: CCCD không khớp.", accId);
-            throw new IllegalArgumentException("Số CCCD xác minh không chính xác.");
+            throw new IllegalArgumentException("Verification ID card number is incorrect.");
         }
 
         // Tạo mã OTP 6 số
@@ -166,14 +166,14 @@ public class UserServiceImp implements UserService {
         OtpSession session = otpCache.get(accId);
         if (session == null) {
             log.warn("Xác thực thất bại: Không tìm thấy session OTP cho User ID {}", accId);
-            throw new IllegalArgumentException("Không tìm thấy yêu cầu xác thực hoặc mã đã bị hủy.");
+            throw new IllegalArgumentException("Verification request not found or code has been cancelled.");
         }
         
         // 2. Kiểm tra hết hạn TRƯỚC
         if (session.isExpired()) {
             otpCache.remove(accId);
             log.warn("Xác thực thất bại: OTP đã hết hạn cho User ID {}", accId);
-            throw new IllegalArgumentException("Mã OTP đã hết hạn (5 phút). Vui lòng yêu cầu mã mới.");
+            throw new IllegalArgumentException("OTP code has expired (5 minutes). Please request a new code.");
         }
 
         // 3. Chuẩn hóa mã nhận được từ Client (Mobile)
@@ -183,7 +183,7 @@ public class UserServiceImp implements UserService {
         if (!session.code.equals(sanitizedCode)) {
             log.warn("Xác thực thất bại: Mã không khớp cho User ID {}. Nhận: [{}], Kỳ vọng: [{}]", 
                     accId, sanitizedCode, session.code);
-            throw new IllegalArgumentException("Mã OTP không chính xác.");
+            throw new IllegalArgumentException("OTP code is incorrect.");
         }
 
         // 5. Thực hiện khóa tài khoản

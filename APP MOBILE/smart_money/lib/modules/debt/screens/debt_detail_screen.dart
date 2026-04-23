@@ -76,7 +76,7 @@ class _DebtDetailScreenState extends State<DebtDetailScreen> {
     super.initState();
     // Tải chi tiết + giao dịch ngay khi vào màn hình
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<DebtProvider>().loadDetail(widget.debtId);
+      context.read<DebtProvider>().loadDetail(context, widget.debtId);
     });
   }
 
@@ -110,7 +110,7 @@ class _DebtDetailScreenState extends State<DebtDetailScreen> {
     if (saved == true && mounted) {
       // Reload chi tiết sau khi sửa — currentDebt đã được update trong provider
       _hasChanges = true;
-      await provider.loadDetail(widget.debtId);
+      await provider.loadDetail(context, widget.debtId);
     }
   }
 
@@ -143,7 +143,7 @@ class _DebtDetailScreenState extends State<DebtDetailScreen> {
     // Bước: Gọi provider.deleteDebt → pop về list
     final success = await context
         .read<DebtProvider>()
-        .deleteDebt(widget.debtId, widget.debtType);
+        .deleteDebt(context, widget.debtId, widget.debtType);
 
     if (!mounted) return;
     if (success) {
@@ -158,7 +158,7 @@ class _DebtDetailScreenState extends State<DebtDetailScreen> {
   Future<void> _toggleStatus() async {
     final success = await context
         .read<DebtProvider>()
-        .toggleStatus(widget.debtId);
+        .toggleStatus(context, widget.debtId);
 
     if (!mounted) return;
     if (success) {
@@ -200,7 +200,7 @@ class _DebtDetailScreenState extends State<DebtDetailScreen> {
     // Bước 3: Nếu tạo thành công → reload detail để cập nhật remainAmount
     if (result == true && mounted) {
       _hasChanges = true;
-      await provider.loadDetail(widget.debtId);
+      await provider.loadDetail(context, widget.debtId);
 
       // [FIX] Kiểm tra sau khi reload: nếu debt không còn tồn tại (bị backend
       // xóa tự động vì không có giao dịch gốc hợp lệ), quay lại list thay vì
@@ -330,7 +330,7 @@ class _DebtDetailScreenState extends State<DebtDetailScreen> {
           debtId: widget.debtId,
           onTransactionChanged: () async {
             _hasChanges = true;
-            await context.read<DebtProvider>().loadDetail(widget.debtId);
+            await context.read<DebtProvider>().loadDetail(context, widget.debtId);
           },
         ),
 
@@ -425,7 +425,7 @@ class _DebtDetailScreenState extends State<DebtDetailScreen> {
                     size: 14, color: Colors.grey[500]),
                 const SizedBox(width: 6),
                 Text(
-                  'Hạn trả: ${FormatHelper.formatDisplayDate(debt.dueDate!)}',
+                  'Due date: ${FormatHelper.formatDisplayDate(debt.dueDate!)}',
                   style: TextStyle(fontSize: 13, color: Colors.grey[700]),
                 ),
               ],
@@ -734,7 +734,7 @@ class _DebtTransactionSectionState extends State<_DebtTransactionSection> {
               final txProvider =
                   Provider.of<TransactionProvider>(context, listen: false);
               final success =
-                  await txProvider.deleteTransaction(transaction.id);
+                  await txProvider.deleteTransaction(context, transaction.id);
               if (!mounted) return;
               if (success) {
                 await widget.onTransactionChanged?.call();

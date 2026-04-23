@@ -1071,7 +1071,7 @@ class _TransactionSearchScreenState extends State<TransactionSearchScreen> {
             onPressed: () async {
               Navigator.pop(ctx);
               final provider = Provider.of<TransactionProvider>(context, listen: false);
-              final success = await provider.deleteTransaction(tx.id);
+              final success = await provider.deleteTransaction(context, tx.id);
 
               if (!mounted) return;
 

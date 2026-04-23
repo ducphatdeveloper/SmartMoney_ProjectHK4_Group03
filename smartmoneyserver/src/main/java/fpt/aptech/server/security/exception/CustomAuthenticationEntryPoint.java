@@ -26,7 +26,7 @@ public class CustomAuthenticationEntryPoint implements AuthenticationEntryPoint 
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         response.setCharacterEncoding("UTF-8");
 
-        ApiResponse<Void> apiResponse = ApiResponse.error("Vui lòng đăng nhập để tiếp tục (401 Unauthorized)");
+        ApiResponse<Void> apiResponse = ApiResponse.error("Please login to continue (401 Unauthorized)");
 
         // Dùng objectMapper đã được inject, không cần new nữa
         response.getWriter().write(objectMapper.writeValueAsString(apiResponse));

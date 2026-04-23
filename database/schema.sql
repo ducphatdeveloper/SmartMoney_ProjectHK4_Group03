@@ -860,7 +860,7 @@ INSERT INTO tWallets (acc_id, wallet_name, balance, currency, notified, reportab
 (19, N'ZaloPay', 1800000, 'VND', 1, 1, 'wallet.png'),
 (4, N'Agribank', 20000000, 'VND', 1, 1, 'wallet.png'),
 (5, N'Ví tiết kiệm', 50000000, 'VND', 0, 0, 'wallet.png'),
-(6, N'MB Bank', 96500000, 'VND', 1, 1, 'wallet.png'),
+(6, N'MB Bank', 6500000, 'VND', 1, 1, 'wallet.png'),
 (6, N'VNPay', 900000, 'VND', 1, 1, 'wallet.png'),
 (7, N'ACB', 18000000, 'VND', 1, 1, 'wallet.png'),
 (20, N'Ví du lịch', 10000000, 'VND', 1, 1, 'wallet.png'),

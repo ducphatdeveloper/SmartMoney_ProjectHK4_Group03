@@ -51,7 +51,7 @@ public class CloudinaryService {
     public String uploadImage(MultipartFile file, String folder) throws IOException {
         // 1. Validate file
         if (file == null || file.isEmpty()) {
-            throw new IllegalArgumentException("File ảnh không được để trống.");
+            throw new IllegalArgumentException("Image file cannot be empty.");
         }
 
         // 2. Validate loại file (chỉ cho phép ảnh)
@@ -67,10 +67,10 @@ public class CloudinaryService {
                 if (extension.matches("jpg|jpeg|png|svg|webp|gif|bmp")) {
                     log.info("[Cloudinary] File extension hợp lệ, cho phép upload");
                 } else {
-                    throw new IllegalArgumentException("Chỉ chấp nhận file ảnh (jpg, png, svg, webp...). File extension: " + extension);
+                    throw new IllegalArgumentException("Only image files are accepted (jpg, png, svg, webp...). File extension: " + extension);
                 }
             } else {
-                throw new IllegalArgumentException("Chỉ chấp nhận file ảnh (jpg, png, svg, webp...).");
+                throw new IllegalArgumentException("Only image files are accepted (jpg, png, svg, webp...).");
             }
         }
 

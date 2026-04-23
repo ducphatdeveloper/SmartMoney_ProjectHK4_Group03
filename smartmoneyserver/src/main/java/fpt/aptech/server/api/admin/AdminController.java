@@ -45,14 +45,14 @@ public class AdminController {
     @PreAuthorize("hasRole('ROLE_ADMIN') or hasAuthority('ADMIN_SYSTEM_ALL')")
     public ResponseEntity<ApiResponse<String>> lockAccount(@PathVariable("id") Integer id) {
         adminService.lockAccount(id);
-        return ResponseEntity.ok(ApiResponse.success("Tài khoản đã bị khóa."));
+        return ResponseEntity.ok(ApiResponse.success("Account has been locked."));
     }
 
     @PutMapping("/users/{id}/unlock")
     @PreAuthorize("hasRole('ROLE_ADMIN') or hasAuthority('ADMIN_SYSTEM_ALL')")
     public ResponseEntity<ApiResponse<String>> unlockAccount(@PathVariable("id") Integer id) {
         adminService.unlockAccount(id);
-        return ResponseEntity.ok(ApiResponse.success("Tài khoản đã được mở khóa."));
+        return ResponseEntity.ok(ApiResponse.success("Account has been unlocked."));
     }
 
     @GetMapping("/users/{id}/insights")
@@ -107,7 +107,7 @@ public class AdminController {
     @PreAuthorize("hasRole('ROLE_ADMIN') or hasAuthority('ADMIN_SYSTEM_ALL')")
     public ResponseEntity<ApiResponse<String>> restoreTransaction(@PathVariable("id") Long id) {
         adminService.restoreTransaction(id);
-        return ResponseEntity.ok(ApiResponse.success("Giao dịch đã được khôi phục thành công."));
+        return ResponseEntity.ok(ApiResponse.success("Transaction has been restored successfully."));
     }
 
     /**
@@ -117,7 +117,7 @@ public class AdminController {
     @PreAuthorize("hasRole('ROLE_ADMIN') or hasAuthority('ADMIN_SYSTEM_ALL')")
     public ResponseEntity<ApiResponse<String>> restoreAllUserTransactions(@PathVariable("userId") Integer userId) {
         adminService.restoreAllUserTransactions(userId);
-        return ResponseEntity.ok(ApiResponse.success("Tất cả giao dịch của người dùng đã được khôi phục."));
+        return ResponseEntity.ok(ApiResponse.success("All user transactions have been restored."));
     }
 
     @GetMapping("/stats")
@@ -150,7 +150,7 @@ public class AdminController {
     @PreAuthorize("hasRole('ROLE_ADMIN') or hasAuthority('ADMIN_SYSTEM_ALL')")
     public ResponseEntity<ApiResponse<String>> handleAutoLogout() {
         adminService.handleAutoLogout();
-        return ResponseEntity.ok(ApiResponse.success("Đã thu hồi phiên quá hạn."));
+        return ResponseEntity.ok(ApiResponse.success("Expired sessions have been revoked."));
     }
 
     @GetMapping("/notifications")

@@ -15,12 +15,12 @@ class WalletCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text("Ví của tôi",
+          const Text("My Wallet",
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
           const SizedBox(height: 12),
-          row("Mua Xe", "0.00 đ"),
+          row("Buy Car", "0.00 đ"),
           const Divider(),
-          row("Tổng Cộng", "9,994,550,000.00 đ", bold: true),
+          row("Total", "9,994,550,000.00 đ", bold: true),
         ],
       ),
     );

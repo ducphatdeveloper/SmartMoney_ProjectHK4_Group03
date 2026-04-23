@@ -80,7 +80,7 @@ public class CategoryController {
 
         Integer userId = currentUser.getId();
         CategoryResponse newCategory = categoryService.createCategory(request, userId);
-        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(newCategory, "Tạo danh mục thành công"));
+        return ResponseEntity.status(HttpStatus.CREATED).body(ApiResponse.success(newCategory, "Category created successfully"));
     }
 
     /// API cập nhật danh mục.
@@ -93,7 +93,7 @@ public class CategoryController {
 
         Integer userId = currentUser.getId();
         CategoryResponse updatedCategory = categoryService.updateCategory(categoryId, request, userId);
-        return ResponseEntity.ok(ApiResponse.success(updatedCategory, "Cập nhật danh mục thành công"));
+        return ResponseEntity.ok(ApiResponse.success(updatedCategory, "Category updated successfully"));
     }
 
     /// API xóa danh mục (Cascade Delete tất cả con)
@@ -110,6 +110,6 @@ public class CategoryController {
 
         Integer userId = currentUser.getId();
         categoryService.deleteCategoryWithOptions(categoryId, userId, actionType, newCategoryId);
-        return ResponseEntity.ok(ApiResponse.success("Xóa danh mục thành công"));
+        return ResponseEntity.ok(ApiResponse.success("Category deleted successfully"));
     }
 }

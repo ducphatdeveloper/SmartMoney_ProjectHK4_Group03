@@ -52,9 +52,9 @@ class _HomeScreenState extends State<HomeScreen> {
       // Gọi các thông tin nền tảng song song
       await Future.wait([
         context.read<NotificationProvider>().fetchNotifications(),
-        context.read<WalletProvider>().loadAll(),
-        context.read<CategoryProvider>().loadByGroup('expense'),
-        context.read<TransactionProvider>().initialize(),
+        context.read<WalletProvider>().loadAll(context),
+        context.read<CategoryProvider>().loadByGroup(context, 'expense'),
+        context.read<TransactionProvider>().initialize(context),
       ]);
 
       if (mounted) _fetchTopCategories();
@@ -70,9 +70,9 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _onRefresh() async {
     await Future.wait([
       context.read<NotificationProvider>().fetchNotifications(),
-      context.read<WalletProvider>().loadAll(),
-      context.read<TransactionProvider>().refresh(),
-      context.read<CategoryProvider>().loadByGroup('expense', forceRefresh: true),
+      context.read<WalletProvider>().loadAll(context),
+      context.read<TransactionProvider>().refresh(context),
+      context.read<CategoryProvider>().loadByGroup(context, 'expense', forceRefresh: true),
       _fetchTopCategories(),
     ]);
   }
@@ -283,14 +283,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   builder: (_) => const DateRangeModeDialog(),
                 );
               },
-            ),
-            // Bước 1: Thêm nút AI Chat
-            IconButton(
-              icon: const Icon(Icons.smart_toy_outlined, size: 20),
-              onPressed: () {
-                context.push('/ai-chat');
-              },
-              tooltip: 'AI Assistant',
             ),
             Consumer<NotificationProvider>(
               builder: (context, provider, child) {
@@ -548,7 +540,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       trailing: Text(currencyFormat.format(source.balance ?? 0.0)),
                       selected: provider.selectedSource.id == source.id && provider.selectedSource.type == source.type,
                       onTap: () {
-                        provider.selectSource(source);
+                        provider.selectSource(context, source);
                         Navigator.pop(context);
                       },
                     );

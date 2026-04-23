@@ -248,7 +248,7 @@ class _DetailSavingGoalScreenState extends State<DetailSavingGoalScreen> {
 
   Future<int?> _showWalletSelectionDialog(BuildContext context, String title) async {
     final walletProvider = context.read<WalletProvider>();
-    if (walletProvider.wallets.isEmpty) await walletProvider.loadAll();
+    if (walletProvider.wallets.isEmpty) await walletProvider.loadAll(context);
 
     return showDialog<int>(
       context: context,

@@ -43,7 +43,7 @@ public class FirebaseConfig {
             } catch (IOException e) {
                 // Nếu không tìm thấy file key → log lỗi rõ ràng
                 log.error("❌ Không thể khởi tạo Firebase: {}", e.getMessage());
-                throw new RuntimeException("Khởi tạo Firebase thất bại!", e);
+                throw new RuntimeException("Firebase initialization failed!", e);
             }
         }
     }

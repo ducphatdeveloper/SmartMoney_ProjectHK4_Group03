@@ -19,7 +19,7 @@ class BottomSaveButton extends StatelessWidget {
               borderRadius: BorderRadius.circular(12),
             ),
           ),
-          child: const Text("Lưu"),
+          child: const Text("Save"),
         ),
       ),
     );

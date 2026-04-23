@@ -40,7 +40,7 @@ class TransactionCategoryRow extends StatelessWidget {
             _buildIcon(),
             const SizedBox(width: 12),
 
-            // Tên danh mục hoặc "Chọn nhóm"
+            // Category name or "Select category"
             Expanded(
               child: Text(
                 selected?.ctgName ?? 'Select category', // hiện tên nếu đã chọn

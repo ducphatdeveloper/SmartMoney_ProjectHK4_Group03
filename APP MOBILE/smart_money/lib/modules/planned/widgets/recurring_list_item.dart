@@ -70,7 +70,7 @@ class RecurringListItem extends StatelessWidget {
                       children: [
                         Expanded(
                           child: Text(
-                            item.categoryName ?? 'Không rõ',
+                            item.categoryName ?? 'Unknown',
                             style: const TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.w600,
@@ -117,7 +117,7 @@ class RecurringListItem extends StatelessWidget {
                     if (item.nextDueDateLabel != null) ...[
                       const SizedBox(height: 4),
                       Text(
-                        'Lần tới: ${item.nextDueDateLabel}',
+                        'Next: ${item.nextDueDateLabel}',
                         style: const TextStyle(
                           fontSize: 12,
                           color: Color(0xFF8E8E93),
@@ -126,7 +126,7 @@ class RecurringListItem extends StatelessWidget {
                     ] else if (item.nextDueDate != null) ...[
                       const SizedBox(height: 4),
                       Text(
-                        'Lần tới: ${FormatHelper.formatDisplayDate(item.nextDueDate!)}',
+                        'Next: ${item.nextDueDateLabel}',
                         style: const TextStyle(
                           fontSize: 12,
                           color: Color(0xFF8E8E93),
@@ -139,7 +139,7 @@ class RecurringListItem extends StatelessWidget {
                     if (item.remainingCount != null) ...[
                       const SizedBox(height: 4),
                       Text(
-                        'Còn ${item.remainingCount} lần lặp lại',
+                        '${item.remainingCount} repeats left',
                         style: const TextStyle(
                           fontSize: 12,
                           color: Color(0xFF8E8E93),
@@ -189,7 +189,7 @@ class RecurringListItem extends StatelessWidget {
         return Padding(
           padding: const EdgeInsets.only(top: 4),
           child: Text(
-            '🟢 ${item.statusLabel ?? "Đang hoạt động"}',
+            '🟢 ${item.statusLabel ?? "Active"}',
             style: const TextStyle(
               fontSize: 12,
               color: Color(0xFF4CAF50),
@@ -202,7 +202,7 @@ class RecurringListItem extends StatelessWidget {
         return Padding(
           padding: const EdgeInsets.only(top: 4),
           child: Text(
-            '🔴 ${item.statusLabel ?? "Quá hạn"}',
+            '🔴 ${item.statusLabel ?? "Overdue"}',
             style: const TextStyle(
               fontSize: 12,
               color: Color(0xFFFF3B30),
@@ -215,7 +215,7 @@ class RecurringListItem extends StatelessWidget {
         return const Padding(
           padding: EdgeInsets.only(top: 4),
           child: Text(
-            '⚫ Đã tạm dừng',
+            '⚫ Paused',
             style: TextStyle(
               fontSize: 12,
               color: Color(0xFF8E8E93),
@@ -228,7 +228,7 @@ class RecurringListItem extends StatelessWidget {
         return Padding(
           padding: const EdgeInsets.only(top: 4),
           child: Text(
-            '⚫ ${item.statusLabel ?? "Đã hết hạn"}',
+            '⚫ ${item.statusLabel ?? "Expired"}',
             style: const TextStyle(
               fontSize: 12,
               color: Color(0xFF8E8E93),

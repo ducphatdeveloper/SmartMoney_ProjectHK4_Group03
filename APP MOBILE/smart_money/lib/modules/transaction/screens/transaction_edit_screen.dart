@@ -118,13 +118,13 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
     if (tx.savingGoalId != null) {
       _selectedSourceItem = SourceItem.fromSavingGoal(
         id: tx.savingGoalId!,
-        name: tx.savingGoalName ?? 'Mục tiêu',
+        name: tx.savingGoalName ?? 'Goal',
         iconUrl: tx.savingGoalIconUrl,
       );
     } else if (tx.walletId != null) {
       _selectedSourceItem = SourceItem.fromWallet(
         id: tx.walletId!,
-        name: tx.walletName ?? 'Ví',
+        name: tx.walletName ?? 'Wallet',
         iconUrl: tx.walletIconUrl,
       );
     }
@@ -160,7 +160,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
     _selectedDebtId = tx.debtId;
     // TransactionResponse chỉ có debtId, không có tên → hiển thị placeholder
     // User có thể mở picker để xem và đổi khoản nợ nếu muốn
-    _selectedDebtDisplay = tx.debtId != null ? 'Khoản nợ đã liên kết' : null;
+    _selectedDebtDisplay = tx.debtId != null ? 'Debt linked' : null;
 
     // Pre-fill "Không tính vào báo cáo"
     _notReportable = !tx.reportable;
@@ -178,7 +178,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
       final provider = context.read<TransactionProvider>();
       if (provider.sourceItems.isEmpty) {
         setState(() => _isLoadingSources = true);
-        await provider.ensureSourceItemsLoaded();
+        await provider.ensureSourceItemsLoaded(context);
         if (mounted) setState(() => _isLoadingSources = false);
       }
     });
@@ -278,7 +278,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
     // Bước 4: Gọi Provider
     setState(() => _isSaving = true);
     final provider = Provider.of<TransactionProvider>(context, listen: false);
-    final success = await provider.updateTransaction(widget.transaction.id, request);
+    final success = await provider.updateTransaction(context, widget.transaction.id, request);
     setState(() => _isSaving = false);
 
     // Bước 5: Kiểm tra mounted sau await
@@ -332,7 +332,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
   Future<void> _delete() async {
     setState(() => _isSaving = true);
     final provider = Provider.of<TransactionProvider>(context, listen: false);
-    final success = await provider.deleteTransaction(widget.transaction.id);
+    final success = await provider.deleteTransaction(context, widget.transaction.id);
     setState(() => _isSaving = false);
 
     if (!mounted) return;
@@ -504,7 +504,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
                     const Icon(Icons.event, color: Color(0xFF4CAF50), size: 20),
                     const SizedBox(width: 8),
                     const Text(
-                      'Chọn sự kiện đang diễn ra',
+                      'Select ongoing event',
                       style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
                     ),
                     const Spacer(),
@@ -528,7 +528,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
                 const Padding(
                   padding: EdgeInsets.all(32),
                   child: Text(
-                    'Không có sự kiện đang diễn ra',
+                    'No ongoing events',
                     style: TextStyle(color: Colors.grey),
                     textAlign: TextAlign.center,
                   ),
@@ -565,7 +565,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Đến ${FormatHelper.formatDate(event.endDate)}',
+                              'To ${FormatHelper.formatDate(event.endDate)}',
                               style: TextStyle(color: Colors.grey[500], fontSize: 11),
                             ),
                             Row(
@@ -581,7 +581,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
                                 ),
                                 const SizedBox(width: 8),
                                 Text(
-                                  'Còn: ${FormatHelper.formatShort(event.netAmount)}',
+                                  'Remaining: ${FormatHelper.formatShort(event.netAmount)}',
                                   style: TextStyle(
                                     color: event.netAmount >= 0 ? Colors.blue : Colors.orange,
                                     fontSize: 11,
@@ -622,7 +622,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
     // Bước 1: Load khoản nợ phù hợp
     final debtProvider = Provider.of<DebtProvider>(context, listen: false);
     final debtType = _debtTypeForPicker;
-    await debtProvider.loadDebts(debtType);
+    await debtProvider.loadDebts(context, debtType);
 
     // Bước 2: Kiểm tra mounted sau await
     if (!mounted) return;
@@ -632,7 +632,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
         ? debtProvider.receivableDebts
         : debtProvider.payableDebts;
 
-    final tabLabel = debtType ? 'CẦN THU' : 'CẦN TRẢ';
+    final tabLabel = debtType ? 'RECEIVABLE' : 'PAYABLE';
 
     // Bước 4: Hiện bottom sheet
     showModalBottomSheet(
@@ -658,7 +658,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      'Chọn khoản $tabLabel',
+                      'Select $tabLabel debt',
                       style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
                     ),
                     const Spacer(),
@@ -682,7 +682,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
                 Padding(
                   padding: const EdgeInsets.all(32),
                   child: Text(
-                    'Không có khoản $tabLabel nào chưa hoàn thành',
+                    'No uncompleted $tabLabel debts',
                     style: const TextStyle(color: Colors.grey),
                     textAlign: TextAlign.center,
                   ),
@@ -713,7 +713,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
                           ),
                         ),
                         subtitle: Text(
-                          'Còn lại: ${FormatHelper.formatVND(debt.remainAmount)}',
+                          'Remaining: ${FormatHelper.formatVND(debt.remainAmount)}',
                           style: TextStyle(color: Colors.grey[500], fontSize: 12),
                         ),
                         trailing: isSelected
@@ -873,7 +873,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text(
-          'Sửa giao dịch',
+          'Edit transaction',
           style: TextStyle(color: Colors.white, fontSize: 18),
         ),
         centerTitle: true,
@@ -1038,8 +1038,8 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
             Expanded(
               child: Text(
                 _isLoadingSources
-                    ? 'Đang tải danh sách ví...'
-                    : (_selectedSourceItem?.name ?? 'Chọn ví'),
+                    ? 'Loading wallet list...'
+                    : (_selectedSourceItem?.name ?? 'Select wallet'),
                 style: TextStyle(
                   color: (_isLoadingSources || _selectedSourceItem == null)
                       ? Colors.grey
@@ -1074,7 +1074,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
             const SizedBox(width: 12),
             Expanded(
               child: Text(
-                _selectedEventDisplay ?? 'Chọn sự kiện (tuỳ chọn)',
+                _selectedEventDisplay ?? 'Select event (optional)',
                 style: TextStyle(
                   color: _selectedEventId != null ? Colors.white : Colors.grey,
                   fontSize: 15,
@@ -1113,8 +1113,8 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
             Expanded(
               child: Text(
                 _reminderTime != null
-                    ? 'Nhắc nhở: ${FormatHelper.formatDisplayDate(_reminderTime!)} ${_reminderTime!.hour.toString().padLeft(2, '0')}:${_reminderTime!.minute.toString().padLeft(2, '0')}'
-                    : 'Đặt nhắc nhở (tùy chọn)',
+                    ? 'Reminder: ${FormatHelper.formatDisplayDate(_reminderTime!)} ${_reminderTime!.hour.toString().padLeft(2, '0')}:${_reminderTime!.minute.toString().padLeft(2, '0')}'
+                    : 'Set reminder (optional)',
                 style: TextStyle(
                   color: _reminderTime != null ? Colors.white : Colors.grey,
                   fontSize: 15,
@@ -1190,8 +1190,8 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
   Widget _buildDebtRow() {
     final isCollect = _selectedCategory?.id == 21;
     final hintText = isCollect
-        ? 'Chọn khoản Cần Thu (tuỳ chọn)'
-        : 'Chọn khoản Cần Trả (tuỳ chọn)';
+        ? 'Select receivable debt (optional)'
+        : 'Select payable debt (optional)';
     final iconColor = isCollect ? Colors.blue : Colors.orange;
 
     return GestureDetector(
@@ -1244,7 +1244,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
               maxLength: 500,
               style: const TextStyle(color: Colors.white, fontSize: 15),
               decoration: const InputDecoration(
-                hintText: 'Thêm ghi chú',
+                hintText: 'Add note',
                 hintStyle: TextStyle(color: Colors.grey),
                 border: InputBorder.none,
                 counterText: '',
@@ -1272,7 +1272,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
             ),
             const SizedBox(width: 4),
             Text(
-              _showDetails ? 'ẨN CHI TIẾT' : 'THÊM CHI TIẾT',
+              _showDetails ? 'HIDE DETAILS' : 'ADD DETAILS',
               style: const TextStyle(
                 color: Color(0xFF4CAF50),
                 fontWeight: FontWeight.w600,
@@ -1300,7 +1300,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
               maxLength: 100,
               style: const TextStyle(color: Colors.white, fontSize: 15),
               decoration: const InputDecoration(
-                hintText: 'Với ai',
+                hintText: 'With person',
                 hintStyle: TextStyle(color: Colors.grey),
                 border: InputBorder.none,
                 counterText: '',
@@ -1329,11 +1329,11 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  'Không tính vào báo cáo',
+                  'Exclude from reports',
                   style: TextStyle(color: Colors.white, fontSize: 14),
                 ),
                 Text(
-                  'Không tính giao dịch này trong báo cáo',
+                  'Exclude this transaction from reports',
                   style: TextStyle(color: Colors.grey[600], fontSize: 11),
                 ),
               ],
@@ -1501,7 +1501,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
                 child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
               )
             : const Text(
-                'LƯU',
+                'SAVE',
                 style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
       ),
@@ -1523,7 +1523,7 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
           child: const Text(
-            'XÓA GIAO DỊCH',
+            'DELETE TRANSACTION',
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
           ),
         ),

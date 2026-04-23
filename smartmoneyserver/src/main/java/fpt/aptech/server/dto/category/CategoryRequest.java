@@ -12,14 +12,14 @@ import lombok.Builder;
 @Builder
 public record CategoryRequest(
     
-    @NotBlank(message = "Tên danh mục không được để trống")
-    @Size(max = 100, message = "Tên danh mục tối đa 100 ký tự")
+    @NotBlank(message = "Category name cannot be empty")
+    @Size(max = 100, message = "Category name must be at most 100 characters")
     String ctgName,
 
-    @NotNull(message = "Loại danh mục không được để trống")
+    @NotNull(message = "Category type cannot be empty")
     Boolean ctgType, // true: Thu nhập, false: Chi tiêu
 
-    @Size(max = 2048, message = "URL icon quá dài")
+    @Size(max = 2048, message = "Icon URL is too long")
     String ctgIconUrl,
 
     // ID danh mục cha (nếu tạo danh mục con). Null nếu tạo danh mục gốc.

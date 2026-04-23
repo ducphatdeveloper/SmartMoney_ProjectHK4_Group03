@@ -56,77 +56,77 @@ enum SystemCategory {
   String get displayName {
     switch (this) {
       case SystemCategory.foodAndBeverage:
-        return 'Ăn uống';
+        return 'Food & Beverage';
       case SystemCategory.insurance:
-        return 'Bảo hiểm';
+        return 'Insurance';
       case SystemCategory.otherExpense:
-        return 'Chi phí khác';
+        return 'Other Expense';
       case SystemCategory.investment:
-        return 'Đầu tư';
+        return 'Investment';
       case SystemCategory.transportation:
-        return 'Di chuyển';
+        return 'Transportation';
       case SystemCategory.family:
-        return 'Gia đình';
+        return 'Family';
       case SystemCategory.entertainment:
-        return 'Giải trí';
+        return 'Entertainment';
       case SystemCategory.education:
-        return 'Giáo dục';
+        return 'Education';
       case SystemCategory.billsAndUtilities:
-        return 'Hoá đơn & Tiện ích';
+        return 'Bills & Utilities';
       case SystemCategory.shopping:
-        return 'Mua sắm';
+        return 'Shopping';
       case SystemCategory.giftsAndDonations:
-        return 'Quà tặng & Quyên góp';
+        return 'Gifts & Donations';
       case SystemCategory.health:
-        return 'Sức khỏe';
+        return 'Health';
       case SystemCategory.transferOut:
-        return 'Tiền chuyển đi';
+        return 'Transfer Out';
       case SystemCategory.interestPayment:
-        return 'Trả lãi';
+        return 'Interest Payment';
       case SystemCategory.salary:
-        return 'Lương';
+        return 'Salary';
       case SystemCategory.interestReceive:
-        return 'Thu lãi';
+        return 'Interest Received';
       case SystemCategory.incomeOther:
-        return 'Thu nhập khác';
+        return 'Other Income';
       case SystemCategory.incomeTransfer:
-        return 'Tiền chuyển đến';
+        return 'Transfer In';
       case SystemCategory.debtLending:
-        return 'Cho vay';
+        return 'Lending';
       case SystemCategory.debtBorrowing:
-        return 'Đi vay';
+        return 'Borrowing';
       case SystemCategory.debtCollection:
-        return 'Thu nợ';
+        return 'Debt Collection';
       case SystemCategory.debtRepayment:
-        return 'Trả nợ';
+        return 'Debt Repayment';
       case SystemCategory.carMaintenance:
-        return 'Bảo dưỡng xe';
+        return 'Car Maintenance';
       case SystemCategory.homeServices:
-        return 'Dịch vụ gia đình';
+        return 'Home Services';
       case SystemCategory.homeDecor:
-        return 'Sửa & trang trí nhà';
+        return 'Home Decor';
       case SystemCategory.pets:
-        return 'Vật nuôi';
+        return 'Pets';
       case SystemCategory.onlineServices:
-        return 'Dịch vụ trực tuyến';
+        return 'Online Services';
       case SystemCategory.travel:
-        return 'Vui - chơi';
+        return 'Travel';
       case SystemCategory.electricityBill:
-        return 'Hoá đơn điện';
+        return 'Electricity Bill';
       case SystemCategory.phoneBill:
-        return 'Hoá đơn điện thoại';
+        return 'Phone Bill';
       case SystemCategory.gasBill:
-        return 'Hoá đơn gas';
+        return 'Gas Bill';
       case SystemCategory.internetBill:
-        return 'Hoá đơn internet';
+        return 'Internet Bill';
       case SystemCategory.waterBill:
-        return 'Hoá đơn nước';
+        return 'Water Bill';
       case SystemCategory.otherUtilityBill:
-        return 'Hoá đơn tiện ích khác';
+        return 'Other Utility Bill';
       case SystemCategory.tvBill:
-        return 'Hoá đơn TV';
+        return 'TV Bill';
       case SystemCategory.rental:
-        return 'Thuê nhà';
+        return 'Rental';
     }
   }
 }

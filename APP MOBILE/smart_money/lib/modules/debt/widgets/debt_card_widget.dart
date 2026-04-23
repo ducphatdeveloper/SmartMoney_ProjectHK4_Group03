@@ -135,7 +135,7 @@ class DebtCardWidget extends StatelessWidget {
         // Dòng "Đã trả X / Còn Y" hoặc ngày hẹn trả nếu còn nợ
         if (!debt.finished && debt.dueDate != null)
           Text(
-            'Hạn: ${FormatHelper.formatDisplayDate(debt.dueDate!)}',
+            'Due: ${FormatHelper.formatDisplayDate(debt.dueDate!)}',
             style: TextStyle(
               fontSize: 11,
               // Đỏ nếu gần đến hạn, xám nếu còn lâu
@@ -178,7 +178,7 @@ class DebtCardWidget extends StatelessWidget {
         if (debt.finished)
           // Label nhỏ xác nhận đã xong
           Text(
-            debt.debtType ? 'Đã nhận hết' : 'Đã trả hết',
+            debt.debtType ? 'Fully Received' : 'Fully Paid',
             style: const TextStyle(fontSize: 11, color: Colors.green),
           )
         else

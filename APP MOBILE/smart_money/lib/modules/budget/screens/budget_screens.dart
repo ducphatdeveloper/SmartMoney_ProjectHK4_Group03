@@ -378,7 +378,7 @@ class _BudgetScreenState extends State<BudgetScreen>
                       border: Border.all(color: Colors.white24),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    constraints: const BoxConstraints(maxWidth: 200),
+                    constraints: const BoxConstraints(maxWidth: 240),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -435,17 +435,22 @@ class _BudgetScreenState extends State<BudgetScreen>
                           const Icon(Icons.archive_outlined, color: Colors.grey),
                           if (expiredCount > 0)
                             Positioned(
-                              right: 0,
-                              top: 0,
+                              right: -2,
+                              top: -2,
                               child: Container(
-                                padding: const EdgeInsets.all(3),
+                                padding: const EdgeInsets.all(2),
                                 decoration: BoxDecoration(
                                   color: Colors.red,
-                                  borderRadius: BorderRadius.circular(10),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                constraints: const BoxConstraints(
+                                  minWidth: 16,
+                                  minHeight: 16,
                                 ),
                                 child: Text(
                                   "$expiredCount",
-                                  style: const TextStyle(color: Colors.white, fontSize: 9),
+                                  style: const TextStyle(color: Colors.white, fontSize: 8),
+                                  textAlign: TextAlign.center,
                                 ),
                               ),
                             ),
@@ -656,11 +661,15 @@ class _BudgetScreenState extends State<BudgetScreen>
                                   const Icon(Icons.lightbulb_outline,
                                     color: Colors.amber, size: 12),
                                   const SizedBox(width: 4),
-                                  Text(
-                                    _getSuggestionText(b),
-                                    style: const TextStyle(
-                                      color: Colors.amber,
-                                      fontSize: 11,
+                                  Expanded(
+                                    child: Text(
+                                      _getSuggestionText(b),
+                                      style: const TextStyle(
+                                        color: Colors.amber,
+                                        fontSize: 11,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                      maxLines: 1,
                                     ),
                                   ),
                                 ],
@@ -673,7 +682,9 @@ class _BudgetScreenState extends State<BudgetScreen>
                         style: TextStyle(
                           color: getColor(p),
                           fontWeight: FontWeight.bold,
-                        )),
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1),
                   ],
                 ),
                 const SizedBox(height: 10),
@@ -706,15 +717,24 @@ class _BudgetScreenState extends State<BudgetScreen>
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text("${formatMoney(b.spentAmount)} / ${formatMoney(b.amount)}",
-                style: const TextStyle(color: Colors.grey)),
-            Text(
-              isOverBudget
-                  ? "⚠️ Over: ${formatMoney(b.overBudgetAmount)}"
-                  : "Remaining ${formatMoney(remaining)}",
-              style: TextStyle(
-                  color: isOverBudget ? Colors.red : Colors.green,
-                  fontWeight: FontWeight.w500),
+            Expanded(
+              child: Text("${formatMoney(b.spentAmount)} / ${formatMoney(b.amount)}",
+                  style: const TextStyle(color: Colors.grey),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1),
+            ),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                isOverBudget
+                    ? "⚠️ Over: ${formatMoney(b.overBudgetAmount)}"
+                    : "Remaining ${formatMoney(remaining)}",
+                style: TextStyle(
+                    color: isOverBudget ? Colors.red : Colors.green,
+                    fontWeight: FontWeight.w500),
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
+              ),
             ),
           ],
         ),
@@ -833,7 +853,7 @@ class _BudgetScreenState extends State<BudgetScreen>
     return Column(
       children: [
         Text(
-          title == "Tiến độ"
+          title == "Progress"
               ? "${value.toInt()}%"
               : formatMoney(value),
           style: const TextStyle(color: Colors.white),

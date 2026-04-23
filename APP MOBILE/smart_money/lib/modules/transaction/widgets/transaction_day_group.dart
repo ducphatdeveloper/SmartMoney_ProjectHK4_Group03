@@ -100,7 +100,7 @@ class TransactionDayGroup extends StatelessWidget {
                 ),
                 // "tháng 3 2026"
                 Text(
-                  'tháng ${date.month} ${date.year}',
+                  'month ${date.month} ${date.year}',
                   style: TextStyle(
                     color: Colors.grey[500],
                     fontSize: 11,
@@ -144,7 +144,7 @@ class TransactionDayGroup extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    tx.categoryName ?? 'Không có danh mục',
+                    tx.categoryName ?? 'No category',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(

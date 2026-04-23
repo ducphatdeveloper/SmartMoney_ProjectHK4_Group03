@@ -59,7 +59,7 @@ public class DebtServiceImpl implements DebtService {
 
         // [VALIDATE-DUEDATE] Bắt buộc nhập ngày hẹn trả khi cập nhật khoản nợ
         if (request.dueDate() == null) {
-            throw new IllegalArgumentException("Vui lòng chọn ngày hẹn trả cho khoản nợ.");
+            throw new IllegalArgumentException("Please select a due date for the debt.");
         }
 
         // [VALIDATE-DUEDATE] Chỉ validate "phải tương lai" khi user THỰC SỰ ĐỔI dueDate
@@ -67,7 +67,7 @@ public class DebtServiceImpl implements DebtService {
         boolean dueDateChanged = debt.getDueDate() == null
                 || !request.dueDate().toLocalDate().isEqual(debt.getDueDate().toLocalDate());
         if (dueDateChanged && !request.dueDate().isAfter(java.time.LocalDateTime.now())) {
-            throw new IllegalArgumentException("Ngày hẹn trả phải là ngày trong tương lai.");
+            throw new IllegalArgumentException("Due date must be a future date.");
         }
 
         // Chỉ cho sửa 3 field — totalAmount và debtType KHÔNG được sửa
@@ -106,7 +106,7 @@ public class DebtServiceImpl implements DebtService {
     private Debt getOwnedDebt(Integer debtId, Integer accId) {
         return debtRepository.findByIdAndAccount_Id(debtId, accId)
                 .orElseThrow(() -> new SecurityException(
-                        "Khoản nợ không tồn tại hoặc bạn không có quyền truy cập."));
+                        "Debt not found or you do not have permission to access it."));
     }
 
     private DebtResponse mapToResponse(Debt debt) {

@@ -79,15 +79,15 @@ public class UploadController {
 
         String publicId = cloudinaryService.extractPublicId(imageUrl);
         if (publicId == null) {
-            throw new IllegalArgumentException("URL ảnh không hợp lệ.");
+            throw new IllegalArgumentException("Invalid image URL.");
         }
 
         boolean deleted = cloudinaryService.deleteImage(publicId);
         if (!deleted) {
-            throw new IllegalArgumentException("Không thể xóa ảnh. Có thể ảnh đã bị xóa trước đó.");
+            throw new IllegalArgumentException("Cannot delete image. It may have been deleted already.");
         }
 
-        return ResponseEntity.ok(ApiResponse.success("Xóa ảnh thành công."));
+        return ResponseEntity.ok(ApiResponse.success("Image deleted successfully."));
     }
 
     // =========================================================================

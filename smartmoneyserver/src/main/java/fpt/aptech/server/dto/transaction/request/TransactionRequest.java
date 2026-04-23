@@ -19,16 +19,16 @@ public record TransactionRequest(
     // Thêm goalId cho ví tiết kiệm
     Integer goalId,
 
-    @NotNull(message = "Số tiền không được để trống.")
-    @Positive(message = "Số tiền phải là số dương.")
+    @NotNull(message = "Amount cannot be empty.")
+    @Positive(message = "Amount must be positive.")
     BigDecimal amount,
 
-    @NotNull(message = "ID của danh mục không được để trống.")
+    @NotNull(message = "Category ID cannot be empty.")
     Integer categoryId,
 
     String note, // Ghi chú (có thể null)
 
-    @NotNull(message = "Ngày giao dịch không được để trống.")
+    @NotNull(message = "Transaction date cannot be empty.")
     LocalDateTime transDate, // Đổi tên cho khớp với Entity
 
     String withPerson, // Giao dịch với ai (có thể null)
@@ -38,7 +38,7 @@ public record TransactionRequest(
     // Thêm reminderDate cho nhắc nhở
     LocalDateTime reminderDate,
 
-    @NotNull(message = "Trạng thái báo cáo không được để trống.")
+    @NotNull(message = "Report status cannot be empty.")
     Boolean reportable,
 
     // Các trường mới cho module Sổ nợ

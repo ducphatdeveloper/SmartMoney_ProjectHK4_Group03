@@ -10,7 +10,7 @@ class AmountInput extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text("Số tiền", style: TextStyle(color: Colors.grey)),
+        const Text("Amount", style: TextStyle(color: Colors.grey)),
         const SizedBox(height: 8),
         Row(
           children: [

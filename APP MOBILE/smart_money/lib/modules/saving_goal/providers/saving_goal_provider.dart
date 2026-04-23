@@ -55,7 +55,7 @@ class SavingGoalProvider extends ChangeNotifier {
       }
     } catch (e) {
       _goals = [];
-      _errorMessage = "Lỗi kết nối máy chủ";
+      _errorMessage = "Server connection error";
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -78,7 +78,7 @@ class SavingGoalProvider extends ChangeNotifier {
       _errorMessage = response.message;
       return false;
     } catch (e) {
-      _errorMessage = "Lỗi hệ thống khi tạo mới";
+      _errorMessage = "System error when creating";
       return false;
     } finally {
       _isLoading = false;
@@ -101,7 +101,7 @@ class SavingGoalProvider extends ChangeNotifier {
       _errorMessage = response.message;
       return false;
     } catch (e) {
-      _errorMessage = "Lỗi hệ thống khi cập nhật";
+      _errorMessage = "System error when updating";
       return false;
     } finally {
       _isLoading = false;
@@ -124,7 +124,7 @@ class SavingGoalProvider extends ChangeNotifier {
       _errorMessage = response.message;
       return false;
     } catch (e) {
-      _errorMessage = "Lỗi hệ thống khi xóa";
+      _errorMessage = "System error when deleting";
       return false;
     } finally {
       _isLoading = false;
@@ -147,7 +147,7 @@ class SavingGoalProvider extends ChangeNotifier {
       _errorMessage = response.message;
       return false;
     } catch (e) {
-      _errorMessage = "Lỗi hệ thống khi nạp tiền";
+      _errorMessage = "System error when adding money";
       return false;
     } finally {
       _isLoading = false;
@@ -170,7 +170,7 @@ class SavingGoalProvider extends ChangeNotifier {
       _errorMessage = response.message;
       return false;
     } catch (e) {
-      _errorMessage = "Lỗi hệ thống khi chốt sổ";
+      _errorMessage = "System error when finalizing";
       return false;
     } finally {
       _isLoading = false;
@@ -193,7 +193,7 @@ class SavingGoalProvider extends ChangeNotifier {
       _errorMessage = response.message;
       return false;
     } catch (e) {
-      _errorMessage = "Lỗi hệ thống khi hủy mục tiêu";
+      _errorMessage = "System error when canceling goal";
       return false;
     } finally {
       _isLoading = false;
@@ -217,8 +217,8 @@ class SavingGoalProvider extends ChangeNotifier {
     // 4. "Thông báo" cho các provider khác để chúng tự làm mới
     // Sử dụng try-catch để tránh lỗi nếu provider không được tìm thấy
     try {
-      Provider.of<TransactionProvider>(context, listen: false).refreshSourceItems();
-      Provider.of<WalletProvider>(context, listen: false).loadAll();
+      Provider.of<TransactionProvider>(context, listen: false).refreshSourceItems(context);
+      Provider.of<WalletProvider>(context, listen: false).loadAll(context);
     } catch (e) {
       debugPrint("Could not find a provider to notify: $e");
     }

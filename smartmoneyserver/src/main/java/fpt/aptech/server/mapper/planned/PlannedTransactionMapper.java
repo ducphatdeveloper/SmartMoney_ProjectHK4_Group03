@@ -22,9 +22,9 @@ public class PlannedTransactionMapper {
     // Dependencies
     private final TransactionRepository transactionRepository; // ✅ Inject để kiểm tra giao dịch
 
-    // Format ngày tiếng Việt: "Thứ Ba, 14 tháng 4 2026"
-    private static final DateTimeFormatter VN_DATE_FORMATTER =
-            DateTimeFormatter.ofPattern("EEEE, dd 'tháng' M yyyy", Locale.of("vi", "VN"));
+    // Format ngày tiếng Anh: "Tuesday, 14 April 2026"
+    private static final DateTimeFormatter EN_DATE_FORMATTER =
+            DateTimeFormatter.ofPattern("EEEE, dd MMMM yyyy", Locale.ENGLISH);
 
     public PlannedTransactionResponse toDto(PlannedTransaction p) {
         LocalDate today = LocalDate.now();
@@ -65,16 +65,16 @@ public class PlannedTransactionMapper {
 
         // --- Bước 4: Xác định `statusLabel` và `remainingCount` ---
         if ("EXPIRED".equals(displayStatus)) {
-            statusLabel = "Đã hết hạn ngày " + p.getEndDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"));
+            statusLabel = "Expired on " + p.getEndDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"));
         } else if ("OVERDUE".equals(displayStatus)) {
             long daysOver = ChronoUnit.DAYS.between(p.getNextDueDate(), today);
-            statusLabel = "Quá hạn " + daysOver + " ngày";
+            statusLabel = "Overdue by " + daysOver + " days";
         } else if (p.getEndDate() != null) {
-            statusLabel = "Lặp lại đến " + p.getEndDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"));
+            statusLabel = "Repeats until " + p.getEndDate().format(DateTimeFormatter.ofPattern("dd/MM/yyyy"));
             // Tính remainingCount dựa trên endDate và beginDate (ước tính)
             remainingCount = calculateRemainingCount(p);
         } else {
-            statusLabel = "Lặp lại vô thời hạn";
+            statusLabel = "Repeats indefinitely";
         }
 
         // --- Bước 5: Format nextDueDateLabel ---
@@ -88,7 +88,7 @@ public class PlannedTransactionMapper {
                     || (remainingCount != null && remainingCount == 0)
                     || (p.getEndDate() != null && p.getNextDueDate().isAfter(p.getEndDate()));
             if (!noMoreRepetitions) {
-                nextDueDateLabel = p.getNextDueDate().format(VN_DATE_FORMATTER);
+                nextDueDateLabel = p.getNextDueDate().format(EN_DATE_FORMATTER);
             }
         }
 
@@ -253,42 +253,42 @@ public class PlannedTransactionMapper {
 
 
     // ── Tạo mô tả lịch lặp để Flutter hiển thị (không lưu DB) ──────────
-    // VD: "Lặp vào ngày 14, mỗi 2 tháng" | "Lặp mỗi T2, T4, T6 hàng tuần"
+    // VD: "Repeats on day 14, every 2 months" | "Repeats every Mon, Wed, Fri weekly"
     private String buildRepeatDescription(PlannedTransaction p) {
         int interval = p.getRepeatInterval() != null ? p.getRepeatInterval() : 1;
 
         return switch (p.getRepeatType()) {
             case 1 -> interval == 1
-                    ? "Lặp mỗi ngày"
-                    : "Lặp mỗi " + interval + " ngày";
+                    ? "Repeats daily"
+                    : "Repeats every " + interval + " days";
 
             case 2 -> {
                 String days = buildWeekDayLabel(p.getRepeatOnDayVal());
                 yield interval == 1
-                        ? "Lặp mỗi " + days + " hàng tuần"
-                        : "Lặp mỗi " + days + ", " + interval + " tuần/lần";
+                        ? "Repeats every " + days + " weekly"
+                        : "Repeats every " + days + ", " + interval + " weeks/occurrence";
             }
 
             case 3 -> {
                 int day = p.getBeginDate().getDayOfMonth();
                 yield interval == 1
-                        ? "Lặp vào ngày " + day + " hàng tháng"
-                        : "Lặp vào ngày " + day + ", mỗi " + interval + " tháng";
+                        ? "Repeats on day " + day + " monthly"
+                        : "Repeats on day " + day + ", every " + interval + " months";
             }
 
             case 4 -> interval == 1
-                    ? "Lặp mỗi năm"
-                    : "Lặp mỗi " + interval + " năm";
+                    ? "Repeats yearly"
+                    : "Repeats every " + interval + " years";
 
             default -> "";
         };
     }
 
     // ✅ Dùng RepeatDayBitmask util thay vì inline code
-    // Chuyển bitmask → tên thứ: 34 (T2+T6) → "T2, T6"
+    // Chuyển bitmask → tên thứ: 34 (Mon+Fri) → "Mon, Fri"
     private String buildWeekDayLabel(Integer bitmask) {
         if (bitmask == null || bitmask == 0) return "";
-        String[] labels = {"CN", "T2", "T3", "T4", "T5", "T6", "T7"};
+        String[] labels = {"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"};
         int[]    values = {
                 RepeatDayBitmask.SUNDAY, RepeatDayBitmask.MONDAY,
                 RepeatDayBitmask.TUESDAY, RepeatDayBitmask.WEDNESDAY,

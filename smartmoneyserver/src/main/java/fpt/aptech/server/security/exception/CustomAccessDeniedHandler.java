@@ -26,7 +26,7 @@ public class CustomAccessDeniedHandler implements AccessDeniedHandler {
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
         response.setCharacterEncoding("UTF-8");
 
-        ApiResponse<Void> apiResponse = ApiResponse.error("Bạn không có quyền truy cập tài nguyên này (403 Forbidden)");
+        ApiResponse<Void> apiResponse = ApiResponse.error("You do not have permission to access this resource (403 Forbidden)");
 
         // Dùng objectMapper đã được inject
         response.getWriter().write(objectMapper.writeValueAsString(apiResponse));

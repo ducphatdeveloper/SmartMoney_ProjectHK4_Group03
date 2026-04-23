@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:smart_money/modules/transaction/providers/transaction_provider.dart';
 import 'package:smart_money/modules/transaction/dialogs/date_range_mode_dialog.dart';
+import 'package:smart_money/modules/ai/screens/ai_chat_screen.dart';
 import 'package:smart_money/core/helpers/format_helper.dart';
 import 'package:smart_money/core/helpers/icon_helper.dart';
 
@@ -20,9 +21,47 @@ class TransactionAppBar extends StatelessWidget implements PreferredSizeWidget {
     return AppBar(
       backgroundColor: Colors.black87,
       elevation: 0,
-      leading: IconButton(
-        icon: const Icon(Icons.info_outline, color: Colors.white70),
-        onPressed: () {},
+      leading: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          InkWell(
+            onTap: () {
+              showDialog(
+                context: context,
+                builder: (context) => AlertDialog(
+                  title: const Text('Transaction List'),
+                  content: const Text(
+                    'View and manage your transactions. Switch between different wallets/goals, filter by date range, and search for specific transactions.',
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('OK'),
+                    ),
+                  ],
+                ),
+              );
+            },
+            child: const Padding(
+              padding: EdgeInsets.all(4),
+              child: Icon(Icons.info_outline, color: Colors.white70, size: 18),
+            ),
+          ),
+          InkWell(
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const AiChatScreen(),
+                ),
+              );
+            },
+            child: const Padding(
+              padding: EdgeInsets.all(4),
+              child: Icon(Icons.smart_toy_outlined, color: Colors.white70, size: 18),
+            ),
+          ),
+        ],
       ),
       title: Consumer<TransactionProvider>(
         builder: (context, provider, _) {
@@ -50,7 +89,7 @@ class TransactionAppBar extends StatelessWidget implements PreferredSizeWidget {
           border: Border.all(color: Colors.white24),
           borderRadius: BorderRadius.circular(8),
         ),
-        constraints: const BoxConstraints(maxWidth: 240),
+        constraints: const BoxConstraints(maxWidth: 280),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -125,10 +164,10 @@ class TransactionAppBar extends StatelessWidget implements PreferredSizeWidget {
         final provider = context.read<TransactionProvider>();
         switch (value) {
           case 'journal':
-            if (provider.isGroupedMode) await provider.toggleViewMode();
+            if (provider.isGroupedMode) await provider.toggleViewMode(context);
             break;
           case 'grouped':
-            if (!provider.isGroupedMode) await provider.toggleViewMode();
+            if (!provider.isGroupedMode) await provider.toggleViewMode(context);
             break;
           case 'time_period':
             showDialog(
@@ -234,7 +273,7 @@ class TransactionAppBar extends StatelessWidget implements PreferredSizeWidget {
                   ? const Icon(Icons.check_circle, color: Colors.green)
                   : null,
               onTap: () {
-                provider.selectSource(item);
+                provider.selectSource(context, item);
                 Navigator.pop(context);
               },
             );

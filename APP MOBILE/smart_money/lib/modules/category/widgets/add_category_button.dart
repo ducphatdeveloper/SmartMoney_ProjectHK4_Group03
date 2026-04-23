@@ -29,7 +29,7 @@ class AddCategoryButton extends StatelessWidget {
             Icon(Icons.add, color: Colors.green), // icon +
             SizedBox(width: 8),
             Text(
-              "Nhóm mới",
+              "New Category",
               style: TextStyle(color: Colors.green, fontSize: 16),
             ),
           ],

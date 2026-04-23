@@ -105,7 +105,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
     _cachedUserAvatar = _getUserAvatar();
     // Bước 1: Load lịch sử chat khi mở screen
     Future.microtask(() async {
-      await context.read<AiProvider>().loadHistory(refresh: true);
+      await context.read<AiProvider>().loadHistory(context, refresh: true);
       // Scroll xuống cuối sau khi load xong
       if (mounted) {
         Future.delayed(const Duration(milliseconds: 300), _scrollToBottom);
@@ -140,7 +140,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
     // Bước 2.2: Gửi tin nhắn
     try {
       final provider = context.read<AiProvider>();
-      await provider.sendMessage(request);
+      await provider.sendMessage(context, request);
       debugPrint('[SendMessage] Đã gửi tin nhắn thành công');
       // Scroll xuống cuối tin nhắn mới
       if (!mounted) return;
@@ -149,7 +149,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
       debugPrint('[SendMessage] Lỗi khi gửi: $e');
       if (mounted) {
         setState(() {
-          _errorMessage = 'Gửi tin nhắn thất bại. Vui lòng thử lại.';
+          _errorMessage = 'Failed to send message. Please try again.';
         });
       }
     }
@@ -189,7 +189,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
     );
 
     if (confirm == true && mounted) {
-      await context.read<AiProvider>().clearHistory();
+      await context.read<AiProvider>().clearHistory(context);
     }
   }
 
@@ -201,7 +201,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
           children: [
             const Text('AI', style: TextStyle(fontSize: 14)),
             const SizedBox(width: 4),
-            const Text('Trực tuyến', style: TextStyle(fontSize: 10, color: Colors.green)),
+            const Text('Online', style: TextStyle(fontSize: 10, color: Colors.green)),
           ],
         ),
         backgroundColor: Colors.green,
@@ -368,7 +368,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          'Đang lắng nghe... $_speechText',
+                          'Listening... $_speechText',
                           style: const TextStyle(color: Colors.grey, fontSize: 12),
                           maxLines: 2,
                         ),
@@ -559,7 +559,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
             if (jsonData['amount'] != null) ...[
               Row(
                 children: [
-                  const Text('Số tiền: ', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                  const Text('Amount: ', style: TextStyle(color: Colors.grey, fontSize: 12)),
                   Text(
                     jsonData['amount'].toString(),
                     style: const TextStyle(color: Colors.green, fontSize: 14, fontWeight: FontWeight.bold),
@@ -572,7 +572,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
             if (jsonData['category'] != null) ...[
               Row(
                 children: [
-                  const Text('Danh mục: ', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                  const Text('Category: ', style: TextStyle(color: Colors.grey, fontSize: 12)),
                   Text(
                     jsonData['category'].toString(),
                     style: const TextStyle(color: Colors.white, fontSize: 14),
@@ -585,7 +585,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
             if (jsonData['date'] != null) ...[
               Row(
                 children: [
-                  const Text('Ngày: ', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                  const Text('Date: ', style: TextStyle(color: Colors.grey, fontSize: 12)),
                   Text(
                     jsonData['date'].toString(),
                     style: const TextStyle(color: Colors.white, fontSize: 14),
@@ -642,9 +642,9 @@ class _AiChatScreenState extends State<AiChatScreen> {
 
     String label;
     if (messageDate == today) {
-      label = 'Hôm nay';
+      label = 'Today';
     } else if (messageDate == yesterday) {
-      label = 'Hôm qua';
+      label = 'Yesterday';
     } else {
       label = DateFormat('dd/MM/yyyy').format(date);
     }
@@ -800,7 +800,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
     if (!mounted) return;
     if (!status.isGranted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Cần quyền truy cập ảnh để upload')),
+        const SnackBar(content: Text('Photo permission required for upload')),
       );
       return;
     }
@@ -815,7 +815,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
 
     // Bước 10.3: Upload ảnh lên server
     final provider = context.read<AiProvider>();
-    await provider.uploadReceipt(imagePath: image.path);
+    await provider.uploadReceipt(context, imagePath: image.path);
 
     // Bước 10.4: Scroll xuống cuối
     if (mounted) {
@@ -830,7 +830,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
     if (!mounted) return;
     if (!status.isGranted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Cần quyền camera để quét hóa đơn')),
+        const SnackBar(content: Text('Camera permission required to scan receipt')),
       );
       return;
     }
@@ -845,7 +845,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
 
     // Bước 10.5.3: Upload ảnh lên server để OCR
     final provider = context.read<AiProvider>();
-    await provider.uploadReceipt(imagePath: image.path);
+    await provider.uploadReceipt(context, imagePath: image.path);
 
     // Bước 10.5.4: Scroll xuống cuối
     if (mounted) {
@@ -860,7 +860,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
     if (!mounted) return;
     if (!status.isGranted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Cần quyền micro để sử dụng voice input')),
+        const SnackBar(content: Text('Microphone permission required for voice input')),
       );
       return;
     }
@@ -871,7 +871,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
       if (!mounted) return;
       if (!available) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Thiết bị không hỗ trợ voice input')),
+          const SnackBar(content: Text('Device does not support voice input')),
         );
         return;
       }

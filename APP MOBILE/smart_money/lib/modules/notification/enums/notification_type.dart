@@ -22,23 +22,23 @@ enum NotificationType {
   String get displayName {
     switch (this) {
       case NotificationType.transaction:
-        return 'Giao dịch';
+        return 'Transaction';
       case NotificationType.saving:
-        return 'Tiết kiệm';
+        return 'Savings';
       case NotificationType.budget:
-        return 'Ngân sách';
+        return 'Budget';
       case NotificationType.system:
-        return 'Hệ thống';
+        return 'System';
       case NotificationType.chatAi:
         return 'Chat AI';
       case NotificationType.wallets:
-        return 'Ví';
+        return 'Wallet';
       case NotificationType.events:
-        return 'Sự kiện';
+        return 'Event';
       case NotificationType.debtLoan:
-        return 'Nợ/Vay';
+        return 'Debt/Loan';
       case NotificationType.reminder:
-        return 'Nhắc nhở';
+        return 'Reminder';
     }
   }
 }

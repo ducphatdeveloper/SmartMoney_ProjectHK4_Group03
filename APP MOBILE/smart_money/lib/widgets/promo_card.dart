@@ -18,7 +18,7 @@ class PromoCard extends StatelessWidget {
         children: const [
           Expanded(
             child: Text(
-              "Bạn đã tận hưởng Premium hết chưa?\nKhai thác tối đa khi Premium đang miễn phí",
+              "Have you enjoyed Premium yet?\nMaximize benefits while Premium is free",
               style: TextStyle(color: Colors.white),
             ),
           ),

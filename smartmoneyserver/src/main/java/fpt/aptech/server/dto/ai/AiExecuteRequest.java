@@ -14,12 +14,12 @@ import java.util.Map;
 @Builder
 public record AiExecuteRequest(
         // Bước 1: Validate loại hành động
-        @NotBlank(message = "Loại hành động không được để trống")
+        @NotBlank(message = "Action type cannot be empty")
         @JsonProperty("actionType")
         String actionType,          // Loại hành động (VD: create_transaction)
 
         // Bước 2: Validate tham số hành động
-        @NotNull(message = "Tham số hành động không được để trống")
+        @NotNull(message = "Action parameters cannot be empty")
         @JsonProperty("params")
         Map<String, Object> params  // Dữ liệu truyền vào cho hành động
 ) {

@@ -351,7 +351,7 @@ class _CommonTransactionListScreenState
               final provider =
                   Provider.of<TransactionProvider>(context, listen: false);
               final success =
-                  await provider.deleteTransaction(transaction.id);
+                  await provider.deleteTransaction(context, transaction.id);
 
               if (!mounted) return;
 

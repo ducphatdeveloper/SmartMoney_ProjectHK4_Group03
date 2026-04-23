@@ -181,7 +181,7 @@ public class SavingGoalController {
             @AuthenticationPrincipal Account currentUser) {
 
         savingGoalService.deleteSavingGoal(id, currentUser.getId());
-        return ResponseEntity.ok(ApiResponse.success("Xóa mục tiêu thành công"));
+        return ResponseEntity.ok(ApiResponse.success("Goal deleted successfully"));
     }
 
     // =================================================================================
@@ -233,6 +233,6 @@ public class SavingGoalController {
     public ResponseEntity<ApiResponse<String>> checkNow() {
         savingGoalScheduler.checkOverdueGoals();
         savingGoalScheduler.remindNearDeadlineGoals();
-        return ResponseEntity.ok(ApiResponse.success("Đã kích hoạt thủ công scheduler của Mục tiêu tiết kiệm."));
+        return ResponseEntity.ok(ApiResponse.success("Saving Goal scheduler manually triggered."));
     }
 }

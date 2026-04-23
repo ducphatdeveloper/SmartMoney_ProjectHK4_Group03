@@ -24,9 +24,12 @@
 // ===========================================================
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:smart_money/core/enums/date_range_type.dart';
 import 'package:smart_money/core/models/date_range_dto.dart';
 import 'package:smart_money/core/helpers/icon_helper.dart';
+import 'package:smart_money/core/helpers/token_helper.dart';
 import 'package:smart_money/modules/transaction/models/source_item.dart';
 import 'package:smart_money/modules/transaction/models/view/daily_transaction_group.dart';
 import 'package:smart_money/modules/transaction/models/view/category_transaction_group.dart';
@@ -145,7 +148,7 @@ class TransactionProvider extends ChangeNotifier {
   //   2. Tìm item CURRENT → set selectedDateRange
   //   3. Gộp wallets + savingGoals → sourceItems
   //   4. Gọi loadTransactionData() với selectedDateRange + selectedSource
-  Future<void> initialize() async {
+  Future<void> initialize(BuildContext context) async {
     // [OPTIMIZE] Tránh chạy lại nếu đang tải
     if (_isLoading) return;
 
@@ -157,15 +160,15 @@ class TransactionProvider extends ChangeNotifier {
     try {
       // Bước 2: Gọi song song — tải date ranges và sources (ví + mục tiêu)
       await Future.wait([
-        _loadDateRanges(mode: _dateRangeMode),
-        _loadSourceItems(),
+        _loadDateRanges(context, mode: _dateRangeMode),
+        _loadSourceItems(context),
       ]);
 
       // Bước 3: Tìm item CURRENT trong dateRanges → set làm selectedDateRange
       _findAndSelectCurrent();
 
       // Bước 4: Tải giao dịch lần đầu
-      await _loadTransactionData();
+      await _loadTransactionData(context);
 
       // Bước 5: Tắt loading
       _isLoading = false;
@@ -173,7 +176,14 @@ class TransactionProvider extends ChangeNotifier {
     } catch (e) {
       // Lỗi bất ngờ — lưu message để UI hiện
       _isLoading = false;
-      _errorMessage = 'Lỗi khi tải dữ liệu: ${e.toString()}';
+      _errorMessage = 'Error loading data: ${e.toString()}';
+      // Xử lý 401 - Session expired
+      if (e.toString().contains("Session expired")) {
+        await TokenHelper.clearTokens();
+        if (context.mounted) {
+          context.go("/login");
+        }
+      }
       notifyListeners();
     }
   }
@@ -185,9 +195,9 @@ class TransactionProvider extends ChangeNotifier {
   // từ màn hình khác (DebtListScreen, FAB, v.v.) mà chưa qua TransactionListScreen.
   // Logic: Chỉ load nếu sourceItems chưa có dữ liệu (rỗng).
   // Không đụng đến dateRanges hay transactions — chỉ load ví + mục tiêu.
-  Future<void> ensureSourceItemsLoaded() async {
+  Future<void> ensureSourceItemsLoaded(BuildContext context) async {
     if (_sourceItems.isNotEmpty && _sourceItems.length > 1) return; // đã có data rồi, bỏ qua
-    await _loadSourceItems();
+    await _loadSourceItems(context);
     notifyListeners();
   }
 
@@ -201,28 +211,42 @@ class TransactionProvider extends ChangeNotifier {
   //   • "Số tiền phải lớn hơn 0" (400)
   //   • "Không tìm thấy ví" (400)
   //   • "Dữ liệu không hợp lệ" (400 — @Valid fail, data là Map field errors)
-  Future<bool> createTransaction(TransactionRequest request) async {
+  Future<bool> createTransaction(BuildContext context, TransactionRequest request) async {
     // Bước 1: Bật loading, xóa thông báo cũ
     _isLoading = true;
     _errorMessage = null;
     _successMessage = null;
     notifyListeners();
 
-    // Bước 2: Gọi API tạo mới
-    final response = await TransactionService.create(request);
+    try {
+      // Bước 2: Gọi API tạo mới
+      final response = await TransactionService.create(request);
 
-    // Bước 3: Xử lý kết quả
-    if (response.success && response.data != null) {
-      // Thành công → lưu message + reload dữ liệu
-      _successMessage = response.message;
-      // [FIX-BUG2] Reload cả giao dịch VÀ số dư ví (balance thay đổi sau mỗi giao dịch)
-      await _reloadAfterChange();
-      _isLoading = false;
-      notifyListeners();
-      return true;
-    } else {
-      // Thất bại → lưu lỗi để UI hiện SnackBar
-      _errorMessage = _extractErrorMessage(response);
+      // Bước 3: Xử lý kết quả
+      if (response.success && response.data != null) {
+        // Thành công → lưu message + reload dữ liệu
+        _successMessage = response.message;
+        // [FIX-BUG2] Reload cả giao dịch VÀ số dư ví (balance thay đổi sau mỗi giao dịch)
+        await _reloadAfterChange(context);
+        _isLoading = false;
+        notifyListeners();
+        return true;
+      } else {
+        // Thất bại → lưu lỗi để UI hiện SnackBar
+        _errorMessage = _extractErrorMessage(response);
+        _isLoading = false;
+        notifyListeners();
+        return false;
+      }
+    } catch (e) {
+      _errorMessage = e.toString();
+      // Xử lý 401 - Session expired
+      if (e.toString().contains("Session expired")) {
+        await TokenHelper.clearTokens();
+        if (context.mounted) {
+          context.go("/login");
+        }
+      }
       _isLoading = false;
       notifyListeners();
       return false;
@@ -236,26 +260,40 @@ class TransactionProvider extends ChangeNotifier {
   // API: PUT /api/transactions/{id}
   // Lỗi server:
   //   • "Bạn không có quyền sửa giao dịch này." (403)
-  Future<bool> updateTransaction(int id, TransactionRequest request) async {
+  Future<bool> updateTransaction(BuildContext context, int id, TransactionRequest request) async {
     // Bước 1: Bật loading, xóa thông báo cũ
     _isLoading = true;
     _errorMessage = null;
     _successMessage = null;
     notifyListeners();
 
-    // Bước 2: Gọi API cập nhật
-    final response = await TransactionService.update(id, request);
+    try {
+      // Bước 2: Gọi API cập nhật
+      final response = await TransactionService.update(id, request);
 
-    // Bước 3: Xử lý kết quả
-    if (response.success && response.data != null) {
-      _successMessage = response.message;
-      // [FIX-BUG2] Reload cả giao dịch VÀ số dư ví
-      await _reloadAfterChange();
-      _isLoading = false;
-      notifyListeners();
-      return true;
-    } else {
-      _errorMessage = _extractErrorMessage(response);
+      // Bước 3: Xử lý kết quả
+      if (response.success && response.data != null) {
+        _successMessage = response.message;
+        // [FIX-BUG2] Reload cả giao dịch VÀ số dư ví
+        await _reloadAfterChange(context);
+        _isLoading = false;
+        notifyListeners();
+        return true;
+      } else {
+        _errorMessage = _extractErrorMessage(response);
+        _isLoading = false;
+        notifyListeners();
+        return false;
+      }
+    } catch (e) {
+      _errorMessage = e.toString();
+      // Xử lý 401 - Session expired
+      if (e.toString().contains("Session expired")) {
+        await TokenHelper.clearTokens();
+        if (context.mounted) {
+          context.go("/login");
+        }
+      }
       _isLoading = false;
       notifyListeners();
       return false;
@@ -269,26 +307,40 @@ class TransactionProvider extends ChangeNotifier {
   // API: DELETE /api/transactions/{id}
   // Lỗi server:
   //   • "Bạn không có quyền xóa giao dịch này." (403)
-  Future<bool> deleteTransaction(int id) async {
+  Future<bool> deleteTransaction(BuildContext context, int id) async {
     // Bước 1: Bật loading
     _isLoading = true;
     _errorMessage = null;
     _successMessage = null;
     notifyListeners();
 
-    // Bước 2: Gọi API xóa
-    final response = await TransactionService.delete(id);
+    try {
+      // Bước 2: Gọi API xóa
+      final response = await TransactionService.delete(id);
 
-    // Bước 3: Xử lý kết quả
-    if (response.success) {
-      _successMessage = response.message;
-      // [FIX-BUG2] Reload cả giao dịch VÀ số dư ví (xóa giao dịch → hoàn tiền ví)
-      await _reloadAfterChange();
-      _isLoading = false;
-      notifyListeners();
-      return true;
-    } else {
-      _errorMessage = _extractErrorMessage(response);
+      // Bước 3: Xử lý kết quả
+      if (response.success) {
+        _successMessage = response.message;
+        // [FIX-BUG2] Reload cả giao dịch VÀ số dư ví (xóa giao dịch → hoàn tiền ví)
+        await _reloadAfterChange(context);
+        _isLoading = false;
+        notifyListeners();
+        return true;
+      } else {
+        _errorMessage = _extractErrorMessage(response);
+        _isLoading = false;
+        notifyListeners();
+        return false;
+      }
+    } catch (e) {
+      _errorMessage = e.toString();
+      // Xử lý 401 - Session expired
+      if (e.toString().contains("Session expired")) {
+        await TokenHelper.clearTokens();
+        if (context.mounted) {
+          context.go("/login");
+        }
+      }
       _isLoading = false;
       notifyListeners();
       return false;
@@ -299,19 +351,26 @@ class TransactionProvider extends ChangeNotifier {
   // [2.8] TOGGLE VIEW MODE — Chuyển Journal ↔ Grouped
   // =============================================
   // Gọi khi: User chọn "Xem theo nhật ký" / "Xem theo nhóm" từ menu 3 chấm
-  Future<void> toggleViewMode() async {
+  Future<void> toggleViewMode(BuildContext context) async {
     _isGroupedMode = !_isGroupedMode; // đảo chế độ xem
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
 
     try {
-      await _loadTransactionData();
+      await _loadTransactionData(context);
       _isLoading = false;
       notifyListeners();
     } catch (e) {
       _isLoading = false;
-      _errorMessage = 'Lỗi khi chuyển chế độ xem: ${e.toString()}';
+      _errorMessage = 'Error switching view mode: ${e.toString()}';
+      // Xử lý 401 - Session expired
+      if (e.toString().contains("Session expired")) {
+        await TokenHelper.clearTokens();
+        if (context.mounted) {
+          context.go("/login");
+        }
+      }
       notifyListeners();
     }
   }
@@ -320,7 +379,7 @@ class TransactionProvider extends ChangeNotifier {
   // [2.9] SELECT DATE RANGE — Chọn khoảng thời gian mới
   // =============================================
   // Gọi khi: User bấm vào 1 item trên thanh trượt ngày
-  Future<void> selectDateRange(DateRangeDTO dateRange) async {
+  Future<void> selectDateRange(BuildContext context, DateRangeDTO dateRange) async {
     if (_selectedDateRange == dateRange && !_isAllMode && !_isCustomMode) return;
 
     _selectedDateRange = dateRange;
@@ -340,12 +399,19 @@ class TransactionProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      await _loadTransactionData();
+      await _loadTransactionData(context);
       _isLoading = false;
       notifyListeners();
     } catch (e) {
       _isLoading = false;
-      _errorMessage = 'Lỗi khi tải giao dịch: ${e.toString()}';
+      _errorMessage = 'Error loading transactions: ${e.toString()}';
+      // Xử lý 401 - Session expired
+      if (e.toString().contains("Session expired")) {
+        await TokenHelper.clearTokens();
+        if (context.mounted) {
+          context.go("/login");
+        }
+      }
       notifyListeners();
     }
   }
@@ -354,7 +420,7 @@ class TransactionProvider extends ChangeNotifier {
   // [2.10] SELECT SOURCE — Chọn nguồn tiền (ví/mục tiêu)
   // =============================================
   // Gọi khi: User chọn ví trong dropdown bottom sheet
-  Future<void> selectSource(SourceItem source) async {
+  Future<void> selectSource(BuildContext context, SourceItem source) async {
     if (_selectedSource.id == source.id && _selectedSource.type == source.type) return;
 
     _selectedSource = source;
@@ -363,12 +429,19 @@ class TransactionProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      await _loadTransactionData();
+      await _loadTransactionData(context);
       _isLoading = false;
       notifyListeners();
     } catch (e) {
       _isLoading = false;
-      _errorMessage = 'Lỗi khi tải giao dịch: ${e.toString()}';
+      _errorMessage = 'Error loading transactions: ${e.toString()}';
+      // Xử lý 401 - Session expired
+      if (e.toString().contains("Session expired")) {
+        await TokenHelper.clearTokens();
+        if (context.mounted) {
+          context.go("/login");
+        }
+      }
       notifyListeners();
     }
   }
@@ -378,7 +451,7 @@ class TransactionProvider extends ChangeNotifier {
   // =============================================
   // Gọi khi: User chọn Ngày/Tuần/Tháng/Quý/Năm từ dialog
   // API: GET /api/utils/date-ranges?mode={mode}
-  Future<void> changeDateRangeMode(String mode) async {
+  Future<void> changeDateRangeMode(BuildContext context, String mode) async {
     _dateRangeMode = mode;
     _isAllMode = false;
     _isCustomMode = false;
@@ -388,18 +461,25 @@ class TransactionProvider extends ChangeNotifier {
 
     try {
       // Bước 1: Tải lại date ranges với mode mới
-      await _loadDateRanges(mode: mode);
+      await _loadDateRanges(context, mode: mode);
 
       // Bước 2: Tìm item CURRENT và chọn
       _findAndSelectCurrent();
 
       // Bước 3: Tải lại giao dịch
-      await _loadTransactionData();
+      await _loadTransactionData(context);
       _isLoading = false;
       notifyListeners();
     } catch (e) {
       _isLoading = false;
-      _errorMessage = 'Lỗi khi đổi chế độ: ${e.toString()}';
+      _errorMessage = 'Error changing mode: ${e.toString()}';
+      // Xử lý 401 - Session expired
+      if (e.toString().contains("Session expired")) {
+        await TokenHelper.clearTokens();
+        if (context.mounted) {
+          context.go("/login");
+        }
+      }
       notifyListeners();
     }
   }
@@ -408,7 +488,7 @@ class TransactionProvider extends ChangeNotifier {
   // [2.12] LOAD ALL — Chế độ "Tất cả thời gian"
   // =============================================
   // Gọi khi: User chọn "Tất cả" trong dialog khoảng thời gian
-  Future<void> loadAllTransactions() async {
+  Future<void> loadAllTransactions(BuildContext context) async {
     _isAllMode = true;
     _isCustomMode = false;
     _selectedDateRange = null;
@@ -417,12 +497,19 @@ class TransactionProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      await _loadTransactionData();
+      await _loadTransactionData(context);
       _isLoading = false;
       notifyListeners();
     } catch (e) {
       _isLoading = false;
-      _errorMessage = 'Lỗi khi tải tất cả giao dịch: ${e.toString()}';
+      _errorMessage = 'Error loading all transactions: ${e.toString()}';
+      // Xử lý 401 - Session expired
+      if (e.toString().contains("Session expired")) {
+        await TokenHelper.clearTokens();
+        if (context.mounted) {
+          context.go("/login");
+        }
+      }
       notifyListeners();
     }
   }
@@ -431,7 +518,7 @@ class TransactionProvider extends ChangeNotifier {
   // [2.13] LOAD CUSTOM — Chế độ "Tùy chỉnh"
   // =============================================
   // Gọi khi: User chọn "Tùy chỉnh" và pick startDate + endDate
-  Future<void> loadCustomDateRange(DateTime startDate, DateTime endDate) async {
+  Future<void> loadCustomDateRange(BuildContext context, DateTime startDate, DateTime endDate) async {
     _isCustomMode = true;
     _isAllMode = false;
     _selectedDateRange = DateRangeDTO.custom(startDate: startDate, endDate: endDate);
@@ -440,12 +527,19 @@ class TransactionProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      await _loadTransactionData();
+      await _loadTransactionData(context);
       _isLoading = false;
       notifyListeners();
     } catch (e) {
       _isLoading = false;
-      _errorMessage = 'Lỗi khi tải giao dịch tùy chỉnh: ${e.toString()}';
+      _errorMessage = 'Error loading custom transactions: ${e.toString()}';
+      // Xử lý 401 - Session expired
+      if (e.toString().contains("Session expired")) {
+        await TokenHelper.clearTokens();
+        if (context.mounted) {
+          context.go("/login");
+        }
+      }
       notifyListeners();
     }
   }
@@ -454,20 +548,27 @@ class TransactionProvider extends ChangeNotifier {
   // [2.14] REFRESH — Tải lại toàn bộ
   // =============================================
   // Gọi khi: User kéo refresh (pull-to-refresh)
-  Future<void> refresh() async {
+  Future<void> refresh(BuildContext context) async {
     _isLoading = true;
     notifyListeners();
     try {
       await Future.wait([
-        _loadDateRanges(mode: _dateRangeMode),
-        _loadSourceItems(),
+        _loadDateRanges(context, mode: _dateRangeMode),
+        _loadSourceItems(context),
       ]);
       _findAndSelectCurrent();
-      await _loadTransactionData();
+      await _loadTransactionData(context);
       _isLoading = false;
       notifyListeners();
     } catch (e) {
       _isLoading = false;
+      // Xử lý 401 - Session expired
+      if (e.toString().contains("Session expired")) {
+        await TokenHelper.clearTokens();
+        if (context.mounted) {
+          context.go("/login");
+        }
+      }
       notifyListeners();
     }
   }
@@ -478,8 +579,8 @@ class TransactionProvider extends ChangeNotifier {
   // Gọi khi: Wallet hoặc SavingGoal bị xóa từ màn hình khác
   // Mục đích: Xóa ngay item đã bị soft-delete khỏi dropdown nguồn tiền
   // mà không cần đợi user chuyển tab (AnimatedSwitcher mới mount lại)
-  Future<void> refreshSourceItems() async {
-    await _loadSourceItems();
+  Future<void> refreshSourceItems(BuildContext context) async {
+    await _loadSourceItems(context);
     notifyListeners();
   }
 
@@ -500,17 +601,17 @@ class TransactionProvider extends ChangeNotifier {
   //   2. Số dư ví + mục tiêu tiết kiệm (balance thay đổi sau mỗi giao dịch)
   //   3. Tổng số dư (total balance cũng thay đổi)
   // Nếu không gọi _loadSourceItems() → dropdown ví hiện số dư cũ
-  Future<void> _reloadAfterChange() async {
+  Future<void> _reloadAfterChange(BuildContext context) async {
     // Bước 1: Reload danh sách giao dịch theo khoảng thời gian hiện tại
-    await _loadTransactionData();
+    await _loadTransactionData(context);
     // Bước 2: Reload số dư ví + mục tiêu + tổng (balance đã thay đổi ở DB)
-    await _loadSourceItems();
+    await _loadSourceItems(context);
   }
 
   // =============================================
   // [2.16] PRIVATE — Load date ranges
   // =============================================
-  Future<void> _loadDateRanges({String mode = 'MONTHLY'}) async {
+  Future<void> _loadDateRanges(BuildContext context, {String mode = 'MONTHLY'}) async {
     try {
       final response = await UtilService.getDateRanges(mode: mode);
       if (response.success && response.data != null) {
@@ -518,13 +619,20 @@ class TransactionProvider extends ChangeNotifier {
       }
     } catch (e) {
       debugPrint('❌ [TransactionProvider] Lỗi tải date ranges: $e');
+      // Xử lý 401 - Session expired
+      if (e.toString().contains("Session expired")) {
+        await TokenHelper.clearTokens();
+        if (context.mounted) {
+          context.go("/login");
+        }
+      }
     }
   }
 
   // =============================================
   // [2.17] PRIVATE — Load source items (ví + mục tiêu + tổng số dư)
   // =============================================
-  Future<void> _loadSourceItems() async {
+  Future<void> _loadSourceItems(BuildContext context) async {
     try {
       // Gọi 3 API song song
       final responses = await Future.wait([
@@ -597,6 +705,13 @@ class TransactionProvider extends ChangeNotifier {
       }
     } catch (e) {
       debugPrint('❌ [TransactionProvider] Lỗi tải sources: $e');
+      // Xử lý 401 - Session expired
+      if (e.toString().contains("Session expired")) {
+        await TokenHelper.clearTokens();
+        if (context.mounted) {
+          context.go("/login");
+        }
+      }
 
       // FALLBACK: Nếu lỗi, vẫn tạo item "Tổng cộng" mặc định
       final fallbackItem = SourceItem.all();
@@ -633,7 +748,7 @@ class TransactionProvider extends ChangeNotifier {
   // =============================================
   // [2.19] PRIVATE — Load dữ liệu giao dịch (journal + grouped)
   // =============================================
-  Future<void> _loadTransactionData() async {
+  Future<void> _loadTransactionData(BuildContext context) async {
     // Không load nếu chưa có date range (trừ khi đang ở mode "Tất cả")
     if (_selectedDateRange == null && !_isAllMode) return;
 
@@ -690,7 +805,14 @@ class TransactionProvider extends ChangeNotifier {
         }
       }
     } catch (e) {
-      _errorMessage = 'Lỗi khi tải giao dịch: ${e.toString()}';
+      _errorMessage = 'Error loading transactions: ${e.toString()}';
+      // Xử lý 401 - Session expired
+      if (e.toString().contains("Session expired")) {
+        await TokenHelper.clearTokens();
+        if (context.mounted) {
+          context.go("/login");
+        }
+      }
     }
   }
 
@@ -714,6 +836,6 @@ class TransactionProvider extends ChangeNotifier {
     }
 
     // Fallback — không có message nào
-    return 'Có lỗi xảy ra. Vui lòng thử lại.';
+    return 'An error occurred. Please try again.';
   }
 }

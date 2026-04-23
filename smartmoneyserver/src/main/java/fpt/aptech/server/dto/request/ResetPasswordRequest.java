@@ -8,13 +8,13 @@ import lombok.Setter;
 @Getter
 @Setter
 public class ResetPasswordRequest {
-    @NotBlank(message = "Email không được để trống")
+    @NotBlank(message = "Email cannot be empty")
     private String email;
 
-    @NotBlank(message = "Mã OTP không được để trống")
+    @NotBlank(message = "OTP code cannot be empty")
     private String otp;
 
-    @NotBlank(message = "Mật khẩu mới không được để trống")
-    @Size(min = 6, message = "Mật khẩu phải có ít nhất 6 ký tự")
+    @NotBlank(message = "New password cannot be empty")
+    @Size(min = 6, message = "Password must be at least 6 characters")
     private String newPassword;
 }
