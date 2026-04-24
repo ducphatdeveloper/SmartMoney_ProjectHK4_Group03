@@ -551,6 +551,10 @@ Authorization: Bearer {{auth_token}}
 GET http://localhost:9999/api/transactions/list?range=THIS_YEAR&savingGoalId=31
 Authorization: Bearer {{auth_token}}
 
+### [7.2.6] 3 tháng gần nhất (cho suggested budget)
+GET http://localhost:9999/api/transactions/list?range=CUSTOM&startDate=2026-01-24T00:00:00&endDate=2026-04-24T23:59:59
+Authorization: Bearer {{auth_token}}
+
 # -----------------------------------------------------------------
 # [7.3] Filter theo Danh mục (categoryIds - hỗ trợ multiple)
 # -----------------------------------------------------------------

@@ -41,18 +41,18 @@ public class BudgetResponse {
     private BigDecimal remainingAmount; // Còn lại (amount - spentAmount)
 
     // ── Chỉ số dự đoán ───────────────────────────────────────────────────────
-    private BigDecimal dailyShouldSpend;  // Nên chi hàng ngày = remainingAmount / daysLeft
-    private BigDecimal dailyActualSpend;  // Thực tế chi hàng ngày = spentAmount / daysElapsed
-    private BigDecimal projectedSpend;    // Dự kiến chi tiêu = dailyActual * totalDays
+    private BigDecimal dailyShouldSpend;  // Số tiền nên chi mỗi ngày để không vượt ngân sách = remainingAmount / daysLeft
+    private BigDecimal dailyActualSpend;  // Trung bình chi mỗi ngày thực tế = spentAmount / daysElapsed (từ ngày bắt đầu đến hôm nay)
+    private BigDecimal projectedSpend;    // Dự kiến tổng chi nếu tiếp tục mức chi hiện tại = dailyActual * totalDays
 
     // ── Đề xuất dựa trên lịch sử 3 tháng ───────────────────────────────────────
-    private BigDecimal suggestedAmount;       // Ngân sách đề xuất dựa trên lịch sử chi tiêu 3 tháng gần nhất và tần suất giao dịch
-    private BigDecimal suggestedDailySpend;   // Nên chi hàng ngày theo đề xuất (trung bình thực tế từ lịch sử)
-    private BigDecimal suggestedWeeklySpend;  // Nên chi hàng tuần theo đề xuất (chỉ có giá trị khi budgetType=WEEKLY)
-    private BigDecimal suggestedMonthlySpend; // Nên chi hàng tháng theo đề xuất (chỉ có giá trị khi budgetType=MONTHLY)
-    private BigDecimal suggestedYearlySpend;  // Nên chi hàng năm theo đề xuất (chỉ có giá trị khi budgetType=YEARLY)
-    private BigDecimal suggestedCustomSpend;  // Nên chi theo custom period theo đề xuất (chỉ có giá trị khi budgetType=CUSTOM)
-    private BudgetType budgetType;
+    private BigDecimal suggestedAmount;       // Ngân sách đề xuất dựa trên lịch sử chi tiêu 3 tháng gần nhất
+    private BigDecimal suggestedDailySpend;   // Trung bình chi mỗi ngày từ lịch sử 3 tháng
+    private BigDecimal suggestedWeeklySpend;  // Ngân sách đề xuất hàng tuần (dailyAverage * 7)
+    private BigDecimal suggestedMonthlySpend; // Ngân sách đề xuất hàng tháng (dailyAverage * số ngày thực tế của tháng)
+    private BigDecimal suggestedYearlySpend;  // Ngân sách đề xuất hàng năm (dailyAverage * số ngày thực tế của năm)
+    private BigDecimal suggestedCustomSpend;  // Ngân sách đề xuất custom period (dailyAverage * số ngày custom)
+    private BudgetType budgetType;            // Loại ngân sách (WEEKLY, MONTHLY, YEARLY, CUSTOM)
     private BigDecimal overBudgetAmount;       // Số tiền vượt ngân sách = max(0, spentAmount - amount)
 }
 

@@ -79,14 +79,19 @@ class _BudgetScreenState extends State<BudgetScreen>
   }
 
   bool _isEndExclusive(BudgetResponse b) {
-    final diff = b.endDate.difference(b.beginDate).inDays;
-
     switch (b.budgetType) {
       case BudgetType.weekly:
+        final diff = b.endDate.difference(b.beginDate).inDays;
         return diff == 7;
       case BudgetType.monthly:
-        return diff >= 28 && diff <= 31;
+        // Kiểm tra xem endDate có phải là ngày đầu của tháng sau không
+        // Nếu có → backend trả exclusive → trừ 1 ngày để hiển thị ngày cuối tháng đúng
+        final nextMonthFirstDay = DateTime(b.endDate.year, b.endDate.month, 1);
+        return b.endDate.year == nextMonthFirstDay.year &&
+               b.endDate.month == nextMonthFirstDay.month &&
+               b.endDate.day == nextMonthFirstDay.day;
       case BudgetType.yearly:
+        final diff = b.endDate.difference(b.beginDate).inDays;
         return diff >= 365;
       case BudgetType.custom:
         return false;
@@ -282,7 +287,7 @@ class _BudgetScreenState extends State<BudgetScreen>
     final start = b.beginDate;
     final end = b.endDate;
 
-    // Lấy giá trị gợi ý theo budgetType
+    // Lấy giá trị gợi ý theo budgetType từ backend DTO
     double? suggestedPeriodSpend;
 
     switch (b.budgetType) {
@@ -316,11 +321,22 @@ class _BudgetScreenState extends State<BudgetScreen>
         break;
     }
 
+    // Ưu tiên hiển thị giá trị theo budgetType, nếu không có thì dùng suggestedAmount
     if (suggestedPeriodSpend != null && suggestedPeriodSpend > 0) {
-      return "Suggested $periodText (${formatter.format(start)} - ${formatter.format(end)}): ${formatMoney(suggestedPeriodSpend)}";
+      // Hiển thị thêm suggestedDailySpend để người dùng biết nên chi bao nhiêu mỗi ngày
+      String dailyText = "";
+      if (b.suggestedDailySpend > 0) {
+        dailyText = " (~${formatMoney(b.suggestedDailySpend)}/day)";
+      }
+      return "Suggested $periodText (${formatter.format(start)} - ${formatter.format(end)}): ${formatMoney(suggestedPeriodSpend)}$dailyText";
     }
 
-    return "Suggested $periodText (${formatter.format(start)} - ${formatter.format(end)}): ${formatMoney(b.suggestedAmount)}";
+    // Fallback: dùng suggestedAmount nếu không có giá trị theo type
+    String dailyText = "";
+    if (b.suggestedDailySpend > 0) {
+      dailyText = " (~${formatMoney(b.suggestedDailySpend)}/day)";
+    }
+    return "Suggested $periodText (${formatter.format(start)} - ${formatter.format(end)}): ${formatMoney(b.suggestedAmount)}$dailyText";
   }
 
   // ================= BUILD =================

@@ -21,47 +21,28 @@ class TransactionAppBar extends StatelessWidget implements PreferredSizeWidget {
     return AppBar(
       backgroundColor: Colors.black87,
       elevation: 0,
-      leading: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          InkWell(
-            onTap: () {
-              showDialog(
-                context: context,
-                builder: (context) => AlertDialog(
-                  title: const Text('Transaction List'),
-                  content: const Text(
-                    'View and manage your transactions. Switch between different wallets/goals, filter by date range, and search for specific transactions.',
-                  ),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text('OK'),
-                    ),
-                  ],
+      leading: InkWell(
+        onTap: () {
+          showDialog(
+            context: context,
+            builder: (context) => AlertDialog(
+              title: const Text('Transaction List'),
+              content: const Text(
+                'View and manage your transactions. Switch between different wallets/goals, filter by date range, and search for specific transactions.',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('OK'),
                 ),
-              );
-            },
-            child: const Padding(
-              padding: EdgeInsets.all(4),
-              child: Icon(Icons.info_outline, color: Colors.white70, size: 18),
+              ],
             ),
-          ),
-          InkWell(
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => const AiChatScreen(),
-                ),
-              );
-            },
-            child: const Padding(
-              padding: EdgeInsets.all(4),
-              child: Icon(Icons.smart_toy_outlined, color: Colors.white70, size: 18),
-            ),
-          ),
-        ],
+          );
+        },
+        child: const Padding(
+          padding: EdgeInsets.all(4),
+          child: Icon(Icons.info_outline, color: Colors.white70, size: 18),
+        ),
       ),
       title: Consumer<TransactionProvider>(
         builder: (context, provider, _) {
@@ -70,6 +51,38 @@ class TransactionAppBar extends StatelessWidget implements PreferredSizeWidget {
       ),
       centerTitle: true,
       actions: [
+        InkWell(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const AiChatScreen(),
+              ),
+            );
+          },
+          child: const Padding(
+            padding: EdgeInsets.only(right: 12),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Image(
+                  image: AssetImage('assets/icons/ai.png'),
+                  width: 22,
+                  height: 22,
+                ),
+                SizedBox(width: 2),
+                Text(
+                  'AI',
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
         IconButton(
           icon: const Icon(Icons.search, color: Colors.white70),
           onPressed: onSearchPressed,
@@ -81,45 +94,47 @@ class TransactionAppBar extends StatelessWidget implements PreferredSizeWidget {
 
   /// Dropdown button chọn ví/mục tiêu (dùng CachedNetworkImage + fallback icon)
   Widget _buildSourceDropdown(BuildContext context, TransactionProvider provider) {
-    return GestureDetector(
-      onTap: () => _showSourceBottomSheet(context, provider),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          border: Border.all(color: Colors.white24),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        constraints: const BoxConstraints(maxWidth: 280),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Icon ví từ URL — convert filename thành Cloudinary URL nếu cần
-            _buildDropdownIcon(provider.selectedSource.iconUrl, provider.selectedSource.type),
-            
-            if (provider.selectedSource.iconUrl != null && 
-                provider.selectedSource.iconUrl!.isNotEmpty)
-              const SizedBox(width: 8)
-            else if (provider.selectedSource.type == 'all')
-              const SizedBox(width: 8)
-            else
-              const SizedBox.shrink(),
-            
-            // Tên ví
-            Flexible(
-              child: Text(
-                provider.selectedSource.name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
+    return SizedBox(
+      width: 180,
+      child: GestureDetector(
+        onTap: () => _showSourceBottomSheet(context, provider),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            border: Border.all(color: Colors.white24),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Icon ví từ URL — convert filename thành Cloudinary URL nếu cần
+              _buildDropdownIcon(provider.selectedSource.iconUrl, provider.selectedSource.type),
+              
+              if (provider.selectedSource.iconUrl != null && 
+                  provider.selectedSource.iconUrl!.isNotEmpty)
+                const SizedBox(width: 8)
+              else if (provider.selectedSource.type == 'all')
+                const SizedBox(width: 8)
+              else
+                const SizedBox.shrink(),
+              
+              // Tên ví
+              Expanded(
+                child: Text(
+                  provider.selectedSource.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(width: 8),
-            const Icon(Icons.unfold_more, color: Colors.white70, size: 18),
-          ],
+              const SizedBox(width: 8),
+              const Icon(Icons.unfold_more, color: Colors.white70, size: 18),
+            ],
+          ),
         ),
       ),
     );
@@ -175,12 +190,6 @@ class TransactionAppBar extends StatelessWidget implements PreferredSizeWidget {
               builder: (_) => const DateRangeModeDialog(),
             );
             break;
-          case 'adjust_balance':
-            // TODO: Navigate
-            break;
-          case 'transfer':
-            // TODO: Navigate
-            break;
         }
       },
       itemBuilder: (context) => [
@@ -212,27 +221,6 @@ class TransactionAppBar extends StatelessWidget implements PreferredSizeWidget {
               Icon(Icons.date_range, color: Colors.white70, size: 20),
               SizedBox(width: 12),
               Text('Time period', style: TextStyle(color: Colors.white)),
-            ],
-          ),
-        ),
-        const PopupMenuDivider(),
-        const PopupMenuItem(
-          value: 'adjust_balance',
-          child: Row(
-            children: [
-              Icon(Icons.tune, color: Colors.white70, size: 20),
-              SizedBox(width: 12),
-              Text('Adjust balance', style: TextStyle(color: Colors.white)),
-            ],
-          ),
-        ),
-        const PopupMenuItem(
-          value: 'transfer',
-          child: Row(
-            children: [
-              Icon(Icons.swap_horiz, color: Colors.white70, size: 20),
-              SizedBox(width: 12),
-              Text('Transfer to another wallet', style: TextStyle(color: Colors.white)),
             ],
           ),
         ),

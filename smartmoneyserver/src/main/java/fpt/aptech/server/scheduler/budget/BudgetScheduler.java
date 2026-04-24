@@ -39,12 +39,24 @@ import java.util.stream.Collectors;
  * ────────────────────────────────────────────────────────────────────────
  *
  * Thông báo được tạo ra (tất cả gọi từ NotificationMessages):
- *   1. budgetWarning()          → "Cảnh báo ngân sách 🔔" — chi >= 80% ngân sách
- *   2. budgetExceeded()         → "Vượt ngân sách! 🚨" — chi >= 100% ngân sách
- *   3. budgetDailyAllowance()   → "💡 Phân tích chi tiêu hôm nay" — gợi ý mức chi/ngày (tính toán Java thuần)
- *   4. budgetOverrunForecast()  → "🔮 Dự báo vượt ngân sách" — dự báo ngày cạn ngân sách (tính toán Java thuần)
- *   5. budgetComparedToLastMonth() → "📈 Chi tiêu tăng so với tháng trước" — so sánh cùng kỳ (tính toán Java thuần)
- *   6. budgetRenewed()          → "Ngân sách đã được gia hạn 🔄" — gia hạn kỳ mới
+ *
+ *   1. budgetWarning()          → "Cảnh báo ngân sách 🔔" — chi >= 80% ngân sách (JOB 1)
+ *      Content: "Cảnh báo ngân sách 🔔: Ngân sách 'Ăn uống' đã chi 800.000 ₫ / 1.000.000 ₫ (80%)."
+ *
+ *   2. budgetExceeded()         → "Vượt ngân sách! 🚨" — chi >= 100% ngân sách (JOB 1)
+ *      Content: "Vượt ngân sách! 🚨: Ngân sách 'Ăn uống' đã vượt 1.000.000 ₫ (1.200.000 ₫, 120%)."
+ *
+ *   3. budgetDailyAllowance()   → "💡 Phân tích chi tiêu hôm nay" — gợi ý mức chi/ngày (JOB 1)
+ *      Content: "💡 Phân tích chi tiêu hôm nay: Ngân sách 'Ăn uống' còn 400.000 ₫ trong 10 ngày → gợi ý chi 40.000 ₫/ngày."
+ *
+ *   4. budgetOverrunForecast()  → "🔮 Dự báo vượt ngân sách" — dự báo ngày cạn ngân sách (JOB 1)
+ *      Content: "🔮 Dự báo vượt ngân sách: Ngân sách 'Ăn uống' sẽ cạn sau 5 ngày nếu chi tiêu hiện tại tiếp tục."
+ *
+ *   5. budgetComparedToLastMonth() → "📈 Chi tiêu tăng so với tháng trước" — so sánh cùng kỳ (JOB 1)
+ *      Content: "📈 Chi tiêu tăng so với tháng trước: Ngân sách 'Ăn uống' tháng này đã chi 800.000 ₫, tăng 50% so với cùng kỳ tháng trước (533.333 ₫)."
+ *
+ *   6. budgetRenewed()          → "Ngân sách đã được gia hạn 🔄" — gia hạn kỳ mới (JOB 2)
+ *      Content: "Ngân sách đã được gia hạn 🔄: Ngân sách 'Ăn uống' đã được gia hạn cho tháng mới với hạn mức 1.000.000 ₫."
  *
  * Bảo mật: Mỗi thông báo gắn budget.getAccount() → chỉ chủ sở hữu ngân sách nhận được.
  * NotificationType: BUDGET (3), related_id = budget.id
