@@ -802,8 +802,8 @@ class _BudgetScreenState extends State<BudgetScreen>
               ],
             ),
           ),
-        // ── Hiển thị dự đoán chi tiêu (projectedSpend) khi có warning hoặc custom budgetType ────────
-        if ((b.warning || b.budgetType == BudgetType.custom) && b.projectedSpend > 0)
+        // ── Hiển thị dự đoán chi tiêu (projectedSpend) khi có warning, custom hoặc yearly budgetType ────────
+        if ((b.warning || b.budgetType == BudgetType.custom || b.budgetType == BudgetType.yearly) && b.projectedSpend > 0)
           Padding(
             padding: const EdgeInsets.only(top: 2),
             child: Row(

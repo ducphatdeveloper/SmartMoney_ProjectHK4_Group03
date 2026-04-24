@@ -95,8 +95,8 @@ public class BudgetScheduler {
     // Lý do 8h sáng: User vừa thức dậy, nhận cảnh báo ngân sách đầu ngày để điều chỉnh chi tiêu.
     // ══════════════════════════════════════════════════════════════════════
 
-    @Scheduled(cron = "0 0 8 * * *") // 8:00 AM mỗi ngày
-    //@Scheduled(cron = "0 * * * * *")
+//    @Scheduled(cron = "0 0 8 * * *") // 8:00 AM mỗi ngày
+    @Scheduled(cron = "0 * * * * *")
     public void checkBudgets() {
         // Bước 1: Lấy ngày hiện tại và tìm tất cả ngân sách đang hoạt động (beginDate <= today <= endDate)
         LocalDate today = LocalDate.now(); // Ngày hôm nay
