@@ -69,7 +69,16 @@ class _DetailSavingGoalScreenState extends State<DetailSavingGoalScreen> {
     return base * 365;
   }
 
-  bool get isOverdue => widget.goal.goalStatus == 4;
+  bool get isOverdue {
+    final now = DateTime.now();
+    final end = widget.goal.endDate;
+
+    // Bỏ phần giờ, chỉ so sánh ngày
+    final today = DateTime(now.year, now.month, now.day);
+    final endDateOnly = DateTime(end.year, end.month, end.day);
+
+    return endDateOnly.isBefore(today) || endDateOnly.isAtSameMomentAs(today);
+  }
   bool get isCompleted => widget.goal.goalStatus == 2;
   bool get isCanceled => widget.goal.goalStatus == 3;
   bool get isFinished => widget.goal.finished ?? false;
@@ -463,38 +472,50 @@ class _DetailSavingGoalScreenState extends State<DetailSavingGoalScreen> {
         children: [
 
           /// 🔹 HEADER
-          Row(
+          Stack(
+            alignment: Alignment.center,
             children: [
-              IconHelper.buildCircleAvatar(iconUrl: goal.imageUrl, radius: 24),
-              const SizedBox(width: 12),
 
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      goal.goalName,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    _buildStatusBadge(),
-                  ],
+              /// LEFT ICON
+              Align(
+                alignment: Alignment.centerLeft,
+                child: IconHelper.buildCircleAvatar(
+                  iconUrl: goal.imageUrl,
+                  radius: 24,
                 ),
               ),
 
-              if (!isFinished)
-                IconButton(
-                  onPressed: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => EditSavingGoalScreen(goal: goal),
+              /// CENTER TITLE + STATUS
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    goal.goalName,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
-                  icon: const Icon(Icons.edit, color: Colors.blueAccent, size: 18),
+                  const SizedBox(height: 4),
+                  _buildStatusBadge(),
+                ],
+              ),
+
+              /// RIGHT EDIT BUTTON
+              if (!isFinished)
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: IconButton(
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => EditSavingGoalScreen(goal: goal),
+                      ),
+                    ),
+                    icon: const Icon(Icons.edit, color: Colors.blueAccent, size: 18),
+                  ),
                 ),
             ],
           ),
@@ -540,17 +561,17 @@ class _DetailSavingGoalScreenState extends State<DetailSavingGoalScreen> {
           Row(
             children: [
               _buildMoneyColumn(
-                "Saved",
-                goal.currentAmount,
-                currency,
-                Colors.greenAccent,
-              ),
-              const SizedBox(width: 20),
-              _buildMoneyColumn(
                 "Target",
                 goal.targetAmount,
                 currency,
                 Colors.white,
+              ),
+              const SizedBox(width: 20),
+              _buildMoneyColumn(
+                "Saved",
+                goal.currentAmount,
+                currency,
+                Colors.greenAccent,
               ),
             ],
           ),
