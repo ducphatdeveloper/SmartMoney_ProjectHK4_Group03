@@ -350,10 +350,10 @@ public class WalletServiceImpl implements WalletService {
         // Bước 1: Update wallet_id của tất cả transactions thuộc ví nguồn sang ví đích
         transactionRepository.updateWalletIdByFromWalletId(request.getFromWalletId(), request.getToWalletId());
 
-        // Bước 2: Update wallet_id của budgets, plannedTransactions thuộc ví nguồn sang ví đích
-        // (Event và Debt không liên kết trực tiếp với ví, nên không cần update)
-        budgetRepository.updateWalletIdByFromWalletId(request.getFromWalletId(), request.getToWalletId());
-        plannedTransactionRepository.updateWalletIdByFromWalletId(request.getFromWalletId(), request.getToWalletId());
+        // Bước 2: Xóa mềm toàn bộ budgets và plannedTransactions của ví nguồn
+        // (Event và Debt không liên kết trực tiếp với ví, nên không cần xử lý)
+        budgetRepository.softDeleteAllByWalletId(request.getFromWalletId());
+        plannedTransactionRepository.softDeleteAllByWalletId(request.getFromWalletId());
 
         // Bước 3: Soft delete ví nguồn (chỉ xóa ví, không xóa transactions, budgets, plannedTransactions)
         fromWallet.setDeleted(true);
