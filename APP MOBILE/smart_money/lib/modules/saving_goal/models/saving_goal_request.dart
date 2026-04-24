@@ -3,24 +3,20 @@
 class SavingGoalRequest {
   final String goalName;
   final double targetAmount;
-  final double? initialAmount;
   final String currencyCode;
   final DateTime endDate;
   final String? goalImageUrl;
   final bool? notified;
   final bool? reportable;
-  final double? amount;
 
   const SavingGoalRequest({
     required this.goalName,
     required this.targetAmount,
-    this.initialAmount,
     this.currencyCode = 'VND',
     required this.endDate,
     this.goalImageUrl,
     this.notified,
     this.reportable,
-    this.amount,
   });
 
   Map<String, dynamic> toJson() {
@@ -30,11 +26,9 @@ class SavingGoalRequest {
       'currencyCode': currencyCode,
       'endDate': _formatDate(endDate),
     };
-    if (initialAmount != null) map['initialAmount'] = initialAmount;
     if (goalImageUrl != null) map['goalImageUrl'] = goalImageUrl;
     if (notified != null) map['notified'] = notified;
     if (reportable != null) map['reportable'] = reportable;
-    if (amount != null) map['amount'] = amount;
     return map;
   }
 

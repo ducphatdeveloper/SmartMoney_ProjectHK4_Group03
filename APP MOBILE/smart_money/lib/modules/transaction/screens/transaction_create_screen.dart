@@ -238,7 +238,7 @@ class _TransactionCreateScreenState extends State<TransactionCreateScreen> {
     final request = TransactionRequest(
       walletId: _selectedSourceItem!.type == 'wallet' ? _selectedSourceItem!.id : null,
       goalId: _selectedSourceItem!.type == 'saving_goal' ? _selectedSourceItem!.id : null,
-      amount: amount,
+      amount: _amountStr, // Đổi sang String để tránh precision error
       categoryId: _selectedCategory!.id,
       note: _noteController.text.trim().isNotEmpty ? _noteController.text.trim() : null,
       transDate: _transDate,

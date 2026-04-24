@@ -43,7 +43,7 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
             "  AND (:walletId IS NULL OR t.wallet.id = :walletId) " +
             "  AND (:savingGoalId IS NULL OR t.savingGoal.id = :savingGoalId) " +
             "  AND t.deleted = false " +
-            "ORDER BY t.transDate DESC")
+            "ORDER BY t.transDate DESC, t.id DESC")
     List<Transaction> findAllByFilters(
             @Param("accountId") Integer accountId,
             @Param("startDate") LocalDateTime startDate,
@@ -156,7 +156,7 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
             "  AND (:allCategories = true OR c.id IN :categoryIds) " + // Lọc theo danh mục của ngân sách
             "  AND t.deleted = false " + // Chỉ lấy giao dịch chưa bị xóa mềm
             "  AND t.reportable = true " + // Chỉ lấy giao dịch reportable (loại bỏ saving goal adjustment)
-            "ORDER BY t.transDate DESC")
+            "ORDER BY t.transDate DESC, t.id DESC")
     List<Transaction> findTransactionsForBudget(
             @Param("accountId") Integer accountId,
             @Param("startDate") LocalDateTime startDate,

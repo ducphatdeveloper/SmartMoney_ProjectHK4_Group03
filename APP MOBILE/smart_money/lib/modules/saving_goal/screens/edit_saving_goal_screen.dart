@@ -100,18 +100,15 @@ class _EditSavingGoalScreenState extends State<EditSavingGoalScreen> {
     setState(() => _isSaving = true);
 
     final double targetAmount = double.parse(_targetController.text.trim());
-    final double currentAmount = double.parse(_currentController.text.trim());
 
     final request = SavingGoalRequest(
       goalName: _nameController.text.trim(),
       targetAmount: targetAmount,
-      initialAmount: currentAmount,
       currencyCode: _currency,
       endDate: _endDate!,
       notified: _notify,
       reportable: _reportable,
       goalImageUrl: _selectedIconUrl,
-      amount: currentAmount,
     );
 
     final provider = Provider.of<SavingGoalProvider>(context, listen: false);
