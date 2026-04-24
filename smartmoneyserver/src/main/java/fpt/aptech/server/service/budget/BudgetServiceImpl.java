@@ -429,7 +429,12 @@ public class BudgetServiceImpl implements BudgetService {
             // 🔥 3. CHỈ CHECK KHI CÙNG TYPE
             // ================================
             // Null check cho budget cũ (trước khi có budgetType)
-            if (existing.getBudgetType() != null && request.budgetType() != existing.getBudgetType()) {
+            // Nếu budget cũ không có budgetType → cho phép tạo budget mới (không block)
+            if (existing.getBudgetType() == null) {
+                continue; // ✅ BUDGET CŨ KHÔNG CÓ TYPE → CHO QUA
+            }
+            // Nếu khác budgetType → cho phép tạo (WEEKLY, MONTHLY, YEARLY, CUSTOM có thể tồn tại song song)
+            if (request.budgetType() != existing.getBudgetType()) {
                 continue; // ✅ KHÁC TYPE → CHO QUA
             }
 
@@ -457,10 +462,28 @@ public class BudgetServiceImpl implements BudgetService {
                     break;
 
                 case CUSTOM:
-                    throw new IllegalArgumentException(
-                            "Category already has a budget in this time period");
+                    // CUSTOM: check overlap date range
+                    if (hasDateOverlap(existing.getBeginDate(), existing.getEndDate(),
+                            request.beginDate(), request.endDate())) {
+                        throw new IllegalArgumentException(
+                                "Category already has a budget in this time period");
+                    }
+                    break;
             }
         }
+    }
+
+    /**
+     * Kiểm tra xem 2 khoảng thời gian có overlap không
+     * @param start1 Ngày bắt đầu khoảng 1
+     * @param end1 Ngày kết thúc khoảng 1
+     * @param start2 Ngày bắt đầu khoảng 2
+     * @param end2 Ngày kết thúc khoảng 2
+     * @return true nếu có overlap, false nếu không
+     */
+    private boolean hasDateOverlap(LocalDate start1, LocalDate end1, LocalDate start2, LocalDate end2) {
+        // 2 khoảng overlap khi: start1 <= end2 && start2 <= end1
+        return !start1.isAfter(end2) && !start2.isAfter(end1);
     }
 
     private boolean isSameMonth(LocalDate d1, LocalDate d2) {
@@ -660,33 +683,45 @@ public class BudgetServiceImpl implements BudgetService {
         BigDecimal suggestedCustomSpend = BigDecimal.ZERO;
 
         // Lấy các giá trị đề xuất theo từng đơn vị thời gian
-        // dựa trên budget type và pattern giao dịch thực tế
-        // Null check cho budget cũ (trước khi có budgetType)
+        // Tính tất cả các type để user có thể tham khảo
+        suggestedDailySpend = calculateSuggestedDailySpend(budget);
+
+        // Tính suggested cho từng type dựa trên dailyAverage
+        TransactionFrequencyAnalysis analysis = analyzeTransactionFrequencyForSuggestion(budget);
+        if (analysis != null && analysis.dailyAverage != null) {
+            // WEEKLY: dailyAverage * 7
+            suggestedWeeklySpend = analysis.dailyAverage.multiply(BigDecimal.valueOf(7));
+            // MONTHLY: dailyAverage * 30 (trung bình)
+            suggestedMonthlySpend = analysis.dailyAverage.multiply(BigDecimal.valueOf(30));
+            // YEARLY: dailyAverage * 365 (trung bình)
+            suggestedYearlySpend = analysis.dailyAverage.multiply(BigDecimal.valueOf(365));
+            // CUSTOM: dailyAverage * số ngày custom của budget hiện tại
+            long customDays = ChronoUnit.DAYS.between(budget.getBeginDate(), budget.getEndDate()) + 1;
+            suggestedCustomSpend = analysis.dailyAverage.multiply(BigDecimal.valueOf(customDays));
+        }
+
+        // suggestedAmount là giá trị theo budget type hiện tại
         if (budget.getBudgetType() != null) {
             switch (budget.getBudgetType()) {
                 case WEEKLY:
-                    suggestedDailySpend = calculateSuggestedDailySpend(budget);
-                    suggestedWeeklySpend = suggestedAmount;
+                    suggestedAmount = suggestedWeeklySpend;
                     break;
                 case MONTHLY:
-                    suggestedDailySpend = calculateSuggestedDailySpend(budget);
-                    suggestedMonthlySpend = suggestedAmount;
+                    suggestedAmount = suggestedMonthlySpend;
                     break;
                 case YEARLY:
-                    suggestedDailySpend = calculateSuggestedDailySpend(budget);
-                    suggestedYearlySpend = suggestedAmount;
+                    suggestedAmount = suggestedYearlySpend;
                     break;
                 case CUSTOM:
-                    suggestedDailySpend = calculateSuggestedDailySpend(budget);
-                    suggestedCustomSpend = suggestedAmount;
+                    suggestedAmount = suggestedCustomSpend;
                     break;
                 default:
-                    suggestedDailySpend = calculateSuggestedDailySpend(budget);
+                    suggestedAmount = BigDecimal.ZERO;
                     break;
             }
         } else {
-            // Budget cũ không có budgetType → chỉ tính suggestedDailySpend
-            suggestedDailySpend = calculateSuggestedDailySpend(budget);
+            // Budget cũ không có budgetType → dùng monthly làm mặc định
+            suggestedAmount = suggestedMonthlySpend;
         }
 
         // Tính số tiền vượt ngân sách = max(0, spent - amount)
@@ -904,7 +939,7 @@ public class BudgetServiceImpl implements BudgetService {
         // Tính tổng số tháng trong khoảng thời gian
         long totalMonths = ChronoUnit.MONTHS.between(startDate, endDate) + 1;
 
-        // Đếm số ngày có giao dịch và tổng tiền
+        // Đếm số ngày có giao dịch và tổng tiề.n
         Set<LocalDate> transactionDates = new java.util.HashSet<>();
         BigDecimal totalAmount = BigDecimal.ZERO;
 
@@ -975,6 +1010,47 @@ public class BudgetServiceImpl implements BudgetService {
                 dailyFrequency,
                 weeklyFrequency,
                 monthlyFrequency
+        );
+    }
+
+    /**
+     * Phân tích tần suất giao dịch để tính suggested amount (đơn giản hóa).
+     * Chỉ cần dailyAverage để tính suggested cho các type khác nhau.
+     *
+     * @param budget - Ngân sách hiện tại
+     * @return TransactionFrequencyAnalysis - Kết quả phân tích (chỉ dùng dailyAverage)
+     */
+    private TransactionFrequencyAnalysis analyzeTransactionFrequencyForSuggestion(Budget budget) {
+        // Query giao dịch 3 tháng gần nhất
+        LocalDate today = LocalDate.now();
+        LocalDate threeMonthsAgo = today.minusMonths(3);
+
+        LocalDateTime startDate = threeMonthsAgo.atStartOfDay();
+        LocalDateTime endDate = today.atTime(LocalTime.MAX);
+
+        Integer walletId = budget.getWallet() != null ? budget.getWallet().getId() : null;
+        Set<Integer> categoryIds = resolveCategoryIds(budget);
+
+        // Query danh sách giao dịch 3 tháng gần nhất
+        List<Transaction> transactions = transactionRepository.findTransactionsForBudget(
+                budget.getAccount().getId(),
+                startDate,
+                endDate,
+                walletId,
+                budget.getAllCategories(),
+                categoryIds
+        );
+
+        // Nếu không có giao dịch nào → trả về null
+        if (transactions == null || transactions.isEmpty()) {
+            return null;
+        }
+
+        // Phân tích tần suất giao dịch trong 3 tháng
+        return analyzeTransactionFrequency(
+                transactions,
+                threeMonthsAgo,
+                today
         );
     }
 
