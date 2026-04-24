@@ -308,49 +308,37 @@ class _TransferMoneyScreenState extends State<TransferMoneyScreen> {
       return;
     }
 
+    // [FIX-TRANSFER-SAVINGGOAL] Check savinggoal target limit trước khi chuyển tiền
+    // Nếu _toSource là savinggoal → check xem amount có vượt target không
+    if (_toSource!.type == 'saving_goal') {
+      final remaining = _toSource!.balance; // target - currentAmount
+      if (amount > remaining) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Transfer amount exceeds target. Amount that can still be deposited: ${FormatHelper.formatVND(remaining)}')),
+        );
+        return;
+      }
+    }
+
+    // [FIX-TRANSFER-WALLET-MAX] Check wallet balance sau khi transfer có vượt 1000 tỷ không
+    // Nếu _toSource là wallet → check xem balance + amount > 1000 tỷ không
+    if (_toSource!.type == 'wallet') {
+      final newBalance = _toSource!.balance + amount;
+      if (newBalance > 1000000000000) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Transfer amount would exceed wallet maximum limit of 1,000 billion VND')),
+        );
+        return;
+      }
+    }
+
     setState(() {
       _isProcessing = true;
     });
 
     try {
-      // Bước 5.9: Tạo Transaction 1 - Transfer Out (category 13) cho _fromSource
-      // Số tiền chuyển đi = amount + fee (bao gồm phí)
-      final transferOutAmount = amount + fee;
-      final transferOutRequest = TransactionRequest(
-        amount: transferOutAmount.toString(), // Đổi sang String để tránh precision error
-        categoryId: 13, // Transfer Out
-        note: _noteController.text,
-        transDate: _selectedDate!,
-        reportable: true,
-        sourceType: 1, // manual
-        walletId: _fromSource!.type == 'wallet' ? _fromSource!.id : null,
-        goalId: _fromSource!.type == 'saving_goal' ? _fromSource!.id : null,
-      );
-
-      final response1 = await TransactionService.create(transferOutRequest);
-      if (!response1.success) {
-        throw Exception(response1.message ?? 'Failed to create transfer out transaction');
-      }
-
-      // Bước 5.10: Tạo Transaction 2 - Transfer In (category 18) cho _toSource
-      // Số tiền nhận = amount (không bao gồm phí)
-      final transferInRequest = TransactionRequest(
-        amount: amount.toString(), // Đổi sang String để tránh precision error
-        categoryId: 18, // Transfer In
-        note: _noteController.text,
-        transDate: _selectedDate!,
-        reportable: true,
-        sourceType: 1, // manual
-        walletId: _toSource!.type == 'wallet' ? _toSource!.id : null,
-        goalId: _toSource!.type == 'saving_goal' ? _toSource!.id : null,
-      );
-
-      final response2 = await TransactionService.create(transferInRequest);
-      if (!response2.success) {
-        throw Exception(response2.message ?? 'Failed to create transfer in transaction');
-      }
-
-      // Bước 5.11: Tạo Transaction 3 - Fee (nếu có phí)
+      // Bước 5.9: Tạo Transaction 1 - Fee (nếu có phí) - TRƯỚC TIÊN
+      // Phí giao dịch được trừ trước
       if (fee > 0) {
         final feeRequest = TransactionRequest(
           amount: fee.toString(),
@@ -363,10 +351,46 @@ class _TransferMoneyScreenState extends State<TransferMoneyScreen> {
           goalId: _fromSource!.type == 'saving_goal' ? _fromSource!.id : null,
         );
 
-        final response3 = await TransactionService.create(feeRequest);
-        if (!response3.success) {
-          throw Exception(response3.message ?? 'Failed to create fee transaction');
+        final response1 = await TransactionService.create(feeRequest);
+        if (!response1.success) {
+          throw Exception(response1.message ?? 'Failed to create fee transaction');
         }
+      }
+
+      // Bước 5.10: Tạo Transaction 2 - Transfer Out (category 13) cho _fromSource
+      // Số tiền chuyển đi = amount (không bao gồm phí)
+      final transferOutRequest = TransactionRequest(
+        amount: amount.toString(), // Đổi sang String để tránh precision error
+        categoryId: 13, // Transfer Out
+        note: _noteController.text,
+        transDate: _selectedDate!,
+        reportable: true,
+        sourceType: 1, // manual
+        walletId: _fromSource!.type == 'wallet' ? _fromSource!.id : null,
+        goalId: _fromSource!.type == 'saving_goal' ? _fromSource!.id : null,
+      );
+
+      final response2 = await TransactionService.create(transferOutRequest);
+      if (!response2.success) {
+        throw Exception(response2.message ?? 'Failed to create transfer out transaction');
+      }
+
+      // Bước 5.11: Tạo Transaction 3 - Transfer In (category 18) cho _toSource
+      // Số tiền nhận = amount (không bao gồm phí)
+      final transferInRequest = TransactionRequest(
+        amount: amount.toString(), // Đổi sang String để tránh precision error
+        categoryId: 18, // Transfer In
+        note: _noteController.text,
+        transDate: _selectedDate!,
+        reportable: true,
+        sourceType: 1, // manual
+        walletId: _toSource!.type == 'wallet' ? _toSource!.id : null,
+        goalId: _toSource!.type == 'saving_goal' ? _toSource!.id : null,
+      );
+
+      final response3 = await TransactionService.create(transferInRequest);
+      if (!response3.success) {
+        throw Exception(response3.message ?? 'Failed to create transfer in transaction');
       }
 
       // Bước 5.12: Reload wallet/saving goal/transaction/budget để cập nhật số dư mới

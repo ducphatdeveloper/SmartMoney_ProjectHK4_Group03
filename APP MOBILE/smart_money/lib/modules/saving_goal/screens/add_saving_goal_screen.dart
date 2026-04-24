@@ -64,6 +64,7 @@ class _AddSavingGoalScreenState extends State<AddSavingGoalScreen> {
 
     final targetAmount = double.tryParse(targetStr.replaceAll(',', ''));
     if (targetAmount == null || targetAmount <= 0) return "Invalid target amount";
+    if (targetAmount > 1000000000000) return "Target amount must be less than 1,000 billion";
 
 
     if (_endDate == null) return "Please select a target date";
@@ -296,7 +297,7 @@ class _AddSavingGoalScreenState extends State<AddSavingGoalScreen> {
     final now = DateTime.now();
     final date = await showDatePicker(
       context: context,
-      initialDate: _endDate ?? now.add(const Duration(days: 30)),
+      initialDate: (_endDate != null && _endDate!.isAfter(DateTime.now())) ? _endDate! : DateTime.now().add(const Duration(days: 30)),
       firstDate: now,
       lastDate: DateTime(2100),
       builder: (context, child) => Theme(data: ThemeData.dark().copyWith(colorScheme: const ColorScheme.dark(primary: Colors.greenAccent, onPrimary: Colors.black, surface: Color(0xFF1C1C1E))), child: child!),

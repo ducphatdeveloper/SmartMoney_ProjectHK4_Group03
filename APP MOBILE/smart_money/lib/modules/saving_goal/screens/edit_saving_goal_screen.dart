@@ -230,7 +230,7 @@ class _EditSavingGoalScreenState extends State<EditSavingGoalScreen> {
                   label: "Current Balance",
                   icon: Icons.account_balance_wallet,
                   iconColor: Colors.blueAccent,
-                  enabled: true,
+                  enabled: false,
                 ),
                 const Divider(height: 1, color: Colors.white10, indent: 40),
                 ListTile(
@@ -319,7 +319,7 @@ class _EditSavingGoalScreenState extends State<EditSavingGoalScreen> {
     final now = DateTime.now();
     final date = await showDatePicker(
       context: context,
-      initialDate: _endDate ?? now.add(const Duration(days: 30)),
+      initialDate: (_endDate != null && _endDate!.isAfter(DateTime.now())) ? _endDate! : DateTime.now().add(const Duration(days: 30)),
       firstDate: now,
       lastDate: DateTime(2100),
       builder: (context, child) => Theme(

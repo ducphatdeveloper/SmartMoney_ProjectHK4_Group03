@@ -957,6 +957,7 @@ INSERT INTO tSavingGoals (acc_id, goal_name, target_amount, current_amount, begi
 (14, N'Quỹ sức khỏe tinh thần (sau khi bị AI thay thế)', 30000000, 8000000, '2024-06-01', '2028-12-31', 1, 1, 1, 0, 'savinggoal.png', 'VND'),
 (16, N'Quỹ học chuyển nghề (phòng thân)', 50000000, 15000000, '2024-09-01', '2027-06-30', 1, 1, 1, 0, 'savinggoal.png', 'VND'),
 (18, N'Quỹ mua API credits (OpenAI, Anthropic)', 20000000, 9500000, '2025-02-01', '2026-12-31', 1, 1, 1, 0, 'savinggoal.png', 'VND'),
+(6, N'Quỹ học tập', 100000000, 15000000, '2025-01-01', '2026-1-3', 4, 1, 1, 0, 'savinggoal.png', 'VND'),
 -- ══════════════════════════════════════════════════════════════════════
 -- STATUS 2: Completed (Đã hoàn thành)
 -- Logic: current_amount = target_amount, finished = 1, end_date đã qua

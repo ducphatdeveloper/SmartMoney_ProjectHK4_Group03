@@ -809,9 +809,18 @@ public class PlannedTransactionServiceImpl implements PlannedTransactionService 
         // Bước 3: Cập nhật số dư ví
         // Thu (isIncome=true)  → cộng vào balance
         // Chi (isIncome=false) → trừ ra khỏi balance (đã kiểm tra >= 0 ở Bước 1)
-        wallet.setBalance(isIncome
-                ? wallet.getBalance().add(planned.getAmount())
-                : wallet.getBalance().subtract(planned.getAmount()));
+        if (isIncome) {
+            // [FIX-PLANNED-WALLET-MAX] Check balance sau khi cộng không vượt 1000 tỷ
+            BigDecimal newBalance = wallet.getBalance().add(planned.getAmount());
+            if (newBalance.compareTo(new BigDecimal("1000000000000.00")) > 0) {
+                throw new IllegalArgumentException(
+                        String.format("Transaction would exceed wallet maximum limit of 1,000 billion VND. Current: %s VND, Transaction: %s VND",
+                                wallet.getBalance().toPlainString(), planned.getAmount().toPlainString()));
+            }
+            wallet.setBalance(newBalance);
+        } else {
+            wallet.setBalance(wallet.getBalance().subtract(planned.getAmount()));
+        }
         walletRepo.save(wallet);
 
         // Bước 4: Recalculate debt nếu planned có liên kết khoản nợ

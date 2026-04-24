@@ -19,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.context.annotation.Lazy;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
@@ -61,6 +62,8 @@ public class PlannedTransactionScheduler {
 
     // Anti-spam: ghi nhớ planned ID đã gửi notification thiếu tiền trong ngày (in-memory, reset mỗi ngày)
     private final Map<Integer, LocalDate> insufficientBalanceNotifiedMap = new ConcurrentHashMap<>();
+    // Anti-spam: ghi nhớ planned ID đã gửi notification vượt max limit trong ngày (in-memory, reset mỗi ngày)
+    private final Map<Integer, LocalDate> maxLimitExceededNotifiedMap = new ConcurrentHashMap<>();
 
     // ══════════════════════════════════════════════════════════════════════
     // JOB 1 — Xử lý giao dịch định kỳ + hóa đơn (1:00 AM mỗi ngày)
@@ -87,6 +90,7 @@ public class PlannedTransactionScheduler {
         LocalDate today = LocalDate.now();
         // Dọn notification anti-spam map (xóa entry cũ hơn hôm nay)
         insufficientBalanceNotifiedMap.entrySet().removeIf(e -> e.getValue().isBefore(today));
+        maxLimitExceededNotifiedMap.entrySet().removeIf(e -> e.getValue().isBefore(today));
         int processedRecurring = 0; // Đếm số giao dịch định kỳ đã xử lý
         int processedBills     = 0; // Đếm số hóa đơn đã nhắc
 
@@ -236,14 +240,45 @@ public class PlannedTransactionScheduler {
                         wallet.getWalletName(), wallet.getBalance(), planned.getAmount());
                 return; // KHÔNG tạo transaction, KHÔNG advance — chờ retry
             }
+        } else {
+            // [FIX-PLANNED-SCHEDULER-MAX] Pre-check max 1000 tỷ cho thu nhập
+            Wallet wallet = planned.getWallet(); // Lazy load trong @Transactional
+            BigDecimal newBalance = wallet.getBalance().add(planned.getAmount());
+            if (newBalance.compareTo(new BigDecimal("1000000000000.00")) > 0) {
+                // Anti-spam: chỉ gửi notification vượt max limit 1 lần/ngày
+                LocalDate lastNotified = maxLimitExceededNotifiedMap.get(planned.getId());
+                boolean shouldNotify = lastNotified == null || lastNotified.isBefore(today);
+
+                if (shouldNotify) {
+                    NotificationContent maxLimitMsg = NotificationMessages.walletMaxLimitExceeded(
+                            wallet.getWalletName(), wallet.getBalance(), planned.getAmount());
+                    notificationService.createNotification(
+                            planned.getAccount(),
+                            maxLimitMsg.title(), maxLimitMsg.content(),
+                            NotificationType.REMINDER,
+                            Long.valueOf(planned.getId()),
+                            null
+                    );
+                    maxLimitExceededNotifiedMap.put(planned.getId(), today);
+                } else {
+                    log.debug("[PlannedScheduler] Anti-spam: Max limit exceeded notification already sent for id={} today, skipping.", planned.getId());
+                }
+
+                log.warn("[PlannedScheduler] Recurring transaction id={} '{}' would exceed wallet maximum limit of 1,000 billion VND. Current: {} VND, Transaction: {} VND. Skipping this cycle.",
+                        planned.getId(), label, wallet.getBalance(), planned.getAmount());
+                // [FIX-PLANNED-SCHEDULER-MAX-RETRY] KHÔNG advance nextDueDate để retry khi ví có chỗ
+                // → Giữ nguyên nextDueDate để Scheduler retry kỳ này khi ví đủ chỗ
+                return; // KHÔNG tạo transaction, KHÔNG advance — chờ retry
+            }
         }
 
         // Bước 7: Tạo Transaction từ Planned (số dư đã đảm bảo đủ ở Bước 6)
         // createTransactionFromPlanned() xử lý: tạo Transaction + trừ ví + recalculate debt
         plannedService.createTransactionFromPlanned(planned);
 
-        // Xóa anti-spam entry (nếu trước đó thiếu tiền → nay đã tạo GD thành công)
+        // Xóa anti-spam entry (nếu trước đó thiếu tiền hoặc vượt max limit → nay đã tạo GD thành công)
         insufficientBalanceNotifiedMap.remove(planned.getId());
+        maxLimitExceededNotifiedMap.remove(planned.getId());
 
         // Bước 7.5: [FIX-AUTODEACTIVATE-RECURRING] Kiểm tra nợ liên kết — nếu debt đã hoàn thành → deactivate recurring
         // Nếu recurring liên kết debt và debt vừa được kết thúc (do recalculateDebt() ở Bước 7)
