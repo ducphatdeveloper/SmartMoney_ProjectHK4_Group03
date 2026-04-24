@@ -397,50 +397,35 @@ class _BudgetDetailScreenState extends State<BudgetDetailScreen>
       return const SizedBox.shrink();
     }
 
-    // Lấy label cho dailyShouldSpend và dailyActualSpend theo budgetType
+    // Lấy label và giá trị cho should/actual spend theo budgetType từ backend
     String shouldSpendLabel;
     String actualSpendLabel;
-
-    switch (b.budgetType) {
-      case BudgetType.weekly:
-        shouldSpendLabel = "Daily should spend";
-        actualSpendLabel = "Daily actual spend";
-        break;
-      case BudgetType.monthly:
-        shouldSpendLabel = "Weekly should spend";
-        actualSpendLabel = "Weekly actual spend";
-        break;
-      case BudgetType.yearly:
-        shouldSpendLabel = "Monthly should spend";
-        actualSpendLabel = "Monthly actual spend";
-        break;
-      case BudgetType.custom:
-        shouldSpendLabel = "Daily should spend";
-        actualSpendLabel = "Daily actual spend";
-        break;
-    }
-
-    // Tính giá trị hiển thị cho should/actual spend theo budgetType
     double displayShouldSpend;
     double displayActualSpend;
 
     switch (b.budgetType) {
       case BudgetType.weekly:
-        displayShouldSpend = b.dailyShouldSpend;
+        shouldSpendLabel = "Weekly should spend";
+        actualSpendLabel = "Daily actual spend";
+        displayShouldSpend = b.suggestedWeeklySpend ?? 0;
         displayActualSpend = b.dailyActualSpend;
         break;
       case BudgetType.monthly:
-        // Chuyển daily sang weekly (x7)
-        displayShouldSpend = b.dailyShouldSpend * 7;
-        displayActualSpend = b.dailyActualSpend * 7;
+        shouldSpendLabel = "Monthly should spend";
+        actualSpendLabel = "Daily actual spend";
+        displayShouldSpend = b.suggestedMonthlySpend ?? 0;
+        displayActualSpend = b.dailyActualSpend;
         break;
       case BudgetType.yearly:
-        // Chuyển daily sang monthly (x30)
-        displayShouldSpend = b.dailyShouldSpend * 30;
-        displayActualSpend = b.dailyActualSpend * 30;
+        shouldSpendLabel = "Yearly should spend";
+        actualSpendLabel = "Daily actual spend";
+        displayShouldSpend = b.suggestedYearlySpend ?? 0;
+        displayActualSpend = b.dailyActualSpend;
         break;
       case BudgetType.custom:
-        displayShouldSpend = b.dailyShouldSpend;
+        shouldSpendLabel = "Custom should spend";
+        actualSpendLabel = "Daily actual spend";
+        displayShouldSpend = b.suggestedCustomSpend ?? 0;
         displayActualSpend = b.dailyActualSpend;
         break;
     }
@@ -471,33 +456,50 @@ class _BudgetDetailScreenState extends State<BudgetDetailScreen>
           ),
           const SizedBox(height: 12),
           // ── Ngân sách đề xuất dựa trên lịch sử 3 tháng ────────
-          _infoRow("Suggested budget", formatMoney(b.suggestedAmount)),
+          _infoRow("💡 Suggested budget (from 3-month history)", formatMoney(b.suggestedAmount), color: Colors.greenAccent),
           const SizedBox(height: 8),
-          // ── Số tiền nên chi theo budgetType ────────
-          _infoRow(shouldSpendLabel, formatMoney(displayShouldSpend)),
+          // ── Daily suggested spend (cho tất cả budget types) ────────
+          _infoRow("📊 Daily suggested (avg from history)", formatMoney(b.suggestedDailySpend), color: Colors.greenAccent),
           const SizedBox(height: 8),
+          // ── Daily should spend (tối đa nên chi/ngày để không vượt ngân sách) ────────
+          _infoRow("🎯 Daily should spend (max to stay on budget)", formatMoney(b.dailyShouldSpend), color: Colors.blueAccent),
+          const SizedBox(height: 8),
+          // ── Số tiền nên chi theo budgetType chính ────────
+          _infoRow(shouldSpendLabel, formatMoney(displayShouldSpend), color: Colors.greenAccent),
+          const SizedBox(height: 8),
+          // ── Hiển thị thêm weekly cho MONTHLY ────────
+          if (b.budgetType == BudgetType.monthly)
+            _infoRow("📅 Weekly suggested", formatMoney(b.suggestedWeeklySpend ?? 0), color: Colors.greenAccent),
+          if (b.budgetType == BudgetType.monthly) const SizedBox(height: 8),
+          // ── Hiển thị thêm weekly, monthly cho YEARLY ────────
+          if (b.budgetType == BudgetType.yearly)
+            _infoRow("📅 Monthly suggested", formatMoney(b.suggestedMonthlySpend ?? 0), color: Colors.greenAccent),
+          if (b.budgetType == BudgetType.yearly) const SizedBox(height: 8),
+          if (b.budgetType == BudgetType.yearly)
+            _infoRow("📅 Weekly suggested", formatMoney(b.suggestedWeeklySpend ?? 0), color: Colors.greenAccent),
+          if (b.budgetType == BudgetType.yearly) const SizedBox(height: 8),
           // ── Chi thực tế theo budgetType ────────
-          _infoRow(actualSpendLabel, formatMoney(displayActualSpend)),
+          _infoRow(actualSpendLabel, formatMoney(displayActualSpend), color: Colors.orangeAccent),
           const SizedBox(height: 8),
           // ── So sánh với ngân sách hiện tại ────────
           if (b.amount > 0)
             _infoRow(
-              "Difference from current",
+              "📊 Difference from current",
               formatMoney(b.suggestedAmount - b.amount),
               color: (b.suggestedAmount - b.amount) >= 0 ? Colors.greenAccent : Colors.redAccent,
             ),
           const SizedBox(height: 8),
           // ── Dự đoán tổng chi đến cuối kỳ dựa trên pattern ────────
           _infoRow(
-            "Projected spend",
+            "📈 Projected spend",
             formatMoney(b.projectedSpend),
-            color: b.warning ? Colors.orange : Colors.grey,
+            color: b.warning ? Colors.orange : Colors.yellowAccent,
           ),
           const SizedBox(height: 8),
           // ── Số tiền vượt ngân sách (nếu có) ────────
           if (b.overBudgetAmount > 0)
             _infoRow(
-              "Over budget amount",
+              "⚠️ Over budget amount",
               formatMoney(b.overBudgetAmount),
               color: Colors.redAccent,
             ),

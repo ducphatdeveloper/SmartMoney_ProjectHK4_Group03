@@ -783,4 +783,136 @@ public final class NotificationMessages {
                 note, type, CurrencyUtils.formatVND(amount));
         return new NotificationContent(title, content);
     }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // TYPE 1.5 — TRANSACTION SCHEDULER
+    // ════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Cảnh báo chi tiêu hôm nay tăng quá 50% so với hôm qua.
+     * Dùng khi: TransactionScheduler.analyzeDailySpending() phát hiện tăng chi tiêu.
+     *
+     * Thông báo tạo ra: Title="Daily Spending Spike ⚠️"
+     * Content="Today you spent 500,000 ₫, up 100% from yesterday (250,000 ₫)."
+     */
+    public static NotificationContent dailySpendingSpike(BigDecimal todaySpent,
+                                                         BigDecimal yesterdaySpent,
+                                                         BigDecimal increaseRate) {
+        String title = "Daily Spending Spike ⚠️";
+        String content = String.format(
+                "Today you spent %s, up %s%% from yesterday (%s).",
+                CurrencyUtils.formatVND(todaySpent),
+                increaseRate.multiply(BigDecimal.valueOf(100)).intValue(),
+                CurrencyUtils.formatVND(yesterdaySpent));
+        return new NotificationContent(title, content);
+    }
+
+    /**
+     * Tổng kết chi tiêu hàng ngày.
+     * Dùng khi: TransactionScheduler.dailyTransactionDigest() tổng kết chi tiêu.
+     *
+     * Thông báo tạo ra: Title="Daily Digest 📊"
+     * Content="Today you spent 500,000 ₫. Top: Food (200,000 ₫), Transport (150,000 ₫)."
+     */
+    public static NotificationContent dailyDigest(BigDecimal todaySpent,
+                                                  java.util.List<Object[]> topCategories) {
+        String title = "Daily Digest 📊";
+        StringBuilder topCats = new StringBuilder();
+        if (topCategories != null && !topCategories.isEmpty()) {
+            int limit = Math.min(3, topCategories.size());
+            for (int i = 0; i < limit; i++) {
+                Object[] cat = topCategories.get(i);
+                String catName = (String) cat[0];
+                BigDecimal amount = (BigDecimal) cat[1];
+                if (i > 0) topCats.append(", ");
+                topCats.append(catName).append(" (").append(CurrencyUtils.formatVND(amount)).append(")");
+            }
+        }
+        String content = String.format(
+                "Today you spent %s. Top: %s.",
+                CurrencyUtils.formatVND(todaySpent),
+                !topCats.isEmpty() ? topCats : "No data");
+        return new NotificationContent(title, content);
+    }
+
+    /**
+     * Nhắc nếu không có giao dịch trong X ngày.
+     * Dùng khi: TransactionScheduler.remindNoTransaction() phát hiện không có giao dịch.
+     *
+     * Thông báo tạo ra: Title="No Transaction Reminder 📝"
+     * Content="You haven't recorded transactions in 3 days. Update to track spending."
+     */
+    public static NotificationContent noTransactionReminder(int days) {
+        String title = "No Transaction Reminder 📝";
+        String content = String.format(
+                "You haven't recorded transactions in %d days. Update to track spending.",
+                days);
+        return new NotificationContent(title, content);
+    }
+
+    /**
+     * Cảnh báo xu hướng chi tiêu tuần.
+     * Dùng khi: TransactionScheduler.analyzeWeeklyTrend() phát hiện tăng chi tiêu tuần.
+     *
+     * Thông báo tạo ra: Title="Weekly Trend Alert 📈"
+     * Content="This week you spent 2,000,000 ₫, up 50% from last week (1,333,333 ₫)."
+     */
+    public static NotificationContent weeklyTrendAlert(BigDecimal thisWeekSpent,
+                                                       BigDecimal lastWeekSpent,
+                                                       BigDecimal increaseRate) {
+        String title = "Weekly Trend Alert 📈";
+        String content = String.format(
+                "This week you spent %s, up %s%% from last week (%s).",
+                CurrencyUtils.formatVND(thisWeekSpent),
+                increaseRate.multiply(BigDecimal.valueOf(100)).intValue(),
+                CurrencyUtils.formatVND(lastWeekSpent));
+        return new NotificationContent(title, content);
+    }
+
+    /**
+     * Cảnh báo xu hướng chi tiêu tháng.
+     * Dùng khi: TransactionScheduler.analyzeMonthlyTrend() phát hiện tăng chi tiêu tháng.
+     *
+     * Thông báo tạo ra: Title="Monthly Trend Alert 📈"
+     * Content="This month you spent 10,000,000 ₫, up 50% from last month (6,666,667 ₫)."
+     */
+    public static NotificationContent monthlyTrendAlert(BigDecimal thisMonthSpent,
+                                                        BigDecimal lastMonthSpent,
+                                                        BigDecimal increaseRate) {
+        String title = "Monthly Trend Alert 📈";
+        String content = String.format(
+                "This month you spent %s, up %s%% from last month (%s).",
+                CurrencyUtils.formatVND(thisMonthSpent),
+                increaseRate.multiply(BigDecimal.valueOf(100)).intValue(),
+                CurrencyUtils.formatVND(lastMonthSpent));
+        return new NotificationContent(title, content);
+    }
+
+    /**
+     * Tổng kết chi tiêu tháng.
+     * Dùng khi: TransactionScheduler.monthlyDigest() tổng kết chi tiêu tháng.
+     *
+     * Thông báo tạo ra: Title="Monthly Digest 📊"
+     * Content="This month you spent 10,000,000 ₫. Top: Food (4,000,000 ₫), Transport (2,000,000 ₫)."
+     */
+    public static NotificationContent monthlyDigest(BigDecimal thisMonthSpent,
+                                                   java.util.List<Object[]> topCategories) {
+        String title = "Monthly Digest 📊";
+        StringBuilder topCats = new StringBuilder();
+        if (topCategories != null && !topCategories.isEmpty()) {
+            int limit = Math.min(3, topCategories.size());
+            for (int i = 0; i < limit; i++) {
+                Object[] cat = topCategories.get(i);
+                String catName = (String) cat[0];
+                BigDecimal amount = (BigDecimal) cat[1];
+                if (i > 0) topCats.append(", ");
+                topCats.append(catName).append(" (").append(CurrencyUtils.formatVND(amount)).append(")");
+            }
+        }
+        String content = String.format(
+                "This month you spent %s. Top: %s.",
+                CurrencyUtils.formatVND(thisMonthSpent),
+                !topCats.isEmpty() ? topCats : "No data");
+        return new NotificationContent(title, content);
+    }
 }

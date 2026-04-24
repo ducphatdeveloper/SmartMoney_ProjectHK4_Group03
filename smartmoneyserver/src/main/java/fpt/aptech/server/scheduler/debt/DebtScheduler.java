@@ -28,10 +28,18 @@ import java.util.List;
  * Lý do 8h sáng: Nhắc nợ vào buổi sáng khi user bắt đầu ngày mới, có thời gian xử lý tài chính.
  *
  * Thông báo được tạo ra (tất cả gọi từ NotificationMessages):
- *   1. debtEarlyReminder()     → "Nhắc nợ sắp đến hạn 📋" / "Nhắc thu nợ sắp đến hạn 📋" — trước 10 ngày
- *   2. debtPayableReminder()   → "Nhắc khoản nợ 💸" — sắp đến hạn 0-3 ngày (cần trả)
- *   3. debtReceivableReminder()→ "Nhắc khoản thu 💰" — sắp đến hạn 0-3 ngày (cần thu)
- *   4. debtOverdue()           → "Khoản nợ quá hạn ⚠️" / "Khoản thu quá hạn ⚠️" — đã quá hạn
+ *
+ *   1. debtEarlyReminder()     → "Nhắc nợ sắp đến hạn 📋" — trước 10 ngày (JOB 1)
+ *      Content: "Nhắc nợ sắp đến hạn 📋: Khoản nợ 'Vay bạn A' 5.000.000 ₫ sẽ đến hạn sau 10 ngày (15/05/2026)."
+ *
+ *   2. debtPayableReminder()   → "Nhắc khoản nợ 💸" — sắp đến hạn 0-3 ngày (cần trả) (JOB 1)
+ *      Content: "Nhắc khoản nợ 💸: Khoản nợ 'Vay bạn A' 5.000.000 ₫ sẽ đến hạn sau 2 ngày (07/05/2026). Hãy chuẩn bị thanh toán."
+ *
+ *   3. debtReceivableReminder()→ "Nhắc khoản thu 💰" — sắp đến hạn 0-3 ngày (cần thu) (JOB 1)
+ *      Content: "Nhắc khoản thu 💰: Khoản thu 'Cho bạn B vay' 3.000.000 ₫ sẽ đến hạn sau 2 ngày (07/05/2026). Hãy nhắc họ trả."
+ *
+ *   4. debtOverdue()           → "Khoản nợ quá hạn ⚠️" — đã quá hạn (JOB 1)
+ *      Content: "Khoản nợ quá hạn ⚠️: Khoản nợ 'Vay bạn A' 5.000.000 ₫ đã quá hạn 5 ngày (đến hạn 05/05/2026)."
  *
  * Phân loại theo debt_type:
  *   debt_type = false (Đi vay / Cần trả) → isPayable = true

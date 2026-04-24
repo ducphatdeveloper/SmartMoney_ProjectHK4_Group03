@@ -35,8 +35,12 @@ import java.util.concurrent.ConcurrentHashMap;
  * trước khi user thức dậy, đảm bảo dữ liệu nhất quán khi user mở app buổi sáng.
  *
  * Thông báo được tạo ra (tất cả gọi từ NotificationMessages):
- *   1. recurringExecuted() → "Giao dịch định kỳ đã thực hiện 🔄" — auto tạo transaction thành công
- *   2. billDue()           → "Hóa đơn đến hạn! 📋" — nhắc user trả hóa đơn (KHÔNG auto tạo transaction)
+ *
+ *   1. recurringExecuted() → "Giao dịch định kỳ đã thực hiện 🔄" — auto tạo transaction thành công (JOB 1)
+ *      Content: "Giao dịch định kỳ đã thực hiện 🔄: Giao dịch định kỳ 'Tiền thuê nhà' 5.000.000 ₫ đã được thực hiện thành công."
+ *
+ *   2. billDue()           → "Hóa đơn đến hạn! 📋" — nhắc user trả hóa đơn (JOB 1)
+ *      Content: "Hóa đơn đến hạn! 📋: Hóa đơn 'Điện nước' 500.000 ₫ đến hạn hôm nay (10/05/2026). Hãy thanh toán ngay."
  *
  * Bảo mật: Mỗi thông báo gắn planned.getAccount() → chỉ chủ sở hữu nhận được.
  * NotificationType: REMINDER (9), related_id = planned.id

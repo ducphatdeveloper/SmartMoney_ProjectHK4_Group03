@@ -33,8 +33,12 @@ import java.util.List;
  *   - 8h sáng: Gửi nhắc nhở khi user mở app buổi sáng
  *
  * Thông báo được tạo ra (tất cả gọi từ NotificationMessages):
- *   1. savingOverdue()        → "Mục tiêu quá hạn ⚠️" — đã quá endDate mà chưa đủ tiền
- *   2. savingNearDeadline()   → "Nhắc mục tiêu ⏰" — còn ≤ 7 ngày và chưa đủ tiền
+ *
+ *   1. savingOverdue()        → "Mục tiêu quá hạn ⚠️" — đã quá endDate mà chưa đủ tiền (JOB 1)
+ *      Content: "Mục tiêu quá hạn ⚠️: Mục tiêu 'Mua xe máy' đã quá hạn (đến hạn 01/05/2026). Đã tiết kiệm 8.000.000 ₫ / 10.000.000 ₫ (80%)."
+ *
+ *   2. savingNearDeadline()   → "Nhắc mục tiêu ⏰" — còn ≤ 7 ngày và chưa đủ tiền (JOB 2)
+ *      Content: "Nhắc mục tiêu ⏰: Mục tiêu 'Mua xe máy' còn 5 ngày đến hạn (01/05/2026). Đã tiết kiệm 8.000.000 ₫ / 10.000.000 ₫ (80%)."
  *
  * ─── STATUS MATRIX ────────────────────────────────────────────────────────
  * ACTIVE(1)    → Đang chạy, scheduler xử lý bình thường

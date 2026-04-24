@@ -33,8 +33,12 @@ import java.util.List;
  *   - 8h sáng: Nhắc nhở sự kiện khi user mở app buổi sáng
  *
  * Thông báo được tạo ra (tất cả gọi từ NotificationMessages):
- *   1. eventReminder()       → "Sự kiện sắp tới 📅" — còn 7 ngày nữa
- *   2. eventAutoCompleted()  → "Sự kiện đã kết thúc tự động ✅" — scheduler auto-complete
+ *
+ *   1. eventReminder()       → "Sự kiện sắp tới 📅" — còn 7 ngày nữa (JOB 1)
+ *      Content: "Sự kiện sắp tới 📅: Sự kiện 'Sinh nhật bạn thân' sẽ diễn ra sau 7 ngày (10/05/2026). Hãy chuẩn bị quà tặng 500.000 ₫."
+ *
+ *   2. eventAutoCompleted()  → "Sự kiện đã kết thúc tự động ✅" — scheduler auto-complete (JOB 2)
+ *      Content: "Sự kiện đã kết thúc tự động ✅: Sự kiện 'Sinh nhật bạn thân' đã kết thúc. Tổng chi tiêu: 450.000 ₫ (đã chi 450.000 ₫ / dự kiến 500.000 ₫)."
  *
  * ⚠️ PHÂN BIỆT VỚI EventServiceImpl:
  *   - eventCompleted() (trong EventServiceImpl) → user bấm thủ công hoàn thành → Title="Sự kiện đã kết thúc ✅"

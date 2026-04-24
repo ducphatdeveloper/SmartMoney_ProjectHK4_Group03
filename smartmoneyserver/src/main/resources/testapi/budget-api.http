@@ -37,7 +37,7 @@ Authorization: Bearer {{auth_token}}
 ###
 
 ### [1.3] Xem chi tiết ngân sách (thay {id} bằng id thực)
-GET http://localhost:9999/api/budgets/21
+GET http://localhost:9999/api/budgets/27
 Authorization: Bearer {{auth_token}}
 
 ###
@@ -150,8 +150,176 @@ Content-Type: application/json
 
 ###
 
-### [2.6] Lỗi — ngày bắt đầu sau ngày kết thúc
-### → Expect: 400 "Ngày bắt đầu phải trước ngày kết thúc"
+### [2.6] Tạo ngân sách WEEKLY (7 ngày)
+### → Expect: budgetType=WEEKLY, beginDate đến endDate = 7 ngày
+POST http://localhost:9999/api/budgets
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "amount": 2000000,
+  "beginDate": "2026-04-20",
+  "endDate": "2026-04-26",
+  "walletId": 10,
+  "allCategories": true,
+  "categoryId": null,
+  "repeating": false,
+  "budgetType": "WEEKLY"
+}
+
+> {%
+    client.global.set("budget_id_weekly", response.body.data.id);
+%}
+
+###
+
+### [2.7] Tạo ngân sách MONTHLY (ngày 1 đến cuối tháng)
+### → Expect: budgetType=MONTHLY, beginDate=1, endDate=30/31
+POST http://localhost:9999/api/budgets
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "amount": 10000000,
+  "beginDate": "2026-04-01",
+  "endDate": "2026-04-30",
+  "walletId": 10,
+  "allCategories": true,
+  "categoryId": null,
+  "repeating": false,
+  "budgetType": "MONTHLY"
+}
+
+> {%
+    client.global.set("budget_id_monthly", response.body.data.id);
+%}
+
+###
+
+### [2.8] Tạo ngân sách YEARLY (01/01 đến 31/12)
+### → Expect: budgetType=YEARLY, beginDate=01/01, endDate=31/12
+POST http://localhost:9999/api/budgets
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "amount": 120000000,
+  "beginDate": "2026-01-01",
+  "endDate": "2026-12-31",
+  "walletId": 10,
+  "allCategories": true,
+  "categoryId": null,
+  "repeating": false,
+  "budgetType": "YEARLY"
+}
+
+> {%
+    client.global.set("budget_id_yearly", response.body.data.id);
+%}
+
+###
+
+### [2.9] Tạo ngân sách CUSTOM (tùy chỉnh ngày)
+### → Expect: budgetType=CUSTOM, beginDate và endDate tùy ý
+POST http://localhost:9999/api/budgets
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "amount": 5000000,
+  "beginDate": "2026-04-15",
+  "endDate": "2026-05-15",
+  "walletId": 10,
+  "allCategories": true,
+  "categoryId": null,
+  "repeating": false,
+  "budgetType": "CUSTOM"
+}
+
+> {%
+    client.global.set("budget_id_custom", response.body.data.id);
+%}
+
+###
+
+### [2.10] Lỗi — WEEKLY không đúng 7 ngày
+### → Expect: 400 "Weekly budget must be exactly 7 days"
+POST http://localhost:9999/api/budgets
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "amount": 2000000,
+  "beginDate": "2026-04-20",
+  "endDate": "2026-04-25",
+  "walletId": 10,
+  "allCategories": true,
+  "categoryId": null,
+  "repeating": false,
+  "budgetType": "WEEKLY"
+}
+
+###
+
+### [2.11] Lỗi — MONTHLY không từ ngày 1 đến cuối tháng
+### → Expect: 400 "Monthly budget must be from first to last day of month"
+POST http://localhost:9999/api/budgets
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "amount": 10000000,
+  "beginDate": "2026-04-05",
+  "endDate": "2026-04-30",
+  "walletId": 10,
+  "allCategories": true,
+  "categoryId": null,
+  "repeating": false,
+  "budgetType": "MONTHLY"
+}
+
+###
+
+### [2.12] Lỗi — YEARLY không từ 01/01 đến 31/12
+### → Expect: 400 "Yearly budget must be from 01/01 to 12/31"
+POST http://localhost:9999/api/budgets
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "amount": 120000000,
+  "beginDate": "2026-02-01",
+  "endDate": "2026-12-31",
+  "walletId": 10,
+  "allCategories": true,
+  "categoryId": null,
+  "repeating": false,
+  "budgetType": "YEARLY"
+}
+
+###
+
+### [2.13] Lỗi — CUSTOM ngày bắt đầu trong quá khứ
+### → Expect: 400 "Start date must be today or later for custom budget"
+POST http://localhost:9999/api/budgets
+Authorization: Bearer {{auth_token}}
+Content-Type: application/json
+
+{
+  "amount": 5000000,
+  "beginDate": "2026-03-01",
+  "endDate": "2026-04-01",
+  "walletId": 10,
+  "allCategories": true,
+  "categoryId": null,
+  "repeating": false,
+  "budgetType": "CUSTOM"
+}
+
+###
+
+### [2.14] Lỗi — ngày bắt đầu sau ngày kết thúc
+### → Expect: 400 "Start date must be before end date"
 POST http://localhost:9999/api/budgets
 Authorization: Bearer {{auth_token}}
 Content-Type: application/json
@@ -160,10 +328,11 @@ Content-Type: application/json
   "amount": 3000000,
   "beginDate": "2026-03-31",
   "endDate": "2026-03-01",
-  "walletId": null,
+  "walletId": 10,
   "allCategories": true,
   "categoryId": null,
-  "repeating": false
+  "repeating": false,
+  "budgetType": "MONTHLY"
 }
 
 ###

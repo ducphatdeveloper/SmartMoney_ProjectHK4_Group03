@@ -98,6 +98,9 @@ class _AiChatScreenState extends State<AiChatScreen> {
   // Error message
   String? _errorMessage;
 
+  // Show scroll to bottom button
+  bool _showScrollToBottom = false;
+
   @override
   void initState() {
     super.initState();
@@ -111,13 +114,53 @@ class _AiChatScreenState extends State<AiChatScreen> {
         Future.delayed(const Duration(milliseconds: 300), _scrollToBottom);
       }
     });
+
+    // Bước 1.1: Thêm scroll listener để load thêm khi kéo lên
+    _scrollController.addListener(_onScroll);
   }
 
   @override
   void dispose() {
     _messageController.dispose();
+    _scrollController.removeListener(_onScroll);
     _scrollController.dispose();
     super.dispose();
+  }
+
+  // Bước 1.2: Xử lý scroll để load thêm khi kéo lên
+  void _onScroll() {
+    // Kiểm tra có nên hiện nút scroll xuống không
+    final maxScroll = _scrollController.position.maxScrollExtent;
+    final currentScroll = _scrollController.position.pixels;
+
+    // Nếu scroll lên cách cuối > 300 pixels → hiện nút scroll xuống
+    setState(() {
+      _showScrollToBottom = maxScroll - currentScroll > 300;
+    });
+
+    if (currentScroll == maxScroll) {
+      // Đã scroll đến cuối → không cần load thêm
+      return;
+    }
+
+    // Khi scroll lên gần đầu (từ vị trí < 300 pixels) → load thêm
+    if (currentScroll < 300 && currentScroll > 0) {
+      final provider = context.read<AiProvider>();
+      if (!provider.isLoading && provider.hasMore) {
+        // Lưu vị trí scroll hiện tại
+        final currentScrollPosition = currentScroll;
+
+        // Load thêm messages
+        provider.loadHistory(context, refresh: false);
+
+        // Sau khi load xong, scroll lại vị trí cũ (để user không bị nhảy)
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && _scrollController.hasClients) {
+            _scrollController.jumpTo(currentScrollPosition + 100); // Tăng một chút để thấy tin nhắn mới
+          }
+        });
+      }
+    }
   }
 
   // Bước 2: Gửi tin nhắn
@@ -196,16 +239,19 @@ class _AiChatScreenState extends State<AiChatScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      resizeToAvoidBottomInset: true, // Không để keyboard đè chat
+      backgroundColor: const Color(0xFF0D1117), // Màu nền tối đẹp
       appBar: AppBar(
         title: Row(
           children: [
-            const Text('AI', style: TextStyle(fontSize: 14)),
+            const Text('AI', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
             const SizedBox(width: 4),
-            const Text('Online', style: TextStyle(fontSize: 10, color: Colors.green)),
+            const Text('Online', style: TextStyle(fontSize: 10, color: Colors.greenAccent)),
           ],
         ),
-        backgroundColor: Colors.green,
+        backgroundColor: const Color(0xFF161B22), // Màu AppBar tối
         foregroundColor: Colors.white,
+        elevation: 0,
         actions: [
           InkWell(
             onTap: _scanReceipt,
@@ -213,15 +259,15 @@ class _AiChatScreenState extends State<AiChatScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 6),
               child: Row(
                 children: [
-                  const Icon(Icons.document_scanner_outlined, size: 16),
+                  const Icon(Icons.document_scanner_outlined, size: 16, color: Colors.greenAccent),
                   const SizedBox(width: 2),
-                  const Text('OCR', style: TextStyle(fontSize: 9)),
+                  const Text('OCR', style: TextStyle(fontSize: 9, color: Colors.greenAccent)),
                 ],
               ),
             ),
           ),
           IconButton(
-            icon: const Icon(Icons.delete_outline, size: 20),
+            icon: const Icon(Icons.delete_outline, size: 20, color: Colors.greenAccent),
             onPressed: _clearHistory,
             tooltip: 'Clear History',
           ),
@@ -380,7 +426,13 @@ class _AiChatScreenState extends State<AiChatScreen> {
           );
         },
       ),
-      ),
+      floatingActionButton: _showScrollToBottom
+          ? FloatingActionButton(
+              onPressed: _scrollToBottom,
+              backgroundColor: const Color(0xFF238636),
+              child: const Icon(Icons.keyboard_arrow_down, color: Colors.white),
+            )
+          : null,
     );
   }
 
@@ -401,7 +453,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             constraints: BoxConstraints(maxWidth: maxWidth),
             decoration: BoxDecoration(
-              color: Colors.green,
+              color: const Color(0xFF238636), // Màu xanh dương GitHub
               borderRadius: const BorderRadius.only(
                 topLeft: Radius.circular(16),
                 topRight: Radius.circular(4),
@@ -457,7 +509,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
             padding: const EdgeInsets.only(left: 8),
             child: CircleAvatar(
               radius: 20,
-              backgroundColor: Colors.green,
+              backgroundColor: const Color(0xFF238636),
               backgroundImage: _cachedUserAvatar,
             ),
           ),
@@ -473,7 +525,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
             padding: const EdgeInsets.only(right: 8),
             child: CircleAvatar(
               radius: 20,
-              backgroundColor: const Color(0xFF1C1C1E),
+              backgroundColor: const Color(0xFF21262D),
               backgroundImage: const AssetImage('assets/images/logo.png'),
             ),
           ),
@@ -483,14 +535,14 @@ class _AiChatScreenState extends State<AiChatScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             constraints: BoxConstraints(maxWidth: maxWidth),
             decoration: BoxDecoration(
-              color: const Color(0xFF1C1C1E),
+              color: const Color(0xFF21262D), // Màu xám tối GitHub
               borderRadius: const BorderRadius.only(
                 topLeft: Radius.circular(4),
                 topRight: Radius.circular(16),
                 bottomLeft: Radius.circular(16),
                 bottomRight: Radius.circular(16),
               ),
-              border: Border.all(color: Colors.white10),
+              border: Border.all(color: const Color(0xFF30363D)),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -655,8 +707,9 @@ class _AiChatScreenState extends State<AiChatScreen> {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
           decoration: BoxDecoration(
-            color: Colors.white10,
+            color: const Color(0xFF21262D),
             borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: const Color(0xFF30363D)),
           ),
           child: Text(
             label,
@@ -675,9 +728,9 @@ class _AiChatScreenState extends State<AiChatScreen> {
         _messageController.text = text;
         _sendMessage();
       },
-      backgroundColor: const Color(0xFF1C1C1E),
+      backgroundColor: const Color(0xFF21262D),
       labelStyle: const TextStyle(color: Colors.white, fontSize: 12),
-      side: BorderSide(color: Colors.white10),
+      side: const BorderSide(color: Color(0xFF30363D)),
     );
   }
 
@@ -690,7 +743,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
           padding: const EdgeInsets.only(right: 8),
           child: CircleAvatar(
             radius: 20,
-            backgroundColor: const Color(0xFF1C1C1E),
+            backgroundColor: const Color(0xFF21262D),
             backgroundImage: const AssetImage('assets/images/logo.png'),
           ),
         ),
@@ -698,9 +751,9 @@ class _AiChatScreenState extends State<AiChatScreen> {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           decoration: BoxDecoration(
-            color: const Color(0xFF1C1C1E),
+            color: const Color(0xFF21262D),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.white10),
+            border: Border.all(color: const Color(0xFF30363D)),
           ),
           child: const _TypingDotsAnimation(),
         ),
@@ -713,17 +766,17 @@ class _AiChatScreenState extends State<AiChatScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: const Color(0xFF1C1C1E),
-        border: Border(top: BorderSide(color: Colors.white10)),
+        color: const Color(0xFF161B22),
+        border: Border(top: const BorderSide(color: Color(0xFF30363D))),
       ),
       child: Row(
         children: [
           // Bước 9.1: Nút upload ảnh
           IconButton(
             onPressed: () => _uploadImage(),
-            icon: const Icon(Icons.image_outlined, color: Colors.grey, size: 20),
+            icon: const Icon(Icons.image_outlined, color: Colors.greenAccent, size: 20),
             style: IconButton.styleFrom(
-              backgroundColor: const Color(0xFF2C2C2E),
+              backgroundColor: const Color(0xFF21262D),
               minimumSize: const Size(36, 36),
             ),
           ),
@@ -733,11 +786,11 @@ class _AiChatScreenState extends State<AiChatScreen> {
             onPressed: () => _toggleVoiceInput(),
             icon: Icon(
               _isListening ? Icons.stop : Icons.mic_outlined,
-              color: _isListening ? Colors.red : Colors.grey,
+              color: _isListening ? Colors.redAccent : Colors.greenAccent,
               size: 20,
             ),
             style: IconButton.styleFrom(
-              backgroundColor: const Color(0xFF2C2C2E),
+              backgroundColor: const Color(0xFF21262D),
               minimumSize: const Size(36, 36),
             ),
           ),
@@ -750,7 +803,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
                 hintText: _isListening ? 'Đang nói...' : 'Nhập tin nhắn...',
                 hintStyle: const TextStyle(color: Colors.grey, fontSize: 14),
                 filled: true,
-                fillColor: const Color(0xFF2C2C2E),
+                fillColor: const Color(0xFF21262D),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(20),
                   borderSide: BorderSide.none,
@@ -771,7 +824,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
           AnimatedContainer(
             duration: const Duration(milliseconds: 200),
             decoration: BoxDecoration(
-              color: _messageController.text.isNotEmpty ? Colors.green : Colors.green.withValues(alpha: 0.2),
+              color: _messageController.text.isNotEmpty ? const Color(0xFF238636) : const Color(0xFF21262D),
               borderRadius: BorderRadius.circular(20),
             ),
             child: IconButton(

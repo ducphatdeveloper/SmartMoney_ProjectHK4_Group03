@@ -151,10 +151,11 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
             "JOIN t.category c " +
             "WHERE t.account.id = :accountId " +
             "  AND t.transDate BETWEEN :startDate AND :endDate " +
-            "  AND c.ctgType = false " +
-            "  AND (:walletId IS NULL OR t.wallet.id = :walletId) " +
-            "  AND (:allCategories = true OR c.id IN :categoryIds) " +
+            "  AND c.ctgType = false " + // Chỉ tính khoản CHI
+            "  AND (:walletId IS NULL OR t.wallet.id = :walletId) " + // Lọc theo ví của ngân sách (nếu có)
+            "  AND (:allCategories = true OR c.id IN :categoryIds) " + // Lọc theo danh mục của ngân sách
             "  AND t.deleted = false " + // Chỉ lấy giao dịch chưa bị xóa mềm
+            "  AND t.reportable = true " + // Chỉ lấy giao dịch reportable (loại bỏ saving goal adjustment)
             "ORDER BY t.transDate DESC")
     List<Transaction> findTransactionsForBudget(
             @Param("accountId") Integer accountId,
@@ -489,8 +490,8 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
     // 13. CÁC HÀM CHO SCHEDULER — NHẮC GHI CHÉP & TỔNG KẾT TUẦN (REMINDER)
     // =================================================================================
 
-    /// [REMINDER] Lấy danh sách acc_id đã có giao dịch trong ngày hôm nay
-    /// Dùng cho ReminderScheduler.dailyRecordReminder() — loại trừ user đã ghi chép
+    /// [TRANSACTION-SCHEDULER] Lấy danh sách acc_id đã có giao dịch trong ngày hôm nay
+    /// Dùng cho TransactionScheduler.remindNoTransactionToday() — loại trừ user đã ghi chép
     @Query("SELECT DISTINCT t.account.id FROM Transaction t " +
            "WHERE t.transDate >= :startOfDay AND t.transDate < :endOfDay " +
            "AND t.deleted = false")
@@ -538,10 +539,10 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
     void updateAiConversationToNullByConversationIds(@Param("conversationIds") List<Integer> conversationIds, @Param("accountId") Integer accountId);
 
     // =================================================================================
-    // 15. WALLET SCHEDULER — Quét chi tiêu bất thường trong 24h
+    // 15. WALLET SCHEDULER — Quét chi tiêu bất thường trong 24h (ĐÃ GOM VÀO TRANSACTION SCHEDULER)
     // =================================================================================
 
-    // [WALLET-SCHEDULER] Đếm số giao dịch CHI + tổng tiền theo từng wallet_id trong 24h qua
+    // [TRANSACTION-SCHEDULER] Đếm số giao dịch CHI + tổng tiền theo từng wallet_id trong 24h qua
     // Trả về: [wallet_id (Integer), count (Long), totalAmount (BigDecimal)]
     // Bảo mật: Kết quả gắn liền wallet_id → Scheduler tra ngược wallet.getAccount() để gửi đúng user
     @Query("SELECT t.wallet.id, COUNT(t), SUM(t.amount) FROM Transaction t " +
@@ -589,5 +590,58 @@ public interface TransactionRepository extends JpaRepository<Transaction, Long>,
             @Param("walletId") Integer walletId,
             @Param("allCategories") Boolean allCategories,
             @Param("categoryIds") Set<Integer> categoryIds
+    );
+
+    // =================================================================================
+    // 17. CÁC HÀM CHO TRANSACTION SCHEDULER — Thông báo giao dịch hàng ngày
+    // =================================================================================
+
+    /**
+     * [TRANSACTION-SCHEDULER] Tính tổng chi tiêu cho account trong khoảng thời gian
+     * Dùng cho: So sánh chi tiêu hôm nay vs hôm qua, tổng kết chi tiêu hàng ngày
+     */
+    @Query("SELECT COALESCE(SUM(t.amount), 0) FROM Transaction t " +
+           "JOIN t.category c " +
+           "WHERE t.account.id = :accountId " +
+           "  AND c.ctgType = false " + // Chỉ tính khoản CHI
+           "  AND t.transDate BETWEEN :startDate AND :endDate " +
+           "  AND t.deleted = false")
+    BigDecimal sumExpenseForAccountInPeriod(
+            @Param("accountId") Integer accountId,
+            @Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate
+    );
+
+    /**
+     * [TRANSACTION-SCHEDULER] Đếm số giao dịch cho account trong khoảng thời gian
+     * Dùng cho: Nhắc nếu không có giao dịch trong X ngày
+     */
+    @Query("SELECT COUNT(t) FROM Transaction t " +
+           "WHERE t.account.id = :accountId " +
+           "  AND t.transDate BETWEEN :startDate AND :endDate " +
+           "  AND t.deleted = false")
+    Long countTransactionsForAccountInPeriod(
+            @Param("accountId") Integer accountId,
+            @Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate
+    );
+
+    /**
+     * [TRANSACTION-SCHEDULER] Lấy top category chi nhiều nhất cho account trong khoảng thời gian
+     * Dùng cho: Tổng kết chi tiêu hàng ngày
+     * Trả về: [categoryName (String), totalAmount (BigDecimal)]
+     */
+    @Query("SELECT c.ctgName, SUM(t.amount) FROM Transaction t " +
+           "JOIN t.category c " +
+           "WHERE t.account.id = :accountId " +
+           "  AND c.ctgType = false " + // Chỉ tính khoản CHI
+           "  AND t.transDate BETWEEN :startDate AND :endDate " +
+           "  AND t.deleted = false " +
+           "GROUP BY c.ctgName " +
+           "ORDER BY SUM(t.amount) DESC")
+    List<Object[]> findTopExpenseCategoriesForAccount(
+            @Param("accountId") Integer accountId,
+            @Param("startDate") LocalDateTime startDate,
+            @Param("endDate") LocalDateTime endDate
     );
 }

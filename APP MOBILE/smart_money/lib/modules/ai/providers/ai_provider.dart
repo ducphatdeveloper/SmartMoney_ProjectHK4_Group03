@@ -44,7 +44,7 @@ class AiProvider extends ChangeNotifier {
   int _currentPage = 0;
   int get currentPage => _currentPage;
 
-  int _pageSize = 20;
+  int _pageSize = 10;
   int get pageSize => _pageSize;
 
   bool _hasMore = true; // còn dữ liệu để load thêm không
