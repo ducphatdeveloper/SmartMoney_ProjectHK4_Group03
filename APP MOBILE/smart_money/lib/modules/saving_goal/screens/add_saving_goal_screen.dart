@@ -20,7 +20,6 @@ class AddSavingGoalScreen extends StatefulWidget {
 class _AddSavingGoalScreenState extends State<AddSavingGoalScreen> {
   final _nameController = TextEditingController();
   final _targetController = TextEditingController();
-  final _initialController = TextEditingController();
 
   final String _currency = "VND";
   bool _notify = true;
@@ -39,7 +38,6 @@ class _AddSavingGoalScreenState extends State<AddSavingGoalScreen> {
       final goal = widget.restoreGoal!;
       _nameController.text = goal.goalName;
       _targetController.text = goal.targetAmount.toInt().toString();
-      _initialController.text = goal.currentAmount.toInt().toString();
       _selectedIconUrl = goal.imageUrl;
 
       if (goal.endDate.isAfter(DateTime.now())) {
@@ -52,7 +50,6 @@ class _AddSavingGoalScreenState extends State<AddSavingGoalScreen> {
   void dispose() {
     _nameController.dispose();
     _targetController.dispose();
-    _initialController.dispose();
     super.dispose();
   }
 
@@ -61,7 +58,6 @@ class _AddSavingGoalScreenState extends State<AddSavingGoalScreen> {
   String? _validateData() {
     final name = _nameController.text.trim();
     final targetStr = _targetController.text.trim();
-    final initialStr = _initialController.text.trim();
 
     if (name.isEmpty) return "Goal name cannot be empty";
     if (targetStr.isEmpty) return "Target amount cannot be empty";
@@ -69,9 +65,6 @@ class _AddSavingGoalScreenState extends State<AddSavingGoalScreen> {
     final targetAmount = double.tryParse(targetStr.replaceAll(',', ''));
     if (targetAmount == null || targetAmount <= 0) return "Invalid target amount";
 
-    final initialAmount = double.tryParse(initialStr.replaceAll(',', '')) ?? 0;
-    if (initialAmount < 0) return "Initial amount cannot be negative";
-    if (initialAmount > targetAmount) return "Initial amount cannot exceed target";
 
     if (_endDate == null) return "Please select a target date";
     if (_endDate!.isBefore(DateTime.now().subtract(const Duration(days: 1)))) {
@@ -100,18 +93,15 @@ class _AddSavingGoalScreenState extends State<AddSavingGoalScreen> {
     setState(() => _isSaving = true);
 
     final double targetAmount = double.parse(_targetController.text.replaceAll(',', ''));
-    final double initialAmount = double.tryParse(_initialController.text.replaceAll(',', '')) ?? 0;
 
     final request = SavingGoalRequest(
       goalName: _nameController.text.trim(),
       targetAmount: targetAmount,
-      initialAmount: initialAmount,
       currencyCode: _currency,
       endDate: _endDate!,
       notified: _notify,
       reportable: _reportable,
       goalImageUrl: _selectedIconUrl,
-      amount: initialAmount,
     );
 
     final provider = Provider.of<SavingGoalProvider>(context, listen: false);
@@ -225,14 +215,6 @@ class _AddSavingGoalScreenState extends State<AddSavingGoalScreen> {
                   hint: "0",
                   icon: Icons.track_changes,
                   iconColor: Colors.greenAccent,
-                ),
-                const Divider(height: 1, color: Colors.white10, indent: 40),
-                _buildTextField(
-                  controller: _initialController,
-                  label: "Initial Amount",
-                  hint: "0",
-                  icon: Icons.account_balance_wallet,
-                  iconColor: Colors.blueAccent,
                 ),
                 const Divider(height: 1, color: Colors.white10, indent: 40),
                 const ListTile(

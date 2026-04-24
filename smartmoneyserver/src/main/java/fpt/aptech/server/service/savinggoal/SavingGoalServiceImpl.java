@@ -63,26 +63,12 @@ public class SavingGoalServiceImpl implements SavingGoalService {
             throw new IllegalArgumentException("Invalid end date");
         }
 
-        // Lấy số tiền ban đầu — mặc định 0 nếu không truyền
-        BigDecimal initialAmount = request.getInitialAmount() != null
-                ? request.getInitialAmount()
-                : BigDecimal.ZERO;
-
-        // Service-level guard (DTO đã có @PositiveOrZero nhưng cần guard thêm nếu gọi internal)
-        if (initialAmount.compareTo(BigDecimal.ZERO) < 0) {
-            throw new IllegalArgumentException("Initial amount cannot be negative");
-        }
-
-        // Validate: initialAmount không được lớn hơn targetAmount
-        if (initialAmount.compareTo(request.getTargetAmount()) > 0) {
-            throw new IllegalArgumentException("Initial amount cannot be greater than target");
-        }
-
         // Bước 2: Tạo SavingGoal — trạng thái mặc định ACTIVE, finished=false
+        // currentAmount auto = 0, chỉ tăng khi có giao dịch Transfer In từ wallet/savinggoal khác
         SavingGoal goal = SavingGoal.builder()
                 .goalName(request.getGoalName())
                 .targetAmount(request.getTargetAmount())
-                .currentAmount(initialAmount)
+                .currentAmount(BigDecimal.ZERO) // Auto = 0 khi tạo
                 .currency(currency)
                 .account(account)
                 .goalImageUrl(request.getGoalImageUrl())
@@ -95,29 +81,9 @@ public class SavingGoalServiceImpl implements SavingGoalService {
 
         SavingGoal savedGoal = savingGoalRepository.save(goal);
 
-        // Bước 2.5: Tính lại status sau khi tạo (nếu initialAmount >= targetAmount thì COMPLETED)
+        // Bước 2.5: Tính lại status sau khi tạo (nếu currentAmount >= targetAmount thì COMPLETED)
         recalculateSavingGoalStatus(savedGoal);
         savingGoalRepository.save(savedGoal);
-
-        // Bước 3: Tạo giao dịch khởi tạo (không tính vào báo cáo thu/chi)
-        if (initialAmount.compareTo(BigDecimal.ZERO) > 0) {
-            Category category = categoryRepository.findById(SystemCategory.INCOME_TRANSFER.getId())
-                    .orElseThrow(() -> new IllegalArgumentException(
-                            "System category 'Transfer Income' not found"));
-
-            Transaction initTransaction = Transaction.builder()
-                    .account(account)
-                    .savingGoal(savedGoal)
-                    .category(category)
-                    .amount(initialAmount)
-                    .note("Initial balance for saving goal")
-                    .reportable(false) // Không tính vào báo cáo thu/chi thông thường
-                    .sourceType(TransactionSourceType.MANUAL.getValue())
-                    .transDate(LocalDateTime.now())
-                    .build();
-
-            transactionRepository.save(initTransaction);
-        }
 
         return mapToResponse(savedGoal);
     }
@@ -152,52 +118,9 @@ public class SavingGoalServiceImpl implements SavingGoalService {
             throw new IllegalArgumentException("Target amount cannot be empty");
         }
 
-        // Bước 2: Xử lý điều chỉnh currentAmount (nếu request có truyền lên)
-        // Tham khảo logic WalletServiceImpl.updateWallet() — tạo giao dịch ghi nhận chênh lệch
-        if (request.getInitialAmount() != null) {
-            BigDecimal oldAmount = goal.getCurrentAmount(); // Số tiền cũ
-            BigDecimal newAmount = request.getInitialAmount(); // Số tiền mới muốn điều chỉnh
-
-            // 2.1: Validate số tiền không được âm
-            if (newAmount.compareTo(BigDecimal.ZERO) < 0) {
-                throw new IllegalArgumentException("Current amount cannot be negative");
-            }
-
-            // 2.2: Validate newAmount không được lớn hơn targetAmount
-            if (newAmount.compareTo(request.getTargetAmount()) > 0) {
-                throw new IllegalArgumentException("Current amount cannot be greater than target");
-            }
-
-            // 2.3: Nếu có thay đổi → tạo giao dịch ghi nhận chênh lệch
-            int comparison = newAmount.compareTo(oldAmount);
-            if (comparison != 0) {
-                BigDecimal diff = newAmount.subtract(oldAmount).abs(); // Chênh lệch tuyệt đối
-                boolean isIncrease = comparison > 0; // true = tăng tiền, false = giảm tiền
-
-                // Tăng số tiền → Thu nhập khác | Giảm số tiền → Các chi phí khác
-                SystemCategory systemCategory = isIncrease
-                        ? SystemCategory.INCOME_OTHER
-                        : SystemCategory.OTHER_EXPENSE;
-                Category category = categoryRepository.findById(systemCategory.getId())
-                        .orElseThrow(() -> new IllegalStateException(
-                                "System category not found: " + systemCategory.name()));
-
-                // Tạo giao dịch điều chỉnh — reportable=false để không lẫn vào báo cáo
-                Transaction adjustTransaction = Transaction.builder()
-                        .account(goal.getAccount())
-                        .savingGoal(goal)
-                        .category(category)
-                        .amount(diff)
-                        .note("Adjust saving goal balance: " + goal.getGoalName())
-                        .reportable(false) // Không tính vào báo cáo thu/chi thông thường
-                        .sourceType(TransactionSourceType.MANUAL.getValue())
-                        .transDate(LocalDateTime.now())
-                        .build();
-
-                transactionRepository.save(adjustTransaction);
-                goal.setCurrentAmount(newAmount); // Cập nhật số tiền mới
-            }
-        }
+        // Bước 2: Không cho phép sửa currentAmount
+        // currentAmount chỉ thay đổi khi có giao dịch Transfer In từ wallet/savinggoal khác
+        // Không cho phép user chỉnh sửa thủ công
 
         // Bước 3: Không cho target thấp hơn số tiền đã có
         if (request.getTargetAmount().compareTo(goal.getCurrentAmount()) < 0) {

@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:smart_money/modules/transaction/providers/transaction_provider.dart';
 import 'package:smart_money/modules/transaction/dialogs/date_range_mode_dialog.dart';
+import 'package:smart_money/modules/transaction/screens/transfer_money_screen.dart';
 import 'package:smart_money/modules/ai/screens/ai_chat_screen.dart';
 import 'package:smart_money/core/helpers/format_helper.dart';
 import 'package:smart_money/core/helpers/icon_helper.dart';
@@ -190,6 +191,12 @@ class TransactionAppBar extends StatelessWidget implements PreferredSizeWidget {
               builder: (_) => const DateRangeModeDialog(),
             );
             break;
+          case 'transfer':
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const TransferMoneyScreen()),
+            );
+            break;
         }
       },
       itemBuilder: (context) => [
@@ -221,6 +228,17 @@ class TransactionAppBar extends StatelessWidget implements PreferredSizeWidget {
               Icon(Icons.date_range, color: Colors.white70, size: 20),
               SizedBox(width: 12),
               Text('Time period', style: TextStyle(color: Colors.white)),
+            ],
+          ),
+        ),
+        const PopupMenuDivider(),
+        const PopupMenuItem(
+          value: 'transfer',
+          child: Row(
+            children: [
+              Icon(Icons.send, color: Colors.white70, size: 20),
+              SizedBox(width: 12),
+              Text('Transfer to another wallet', style: TextStyle(color: Colors.white)),
             ],
           ),
         ),

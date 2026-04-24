@@ -797,13 +797,12 @@ public class TransactionServiceImpl implements TransactionService {
             }
         }
 
-        // Bước 1.3: Chặn sửa giao dịch khởi tạo ví/mục tiêu
+        // Bước 1.3: Chặn sửa giao dịch khởi tạo ví
         // Giao dịch khởi tạo (reportable=false, note chứa "Số dư ban đầu") không được phép
         // sửa amount/category/wallet vì sẽ phá vỡ số dư. Chỉ cho phép đặt reminder.
         boolean isInitTransaction = !Boolean.TRUE.equals(transaction.getReportable())
                 && transaction.getNote() != null
-                && (transaction.getNote().equals("Initial balance")
-                        || transaction.getNote().equals("Initial balance for saving goal"));
+                && transaction.getNote().equals("Initial balance");
 
         if (isInitTransaction) {
             if (request.reminderDate() != null) {
@@ -979,13 +978,12 @@ public class TransactionServiceImpl implements TransactionService {
             }
         }
 
-        // Bước 1.6: Chặn xóa giao dịch khởi tạo số dư ví/mục tiêu
+        // Bước 1.6: Chặn xóa giao dịch khởi tạo số dư ví
         // Xóa giao dịch khởi tạo sẽ phá vỡ số dư (revert income → ví âm nếu đã chi tiêu).
         // Không cho phép dù ví mới tạo tháng này.
         boolean isInitTx = !Boolean.TRUE.equals(transaction.getReportable())
                 && transaction.getNote() != null
-                && (transaction.getNote().equals("Initial balance")
-                        || transaction.getNote().equals("Initial balance for saving goal"));
+                && transaction.getNote().equals("Initial balance");
         if (isInitTx) {
             throw new IllegalArgumentException(
                     "Initial balance transaction cannot be deleted. " +

@@ -26,11 +26,6 @@ public class SavingGoalRequest {
     @DecimalMax(value = "1000000000000.00", message = "Target amount must not exceed 1,000 billion VND")
     private BigDecimal targetAmount;
 
-    // Số tiền khởi tạo (nếu có)
-    @PositiveOrZero(message = "Initial amount must be greater than or equal to 0")
-    @DecimalMax(value = "1000000000000.00", message = "Initial amount must not exceed 1,000 billion VND")
-    private BigDecimal initialAmount;
-
     // Currency FK
     @NotBlank(message = "Currency code cannot be empty")
     @Pattern(regexp = "VND", message = "Saving goal currently only supports VND.")
@@ -45,7 +40,4 @@ public class SavingGoalRequest {
 
     private Boolean notified;
     private Boolean reportable;
-
-    // Dùng khi deposit (update) - Có thể bỏ nếu tách API deposit riêng
-    private BigDecimal amount;
 }

@@ -5,7 +5,7 @@
 class TransactionRequest {
   final int? walletId;
   final int? goalId;
-  final double amount;
+  final String amount; // Đổi từ double sang String để tránh precision error
   final int categoryId;
   final String? note;
   final DateTime transDate;

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../modules/budget/providers/budget_provider.dart';
+import '../modules/wallet/providers/wallet_provider.dart';
 import 'home_screen.dart';
 import 'package:smart_money/modules/transaction/screens/transaction_list_screen.dart';
 import 'package:smart_money/modules/transaction/screens/transaction_create_screen.dart';
@@ -233,12 +234,15 @@ class _MainNavigationState extends State<MainNavigation> {
           );
 
           if (result == true && mounted) {
+            // Reload TransactionProvider, WalletProvider, and BudgetProvider
+            final futures = <Future<void>>[
+              context.read<TransactionProvider>().refresh(context),
+              context.read<WalletProvider>().loadAll(context),
+            ];
             if (index == 3) {
-              final budgetProvider = context.read<BudgetProvider>();
-              if (budgetProvider.selectedWalletId != null) {
-                await budgetProvider.refreshAllData();
-              }
+              futures.add(context.read<BudgetProvider>().refreshAllData());
             }
+            await Future.wait(futures);
           }
         },
         child: Material(
