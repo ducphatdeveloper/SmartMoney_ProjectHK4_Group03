@@ -796,6 +796,13 @@ Categories (id:name): %s
     private AiIntent extractIntent(JsonNode node, String userMessage) {
         String msg = userMessage.toLowerCase().trim();
 
+        // Bước 0: [FIX-AI-DOT] Validate message quá ngắn
+        // Nếu message quá ngắn (< 2 ký tự) → GENERAL_CHAT
+        if (msg.isEmpty() || msg.length() < 2) {
+            log.info("[AI] Message quá ngắn → GENERAL_CHAT. Message: '{}'", msg);
+            return AiIntent.GENERAL_CHAT;
+        }
+
         // Bước 1: Ưu tiên kiểm tra reminder trước (tránh bị AI trả intent=advisory nhầm)
         if (isReminderRequest(msg)) {
             log.info("[AI] Phát hiện yêu cầu đặt nhắc nhở → GENERAL_CHAT để xử lý reminder.");
@@ -837,8 +844,22 @@ Categories (id:name): %s
             }
 
             // Bước 6: User hỏi báo cáo/thống kê → VIEW_REPORT.
-            // Guard: chỉ ép khi KHÔNG có số tiền (vì "ăn sáng tháng này 50k" là giao dịch, không phải báo cáo).
             // Guard: chỉ ép khi KHÔNG có budget keyword (ưu tiên budget keyword ở Bước 5)
+            // [FIX-AI-DATE-REPORT] Nếu có report keyword + time cụ thể (ngày tháng) → ưu tiên VIEW_REPORT ngay cả khi có số tiền
+            // VD: "15/04 50k tôi tiêu bao nhiêu" → VIEW_REPORT (không phải ADD_TRANSACTION)
+            boolean hasTimeRef = msg.contains("tháng này") || msg.contains("tuần này") || msg.contains("hôm nay")
+                    || msg.contains("hôm qua") || msg.contains("tháng trước") || msg.contains("tuần trước")
+                    || msg.contains("năm nay") || msg.contains("năm ngoái") || msg.contains("quý này")
+                    || SINGLE_DATE_PATTERN.matcher(msg).find() || DATE_RANGE_PATTERN.matcher(msg).find();
+            boolean hasReportKeywordAndTime = hasReportKeyword(msg) && hasTimeRef;
+
+            if (hasReportKeywordAndTime) {
+                if (intentVal != 2) {
+                    log.warn("[AI] Phát hiện câu hỏi báo cáo có thời gian cụ thể nhưng intent={}. Ép về VIEW_REPORT.", intentVal);
+                    return AiIntent.VIEW_REPORT;
+                }
+            }
+            // Fallback cũ: chỉ ép khi KHÔNG có số tiền
             if (fallbackAmount == null && hasReportKeyword(msg) && !hasBudgetKeyword(msg)) {
                 if (intentVal != 2) {
                     log.warn("[AI] Phát hiện câu hỏi báo cáo nhưng intent={}. Ép về VIEW_REPORT.", intentVal);
@@ -1367,8 +1388,9 @@ Categories (id:name): %s
 
                     // Bước 3.4: Tư vấn dựa trên tình trạng ngân sách
                     if (exceeded) {
+                        // [FIX-BUDGET-AI] Dùng overBudgetAmount thay vì tính thủ công
                         sb.append(String.format("⚠️ Đã vượt ngân sách %,.0f đ! Cần cắt giảm chi tiêu ngay.\n",
-                            spent.subtract(budget.getAmount())));
+                            budget.getOverBudgetAmount()));
                     } else if (warning) {
                         sb.append(String.format("⚠️ Có nguy cơ vượt ngân sách! Nếu tiếp tục chi như hiện tại (%,.0f đ/ngày), bạn sẽ vượt ngân sách.\n",
                             dailyActual));
@@ -1412,6 +1434,31 @@ Categories (id:name): %s
                                 sb.append(String.format("🔥 Chi nhiều nhất: %s (%,.0f đ)\n", 
                                     cat.getCtgName(), catAmount));
                             }
+                        }
+                    }
+
+                    // Bước 3.6: Gợi ý ngân sách dựa trên lịch sử 3 tháng
+                    if (budget.getSuggestedAmount() != null && budget.getSuggestedAmount().compareTo(BigDecimal.ZERO) > 0) {
+                        sb.append(String.format("📊 Dựa trên lịch sử chi tiêu 3 tháng gần nhất:\n"));
+                        sb.append(String.format("• Trung bình chi/ngày: %,.0f đ\n", budget.getSuggestedDailySpend()));
+                        sb.append(String.format("• Ngân sách đề xuất: %,.0f đ\n", budget.getSuggestedAmount()));
+
+                        // So sánh với ngân sách hiện tại
+                        if (budget.getAmount().compareTo(budget.getSuggestedAmount()) < 0) {
+                            sb.append(String.format("💡 Ngân sách hiện tại thấp hơn đề xuất %,.0f đ. Cân nhắc tăng ngân sách để phù hợp với thói quen chi tiêu.\n",
+                                budget.getSuggestedAmount().subtract(budget.getAmount())));
+                        }
+                    }
+
+                    // Bước 3.7: Tham khảo ngân sách cho các period khác
+                    if (budget.getSuggestedMonthlySpend() != null && budget.getSuggestedMonthlySpend().compareTo(BigDecimal.ZERO) > 0) {
+                        sb.append(String.format("📅 Tham khảo ngân sách cho các period:\n"));
+                        if (budget.getSuggestedWeeklySpend() != null) {
+                            sb.append(String.format("• Hàng tuần: %,.0f đ\n", budget.getSuggestedWeeklySpend()));
+                        }
+                        sb.append(String.format("• Hàng tháng: %,.0f đ\n", budget.getSuggestedMonthlySpend()));
+                        if (budget.getSuggestedYearlySpend() != null) {
+                            sb.append(String.format("• Hàng năm: %,.0f đ\n", budget.getSuggestedYearlySpend()));
                         }
                     }
                 } catch (Exception e) {

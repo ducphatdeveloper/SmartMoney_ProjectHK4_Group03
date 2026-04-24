@@ -757,6 +757,29 @@ public class TransactionServiceImpl implements TransactionService {
             }
         }
 
+        // [FIX-TRANSACTION-WALLET-LOCK] Chặn sửa wallet/savinggoal cho tất cả transaction
+        // Lý do: Sửa wallet sẽ làm sai số dư lịch sử, khó truy vết
+        // Giải pháp: User phải xóa giao dịch cũ, tạo giao dịch mới với wallet mới
+        // Ngoại lệ: Transaction liên quan debt → check riêng ở trên (message khác)
+        if (!(transaction.getDebt() != null || isDebtRelatedCategory)) {
+            boolean walletChanged = (request.walletId() != null
+                    && !request.walletId().equals(transaction.getWallet() != null ? transaction.getWallet().getId() : null))
+                    || (request.walletId() == null && transaction.getWallet() != null);
+
+            boolean goalChanged = (request.goalId() != null
+                    && !request.goalId().equals(transaction.getSavingGoal() != null ? transaction.getSavingGoal().getId() : null))
+                    || (request.goalId() == null && transaction.getSavingGoal() != null);
+
+            if (walletChanged) {
+                throw new IllegalArgumentException(
+                        "Cannot change wallet when editing transaction.");
+            }
+            if (goalChanged) {
+                throw new IllegalArgumentException(
+                        "Cannot change saving goal when editing transaction.");
+            }
+        }
+
         // Bước 1.5: Kiểm tra kỳ đã chốt — KHÓA hoàn toàn, không cho sửa giao dịch tháng quá khứ
         if (isPastPeriod(transaction.getTransDate())) {
 
@@ -1065,7 +1088,14 @@ public class TransactionServiceImpl implements TransactionService {
                 wallet.setBalance(newBalance);
             } else {
                 // Giao dịch là CHI → hoàn tiền = cộng số dư ví (add không thể âm)
-                wallet.setBalance(wallet.getBalance().add(transaction.getAmount()));
+                // [FIX-WALLET-MAX] Check balance sau khi cộng không vượt 1000 tỷ
+                BigDecimal newBalance = wallet.getBalance().add(transaction.getAmount());
+                if (newBalance.compareTo(new BigDecimal("1000000000000.00")) > 0) {
+                    throw new IllegalArgumentException(
+                            String.format("Transaction would exceed wallet maximum limit of 1,000 billion VND. Current: %s VND, Transaction: %s VND",
+                                    wallet.getBalance().toPlainString(), transaction.getAmount().toPlainString()));
+                }
+                wallet.setBalance(newBalance);
             }
 
             walletRepository.save(wallet);
@@ -1085,7 +1115,14 @@ public class TransactionServiceImpl implements TransactionService {
                 goal.setCurrentAmount(newAmount);
             } else {
                 // Rút từ mục tiêu (CHI) → hoàn tiền = cộng số tiền mục tiêu (add không thể âm)
-                goal.setCurrentAmount(goal.getCurrentAmount().add(transaction.getAmount()));
+                // [FIX-SAVINGGOAL-MAX] Check không vượt target khi cộng tiền vào savinggoal
+                BigDecimal newAmount = goal.getCurrentAmount().add(transaction.getAmount());
+                if (newAmount.compareTo(goal.getTargetAmount()) > 0) {
+                    throw new IllegalArgumentException(
+                            String.format("Transaction would exceed savinggoal target. Target: %s VND, Current: %s VND, Transaction: %s VND",
+                                    goal.getTargetAmount().toPlainString(), goal.getCurrentAmount().toPlainString(), transaction.getAmount().toPlainString()));
+                }
+                goal.setCurrentAmount(newAmount);
             }
 
             savingGoalRepository.save(goal);
@@ -1140,7 +1177,14 @@ public class TransactionServiceImpl implements TransactionService {
 
         // Bước 3: Cộng/trừ số dư
         if (Boolean.TRUE.equals(isIncome)) {
-            wallet.setBalance(wallet.getBalance().add(amount));      // Thu → Cộng
+            // [FIX-WALLET-MAX] Check balance sau khi cộng không vượt 1000 tỷ
+            BigDecimal newBalance = wallet.getBalance().add(amount);
+            if (newBalance.compareTo(new BigDecimal("1000000000000.00")) > 0) {
+                throw new IllegalArgumentException(
+                        String.format("Transaction would exceed wallet maximum limit of 1,000 billion VND. Current: %s VND, Transaction: %s VND",
+                                wallet.getBalance().toPlainString(), amount.toPlainString()));
+            }
+            wallet.setBalance(newBalance);      // Thu → Cộng
         } else {
             // 3.1 Kiểm tra số dư trước khi trừ (Chặn đứng nếu là Chi tiêu và số dư không đủ)
             if (wallet.getBalance().compareTo(amount) < 0) {

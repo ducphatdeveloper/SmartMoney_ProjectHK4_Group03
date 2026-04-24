@@ -991,15 +991,13 @@ class _TransactionEditScreenState extends State<TransactionEditScreen> {
     );
   }
 
-  // ----- Widget: Row chọn ví -----
+  // ----- Widget: Row hiển thị ví (không cho sửa) -----
   Widget _buildWalletRow() {
     return GestureDetector(
-      // [FIX-SOURCES] Disable tap khi đang load danh sách ví
-      // [FIX-LAG] opaque: toàn bộ vùng row (kể cả padding transparent) nhận hit
-      // Không có behavior này, vùng padding trong suốt sẽ xuyên qua xuống body GestureDetector
-      // gây ra setState rebuild → bottomSheet không kịp mở → phải click 2-3 lần
+      // [FIX-WALLET-LOCK] Chặn sửa wallet/savinggoal khi edit transaction
+      // Backend đã chặn sửa wallet/savinggoal, frontend chỉ hiển thị readonly
       behavior: HitTestBehavior.opaque,
-      onTap: _isLoadingSources ? null : _showSourceBottomSheet,
+      onTap: null, // Disable tap - không cho phép chọn ví khác
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Row(

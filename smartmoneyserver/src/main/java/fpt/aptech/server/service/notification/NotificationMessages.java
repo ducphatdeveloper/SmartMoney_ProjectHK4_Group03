@@ -533,6 +533,20 @@ public final class NotificationMessages {
         return new NotificationContent(title, content);
     }
 
+    /**
+     * Số dư ví vượt quá giới hạn tối đa (1000 tỷ).
+     * Dùng khi: planned transaction hoặc transaction thường làm ví vượt quá 1000 tỷ.
+     */
+    public static NotificationContent walletMaxLimitExceeded(String walletName,
+                                                             BigDecimal currentBalance,
+                                                             BigDecimal transactionAmount) {
+        String title = "Wallet Maximum Limit Exceeded 🚨";
+        String content = String.format(
+                "Wallet \"%s\" would exceed maximum limit of 1,000 billion VND. Current: %s VND, Transaction: %s VND. Transaction skipped.",
+                walletName, CurrencyUtils.formatVND(currentBalance), CurrencyUtils.formatVND(transactionAmount));
+        return new NotificationContent(title, content);
+    }
+
     // ════════════════════════════════════════════════════════════════════════
     // TYPE 7 — EVENTS
     // ════════════════════════════════════════════════════════════════════════
