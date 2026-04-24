@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:smart_money/modules/budget/models/budget_response.dart';
@@ -10,37 +9,6 @@ import 'package:smart_money/core/helpers/icon_helper.dart';
 import 'package:smart_money/modules/budget/widget/budget_filter_tabs.dart';
 import 'package:smart_money/modules/budget/screens/add_budget_screens.dart';
 import 'package:smart_money/modules/wallet/models/wallet_response.dart';
-
-// ── Formatter tự động format số tiền Việt khi nhập ────────────────────────
-class CurrencyInputFormatter extends TextInputFormatter {
-  @override
-  TextEditingValue formatEditUpdate(
-    TextEditingValue oldValue,
-    TextEditingValue newValue,
-  ) {
-    // Loại bỏ tất cả ký tự không phải số
-    String text = newValue.text.replaceAll(RegExp(r'[^\d]'), '');
-    
-    // Nếu rỗng thì trả về
-    if (text.isEmpty) {
-      return newValue.copyWith(text: '');
-    }
-    
-    // Format số với dấu chấm phân cách hàng nghìn
-    final number = int.tryParse(text);
-    if (number == null) {
-      return oldValue;
-    }
-    
-    final format = NumberFormat("#,###", "vi_VN");
-    String formatted = format.format(number);
-    
-    return newValue.copyWith(
-      text: formatted,
-      selection: TextSelection.collapsed(offset: formatted.length),
-    );
-  }
-}
 
 class ExpiredBudgetScreen extends StatefulWidget {
   const ExpiredBudgetScreen({super.key});
@@ -272,9 +240,6 @@ class _ExpiredBudgetScreenState extends State<ExpiredBudgetScreen>
       );
 
       if (success && mounted) {
-        // Xóa ngân sách gốc sau khi clone thành công
-        await provider.deleteBudget(budget.id);
-        
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("Budget cloned successfully")),
         );
@@ -284,172 +249,6 @@ class _ExpiredBudgetScreenState extends State<ExpiredBudgetScreen>
       } else if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("Clone failed")),
-        );
-      }
-    }
-  }
-
-  // ── Gia hạn nhanh ngân sách ─────────────────────────────────────
-  void _renewBudget(BudgetResponse budget) async {
-    final provider = context.read<BudgetProvider>();
-    final wallet = provider.selectedWallet;
-
-    if (wallet == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Wallet not found")),
-      );
-      return;
-    }
-
-    // Tính toán thời gian mới dựa trên budgetType
-    final now = DateTime.now();
-    DateTime newBeginDate, newEndDate;
-    double newAmount = budget.amount;
-
-    switch (budget.budgetType) {
-      case BudgetType.weekly:
-        final startOfNextWeek = now.add(Duration(days: 7 - now.weekday + 1));
-        newBeginDate = startOfNextWeek;
-        newEndDate = startOfNextWeek.add(const Duration(days: 6));
-        break;
-      case BudgetType.monthly:
-        final nextMonth = now.month == 12 ? 1 : now.month + 1;
-        final nextYear = now.month == 12 ? now.year + 1 : now.year;
-        newBeginDate = DateTime(nextYear, nextMonth, 1);
-        newEndDate = DateTime(nextYear, nextMonth + 1, 0);
-        break;
-      case BudgetType.yearly:
-        newBeginDate = DateTime(now.year + 1, 1, 1);
-        newEndDate = DateTime(now.year + 1, 12, 31);
-        break;
-      case BudgetType.custom:
-        final days = budget.endDate.difference(budget.beginDate).inDays;
-        newBeginDate = now;
-        newEndDate = now.add(Duration(days: days));
-        break;
-    }
-
-    // Hiển thị dialog chọn số tiền
-    final format = NumberFormat("#,###", "vi_VN");
-    final amountController = TextEditingController(
-      text: format.format(budget.amount.toInt()),
-    );
-
-    final selectedAmount = await showDialog<double>(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1C1C1E),
-        title: const Text(
-          "Renew budget",
-          style: TextStyle(color: Colors.white),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              "New period: ${DateFormat('dd/MM/yyyy').format(newBeginDate)} - ${DateFormat('dd/MM/yyyy').format(newEndDate)}",
-              style: const TextStyle(color: Colors.grey, fontSize: 12),
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              "Budget amount:",
-              style: TextStyle(color: Colors.white),
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: amountController,
-              keyboardType: TextInputType.number,
-              style: const TextStyle(color: Colors.white),
-              inputFormatters: [CurrencyInputFormatter()],
-              decoration: InputDecoration(
-                hintText: format.format(budget.amount.toInt()),
-                hintStyle: TextStyle(color: Colors.grey.shade600),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                suffixText: 'đ',
-                suffixStyle: const TextStyle(color: Colors.grey),
-              ),
-            ),
-            if (budget.suggestedAmount > 0) ...[
-              const SizedBox(height: 8),
-              GestureDetector(
-                onTap: () {
-                  amountController.text = format.format(budget.suggestedAmount.toInt());
-                },
-                child: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.amber.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.amber),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.lightbulb, color: Colors.amber, size: 16),
-                      const SizedBox(width: 8),
-                      Text(
-                        "Suggested: ${formatMoney(budget.suggestedAmount)}",
-                        style: const TextStyle(color: Colors.amber, fontSize: 12),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, null),
-            child: const Text(
-              "Cancel",
-              style: TextStyle(color: Colors.grey),
-            ),
-          ),
-          TextButton(
-            onPressed: () {
-              // Loại bỏ dấu phân cách hàng nghìn trước khi parse
-              final cleanText = amountController.text.replaceAll(RegExp(r'[^\d]'), '');
-              final amount = double.tryParse(cleanText);
-              Navigator.pop(context, amount);
-            },
-            child: const Text(
-              "Renew",
-              style: TextStyle(color: Colors.green),
-            ),
-          ),
-        ],
-      ),
-    );
-
-    if (selectedAmount != null && selectedAmount! > 0 && mounted) {
-      // Dùng API update để gia hạn
-      final success = await provider.updateBudget(
-        budget.id,
-        BudgetRequest(
-          walletId: wallet.id,
-          amount: selectedAmount!,
-          beginDate: newBeginDate,
-          endDate: newEndDate,
-          repeating: budget.repeating,
-          allCategories: budget.allCategories,
-          categoryId: budget.categories.isNotEmpty ? budget.categories.first.id : null,
-          budgetType: budget.budgetType.apiValue,
-        ),
-      );
-
-      if (success && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Budget renewed successfully")),
-        );
-        // Refresh lại danh sách ngân sách hết hạn và ngân sách active
-        await provider.refreshBudgets();
-        await provider.loadExpiredBudgets(walletId: wallet.id);
-      } else if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Renewal failed")),
         );
       }
     }
@@ -631,18 +430,6 @@ class _ExpiredBudgetScreenState extends State<ExpiredBudgetScreen>
                 ),
               ),
               const SizedBox(width: 8),
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: () => _renewBudget(b),
-                  icon: const Icon(Icons.refresh, size: 16),
-                  label: const Text("Renew", style: TextStyle(fontSize: 12)),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.green,
-                    side: const BorderSide(color: Colors.green),
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                  ),
-                ),
-              ),
               Expanded(
                 child: OutlinedButton.icon(
                   onPressed: () => _deleteBudget(b),
