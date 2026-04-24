@@ -527,7 +527,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
             child: CircleAvatar(
               radius: 20,
               backgroundColor: const Color(0xFF21262D),
-              backgroundImage: const AssetImage('assets/images/logo.png'),
+              backgroundImage: const AssetImage('assets/icons/ai.png'),
             ),
           ),
           // Message bubble
@@ -745,7 +745,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
           child: CircleAvatar(
             radius: 20,
             backgroundColor: const Color(0xFF21262D),
-            backgroundImage: const AssetImage('assets/images/logo.png'),
+            backgroundImage: const AssetImage('assets/icons/ai.png'),
           ),
         ),
         // Dots animation
