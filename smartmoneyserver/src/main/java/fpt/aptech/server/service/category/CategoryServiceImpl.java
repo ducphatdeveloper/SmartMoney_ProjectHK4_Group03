@@ -76,10 +76,10 @@ public class CategoryServiceImpl implements CategoryService {
     public List<CategoryResponse> getCategoriesForMerge(Integer accountId, Boolean ctgType) {
         List<Category> entities;
         if (ctgType) { // Nếu là Khoản Thu
-            List<String> incomeExclusions = List.of("Đi vay", "Thu nợ");
+            List<String> incomeExclusions = List.of("Borrowing", "Debt Collection");
             entities = categoryRepository.findAllIncomeCategories(accountId, incomeExclusions);
         } else { // Nếu là Khoản Chi
-            List<String> expenseExclusions = List.of("Cho vay", "Trả nợ");
+            List<String> expenseExclusions = List.of("Lending", "Debt Repayment");
             entities = categoryRepository.findAllExpenseCategories(accountId, expenseExclusions);
         }
         return categoryMapper.toDtoList(entities);
@@ -176,37 +176,37 @@ public class CategoryServiceImpl implements CategoryService {
 
             // ── Tab KHOẢN CHI (Tạo giao dịch) ────────────────────────────────────────
             // Hiển thị tất cả danh mục CHI của hệ thống + user
-            // Loại trừ "Cho vay", "Trả nợ" vì 2 mục này thuộc tab riêng (CHO VAY)
+            // Loại trừ "Lending", "Debt Repayment" vì 2 mục này thuộc tab riêng (CHO VAY)
             case "expense":
-                List<String> expenseExclusions = List.of("Cho vay", "Trả nợ");
+                List<String> expenseExclusions = List.of("Lending", "Debt Repayment");
                 entities = categoryRepository.findAllExpenseCategories(accountId, expenseExclusions);
                 break;
 
             // ── Tab KHOẢN THU (Tạo giao dịch) ────────────────────────────────────────
             // Hiển thị tất cả danh mục THU của hệ thống + user
-            // Loại trừ "Đi vay", "Thu nợ" vì 2 mục này thuộc tab riêng (VAY/NỢ)
+            // Loại trừ "Borrowing", "Debt Collection" vì 2 mục này thuộc tab riêng (VAY/NỢ)
             case "income":
-                List<String> incomeExclusions = List.of("Đi vay", "Thu nợ");
+                List<String> incomeExclusions = List.of("Borrowing", "Debt Collection");
                 entities = categoryRepository.findAllIncomeCategories(accountId, incomeExclusions);
                 break;
 
             // ── Tab VAY/NỢ (Tạo giao dịch) ───────────────────────────────────────────
             // Hiển thị đủ 4 danh mục nợ/vay của hệ thống:
-            //   CHI: Cho vay (19), Trả nợ (22)
-            //   THU: Đi vay  (20), Thu nợ (21)
+            //   CHI: Lending (19), Debt Repayment (22)
+            //   THU: Borrowing (20), Debt Collection (21)
             case "debt":
-                List<String> debtNames = List.of("Cho vay", "Đi vay", "Thu nợ", "Trả nợ");
+                List<String> debtNames = List.of("Lending", "Borrowing", "Debt Collection", "Debt Repayment");
                 entities = categoryRepository.findDebtAndLoanCategories(debtNames);
                 break;
 
             // ── Tab CHO VAY (Chọn nhóm khi tạo Ngân sách) ────────────────────────────
             // Chỉ hiển thị 2 danh mục CHI thuộc nhóm vay/nợ:
-            //   Cho vay (19) — tiền tôi cho người khác vay
-            //   Trả nợ  (22) — tiền tôi trả lại người đã cho tôi vay
-            // Không hiển thị "Đi vay", "Thu nợ" vì đó là THU, ngân sách chỉ quản lý CHI
+            //   Lending (19) — tiền tôi cho người khác vay
+            //   Debt Repayment (22) — tiền tôi trả lại người đã cho tôi vay
+            // Không hiển thị "Borrowing", "Debt Collection" vì đó là THU, ngân sách chỉ quản lý CHI
             case "lending":
-                // Tab "CHO VAY" trong Budget picker — chỉ Cho vay + Trả nợ
-                List<String> lendingNames = List.of("Cho vay", "Trả nợ");
+                // Tab "CHO VAY" trong Budget picker — chỉ Lending + Debt Repayment
+                List<String> lendingNames = List.of("Lending", "Debt Repayment");
                 entities = categoryRepository.findDebtAndLoanCategories(lendingNames);
                 break;
             default:
@@ -245,11 +245,11 @@ public class CategoryServiceImpl implements CategoryService {
     public List<CategoryResponse> getParentCategories(Integer accountId, Boolean ctgType) {
         List<Category> entities;
         if (ctgType) { // Nếu là Khoản Thu
-            entities = categoryRepository.findIncomeParents(accountId, "Lương");
+            entities = categoryRepository.findIncomeParents(accountId, "Salary");
         } else { // Nếu là Khoản Chi
             List<String> excludedNames = List.of(
-                    "Các chi phí khác", "Tiền chuyển đi", "Trả lãi",
-                    "Cho vay", "Đi vay", "Thu nợ", "Trả nợ"
+                    "Other Expenses", "Transfer Out", "Interest Payment",
+                    "Lending", "Borrowing", "Debt Collection", "Debt Repayment"
             );
             entities = categoryRepository.findExpenseParents(accountId, excludedNames);
         }
