@@ -63,10 +63,15 @@ class EditEventScreenState extends State<EditEventScreen> {
 
   // ================= DATE PICKER =================
   Future<void> _pickDate() async {
+    final DateTime now = DateTime.now();
+    // Lấy mốc thời gian bắt đầu của ngày hôm nay (00:00:00) để so sánh chính xác
+    final DateTime today = DateTime(now.year, now.month, now.day);
+
     final picked = await showDatePicker(
       context: context,
-      initialDate: _endDate ?? DateTime.now(),
-      firstDate: DateTime(2000),
+      // Nếu ngày hiện tại của event đã là quá khứ, hãy để initialDate là today
+      initialDate: _endDate!.isBefore(today) ? today : _endDate!,
+      firstDate: today, // 🔥 CHẶN: Không cho phép chọn ngày trước ngày hôm nay
       lastDate: DateTime(2100),
       builder: (context, child) {
         return Theme(
@@ -88,6 +93,9 @@ class EditEventScreenState extends State<EditEventScreen> {
   // ================= UPDATE LOGIC =================
   Future<void> _update() async {
     final name = _nameController.text.trim();
+    final DateTime now = DateTime.now();
+    final DateTime today = DateTime(now.year, now.month, now.day);
+
     if (name.isEmpty) {
       _showError("Event name cannot be empty");
       return;
@@ -96,6 +104,13 @@ class EditEventScreenState extends State<EditEventScreen> {
       _showError("Please select an end date");
       return;
     }
+
+    // 🔥 KIỂM TRA: Đảm bảo ngày kết thúc không phải là quá khứ trước khi gửi lên server
+    if (_endDate!.isBefore(today)) {
+      _showError("End date cannot be in the past");
+      return;
+    }
+
     if (_isSaving) return;
 
     setState(() => _isSaving = true);

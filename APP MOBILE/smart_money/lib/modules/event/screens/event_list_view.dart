@@ -10,7 +10,7 @@ import 'event_detail_screen.dart';
 
 class EventListView extends StatefulWidget {
   final String? accessToken;
-  final Function(bool)? onTabChanged; // 🔥 Thêm callback để báo về EventScreen
+  final Function(bool)? onTabChanged;
 
   const EventListView({super.key, this.accessToken, this.onTabChanged});
 
@@ -19,7 +19,6 @@ class EventListView extends StatefulWidget {
 }
 
 class _EventListViewState extends State<EventListView> {
-
   @override
   void initState() {
     super.initState();
@@ -30,8 +29,23 @@ class _EventListViewState extends State<EventListView> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         final provider = context.read<EventProvider>();
-        // Lấy dữ liệu theo tab hiện tại đang đứng
         provider.loadEvents(provider.currentFilter, forceRefresh: true);
+      }
+    });
+  }
+
+  // Hàm xử lý chuyển đổi trạng thái và nhảy tab
+  void _autoToggleStatus(int eventId, bool targetStatusIsFinished) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      final provider = context.read<EventProvider>();
+
+      // Cập nhật trạng thái lên server
+      await provider.toggleStatus(eventId);
+
+      // Chuyển tab tương ứng: true -> Finished tab, false -> Active tab
+      if (widget.onTabChanged != null) {
+        widget.onTabChanged!(targetStatusIsFinished);
       }
     });
   }
@@ -98,15 +112,35 @@ class _EventListViewState extends State<EventListView> {
   }
 
   Widget _buildItem(BuildContext context, EventResponse e, String iconUrl) {
-    final bool isFinished = e.finished ?? false;
     final now = DateTime.now();
-    double timeProgress = 0;
+    final today = DateTime(now.year, now.month, now.day);
+    final eventEnd = DateTime(e.endDate.year, e.endDate.month, e.endDate.day);
 
+    bool isFinished = e.finished ?? false;
+
+    // --- FIX LOGIC NHẢY TAB ---
+    // Chỉ tự động đóng nếu: Đã đến/quá hạn VÀ trạng thái hiện tại vẫn là Active
+    bool isPastOrToday = eventEnd.isBefore(today) || eventEnd.isAtSameMomentAs(today);
+
+    if (isPastOrToday && !isFinished) {
+      isFinished = true;
+      _autoToggleStatus(e.id, true);
+    }
+    // CHÚ Ý: Bỏ qua logic "isFuture && isFinished" để tránh tự động mở lại
+    // các event người dùng đã chủ động nhấn "Complete" sớm.
+
+    // Tính toán tiến độ thời gian
+    double timeProgress = 0;
     if (e.beginDate != null) {
       final totalDays = e.endDate.difference(e.beginDate!).inDays;
       final elapsedDays = now.difference(e.beginDate!).inDays;
-      if (totalDays > 0) timeProgress = (elapsedDays / totalDays).clamp(0.0, 1.0);
+      if (totalDays > 0) {
+        timeProgress = (elapsedDays / totalDays).clamp(0.0, 1.0);
+      } else {
+        timeProgress = 1.0;
+      }
     }
+    if (isPastOrToday) timeProgress = 1.0;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 20),
@@ -125,16 +159,19 @@ class _EventListViewState extends State<EventListView> {
         borderRadius: BorderRadius.circular(28),
         child: InkWell(
           onTap: () async {
-            await Navigator.push(
+            final result = await Navigator.push(
               context,
               MaterialPageRoute(
                 builder: (_) => EventDetailScreen(
                   event: e,
-                  onTabChanged: widget.onTabChanged, // 🔥 Truyền tiếp xuống Detail
+                  onTabChanged: widget.onTabChanged,
                 ),
               ),
             );
-            _handleRefresh();
+            // Nếu có thay đổi trạng thái từ màn hình chi tiết, refresh lại danh sách
+            if (result == true) {
+              _handleRefresh();
+            }
           },
           child: Column(
             children: [
@@ -176,7 +213,7 @@ class _EventListViewState extends State<EventListView> {
                 ),
               ),
               _buildFinanceRow(e),
-              _buildProgressBar(e, timeProgress),
+              _buildProgressBar(isFinished, timeProgress),
             ],
           ),
         ),
@@ -253,7 +290,7 @@ class _EventListViewState extends State<EventListView> {
     );
   }
 
-  Widget _buildProgressBar(EventResponse e, double timeProgress) {
+  Widget _buildProgressBar(bool finished, double timeProgress) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
       child: Column(
@@ -271,7 +308,7 @@ class _EventListViewState extends State<EventListView> {
             child: LinearProgressIndicator(
               value: timeProgress,
               backgroundColor: Colors.white.withOpacity(0.05),
-              color: (e.finished ?? false) ? Colors.blueAccent : Colors.greenAccent,
+              color: finished ? Colors.blueAccent : Colors.greenAccent,
               minHeight: 4,
             ),
           )
