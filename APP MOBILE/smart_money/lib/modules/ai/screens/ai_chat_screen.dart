@@ -341,18 +341,18 @@ class _AiChatScreenState extends State<AiChatScreen> {
                               ),
                             );
                           }
-                          
+
                           // Điều chỉnh index vì đã thêm suggestion chips
                           final adjustedIndex = index - 1;
-                          
+
                           // Hiển thị typing indicator ở cuối nếu đang loading
                           if (adjustedIndex == provider.chatHistory.length && provider.isLoading) {
                             return _buildTypingIndicator();
                           }
-                          
+
                           // Hiển thị theo thứ tự bình thường - tin nhắn cũ nhất ở trên cùng, mới nhất ở dưới cùng
                           if (adjustedIndex >= provider.chatHistory.length) return const SizedBox();
-                          
+
                           final message = provider.chatHistory[adjustedIndex];
                           return Column(
                             children: [
@@ -425,6 +425,7 @@ class _AiChatScreenState extends State<AiChatScreen> {
             ],
           );
         },
+        ),
       ),
       floatingActionButton: _showScrollToBottom
           ? FloatingActionButton(
