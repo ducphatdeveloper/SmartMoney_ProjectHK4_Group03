@@ -233,6 +233,164 @@ class _TransferMoneyScreenState extends State<TransferMoneyScreen> {
     }
   }
 
+  /// [4.1] Hiển thị dialog xác nhận chuyển tiền
+  Future<void> _showConfirmDialog() async {
+    // Bước 4.1.1: Validate trước khi hiển thị dialog
+    if (_fromSource == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select source')),
+      );
+      return;
+    }
+    if (_toSource == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select destination')),
+      );
+      return;
+    }
+    if (_amountController.text.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter amount')),
+      );
+      return;
+    }
+    if (_selectedDate == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select date')),
+      );
+      return;
+    }
+
+    final amount = double.tryParse(_amountController.text);
+    if (amount == null || amount <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Invalid amount')),
+      );
+      return;
+    }
+
+    final fee = _feeController.text.isEmpty ? 0.0 : double.tryParse(_feeController.text) ?? 0.0;
+    final total = amount + fee;
+
+    // Bước 4.1.2: Hiển thị confirm dialog
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.grey[900],
+        title: const Text(
+          'Confirm Transfer',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Nguồn chuyển
+            const Text(
+              'From:',
+              style: TextStyle(color: Colors.grey, fontSize: 14),
+            ),
+            Row(
+              children: [
+                if (_fromSource != null) ...[
+                  _buildSourceIcon(_fromSource!),
+                  const SizedBox(width: 8),
+                ],
+                Expanded(
+                  child: Text(
+                    _fromSource?.name ?? '',
+                    style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            // Đích đến
+            const Text(
+              'To:',
+              style: TextStyle(color: Colors.grey, fontSize: 14),
+            ),
+            Row(
+              children: [
+                if (_toSource != null) ...[
+                  _buildSourceIcon(_toSource!),
+                  const SizedBox(width: 8),
+                ],
+                Expanded(
+                  child: Text(
+                    _toSource?.name ?? '',
+                    style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+
+            // Số tiền chuyển
+            const Text(
+              'Amount:',
+              style: TextStyle(color: Colors.grey, fontSize: 14),
+            ),
+            Text(
+              FormatHelper.formatVND(amount),
+              style: const TextStyle(color: Colors.green, fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+
+            // Phí chuyển khoản
+            if (fee > 0) ...[
+              const Text(
+                'Fee:',
+                style: TextStyle(color: Colors.grey, fontSize: 14),
+              ),
+              Text(
+                FormatHelper.formatVND(fee),
+                style: const TextStyle(color: Colors.orange, fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+            ],
+
+            // Tổng
+            const Divider(color: Colors.white24),
+            const Text(
+              'Total:',
+              style: TextStyle(color: Colors.grey, fontSize: 14),
+            ),
+            Text(
+              FormatHelper.formatVND(total),
+              style: const TextStyle(color: Colors.red, fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(color: Colors.grey),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green,
+            ),
+            child: const Text(
+              'Confirm',
+              style: TextStyle(color: Colors.white),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    // Bước 4.1.3: Nếu user xác nhận → thực hiện chuyển tiền
+    if (confirmed == true) {
+      _handleTransfer();
+    }
+  }
+
   /// [5] Xử lý chuyển tiền - tạo 3 transaction (chuẩn kế toán)
   Future<void> _handleTransfer() async {
     // Bước 5.1: Validate From
@@ -637,7 +795,7 @@ class _TransferMoneyScreenState extends State<TransferMoneyScreen> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: _isProcessing ? null : _handleTransfer,
+                onPressed: _isProcessing ? null : _showConfirmDialog,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.green,
                   padding: const EdgeInsets.symmetric(vertical: 16),
